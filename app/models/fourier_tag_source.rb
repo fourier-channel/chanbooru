@@ -32,10 +32,27 @@ class FourierTagSource < ApplicationRecord
 
   # The visual bucket for the redesigned tag UI.
   def bucket
+    return :pending if pending?
     return :meta if meta?
     return :both if both?
     return :creator if creator?
 
     :auto
+  end
+
+  # Upsert provenance for a post from a {creator, auto, both, meta, pending}
+  # partition (as bmb sends it). Idempotent per (post, tag).
+  def self.record_partition!(post, sources, user)
+    now = Time.zone.now
+    rows = []
+    fetch = ->(k) { sources[k.to_s] || sources[k.to_sym] || [] }
+    add = ->(tags, source, status) { tags.each { |t| rows << { post_id: post.id, tag: t.to_s, source: source, status: status, added_by: user&.id, created_at: now } } }
+    add.call(fetch.call(:both),    CREATOR | AUTO, APPROVED)
+    add.call(fetch.call(:creator), CREATOR,        APPROVED)
+    add.call(fetch.call(:auto),    AUTO,           APPROVED)
+    add.call(fetch.call(:meta),    META,           APPROVED)
+    add.call(fetch.call(:pending), HUMAN,          PENDING)
+    upsert_all(rows.uniq { |r| r[:tag] }, unique_by: %i[post_id tag]) if rows.any?
+    rows.size
   end
 end
