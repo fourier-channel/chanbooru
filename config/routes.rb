@@ -12,6 +12,10 @@ Rails.application.routes.draw do
     get :random, on: :collection
   end
 
+  # fourier: bmb records per-tag provenance for a post (redesigned tag buckets).
+  # NOT under /fourier/ -- that prefix is reserved at nginx for the media gate.
+  post "posts/:post_id/tag_sources", to: "fourier_tag_sources#create"
+
   resources :autocomplete, only: [:index]
 
   # XXX This comes *after* defining posts above because otherwise the paginator
