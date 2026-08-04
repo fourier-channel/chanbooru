@@ -833,6 +833,40 @@ ALTER SEQUENCE public.forum_topics_id_seq OWNED BY public.forum_topics.id;
 
 
 --
+-- Name: fourier_tag_sources; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.fourier_tag_sources (
+    id bigint NOT NULL,
+    post_id bigint NOT NULL,
+    tag character varying NOT NULL,
+    source integer NOT NULL,
+    status integer DEFAULT 0 NOT NULL,
+    added_by bigint,
+    created_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: fourier_tag_sources_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.fourier_tag_sources_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: fourier_tag_sources_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.fourier_tag_sources_id_seq OWNED BY public.fourier_tag_sources.id;
+
+
+--
 -- Name: good_job_batches; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2871,6 +2905,13 @@ ALTER TABLE ONLY public.forum_topics ALTER COLUMN id SET DEFAULT nextval('public
 
 
 --
+-- Name: fourier_tag_sources id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fourier_tag_sources ALTER COLUMN id SET DEFAULT nextval('public.fourier_tag_sources_id_seq'::regclass);
+
+
+--
 -- Name: ip_bans id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3301,6 +3342,14 @@ ALTER TABLE ONLY public.forum_topic_visits
 
 ALTER TABLE ONLY public.forum_topics
     ADD CONSTRAINT forum_topics_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: fourier_tag_sources fourier_tag_sources_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fourier_tag_sources
+    ADD CONSTRAINT fourier_tag_sources_pkey PRIMARY KEY (id);
 
 
 --
@@ -4459,6 +4508,20 @@ CREATE INDEX index_forum_topics_on_title_tsvector ON public.forum_topics USING g
 --
 
 CREATE INDEX index_forum_topics_on_updated_at ON public.forum_topics USING btree (updated_at);
+
+
+--
+-- Name: index_fourier_tag_sources_on_post_id_and_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_fourier_tag_sources_on_post_id_and_status ON public.fourier_tag_sources USING btree (post_id, status);
+
+
+--
+-- Name: index_fourier_tag_sources_on_post_id_and_tag; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_fourier_tag_sources_on_post_id_and_tag ON public.fourier_tag_sources USING btree (post_id, tag);
 
 
 --
@@ -7150,12 +7213,21 @@ ALTER TABLE ONLY public.user_upgrades
 
 
 --
+-- Name: fourier_tag_sources fk_rails_fb9a6d5389; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fourier_tag_sources
+    ADD CONSTRAINT fk_rails_fb9a6d5389 FOREIGN KEY (post_id) REFERENCES public.posts(id);
+
+
+--
 -- PostgreSQL database dump complete
 --
 
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260804064839'),
 ('20260323172054'),
 ('20260323172053'),
 ('20260323172052'),
@@ -7505,3 +7577,4 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20100205162521'),
 ('20100204214746'),
 ('20100204211522');
+
