@@ -12,9 +12,11 @@ Rails.application.routes.draw do
     get :random, on: :collection
   end
 
-  # fourier: bmb records per-tag provenance for a post (redesigned tag buckets).
+  # fourier: canonical tag provenance for a post (redesigned tag buckets, the hub).
   # NOT under /fourier/ -- that prefix is reserved at nginx for the media gate.
+  # show = identity-gated read (private creator tags only to the creator/mod).
   post "posts/:post_id/tag_sources", to: "fourier_tag_sources#create"
+  get  "posts/:post_id/tag_sources", to: "fourier_tag_sources#show"
 
   resources :autocomplete, only: [:index]
 

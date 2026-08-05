@@ -27,5 +27,21 @@ class FourierTagSourceTest < ActiveSupport::TestCase
       FourierTagSource.record_partition!(@post, { "creator" => ["c"] }, @user)
       assert_equal 5, FourierTagSource.where(post_id: @post.id).count
     end
+
+    should "keep creator-only tags private and out of the public projection" do
+      FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => ["a"], "both" => ["b"], "meta" => ["highres"] }, @user)
+      assert_equal false, FourierTagSource.find_by(post_id: @post.id, tag: "secret").public
+      proj = FourierTagSource.matrix_projection(@post)
+      refute_includes proj[:tags], "secret"
+      assert_empty proj[:sources][:creator]
+      assert_includes proj[:tags], "a"
+    end
+
+    should "surface private tags to the creator but not to anonymous viewers" do
+      FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => ["a"] }, @user)
+      assert_includes FourierTagSource.for_viewer(@post, @user)[:creator], "secret"
+      assert_empty FourierTagSource.for_viewer(@post, nil)[:creator]
+      assert_includes FourierTagSource.for_viewer(@post, nil)[:auto], "a"
+    end
   end
 end
