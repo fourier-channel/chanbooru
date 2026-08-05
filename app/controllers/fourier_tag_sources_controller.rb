@@ -15,7 +15,15 @@ class FourierTagSourcesController < ApplicationController
     post = Post.find(params[:post_id])
     sources = params.require(:fourier_tag_source).permit(creator: [], auto: [], both: [], meta: [], pending: []).to_h
     FourierTagSource.record_partition!(post, sources, CurrentUser.user)
+    FourierTagPropagation.fan_out!(post) # single write path -> fan out the public projection
 
     render json: { post_id: post.id, recorded: FourierTagSource.where(post_id: post.id).count }, status: :ok
+  end
+
+  # Identity-gated read: private creator tags surface only to the creator or a mod.
+  def show
+    skip_authorization
+    post = Post.find(params[:post_id])
+    render json: FourierTagSource.for_viewer(post, CurrentUser.user), status: :ok
   end
 end

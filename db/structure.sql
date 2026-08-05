@@ -843,7 +843,8 @@ CREATE TABLE public.fourier_tag_sources (
     source integer NOT NULL,
     status integer DEFAULT 0 NOT NULL,
     added_by bigint,
-    created_at timestamp(6) without time zone NOT NULL
+    created_at timestamp(6) without time zone NOT NULL,
+    public boolean DEFAULT true NOT NULL
 );
 
 
@@ -4511,6 +4512,13 @@ CREATE INDEX index_forum_topics_on_updated_at ON public.forum_topics USING btree
 
 
 --
+-- Name: index_fourier_tag_sources_on_post_id_and_public; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_fourier_tag_sources_on_post_id_and_public ON public.fourier_tag_sources USING btree (post_id, public);
+
+
+--
 -- Name: index_fourier_tag_sources_on_post_id_and_status; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7227,6 +7235,7 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260805014433'),
 ('20260804064839'),
 ('20260323172054'),
 ('20260323172053'),
