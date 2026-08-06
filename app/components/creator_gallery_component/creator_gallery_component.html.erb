@@ -1,0 +1,47 @@
+<section class="modcreator modcreator--<%= style %>">
+  <header class="modcreator-head">
+    <div class="modcreator-id">
+      <h1 class="modcreator-title"><%= gallery.title.presence || gallery.slug %></h1>
+      <span class="modcreator-handle"><%= gallery.matrix_id %></span>
+    </div>
+    <div class="modcreator-actions">
+      <a class="modcreator-msg" href="<%= matrix_url %>" target="_blank" rel="noopener noreferrer">Message on Matrix</a>
+      <% if can_edit %>
+        <%= link_to "Edit page", edit_creator_gallery_path(gallery), class: "modcreator-edit" %>
+      <% end %>
+    </div>
+  </header>
+
+  <% if gallery.bio.present? %>
+    <p class="modcreator-bio"><%= gallery.bio %></p>
+  <% end %>
+
+  <% if messages.any? %>
+    <div class="modcreator-blog">
+      <% messages.each do |m| %>
+        <article class="modcreator-post">
+          <time class="modcreator-post-time"><%= m.created_at.strftime("%Y-%m-%d") %></time>
+          <p class="modcreator-post-body"><%= m.body %></p>
+        </article>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% posts = featured_posts %>
+  <% if posts.any? %>
+    <div class="modcreator-gallery">
+      <% posts.each_with_index do |post, i| %>
+        <a class="modcreator-card<%= " is-spotlight" if style == "spotlight" && i.zero? %>" href="<%= post_link(post) %>" title="post #<%= post.id %>">
+          <% t = thumb(post) %>
+          <% if t %>
+            <img class="modcreator-thumb" src="<%= t %>" alt="" loading="lazy">
+          <% else %>
+            <span class="modcreator-thumb modcreator-thumb--gated">gated</span>
+          <% end %>
+        </a>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="modcreator-empty">No featured posts yet.</p>
+  <% end %>
+</section>

@@ -19,6 +19,13 @@ Rails.application.routes.draw do
   get  "posts/:post_id/tag_sources", to: "fourier_tag_sources#show"
   get  "posts/:post_id/modulation",  to: "modulation#show" # client-side nav payload
 
+  # Creator Gallery -- reads public, writes gated to the page's Matrix identity.
+  resources :creator_galleries, path: "creators", param: :slug, only: %i[index show new create edit update]
+  post   "creators/:slug/posts",                to: "creator_galleries#add_post",         as: :creator_gallery_add_post
+  delete "creators/:slug/posts/:post_id",       to: "creator_galleries#remove_post",      as: :creator_gallery_remove_post
+  post   "creators/:slug/messages",             to: "creator_galleries#create_message",   as: :creator_gallery_add_message
+  delete "creators/:slug/messages/:message_id", to: "creator_galleries#destroy_message",  as: :creator_gallery_remove_message
+
   resources :autocomplete, only: [:index]
 
   # XXX This comes *after* defining posts above because otherwise the paginator

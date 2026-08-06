@@ -517,6 +517,108 @@ ALTER SEQUENCE public.comments_id_seq OWNED BY public.comments.id;
 
 
 --
+-- Name: creator_galleries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.creator_galleries (
+    id bigint NOT NULL,
+    slug character varying NOT NULL,
+    matrix_id character varying NOT NULL,
+    user_id bigint,
+    title character varying DEFAULT ''::character varying NOT NULL,
+    bio text DEFAULT ''::text NOT NULL,
+    style character varying DEFAULT 'grid'::character varying NOT NULL,
+    matrix_contact character varying DEFAULT ''::character varying NOT NULL,
+    settings jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: creator_galleries_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.creator_galleries_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_galleries_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.creator_galleries_id_seq OWNED BY public.creator_galleries.id;
+
+
+--
+-- Name: creator_gallery_messages; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.creator_gallery_messages (
+    id bigint NOT NULL,
+    creator_gallery_id bigint NOT NULL,
+    body text DEFAULT ''::text NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: creator_gallery_messages_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.creator_gallery_messages_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_gallery_messages_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.creator_gallery_messages_id_seq OWNED BY public.creator_gallery_messages.id;
+
+
+--
+-- Name: creator_gallery_posts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.creator_gallery_posts (
+    id bigint NOT NULL,
+    creator_gallery_id bigint NOT NULL,
+    post_id bigint NOT NULL,
+    "position" integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: creator_gallery_posts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.creator_gallery_posts_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_gallery_posts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.creator_gallery_posts_id_seq OWNED BY public.creator_gallery_posts.id;
+
+
+--
 -- Name: dmails; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2843,6 +2945,27 @@ ALTER TABLE ONLY public.comments ALTER COLUMN id SET DEFAULT nextval('public.com
 
 
 --
+-- Name: creator_galleries id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_galleries ALTER COLUMN id SET DEFAULT nextval('public.creator_galleries_id_seq'::regclass);
+
+
+--
+-- Name: creator_gallery_messages id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_gallery_messages ALTER COLUMN id SET DEFAULT nextval('public.creator_gallery_messages_id_seq'::regclass);
+
+
+--
+-- Name: creator_gallery_posts id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_gallery_posts ALTER COLUMN id SET DEFAULT nextval('public.creator_gallery_posts_id_seq'::regclass);
+
+
+--
 -- Name: dmails id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3271,6 +3394,30 @@ ALTER TABLE ONLY public.comment_votes
 
 ALTER TABLE ONLY public.comments
     ADD CONSTRAINT comments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: creator_galleries creator_galleries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_galleries
+    ADD CONSTRAINT creator_galleries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: creator_gallery_messages creator_gallery_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_gallery_messages
+    ADD CONSTRAINT creator_gallery_messages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: creator_gallery_posts creator_gallery_posts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_gallery_posts
+    ADD CONSTRAINT creator_gallery_posts_pkey PRIMARY KEY (id);
 
 
 --
@@ -4159,6 +4306,55 @@ CREATE INDEX index_completed_user_upgrades_on_created_at ON public.user_upgrades
 --
 
 CREATE INDEX index_completed_user_upgrades_on_updater_id_and_created_at ON public.user_upgrades USING btree (purchaser_id, created_at) WHERE (status = ANY (ARRAY[20, 30]));
+
+
+--
+-- Name: index_creator_galleries_on_matrix_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_creator_galleries_on_matrix_id ON public.creator_galleries USING btree (matrix_id);
+
+
+--
+-- Name: index_creator_galleries_on_slug; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_creator_galleries_on_slug ON public.creator_galleries USING btree (slug);
+
+
+--
+-- Name: index_creator_galleries_on_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_galleries_on_user_id ON public.creator_galleries USING btree (user_id);
+
+
+--
+-- Name: index_creator_gallery_messages_on_creator_gallery_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_gallery_messages_on_creator_gallery_id ON public.creator_gallery_messages USING btree (creator_gallery_id);
+
+
+--
+-- Name: index_creator_gallery_posts_on_creator_gallery_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_gallery_posts_on_creator_gallery_id ON public.creator_gallery_posts USING btree (creator_gallery_id);
+
+
+--
+-- Name: index_creator_gallery_posts_on_creator_gallery_id_and_post_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_creator_gallery_posts_on_creator_gallery_id_and_post_id ON public.creator_gallery_posts USING btree (creator_gallery_id, post_id);
+
+
+--
+-- Name: index_creator_gallery_posts_on_post_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_gallery_posts_on_post_id ON public.creator_gallery_posts USING btree (post_id);
 
 
 --
@@ -6485,6 +6681,14 @@ ALTER TABLE ONLY public.tag_aliases
 
 
 --
+-- Name: creator_gallery_posts fk_rails_0650b20bee; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_gallery_posts
+    ADD CONSTRAINT fk_rails_0650b20bee FOREIGN KEY (creator_gallery_id) REFERENCES public.creator_galleries(id);
+
+
+--
 -- Name: bans fk_rails_070022cd76; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6650,6 +6854,14 @@ ALTER TABLE ONLY public.api_keys
 
 ALTER TABLE ONLY public.site_credentials
     ADD CONSTRAINT fk_rails_32d18ae384 FOREIGN KEY (creator_id) REFERENCES public.users(id);
+
+
+--
+-- Name: creator_gallery_messages fk_rails_33ca87d157; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_gallery_messages
+    ADD CONSTRAINT fk_rails_33ca87d157 FOREIGN KEY (creator_gallery_id) REFERENCES public.creator_galleries(id);
 
 
 --
@@ -7235,6 +7447,7 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260806090000'),
 ('20260805014433'),
 ('20260804064839'),
 ('20260323172054'),

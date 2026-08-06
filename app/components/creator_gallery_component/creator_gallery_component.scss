@@ -1,0 +1,112 @@
+// Creator Gallery -- public presentation page, Modulation theme, with several
+// selectable layout styles for the featured posts.
+
+body:has(.modcreator) {
+  #sidebar { display: none; }
+  #content { max-width: none; }
+}
+
+.modcreator {
+  --mod-col: 1080px;
+  --mod-radius: 12px;
+  --mod-surface: #1b1a17;
+  --mod-surface-2: #242320;
+  --mod-ink: #e8e6e0;
+  --mod-ink-dim: #9a968c;
+  --mod-line: #34322c;
+  --mod-accent: #38e08a;
+
+  box-sizing: border-box;
+  max-width: var(--mod-col);
+  margin: 0 auto;
+  padding: 1.5rem 1rem 4rem;
+  color: var(--mod-ink);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  // --- header ------------------------------------------------------------
+  .modcreator-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap;
+    padding-bottom: 1rem; border-bottom: 1px solid var(--mod-line);
+  }
+  .modcreator-title { margin: 0; font-size: 1.6rem; font-weight: 650; letter-spacing: -0.01em; }
+  .modcreator-handle { font-family: ui-monospace, Menlo, monospace; font-size: 0.8rem; color: var(--mod-ink-dim); }
+  .modcreator-actions { display: flex; gap: 0.5rem; align-items: center; }
+  .modcreator-msg {
+    padding: 0.45rem 0.9rem; border-radius: 999px;
+    background: color-mix(in srgb, var(--mod-accent) 16%, var(--mod-surface));
+    border: 1px solid color-mix(in srgb, var(--mod-accent) 45%, transparent);
+    color: var(--mod-accent); text-decoration: none; font-size: 0.85rem; font-weight: 550;
+    &:hover { background: color-mix(in srgb, var(--mod-accent) 26%, var(--mod-surface)); }
+  }
+  .modcreator-edit {
+    padding: 0.45rem 0.9rem; border-radius: 999px;
+    background: var(--mod-surface-2); border: 1px solid var(--mod-line);
+    color: var(--mod-ink); text-decoration: none; font-size: 0.85rem;
+    &:hover { border-color: var(--mod-ink-dim); }
+  }
+  .modcreator-bio { margin: 0; max-width: 60ch; color: var(--mod-ink); line-height: 1.55; }
+
+  // --- blog messages -----------------------------------------------------
+  .modcreator-blog { display: flex; flex-direction: column; gap: 0.75rem; }
+  .modcreator-post {
+    background: var(--mod-surface); border: 1px solid var(--mod-line);
+    border-left: 3px solid color-mix(in srgb, var(--mod-accent) 60%, var(--mod-line));
+    border-radius: var(--mod-radius); padding: 0.85rem 1rem;
+  }
+  .modcreator-post-time { font-family: ui-monospace, monospace; font-size: 0.7rem; color: var(--mod-ink-dim); }
+  .modcreator-post-body { margin: 0.35rem 0 0; line-height: 1.55; white-space: pre-wrap; }
+
+  // --- featured gallery: shared card ------------------------------------
+  .modcreator-card {
+    position: relative; display: block; overflow: hidden;
+    border-radius: var(--mod-radius); background: var(--mod-surface);
+    border: 1px solid var(--mod-line); text-decoration: none;
+    transition: border-color 0.12s ease, transform 0.12s ease;
+    &:hover { border-color: var(--mod-accent); transform: translateY(-2px); }
+  }
+  .modcreator-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .modcreator-thumb--gated {
+    display: grid; place-items: center; color: var(--mod-ink-dim);
+    font-family: ui-monospace, monospace; font-size: 0.72rem; min-height: 120px;
+    background: repeating-linear-gradient(45deg, var(--mod-surface) 0 6px, var(--mod-surface-2) 6px 12px);
+  }
+  .modcreator-empty { color: var(--mod-ink-dim); text-align: center; padding: 2.5rem 0; }
+
+  // ============ STYLE VARIANTS ============
+  // grid -- uniform responsive squares
+  &.modcreator--grid .modcreator-gallery {
+    display: grid; gap: 0.6rem;
+    grid-template-columns: repeat(auto-fill, minmax(clamp(120px, 16vw, 180px), 1fr));
+    .modcreator-card { aspect-ratio: 1 / 1; }
+  }
+
+  // masonry -- natural-height columns
+  &.modcreator--masonry .modcreator-gallery {
+    columns: 4 180px; column-gap: 0.6rem;
+    .modcreator-card { margin: 0 0 0.6rem; break-inside: avoid; }
+    .modcreator-thumb { height: auto; }
+  }
+
+  // filmstrip -- one tall scrollable row
+  &.modcreator--filmstrip .modcreator-gallery {
+    display: flex; gap: 0.6rem; overflow-x: auto; padding-bottom: 0.5rem;
+    scroll-snap-type: x mandatory;
+    .modcreator-card { flex: 0 0 auto; width: clamp(180px, 28vw, 300px); aspect-ratio: 3 / 4; scroll-snap-align: start; }
+  }
+
+  // spotlight -- big hero, then a grid
+  &.modcreator--spotlight .modcreator-gallery {
+    display: grid; gap: 0.6rem;
+    grid-template-columns: repeat(auto-fill, minmax(clamp(110px, 14vw, 160px), 1fr));
+    .modcreator-card { aspect-ratio: 1 / 1; }
+    .modcreator-card.is-spotlight {
+      grid-column: 1 / -1; aspect-ratio: 21 / 9;
+      .modcreator-thumb { object-position: center 30%; }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+<% content_for(:content) do %>
+  <section class="modcreator-index">
+    <h1>Creator galleries</h1>
+    <ul class="modcreator-index-list">
+      <% @galleries.each do |g| %>
+        <li><%= link_to (g.title.presence || g.slug), creator_gallery_path(g) %>
+          <span class="modcreator-index-handle"><%= g.matrix_id %></span></li>
+      <% end %>
+    </ul>
+  </section>
+<% end %>
+<% content_for(:html_header) do %><% page_title "Creator galleries" %><% end %>
