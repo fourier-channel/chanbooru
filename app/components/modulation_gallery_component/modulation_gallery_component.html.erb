@@ -1,0 +1,88 @@
+<section class="modgal" x-data="{ view: 'unitag' }">
+  <%# Primary control: tag search ("sort by via tag search"). %>
+  <form class="modgal-search" action="/posts" method="get" role="search">
+    <input type="hidden" name="preset" value="modulation">
+    <input class="modgal-search-input" type="text" name="tags" value="<%= query_string %>"
+           placeholder="tag search  (e.g.  maple  order:score)" autocomplete="off" spellcheck="false"
+           data-autocomplete="tag-query" aria-label="Tag search">
+    <select class="modgal-sort" name="_sort" aria-label="Sort" onchange="this.form.tags.value = this.form.tags.value.replace(/\s*order:\S+/g,'').trim() + (this.value ? ' order:'+this.value : ''); this.form.submit();">
+      <option value="">sort…</option>
+      <option value="id_desc">newest</option>
+      <option value="id">oldest</option>
+      <option value="score">score</option>
+      <option value="favcount">favorites</option>
+      <option value="created_at">date</option>
+    </select>
+    <button class="modgal-search-go" type="submit">Search</button>
+  </form>
+
+  <%# Facet tags for this search, in the post view's colour language -- here the
+      grouping dimension is tag category. Unitag = one colour-coded frame;
+      Grouped = labelled category sections. %>
+  <% if any_tags? %>
+    <div class="modgal-tags">
+      <div class="modgal-tags-head">
+        <span class="modgal-tags-title">In this search</span>
+        <div class="mod-view-toggle" role="tablist" aria-label="Tag view">
+          <button type="button" role="tab" :aria-selected="view === 'unitag'" :class="{ 'is-active': view === 'unitag' }" @click="view = 'unitag'">Unitag</button>
+          <button type="button" role="tab" :aria-selected="view === 'grouped'" :class="{ 'is-active': view === 'grouped' }" @click="view = 'grouped'">Grouped</button>
+        </div>
+      </div>
+
+      <div class="mod-unitag" x-show="view === 'unitag'">
+        <% unitag_list.each do |tag, key| %>
+          <%= link_to posts_path(preset: "modulation", tags: tag.name), class: "mod-pill mod-pill--cat-#{key}", rel: "nofollow" do %>
+            <span class="mod-pill-dot" aria-hidden="true"></span><%= tag.name.tr("_", " ") %>
+          <% end %>
+        <% end %>
+      </div>
+
+      <div class="mod-grouped" x-show="view === 'grouped'" x-cloak>
+        <% tag_groups.each do |key, tags| %>
+          <div class="mod-group mod-group--<%= key %>">
+            <span class="mod-group-label"><%= key %></span>
+            <div class="mod-group-pills">
+              <% tags.each do |tag| %>
+                <%= link_to tag.name.tr("_", " "), posts_path(preset: "modulation", tags: tag.name), class: "mod-pill mod-pill--cat-#{key}", rel: "nofollow" %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# The grid. Each thumbnail carries the search into the post view. %>
+  <% if posts.any? %>
+    <div class="modgal-grid">
+      <% posts.each do |post| %>
+        <a class="modgal-card" href="<%= post_link(post) %>" title="post #<%= post.id %>">
+          <% thumb = thumb_for(post) %>
+          <% if thumb %>
+            <img class="modgal-thumb" src="<%= thumb %>" alt="" loading="lazy">
+          <% else %>
+            <span class="modgal-thumb modgal-thumb--gated">gated</span>
+          <% end %>
+          <span class="modgal-card-id">#<%= post.id %></span>
+        </a>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="modgal-empty">No posts match this search.</p>
+  <% end %>
+
+  <%# Pagination. %>
+  <nav class="modgal-pager">
+    <% if current_page > 1 %>
+      <%= link_to "‹ prev", page_url(current_page - 1), class: "modgal-page" %>
+    <% else %>
+      <span class="modgal-page is-disabled">‹ prev</span>
+    <% end %>
+    <span class="modgal-page-cur">page <%= current_page %></span>
+    <% if more_pages? %>
+      <%= link_to "next ›", page_url(current_page + 1), class: "modgal-page" %>
+    <% else %>
+      <span class="modgal-page is-disabled">next ›</span>
+    <% end %>
+  </nav>
+</section>
