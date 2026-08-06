@@ -1,0 +1,246 @@
+// "Modulation" -- redesigned single-cell post page. Everything here is driven by
+// CSS custom properties so an experience preset is just a bundle of token
+// overrides. Hardcode frugally; var ahead of need.
+
+// Suppress the upstream sidebar chrome only while a Modulation post is on screen;
+// the shared header (NavbarComponent) stays -- same header on every page.
+body:has(.modulation) {
+  #sidebar { display: none; }
+  #content { max-width: none; }
+}
+
+.modulation {
+  // --- tokens -------------------------------------------------------------
+  --mod-col: 960px;
+  --mod-gap: 1rem;
+  --mod-radius: 10px;
+  --mod-pill-radius: 999px;
+
+  // surfaces (neutral, faintly warm so it reads as chosen, not defaulted)
+  --mod-surface: #1b1a17;
+  --mod-surface-2: #242320;
+  --mod-ink: #e8e6e0;
+  --mod-ink-dim: #9a968c;
+  --mod-line: #34322c;
+
+  // provenance palette
+  --mod-creator-fg: #38e08a;   // bright green
+  --mod-creator-bg: #0f2c1d;   // dark green
+  --mod-auto-fg:    #ff9d3c;   // bright orange
+  --mod-auto-bg:    #2c1c0c;   // dark orange
+  --mod-both-fg:    #ff9d3c;   // orange text
+  --mod-both-outline: #38e08a; // green outline
+  --mod-pending-fg: #b7b3a8;   // greyed
+  --mod-meta-fg:    #8f8b80;
+
+  box-sizing: border-box;
+  max-width: var(--mod-col);
+  margin: 0 auto;
+  padding: 0 1rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mod-gap);
+  color: var(--mod-ink);
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  // --- metadata sub-header ------------------------------------------------
+  .mod-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding: 0.4rem 0.1rem;
+    border-bottom: 1px solid var(--mod-line);
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+    font-size: 0.78rem;
+  }
+  .mod-meta-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.85rem;
+    color: var(--mod-ink-dim);
+  }
+  .mod-meta-field { white-space: nowrap; }
+  .mod-meta-field + .mod-meta-field::before {
+    content: "·";
+    margin-right: 0.85rem;
+    margin-left: -0.6rem;
+    color: var(--mod-line);
+  }
+  .mod-link { color: var(--mod-ink); text-decoration: none; border-bottom: 1px dotted var(--mod-ink-dim); }
+  .mod-gate {
+    flex: none;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--mod-pill-radius);
+    background: var(--mod-creator-bg);
+    color: var(--mod-creator-fg);
+    font-size: 0.7rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  // --- image stage --------------------------------------------------------
+  .mod-stage {
+    display: flex;
+    justify-content: center;
+  }
+  .mod-frame {
+    max-width: 100%;
+    border-radius: var(--mod-radius);
+    overflow: hidden;
+    background: var(--mod-surface);
+    border: 1px solid var(--mod-line);
+    line-height: 0;
+  }
+  .mod-image img, .mod-frame img, .mod-frame video {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  // --- action row ---------------------------------------------------------
+  .mod-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .mod-action {
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--mod-radius);
+    background: var(--mod-surface-2);
+    border: 1px solid var(--mod-line);
+    color: var(--mod-ink);
+    font-size: 0.85rem;
+    text-decoration: none;
+    transition: background 0.12s ease, border-color 0.12s ease;
+    &:hover { background: var(--mod-surface); border-color: var(--mod-ink-dim); }
+  }
+  .mod-fav { margin-left: auto; }
+
+  // --- tags block ---------------------------------------------------------
+  .mod-tags {
+    background: var(--mod-surface);
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius);
+    padding: 1rem;
+  }
+  .mod-tags-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.85rem;
+  }
+  .mod-tags-title {
+    margin: 0;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mod-ink-dim);
+  }
+  .mod-view-toggle {
+    display: inline-flex;
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-pill-radius);
+    overflow: hidden;
+    button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--mod-ink-dim);
+      font-size: 0.75rem;
+      padding: 0.25rem 0.7rem;
+      cursor: pointer;
+      &.is-active { background: var(--mod-surface-2); color: var(--mod-ink); }
+    }
+  }
+  .mod-empty { color: var(--mod-ink-dim); font-size: 0.85rem; margin: 0; }
+
+  // --- pills (the unitag colour language) --------------------------------
+  .mod-unitag, .mod-group-pills, .mod-meta-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .mod-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.22rem 0.7rem;
+    border-radius: var(--mod-pill-radius);
+    font-size: 0.82rem;
+    line-height: 1.2;
+    text-decoration: none;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .mod-pill-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.9;
+  }
+
+  // creator: bright green pill+text on dark green
+  .mod-pill--creator { background: var(--mod-creator-bg); color: var(--mod-creator-fg); border-color: color-mix(in srgb, var(--mod-creator-fg) 35%, transparent); }
+  // auto: bright orange pill+text on dark orange
+  .mod-pill--auto { background: var(--mod-auto-bg); color: var(--mod-auto-fg); border-color: color-mix(in srgb, var(--mod-auto-fg) 30%, transparent); }
+  // both: green outline, orange text, dark-orange <-> dark-green gradient
+  .mod-pill--both {
+    background: linear-gradient(100deg, var(--mod-auto-bg), var(--mod-creator-bg));
+    color: var(--mod-both-fg);
+    border-color: var(--mod-both-outline);
+  }
+  // pending: greyed, dashed
+  .mod-pill--pending {
+    background: transparent;
+    color: var(--mod-pending-fg);
+    border: 1px dashed color-mix(in srgb, var(--mod-pending-fg) 55%, transparent);
+    .mod-pill-dot { opacity: 0.5; }
+  }
+  // meta: quietest of all
+  .mod-pill--meta {
+    background: var(--mod-surface-2);
+    color: var(--mod-meta-fg);
+    border-color: var(--mod-line);
+    font-size: 0.76rem;
+  }
+
+  // --- grouped view -------------------------------------------------------
+  .mod-group { margin-bottom: 0.85rem; &:last-child { margin-bottom: 0; } }
+  .mod-group-label {
+    display: block;
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mod-ink-dim);
+    margin-bottom: 0.4rem;
+  }
+
+  // --- quality & meta collapsible ----------------------------------------
+  .mod-meta-section { margin-top: 1rem; border-top: 1px solid var(--mod-line); padding-top: 0.75rem; }
+  .mod-meta-toggle {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--mod-ink-dim);
+    font-size: 0.78rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    padding: 0;
+  }
+  .mod-meta-caret { transition: transform 0.12s ease; display: inline-block; &.is-open { transform: rotate(90deg); } }
+  .mod-meta-count {
+    background: var(--mod-surface-2);
+    border-radius: var(--mod-pill-radius);
+    padding: 0 0.4rem;
+    font-size: 0.7rem;
+  }
+  .mod-meta-tags { margin-top: 0.6rem; }
+}
+
+[x-cloak] { display: none !important; }

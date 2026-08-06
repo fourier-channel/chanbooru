@@ -5,6 +5,11 @@
   <% atom_feed_tag "Comments for post ##{@post.id}", comments_url(:atom, search: { post_id: @post.id }) %>
 <% end %>
 
+<%# "Modulation" experience preset -- opt-in single-cell redesign. The upstream
+    post page below is the default; ?preset=modulation swaps in the fork view. %>
+<% if params[:preset] == "modulation" %>
+  <%= render ModulationPostComponent.new(post: @post, viewer: CurrentUser.user, query: params[:q]) %>
+<% else %>
 <%= render "posts/partials/common/secondary_links" %>
 
 <% content_for(:sidebar) do %>
@@ -400,4 +405,5 @@
   <% if @post.rating == "e" %>
     <meta name="rating" content="adult">
   <% end %>
+<% end %>
 <% end %>
