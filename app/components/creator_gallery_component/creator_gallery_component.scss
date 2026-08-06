@@ -49,6 +49,12 @@ body:has(.modcreator) {
     color: var(--mod-ink); text-decoration: none; font-size: 0.85rem;
     &:hover { border-color: var(--mod-ink-dim); }
   }
+  .modcreator-signin {
+    padding: 0.45rem 0.9rem; border-radius: 999px;
+    background: transparent; border: 1px solid var(--mod-line);
+    color: var(--mod-ink-dim); text-decoration: none; font-size: 0.85rem;
+    &:hover { color: var(--mod-ink); border-color: var(--mod-ink-dim); }
+  }
   .modcreator-bio { margin: 0; max-width: 60ch; color: var(--mod-ink); line-height: 1.55; }
 
   // --- blog messages -----------------------------------------------------
