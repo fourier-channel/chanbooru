@@ -17,13 +17,24 @@ class FourierTagSourcesController < ApplicationController
     FourierTagSource.record_partition!(post, sources, CurrentUser.user)
     FourierTagPropagation.fan_out!(post) # single write path -> fan out the public projection
 
-    render json: { post_id: post.id, recorded: FourierTagSource.where(post_id: post.id).count }, status: :ok
+    # Return the PUBLIC-SAFE projection so the caller (bmb) writes the Matrix state
+    # event from the canonical store rather than recomputing it -- private creator
+    # tags never leave here.
+    render json: {
+      post_id: post.id,
+      recorded: FourierTagSource.where(post_id: post.id).count,
+      projection: FourierTagSource.matrix_projection(post),
+    }, status: :ok
   end
 
-  # Identity-gated read: private creator tags surface only to the creator or a mod.
+  # Read the tag buckets for a post. Default is the identity-gated view (creator/mod
+  # see private creator tags, everyone else sees public only). `?scope=public`
+  # returns the machine-facing public projection unconditionally -- used by bmb to
+  # refresh a duplicate image's Matrix state without leaking private tags.
   def show
     skip_authorization
     post = Post.find(params[:post_id])
-    render json: FourierTagSource.for_viewer(post, CurrentUser.user), status: :ok
+    payload = params[:scope] == "public" ? FourierTagSource.matrix_projection(post) : FourierTagSource.for_viewer(post, CurrentUser.user)
+    render json: payload, status: :ok
   end
 end
