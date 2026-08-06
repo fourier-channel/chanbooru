@@ -82,11 +82,63 @@ body:has(.modulation) {
     text-transform: uppercase;
   }
 
-  // --- image stage --------------------------------------------------------
-  .mod-stage {
-    display: flex;
-    justify-content: center;
+  // --- metadata right cluster (sort switch + gate) -----------------------
+  .mod-meta-right { display: flex; align-items: center; gap: 0.75rem; }
+  .mod-sort-switch {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.72rem; color: var(--mod-ink-dim);
+    b { color: var(--mod-ink); font-weight: 600; margin-left: 0.25rem; }
   }
+  .mod-sort-arrow {
+    appearance: none; border: 1px solid var(--mod-line); background: var(--mod-surface-2);
+    color: var(--mod-ink-dim); border-radius: 5px; cursor: pointer; line-height: 1;
+    padding: 0.1rem 0.32rem; font-size: 0.6rem;
+    &:hover:not(:disabled) { color: var(--mod-ink); border-color: var(--mod-ink-dim); }
+    &:disabled { opacity: 0.3; cursor: default; }
+  }
+  .mod-sort-label { white-space: nowrap; }
+
+  // --- image stage + gallery flanks --------------------------------------
+  .mod-stage {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    transition: transform 0.16s ease, opacity 0.16s ease;
+  }
+  .mod-stage-center { display: flex; justify-content: center; min-width: 0; }
+
+  // faded neighbour previews; they shuffle to the new sort on ↑/↓ (Alpine swaps
+  // the bound thumb/href) while the centred image never moves.
+  .mod-flank {
+    flex: 0 0 auto;
+    width: clamp(40px, 9vw, 92px);
+    align-self: stretch;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    border-radius: var(--mod-radius);
+    overflow: hidden;
+    background: var(--mod-surface);
+    opacity: 0.42;
+    text-decoration: none;
+    transition: opacity 0.14s ease, filter 0.14s ease;
+    img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  }
+  .mod-flank:hover { opacity: 0.9; }
+  .mod-flank-arrow {
+    position: absolute;
+    font-size: 1.5rem; line-height: 1;
+    color: var(--mod-ink);
+    background: color-mix(in srgb, var(--mod-surface) 62%, transparent);
+    border-radius: 50%; width: 1.6em; height: 1.6em;
+    display: grid; place-items: center;
+  }
+
+  // slide-out on navigate; the neighbour page loads once the transition starts.
+  &.is-slide-left .mod-stage { transform: translateX(-6%); opacity: 0.35; }
+  &.is-slide-right .mod-stage { transform: translateX(6%); opacity: 0.35; }
   .mod-frame {
     max-width: 100%;
     border-radius: var(--mod-radius);
@@ -244,3 +296,9 @@ body:has(.modulation) {
 }
 
 [x-cloak] { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .modulation .mod-stage,
+  .modulation .mod-flank,
+  .modulation .mod-meta-caret { transition: none; }
+}

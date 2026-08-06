@@ -21,6 +21,22 @@ class ModulationPostComponent < ApplicationComponent
     @query = query
   end
 
+  # --- gallery navigation -------------------------------------------------
+  # The sort presets offered for this post. "Defaults always travel with the
+  # user" (prime directive): #, date, and -- when the post has one -- a same-
+  # artist gallery. Each preset is a search string; PostNeighbors resolves its
+  # true prev/next. Custom saved sorts merge on top of these later.
+  def nav_presets
+    @nav_presets ||= build_nav_presets
+  end
+
+  # The preset matching the sort the viewer arrived with (default: by number).
+  def active_preset_key
+    @active_preset_key ||= (nav_presets.find { _1[:active] } || nav_presets.first)&.fetch(:key)
+  end
+
+  # ------------------------------------------------------------------------
+
   # { creator:, auto:, both:, meta:, pending: } -- creator already privacy-gated.
   def buckets
     @buckets ||= FourierTagSource.for_viewer(post, viewer)
@@ -53,5 +69,59 @@ class ModulationPostComponent < ApplicationComponent
 
   def media_gated?
     post.source.to_s.start_with?("mxc://")
+  end
+
+  private
+
+  # The viewer's current search with any order: stripped, so each preset applies
+  # its own sort over the same result set they were browsing.
+  def base_tags
+    @base_tags ||= query.to_s.gsub(/\border:\S+/i, "").squish
+  end
+
+  def artist_names
+    @artist_names ||= post.tags.select(&:artist?).map(&:name)
+  end
+
+  def with_order(tags, order)
+    [tags.presence, "order:#{order}"].compact.join(" ").squish
+  end
+
+  def build_nav_presets
+    defs = [
+      { key: "num",  label: "#",    search: with_order(base_tags, "id_desc") },
+      { key: "date", label: "date", search: with_order(base_tags, "created_at") },
+    ]
+    if artist_names.any?
+      defs << { key: "artist", label: "artist", search: with_order([base_tags, artist_names.first].compact_blank.join(" "), "id_desc") }
+    end
+
+    current_order = (PostQuery.new(query.to_s).find_metatag(:order).presence || "id_desc").downcase
+    resolved = defs.map do |d|
+      nav = PostNeighbors.new(post: post, tags: d[:search], user: viewer)
+      d.merge(prev_id: nav.prev_id, next_id: nav.next_id, order: nav.order)
+    end
+
+    # One batched load for every neighbour thumbnail, not a query per preview.
+    ids = resolved.flat_map { [_1[:prev_id], _1[:next_id]] }.compact.uniq
+    posts_by_id = Post.where(id: ids).includes(:media_asset).index_by(&:id)
+
+    resolved.map do |d|
+      d.merge(
+        active: d[:order] == current_order,
+        prev: neighbour_preview(posts_by_id[d[:prev_id]], d[:search]),
+        next: neighbour_preview(posts_by_id[d[:next_id]], d[:search]),
+      )
+    end
+  end
+
+  def neighbour_preview(neighbour, search)
+    return nil if neighbour.nil?
+
+    { id: neighbour.id,
+      url: helpers.post_path(neighbour, preset: "modulation", q: search),
+      thumb: (neighbour.visible?(viewer) ? neighbour.preview_file_url : nil) }
+  rescue StandardError
+    nil
   end
 end
