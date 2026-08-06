@@ -1,0 +1,16 @@
+<% content_for(:content) do %>
+  <section class="modcreator-edit-page">
+    <h1>Claim your creator page</h1>
+    <p class="modcreator-hint">Your page is bound to your Matrix identity; only you (or an admin) can edit it.</p>
+    <%= form_with model: @gallery, url: creator_galleries_path, method: :post, class: "modcreator-form" do |f| %>
+      <% if CurrentUser.user.is_admin? %>
+        <label>Matrix ID (admin) <%= f.text_field :matrix_id, placeholder: "@user:41chan.net" %></label>
+      <% end %>
+      <label>Title <%= f.text_field :title, maxlength: 120 %></label>
+      <label>Bio <%= f.text_area :bio, rows: 4 %></label>
+      <label>Gallery style <%= f.select :style, CreatorGallery::STYLES.map { |s| [s.humanize, s] } %></label>
+      <%= f.submit "Create page" %>
+    <% end %>
+  </section>
+<% end %>
+<% content_for(:html_header) do %><% page_title "New creator page" %><% end %>

@@ -1,0 +1,9 @@
+<% content_for(:content) do %>
+  <%= render CreatorGalleryComponent.new(
+        gallery: @gallery,
+        viewer: CurrentUser.user,
+        can_edit: FourierIdentity.matches?(request, @gallery.matrix_id) || CurrentUser.user.is_admin?) %>
+<% end %>
+<% content_for(:html_header) do %>
+  <% page_title(@gallery.title.presence || @gallery.slug) %>
+<% end %>

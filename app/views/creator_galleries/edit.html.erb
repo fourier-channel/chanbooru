@@ -1,0 +1,56 @@
+<% content_for(:content) do %>
+  <section class="modcreator-edit-page">
+    <header class="modcreator-edit-head">
+      <h1>Edit page — <%= @gallery.slug %></h1>
+      <%= link_to "View page ›", creator_gallery_path(@gallery), class: "modcreator-edit-view" %>
+    </header>
+
+    <%# --- settings --- %>
+    <%= form_with model: @gallery, url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-form" do |f| %>
+      <label>Title <%= f.text_field :title, maxlength: 120 %></label>
+      <label>Bio <%= f.text_area :bio, rows: 4, maxlength: 4000 %></label>
+      <label>Gallery style
+        <%= f.select :style, CreatorGallery::STYLES.map { |s| [s.humanize, s] } %>
+      </label>
+      <label>Matrix contact (MXID to message)
+        <%= f.text_field :matrix_contact, placeholder: @gallery.matrix_id %></label>
+      <%= f.submit "Save settings" %>
+    <% end %>
+
+    <%# --- curated posts --- %>
+    <h2>Featured posts</h2>
+    <%= form_with url: creator_gallery_add_post_path(@gallery), method: :post, class: "modcreator-inline-form" do %>
+      <input type="number" name="post_id" placeholder="post id" required>
+      <button type="submit">Add post</button>
+    <% end %>
+    <div class="modcreator-edit-grid">
+      <% @gallery.creator_gallery_posts.includes(:post).each do |cgp| %>
+        <div class="modcreator-edit-card">
+          <% if cgp.post %>
+            <%= link_to post_path(cgp.post, preset: "modulation") do %>
+              <img src="<%= cgp.post.preview_file_url rescue "" %>" alt="" loading="lazy">
+            <% end %>
+          <% end %>
+          <%= button_to "remove", creator_gallery_remove_post_path(@gallery, post_id: cgp.post_id), method: :delete, class: "modcreator-remove" %>
+        </div>
+      <% end %>
+    </div>
+
+    <%# --- blog messages --- %>
+    <h2>Blog messages</h2>
+    <%= form_with url: creator_gallery_add_message_path(@gallery), method: :post, class: "modcreator-form", scope: :creator_gallery_message do |f| %>
+      <%= f.text_area :body, rows: 3, placeholder: "Write a message…", required: true %>
+      <%= f.submit "Post message" %>
+    <% end %>
+    <ul class="modcreator-edit-msgs">
+      <% @gallery.creator_gallery_messages.each do |m| %>
+        <li>
+          <time><%= m.created_at.strftime("%Y-%m-%d") %></time>
+          <span><%= truncate(m.body, length: 120) %></span>
+          <%= button_to "delete", creator_gallery_remove_message_path(@gallery, message_id: m.id), method: :delete, class: "modcreator-remove" %>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+<% end %>
+<% content_for(:html_header) do %><% page_title "Edit #{@gallery.slug}" %><% end %>
