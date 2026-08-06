@@ -2,19 +2,28 @@
   data-presets="<%= nav_presets.map { |p| p.slice(:key, :label, :prev, :next) }.to_json %>"
   data-active-key="<%= active_preset_key %>"
   x-data="{
-    view: 'unitag', metaOpen: false, slide: '', touchX: null, presets: [], activeKey: '',
-    init() { this.presets = JSON.parse(this.$el.dataset.presets || '[]'); this.activeKey = this.$el.dataset.activeKey || ''; },
-    get active() { return this.presets.find(p => p.key === this.activeKey) || this.presets[0] || {}; },
+    view: 'unitag', metaOpen: false, touchX: null, nav: '', enter: '', presets: [], activeKey: '',
+    init() {
+      this.presets = JSON.parse(this.$el.dataset.presets || '[]');
+      this.activeKey = this.$el.dataset.activeKey || (this.presets[0] && this.presets[0].key) || '';
+      // Continue the shared-element motion across the page load: the new centre
+      // image grows from the flank slot it was navigated from.
+      const dir = sessionStorage.getItem('modNavDir');
+      if (dir) { sessionStorage.removeItem('modNavDir'); this.enter = dir; this.$nextTick(() => requestAnimationFrame(() => { this.enter = ''; })); }
+    },
+    get activeIndex() { const i = this.presets.findIndex(p => p.key === this.activeKey); return i < 0 ? 0 : i; },
+    get active() { return this.presets[this.activeIndex] || {}; },
+    selectSort(i) { if (this.presets[i]) this.activeKey = this.presets[i].key; },
     swapSort(dir) {
       if (this.presets.length < 2) return;
-      const i = Math.max(0, this.presets.findIndex(p => p.key === this.activeKey));
-      this.activeKey = this.presets[(i + dir + this.presets.length) % this.presets.length].key;
+      this.activeKey = this.presets[(this.activeIndex + dir + this.presets.length) % this.presets.length].key;
     },
     go(which) {
       const t = this.active && this.active[which];
       if (!t || !t.url) return;
-      this.slide = (which === 'next') ? 'left' : 'right';
-      setTimeout(() => { window.location.href = t.url; }, 160);
+      this.nav = which; // centre shrinks into the slot, the neighbour grows to centre
+      sessionStorage.setItem('modNavDir', which);
+      setTimeout(() => { window.location.href = t.url; }, 260);
     },
     onTouchStart(e) { this.touchX = e.changedTouches[0].clientX; },
     onTouchEnd(e) {
@@ -23,7 +32,7 @@
       if (Math.abs(dx) > 45) this.go(dx < 0 ? 'next' : 'prev');
     }
   }"
-  :class="{ 'is-slide-left': slide === 'left', 'is-slide-right': slide === 'right' }"
+  :class="{ 'is-nav-prev': nav === 'prev', 'is-nav-next': nav === 'next', 'is-enter-prev': enter === 'prev', 'is-enter-next': enter === 'next' }"
   @keydown.window.arrow-left="go('prev')"
   @keydown.window.arrow-right="go('next')"
   @keydown.window.arrow-up.prevent="swapSort(-1)"
@@ -53,23 +62,44 @@
     </div>
   </header>
 
-  <%# Image top-centre in a clipping frame, flanked by faded prev/next previews.
-      < / > (and swipe, and a flank tap) move within the active sort; the flanks
-      shuffle to the new neighbours on sort-swap while the centre never moves. %>
+  <%# Image top-centre; both flanks stack EVERY sort's prev/next. The active
+      sort's thumbnail is large and level with the post; the other sorts flank it
+      (smaller, offset by rank). ↑/↓ (or tapping another sort) slides the chosen
+      sort into the centre spot, swapping places with the former -- the post never
+      moves. < / > (and swipe, and tapping the active thumbnail) shrink the post
+      into the slot while the neighbour grows to centre. %>
   <section class="mod-stage" @touchstart.passive="onTouchStart($event)" @touchend="onTouchEnd($event)">
-    <a class="mod-flank mod-flank--prev" :href="(active.prev && active.prev.url) || '#'" x-show="active.prev" @click.prevent="go('prev')" aria-label="Previous post">
-      <template x-if="active.prev && active.prev.thumb"><img :src="active.prev.thumb" alt="" loading="lazy"></template>
-      <span class="mod-flank-arrow" aria-hidden="true">‹</span>
-    </a>
+    <div class="mod-flank-col mod-flank-col--prev">
+      <template x-for="(p, i) in presets" :key="'prev-' + p.key">
+        <a class="mod-sortrow"
+           :class="{ 'is-current': i === activeIndex, 'is-empty': !p.prev }"
+           :style="'--rank:' + (i - activeIndex)"
+           :href="(p.prev && p.prev.url) || '#'"
+           :title="p.label + (p.prev ? ' · previous' : ' · start of sort')"
+           @click.prevent="i === activeIndex ? go('prev') : selectSort(i)">
+          <template x-if="p.prev && p.prev.thumb"><img :src="p.prev.thumb" alt="" loading="lazy"></template>
+          <span class="mod-sortrow-tag" x-text="p.label"></span>
+        </a>
+      </template>
+    </div>
 
     <div class="mod-stage-center">
       <%= render MediaAssetComponent.new(media_asset: post.media_asset, current_user: viewer, outer_classes: "mod-frame", inner_classes: "mod-image") %>
     </div>
 
-    <a class="mod-flank mod-flank--next" :href="(active.next && active.next.url) || '#'" x-show="active.next" @click.prevent="go('next')" aria-label="Next post">
-      <template x-if="active.next && active.next.thumb"><img :src="active.next.thumb" alt="" loading="lazy"></template>
-      <span class="mod-flank-arrow" aria-hidden="true">›</span>
-    </a>
+    <div class="mod-flank-col mod-flank-col--next">
+      <template x-for="(p, i) in presets" :key="'next-' + p.key">
+        <a class="mod-sortrow"
+           :class="{ 'is-current': i === activeIndex, 'is-empty': !p.next }"
+           :style="'--rank:' + (i - activeIndex)"
+           :href="(p.next && p.next.url) || '#'"
+           :title="p.label + (p.next ? ' · next' : ' · end of sort')"
+           @click.prevent="i === activeIndex ? go('next') : selectSort(i)">
+          <template x-if="p.next && p.next.thumb"><img :src="p.next.thumb" alt="" loading="lazy"></template>
+          <span class="mod-sortrow-tag" x-text="p.label"></span>
+        </a>
+      </template>
+    </div>
   </section>
 
   <%# Compact action row. %>
