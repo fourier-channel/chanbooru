@@ -126,7 +126,16 @@ class ModulationPostComponent < ApplicationComponent
   end
 
   def build_nav_presets
-    defs = [
+    incoming_order = PostQuery.new(query.to_s).find_metatag(:order).presence&.downcase
+
+    defs = []
+    # "via tag search" -- the exact search the viewer arrived with (tags + its
+    # own order). This is the primary sort when you enter from a gallery search;
+    # it leads the preset list and is active by default.
+    if base_tags.present?
+      defs << { key: "search", label: "search", search: [base_tags, ("order:#{incoming_order}" if incoming_order)].compact.join(" ").squish }
+    end
+    defs += [
       { key: "num",  label: "#",    search: with_order(base_tags, "id_desc") },
       { key: "date", label: "date", search: with_order(base_tags, "created_at") },
     ]
@@ -137,7 +146,7 @@ class ModulationPostComponent < ApplicationComponent
       defs << { key: "artist", label: "artist", search: with_order(artist_search, "id_desc") }
     end
 
-    current_order = (PostQuery.new(query.to_s).find_metatag(:order).presence || "id_desc").downcase
+    current_order = incoming_order || "id_desc"
     resolved = defs.map do |d|
       # A preset whose query can't run (e.g. exceeds the viewer's tag limit) must
       # degrade to "no neighbours", never 500 the whole view.
