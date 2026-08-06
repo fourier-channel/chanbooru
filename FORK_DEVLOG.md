@@ -149,5 +149,22 @@ Sync from upstream: see section 2.
 
 ---
 
+## 9. Backlog -- deferred / shelved
+
+- **Autotagger self-training loop (SHELVED, operator 2026-08-06).** Feeding
+  user-corrected tags back into the tagger so it self-improves is parked until
+  the tag sample size is large enough to be worth it. Nothing is blocked on it:
+  the tag provenance model already records exactly what a training feed needs
+  (creator / auto / both / human buckets + approval status), so the loop can be
+  built on top when it is un-shelved. Not started; revisit when tag volume
+  warrants.
+- **Custom saved sorts.** Gallery navigation ships the default sorts (#, date,
+  same-artist); user-saved custom sorts (a tag/query persisted to settings) are
+  designed but not yet built.
+- **Thread panel.** Replacing comments with an embedded Matrix thread view is
+  cross-repo with technetium and deferred to its own phase.
+
+---
+
 Development log for the chanbooru fork. Written at the end of the fork-setup / baseline phase,
 before any application code changes.
