@@ -17,6 +17,7 @@ Rails.application.routes.draw do
   # show = identity-gated read (private creator tags only to the creator/mod).
   post "posts/:post_id/tag_sources", to: "fourier_tag_sources#create"
   get  "posts/:post_id/tag_sources", to: "fourier_tag_sources#show"
+  get  "posts/:post_id/modulation",  to: "modulation#show" # client-side nav payload
 
   resources :autocomplete, only: [:index]
 
