@@ -1,0 +1,85 @@
+<article class="modulation" x-data="{ view: 'unitag', metaOpen: false }">
+  <%# One-line mono metadata sub-header, above the image. %>
+  <header class="mod-meta">
+    <div class="mod-meta-fields">
+      <% metadata_fields.each do |field| %>
+        <span class="mod-meta-field"><%= field %></span>
+      <% end %>
+      <% if post.source.present? %>
+        <span class="mod-meta-field mod-meta-source">
+          <%= link_to_if post.normalized_source.present?, "source", post.normalized_source, rel: "nofollow noreferrer", class: "mod-link" %>
+        </span>
+      <% end %>
+    </div>
+    <% if media_gated? %>
+      <span class="mod-gate" title="Served through the fourier-auth media gate">R2 gated</span>
+    <% end %>
+  </header>
+
+  <%# Image, top-centre, in a clipping frame. Neighbour flanks (gallery nav) land here later. %>
+  <section class="mod-stage">
+    <%= render MediaAssetComponent.new(media_asset: post.media_asset, current_user: viewer, outer_classes: "mod-frame", inner_classes: "mod-image") %>
+  </section>
+
+  <%# Compact action row. %>
+  <nav class="mod-actions">
+    <%= link_to "View original", post.tagged_file_url, class: "mod-action", target: "_blank", rel: "noopener" %>
+    <%= link_to "Download", post.tagged_file_url, class: "mod-action", download: "" %>
+    <%= link_to (post.favorited_by?(viewer) ? "★ Favorited" : "☆ Favorite"), post_favorites_path(post), method: :post, rel: "nofollow", class: "mod-action mod-fav" %>
+  </nav>
+
+  <%# Tags block: unitag (colour-coded) by default, grouped view on toggle. %>
+  <section class="mod-tags">
+    <div class="mod-tags-head">
+      <h2 class="mod-tags-title">Tags</h2>
+      <div class="mod-view-toggle" role="tablist" aria-label="Tag view">
+        <button type="button" role="tab" :aria-selected="view === 'unitag'" :class="{ 'is-active': view === 'unitag' }" @click="view = 'unitag'">Unitag</button>
+        <button type="button" role="tab" :aria-selected="view === 'grouped'" :class="{ 'is-active': view === 'grouped' }" @click="view = 'grouped'">Grouped</button>
+      </div>
+    </div>
+
+    <% unless any_tags? %>
+      <p class="mod-empty">No tags yet.</p>
+    <% end %>
+
+    <%# Unitag: one frame, every pill colour-coded by provenance. %>
+    <div class="mod-unitag" x-show="view === 'unitag'">
+      <% unitag_pills.each do |tag, bucket| %>
+        <%= link_to posts_path(tags: tag), class: "mod-pill mod-pill--#{bucket}", rel: "nofollow" do %>
+          <span class="mod-pill-dot" aria-hidden="true"></span><%= tag.tr("_", " ") %>
+        <% end %>
+      <% end %>
+    </div>
+
+    <%# Grouped: labelled buckets. %>
+    <div class="mod-grouped" x-show="view === 'grouped'" x-cloak>
+      <% ModulationPostComponent::BUCKET_ORDER.each do |bucket| %>
+        <% tags = buckets[bucket].to_a %>
+        <% next if tags.empty? %>
+        <div class="mod-group mod-group--<%= bucket %>">
+          <span class="mod-group-label"><%= bucket == :both ? "creator + auto" : bucket.to_s %></span>
+          <div class="mod-group-pills">
+            <% tags.each do |tag| %>
+              <%= link_to tag.tr("_", " "), posts_path(tags: tag), class: "mod-pill mod-pill--#{bucket}", rel: "nofollow" %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <%# Quality & meta: kept but de-emphasised, behind a collapsible toggle. %>
+    <% if meta_tags.any? %>
+      <div class="mod-meta-section">
+        <button type="button" class="mod-meta-toggle" @click="metaOpen = !metaOpen" :aria-expanded="metaOpen">
+          <span class="mod-meta-caret" :class="{ 'is-open': metaOpen }" aria-hidden="true">▸</span>
+          quality &amp; meta tags <span class="mod-meta-count"><%= meta_tags.size %></span>
+        </button>
+        <div class="mod-meta-tags" x-show="metaOpen" x-cloak>
+          <% meta_tags.each do |tag| %>
+            <%= link_to tag.tr("_", " "), posts_path(tags: tag), class: "mod-pill mod-pill--meta", rel: "nofollow" %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </section>
+</article>
