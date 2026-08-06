@@ -1,166 +1,202 @@
-<article class="modulation"
-  data-presets="<%= nav_presets.map { |p| p.slice(:key, :label, :prev, :next) }.to_json %>"
-  data-active-key="<%= active_preset_key %>"
-  x-data="{
-    view: 'unitag', metaOpen: false, touchX: null, nav: '', enter: '', presets: [], activeKey: '',
-    init() {
-      this.presets = JSON.parse(this.$el.dataset.presets || '[]');
-      this.activeKey = this.$el.dataset.activeKey || (this.presets[0] && this.presets[0].key) || '';
-      // Continue the shared-element motion across the page load: the new centre
-      // image grows from the flank slot it was navigated from.
-      const dir = sessionStorage.getItem('modNavDir');
-      if (dir) { sessionStorage.removeItem('modNavDir'); this.enter = dir; this.$nextTick(() => requestAnimationFrame(() => { this.enter = ''; })); }
-    },
-    get activeIndex() { const i = this.presets.findIndex(p => p.key === this.activeKey); return i < 0 ? 0 : i; },
-    get active() { return this.presets[this.activeIndex] || {}; },
-    selectSort(i) { if (this.presets[i]) this.activeKey = this.presets[i].key; },
-    swapSort(dir) {
-      if (this.presets.length < 2) return;
-      this.activeKey = this.presets[(this.activeIndex + dir + this.presets.length) % this.presets.length].key;
-    },
-    go(which) {
-      const t = this.active && this.active[which];
-      if (!t || !t.url) return;
-      this.nav = which; // centre shrinks into the slot, the neighbour grows to centre
-      sessionStorage.setItem('modNavDir', which);
-      setTimeout(() => { window.location.href = t.url; }, 260);
-    },
-    onTouchStart(e) { this.touchX = e.changedTouches[0].clientX; },
-    onTouchEnd(e) {
-      if (this.touchX === null) return;
-      const dx = e.changedTouches[0].clientX - this.touchX; this.touchX = null;
-      if (Math.abs(dx) > 45) this.go(dx < 0 ? 'next' : 'prev');
-    }
-  }"
-  :class="{ 'is-nav-prev': nav === 'prev', 'is-nav-next': nav === 'next', 'is-enter-prev': enter === 'prev', 'is-enter-next': enter === 'next' }"
-  @keydown.window.arrow-left="go('prev')"
-  @keydown.window.arrow-right="go('next')"
-  @keydown.window.arrow-up.prevent="swapSort(-1)"
-  @keydown.window.arrow-down.prevent="swapSort(1)">
+<%# "Modulation" post view. The shell is server-rendered; a small vanilla
+    controller renders every region from an embedded JSON payload and navigates
+    post-to-post CLIENT-SIDE (fetch the neighbour's payload, animate the swap in
+    place, pushState) so there is no jarring full-page reload. Tag buckets come
+    from the payload (FourierTagSource.for_viewer), so the creator-privacy gate
+    stays server-side -- the client only displays what it is handed. %>
+<article class="modulation" id="modulation-root"
+  data-payload="<%= payload.to_json %>"
+  data-endpoint-base="/posts">
 
-  <%# One-line mono metadata sub-header, above the image, with the sort switch. %>
   <header class="mod-meta">
-    <div class="mod-meta-fields">
-      <% metadata_fields.each do |field| %>
-        <span class="mod-meta-field"><%= field %></span>
-      <% end %>
-      <% if post.source.present? %>
-        <span class="mod-meta-field mod-meta-source">
-          <%= link_to_if post.normalized_source.present?, "source", post.normalized_source, rel: "nofollow noreferrer", class: "mod-link" %>
-        </span>
-      <% end %>
-    </div>
+    <div class="mod-meta-fields" data-region="meta"></div>
     <div class="mod-meta-right">
-      <div class="mod-sort-switch" title="Change sort (↑ / ↓)">
-        <button type="button" class="mod-sort-arrow" @click="swapSort(-1)" :disabled="presets.length < 2" aria-label="Previous sort">▲</button>
-        <span class="mod-sort-label">sort <b x-text="active.label"></b></span>
-        <button type="button" class="mod-sort-arrow" @click="swapSort(1)" :disabled="presets.length < 2" aria-label="Next sort">▼</button>
+      <div class="mod-sort-switch" title="Change sort (up / down arrows)">
+        <button type="button" class="mod-sort-arrow" data-act="sort-up" aria-label="Previous sort">&#9650;</button>
+        <span class="mod-sort-label">sort <b data-region="sort-label"></b></span>
+        <button type="button" class="mod-sort-arrow" data-act="sort-down" aria-label="Next sort">&#9660;</button>
       </div>
-      <% if media_gated? %>
-        <span class="mod-gate" title="Served through the fourier-auth media gate">R2 gated</span>
-      <% end %>
+      <span class="mod-gate" data-region="gate" title="Served through the fourier-auth media gate" hidden>R2 gated</span>
     </div>
   </header>
 
-  <%# Image top-centre; both flanks stack EVERY sort's prev/next. The active
-      sort's thumbnail is large and level with the post; the other sorts flank it
-      (smaller, offset by rank). ↑/↓ (or tapping another sort) slides the chosen
-      sort into the centre spot, swapping places with the former -- the post never
-      moves. < / > (and swipe, and tapping the active thumbnail) shrink the post
-      into the slot while the neighbour grows to centre. %>
-  <section class="mod-stage" @touchstart.passive="onTouchStart($event)" @touchend="onTouchEnd($event)">
-    <div class="mod-flank-col mod-flank-col--prev">
-      <template x-for="(p, i) in presets" :key="'prev-' + p.key">
-        <a class="mod-sortrow"
-           :class="{ 'is-current': i === activeIndex, 'is-empty': !p.prev }"
-           :style="'--rank:' + (i - activeIndex)"
-           :href="(p.prev && p.prev.url) || '#'"
-           :title="p.label + (p.prev ? ' · previous' : ' · start of sort')"
-           @click.prevent="i === activeIndex ? go('prev') : selectSort(i)">
-          <template x-if="p.prev && p.prev.thumb"><img :src="p.prev.thumb" alt="" loading="lazy"></template>
-          <span class="mod-sortrow-tag" x-text="p.label"></span>
-        </a>
-      </template>
-    </div>
-
-    <div class="mod-stage-center">
-      <%= render MediaAssetComponent.new(media_asset: post.media_asset, current_user: viewer, outer_classes: "mod-frame", inner_classes: "mod-image") %>
-    </div>
-
-    <div class="mod-flank-col mod-flank-col--next">
-      <template x-for="(p, i) in presets" :key="'next-' + p.key">
-        <a class="mod-sortrow"
-           :class="{ 'is-current': i === activeIndex, 'is-empty': !p.next }"
-           :style="'--rank:' + (i - activeIndex)"
-           :href="(p.next && p.next.url) || '#'"
-           :title="p.label + (p.next ? ' · next' : ' · end of sort')"
-           @click.prevent="i === activeIndex ? go('next') : selectSort(i)">
-          <template x-if="p.next && p.next.thumb"><img :src="p.next.thumb" alt="" loading="lazy"></template>
-          <span class="mod-sortrow-tag" x-text="p.label"></span>
-        </a>
-      </template>
-    </div>
+  <section class="mod-stage" data-region="stage">
+    <div class="mod-flank-col mod-flank-col--prev" data-region="flank-prev"></div>
+    <div class="mod-stage-center" data-region="center"></div>
+    <div class="mod-flank-col mod-flank-col--next" data-region="flank-next"></div>
   </section>
 
-  <%# Compact action row. %>
-  <nav class="mod-actions">
-    <%= link_to "View original", post.tagged_file_url, class: "mod-action", target: "_blank", rel: "noopener" %>
-    <%= link_to "Download", post.tagged_file_url, class: "mod-action", download: "" %>
-    <%= link_to (post.favorited_by?(viewer) ? "★ Favorited" : "☆ Favorite"), post_favorites_path(post), method: :post, rel: "nofollow", class: "mod-action mod-fav" %>
-  </nav>
+  <nav class="mod-actions" data-region="actions"></nav>
 
-  <%# Tags block: unitag (colour-coded) by default, grouped view on toggle. %>
-  <section class="mod-tags">
-    <div class="mod-tags-head">
-      <h2 class="mod-tags-title">Tags</h2>
-      <div class="mod-view-toggle" role="tablist" aria-label="Tag view">
-        <button type="button" role="tab" :aria-selected="view === 'unitag'" :class="{ 'is-active': view === 'unitag' }" @click="view = 'unitag'">Unitag</button>
-        <button type="button" role="tab" :aria-selected="view === 'grouped'" :class="{ 'is-active': view === 'grouped' }" @click="view = 'grouped'">Grouped</button>
-      </div>
-    </div>
+  <section class="mod-tags" data-region="tags"></section>
 
-    <% unless any_tags? %>
-      <p class="mod-empty">No tags yet.</p>
-    <% end %>
+  <script type="application/javascript">
+  (function () {
+    const root = document.getElementById("modulation-root");
+    if (!root || root.dataset.booted) return;
+    root.dataset.booted = "1";
 
-    <%# Unitag: one frame, every pill colour-coded by provenance. %>
-    <div class="mod-unitag" x-show="view === 'unitag'">
-      <% unitag_pills.each do |tag, bucket| %>
-        <%= link_to posts_path(tags: tag), class: "mod-pill mod-pill--#{bucket}", rel: "nofollow" do %>
-          <span class="mod-pill-dot" aria-hidden="true"></span><%= tag.tr("_", " ") %>
-        <% end %>
-      <% end %>
-    </div>
+    const BASE = root.dataset.endpointBase || "/posts";
+    const region = (n) => root.querySelector('[data-region="' + n + '"]');
+    const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-    <%# Grouped: labelled buckets. %>
-    <div class="mod-grouped" x-show="view === 'grouped'" x-cloak>
-      <% ModulationPostComponent::BUCKET_ORDER.each do |bucket| %>
-        <% tags = buckets[bucket].to_a %>
-        <% next if tags.empty? %>
-        <div class="mod-group mod-group--<%= bucket %>">
-          <span class="mod-group-label"><%= bucket == :both ? "creator + auto" : bucket.to_s %></span>
-          <div class="mod-group-pills">
-            <% tags.each do |tag| %>
-              <%= link_to tag.tr("_", " "), posts_path(tags: tag), class: "mod-pill mod-pill--#{bucket}", rel: "nofollow" %>
-            <% end %>
-          </div>
-        </div>
-      <% end %>
-    </div>
+    let cur = JSON.parse(root.dataset.payload || "null");
+    let activeKey = cur ? cur.active_key : "";
+    let view = "unitag", metaOpen = false, busy = false;
+    const cache = new Map(); // `${id}|${search}` -> payload
 
-    <%# Quality & meta: kept but de-emphasised, behind a collapsible toggle. %>
-    <% if meta_tags.any? %>
-      <div class="mod-meta-section">
-        <button type="button" class="mod-meta-toggle" @click="metaOpen = !metaOpen" :aria-expanded="metaOpen">
-          <span class="mod-meta-caret" :class="{ 'is-open': metaOpen }" aria-hidden="true">▸</span>
-          quality &amp; meta tags <span class="mod-meta-count"><%= meta_tags.size %></span>
-        </button>
-        <div class="mod-meta-tags" x-show="metaOpen" x-cloak>
-          <% meta_tags.each do |tag| %>
-            <%= link_to tag.tr("_", " "), posts_path(tags: tag), class: "mod-pill mod-pill--meta", rel: "nofollow" %>
-          <% end %>
-        </div>
-      </div>
-    <% end %>
-  </section>
+    const presets = () => (cur && cur.presets) || [];
+    const activeIndex = () => { const i = presets().findIndex(p => p.key === activeKey); return i < 0 ? 0 : i; };
+    const active = () => presets()[activeIndex()] || {};
+
+    // ---- rendering (single renderer for initial load AND navigation) ----
+    function renderMeta() {
+      region("meta").innerHTML = (cur.meta || []).map(f =>
+        f.href ? '<span class="mod-meta-field"><a class="mod-link" href="' + esc(f.href) + '" rel="nofollow noreferrer">' + esc(f.text) + "</a></span>"
+               : '<span class="mod-meta-field">' + esc(f.text) + "</span>").join("");
+      region("gate").hidden = !cur.gated;
+      region("sort-label").textContent = active().label || "";
+    }
+    function mediaHTML(m) {
+      if (!m || !m.src) return '<div class="mod-frame mod-image mod-image--placeholder">media gated</div>';
+      if (m.kind === "video") return '<div class="mod-frame"><video class="mod-image" src="' + esc(m.src) + '" poster="' + esc(m.poster) + '" controls loop playsinline></video></div>';
+      if (m.kind === "other") return '<div class="mod-frame"><a href="' + esc(m.href || "#") + '"><img class="mod-image" src="' + esc(m.src) + '" alt=""></a></div>';
+      return '<div class="mod-frame"><img class="mod-image" src="' + esc(m.src) + '" alt="" ' + (m.w ? 'width="' + m.w + '" height="' + m.h + '"' : "") + "></div>";
+    }
+    function renderCenter() { region("center").innerHTML = mediaHTML(cur.media); }
+
+    function flankRow(p, i, side) {
+      const nb = p[side], empty = !nb;
+      const inner = (nb && nb.thumb) ? '<img src="' + esc(nb.thumb) + '" alt="" loading="lazy">'
+                                     : '<span class="fill">' + (side === "prev" ? "start" : "end") + "</span>";
+      return '<a class="mod-sortrow' + (empty ? " is-empty" : "") + '" data-i="' + i + '" data-side="' + side + '" href="' + esc((nb && nb.url) || "#") + '" title="' + esc(p.label) + '">' + inner + '<span class="mod-sortrow-tag">' + esc(p.label) + "</span></a>";
+    }
+    function renderFlanks() {
+      region("flank-prev").innerHTML = presets().map((p, i) => flankRow(p, i, "prev")).join("");
+      region("flank-next").innerHTML = presets().map((p, i) => flankRow(p, i, "next")).join("");
+      applyRanks();
+    }
+    function applyRanks() {
+      const ai = activeIndex();
+      root.querySelectorAll(".mod-sortrow").forEach(el => {
+        const i = +el.dataset.i;
+        el.style.setProperty("--rank", i - ai);
+        el.classList.toggle("is-current", i === ai);
+      });
+      region("sort-label").textContent = active().label || "";
+    }
+
+    const pill = (t, b, dot) => '<a class="mod-pill mod-pill--' + b + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
+    function renderTags() {
+      const t = cur.tags || {}, ORDER = ["creator", "both", "auto", "pending"], L = { creator: "creator", both: "creator + auto", auto: "auto", pending: "pending" };
+      const uni = ORDER.flatMap(b => (t[b] || []).map(tag => pill(tag, b, true))).join("");
+      const grouped = ORDER.filter(b => (t[b] || []).length).map(b =>
+        '<div class="mod-group"><span class="mod-group-label">' + L[b] + '</span><div class="mod-group-pills">' + (t[b] || []).map(tag => pill(tag, b, false)).join("") + "</div></div>").join("");
+      const meta = t.meta || [];
+      const any = uni.length || meta.length;
+      region("tags").innerHTML =
+        '<div class="mod-tags-head"><h2 class="mod-tags-title">Tags</h2>' +
+          '<div class="mod-view-toggle">' +
+            '<button type="button" data-act="view" data-view="unitag" class="' + (view === "unitag" ? "is-active" : "") + '">Unitag</button>' +
+            '<button type="button" data-act="view" data-view="grouped" class="' + (view === "grouped" ? "is-active" : "") + '">Grouped</button>' +
+          "</div></div>" +
+        (any ? "" : '<p class="mod-empty">No tags yet.</p>') +
+        '<div class="mod-unitag"' + (view === "unitag" ? "" : " hidden") + ">" + uni + "</div>" +
+        '<div class="mod-grouped"' + (view === "grouped" ? "" : " hidden") + ">" + grouped + "</div>" +
+        (meta.length ?
+          '<div class="mod-meta-section"><button type="button" class="mod-meta-toggle" data-act="meta-toggle" aria-expanded="' + metaOpen + '">' +
+            '<span class="mod-meta-caret ' + (metaOpen ? "is-open" : "") + '">&#9656;</span> quality &amp; meta tags <span class="mod-meta-count">' + meta.length + "</span></button>" +
+            '<div class="mod-meta-tags"' + (metaOpen ? "" : " hidden") + ">" + meta.map(tag => pill(tag, "meta", false)).join("") + "</div></div>" : "");
+    }
+    function renderActions() {
+      const m = cur.media, full = (m && (m.full || m.src)) || "#";
+      region("actions").innerHTML =
+        '<a class="mod-action" href="' + esc(full) + '" target="_blank" rel="noopener">View original</a>' +
+        '<a class="mod-action" href="' + esc(full) + '" download>Download</a>' +
+        '<a class="mod-action mod-fav" href="' + esc(cur.url) + '">&#9734; Favorite</a>';
+    }
+    function renderAll() { renderMeta(); renderCenter(); renderFlanks(); renderTags(); renderActions(); }
+
+    // ---- data + preloading ----
+    const endpointFor = (id, search) => BASE + "/" + id + "/modulation.json?q=" + encodeURIComponent(search || "");
+    function fetchPayload(id, search) {
+      const key = id + "|" + (search || "");
+      if (cache.has(key)) return Promise.resolve(cache.get(key));
+      return fetch(endpointFor(id, search), { headers: { Accept: "application/json" } })
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(p => { cache.set(key, p); return p; });
+    }
+    function preloadNeighbours() {
+      const a = active(); if (!a) return;
+      ["prev", "next"].forEach(side => {
+        const nb = a[side]; if (!nb) return;
+        fetchPayload(nb.id, a.search).then(p => { if (p.media && p.media.src) { const im = new Image(); im.src = p.media.src; } }).catch(() => {});
+      });
+    }
+
+    // ---- interactions ----
+    function setSort(i) { const ps = presets(); if (!ps.length) return; activeKey = ps[((i % ps.length) + ps.length) % ps.length].key; applyRanks(); preloadNeighbours(); }
+    function swapSort(d) { setSort(activeIndex() + d); }
+    function selectSort(i) { if (presets()[i]) { activeKey = presets()[i].key; applyRanks(); preloadNeighbours(); } }
+
+    function navigate(side) {
+      if (busy) return;
+      const a = active(), nb = a && a[side];
+      if (!nb) return;
+      busy = true;
+      fetchPayload(nb.id, a.search).then(p => {
+        root.classList.add(side === "next" ? "is-nav-next" : "is-nav-prev"); // shrink centre into slot, neighbour grows in
+        setTimeout(() => {
+          cur = p;
+          activeKey = p.active_key || activeKey;
+          root.classList.remove("is-nav-next", "is-nav-prev");
+          const enter = side === "next" ? "is-enter-next" : "is-enter-prev";
+          root.classList.add(enter);
+          renderAll();
+          history.pushState({ modId: p.id }, "", p.url);
+          requestAnimationFrame(() => requestAnimationFrame(() => { root.classList.remove(enter); busy = false; preloadNeighbours(); }));
+        }, 260);
+      }).catch(() => { window.location.href = nb.url; }); // network failure: fall back to a real load
+    }
+
+    root.addEventListener("click", e => {
+      const rowEl = e.target.closest(".mod-sortrow");
+      if (rowEl && root.contains(rowEl)) {
+        e.preventDefault();
+        const i = +rowEl.dataset.i;
+        if (i === activeIndex()) navigate(rowEl.dataset.side); else selectSort(i);
+        return;
+      }
+      const act = e.target.closest("[data-act]"); if (!act) return;
+      const a = act.dataset.act;
+      if (a === "sort-up") swapSort(-1);
+      else if (a === "sort-down") swapSort(1);
+      else if (a === "view") { view = act.dataset.view; renderTags(); }
+      else if (a === "meta-toggle") { metaOpen = !metaOpen; renderTags(); }
+    });
+
+    window.addEventListener("keydown", e => {
+      if (e.target.closest("input, textarea, select, [contenteditable]")) return;
+      if (e.key === "ArrowLeft") navigate("prev");
+      else if (e.key === "ArrowRight") navigate("next");
+      else if (e.key === "ArrowUp") { e.preventDefault(); swapSort(-1); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); swapSort(1); }
+    });
+
+    let tx = null;
+    const stage = region("stage");
+    stage.addEventListener("touchstart", e => { tx = e.changedTouches[0].clientX; }, { passive: true });
+    stage.addEventListener("touchend", e => { if (tx == null) return; const dx = e.changedTouches[0].clientX - tx; tx = null; if (Math.abs(dx) > 45) navigate(dx < 0 ? "next" : "prev"); });
+
+    window.addEventListener("popstate", () => {
+      const m = location.pathname.match(/\/posts\/(\d+)/); if (!m) return;
+      const search = new URLSearchParams(location.search).get("q") || "";
+      fetchPayload(+m[1], search).then(p => { cur = p; activeKey = p.active_key || activeKey; renderAll(); }).catch(() => {});
+    });
+
+    history.replaceState({ modId: cur.id }, "", cur.url);
+    renderAll();
+    preloadNeighbours();
+  })();
+  </script>
 </article>

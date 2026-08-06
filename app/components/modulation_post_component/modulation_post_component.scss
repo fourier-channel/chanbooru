@@ -167,10 +167,15 @@ body:has(.modulation) {
     border: 1px solid var(--mod-line);
     line-height: 0;
   }
-  .mod-image img, .mod-frame img, .mod-frame video {
+  .mod-image img, .mod-frame img, .mod-frame video, .mod-frame .mod-image {
     max-width: 100%;
     height: auto;
     display: block;
+  }
+  .mod-image--placeholder {
+    display: grid; place-items: center;
+    width: clamp(240px, 44vw, 360px); aspect-ratio: 3 / 4;
+    color: var(--mod-ink-dim); font-family: ui-monospace, monospace; font-size: 0.8rem;
   }
 
   // navigate (< / >): the centre shrinks into the slot while the active sort's

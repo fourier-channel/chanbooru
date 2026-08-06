@@ -60,7 +60,7 @@ class ModulationPostComponent < ApplicationComponent
   def metadata_fields
     [
       "#{post.image_width}×#{post.image_height}",
-      helpers.number_to_human_size(post.file_size),
+      ActiveSupport::NumberHelper.number_to_human_size(post.file_size),
       ".#{post.file_ext}",
       post.created_at.strftime("%Y-%m-%d"),
       "@#{post.uploader.name}",
@@ -71,7 +71,45 @@ class ModulationPostComponent < ApplicationComponent
     post.source.to_s.start_with?("mxc://")
   end
 
+  # Everything the client needs to render this post in the Modulation view, as a
+  # plain hash so the same builder serves the initial embed AND the client-side
+  # navigation endpoint (no page reload). Tag buckets come from for_viewer, so the
+  # creator-privacy decision stays server-side -- the client only displays what it
+  # is handed. Context-free (no view helpers) so it works outside a render.
+  def payload
+    {
+      id: post.id,
+      url: post_url_for(post, query.presence),
+      media: media_payload,
+      meta: meta_payload,
+      gated: media_gated?,
+      tags: buckets,
+      presets: nav_presets.map { |p| p.slice(:key, :label, :search, :prev, :next) },
+      active_key: active_preset_key,
+    }
+  end
+
   private
+
+  def media_payload
+    visible = post.visible?(viewer)
+    if post.is_image?
+      { kind: "image", src: (visible ? post.large_file_url : nil), full: (visible ? post.tagged_file_url : nil), w: post.image_width, h: post.image_height }
+    elsif post.is_video?
+      { kind: "video", src: (visible ? post.file_url : nil), poster: (visible ? post.preview_file_url : nil), w: post.image_width, h: post.image_height }
+    else
+      # ugoira / flash / other: Modulation shows the preview + a link out.
+      { kind: "other", src: (visible ? post.preview_file_url : nil), href: post_url_for(post, nil), w: post.image_width, h: post.image_height }
+    end
+  rescue StandardError
+    { kind: "other", src: nil, href: post_url_for(post, nil) }
+  end
+
+  def meta_payload
+    fields = metadata_fields.map { |text| { text: text } }
+    fields << { text: "source", href: post.normalized_source } if post.source.present? && post.normalized_source.present?
+    fields
+  end
 
   # The viewer's current search with any order: stripped, so each preset applies
   # its own sort over the same result set they were browsing.
@@ -93,13 +131,20 @@ class ModulationPostComponent < ApplicationComponent
       { key: "date", label: "date", search: with_order(base_tags, "created_at") },
     ]
     if artist_names.any?
-      defs << { key: "artist", label: "artist", search: with_order([base_tags, artist_names.first].compact_blank.join(" "), "id_desc") }
+      # Dedupe so navigating within the artist gallery (which carries the artist
+      # in q) doesn't double the tag and trip the search's tag limit.
+      artist_search = (base_tags.split + [artist_names.first]).uniq.join(" ")
+      defs << { key: "artist", label: "artist", search: with_order(artist_search, "id_desc") }
     end
 
     current_order = (PostQuery.new(query.to_s).find_metatag(:order).presence || "id_desc").downcase
     resolved = defs.map do |d|
+      # A preset whose query can't run (e.g. exceeds the viewer's tag limit) must
+      # degrade to "no neighbours", never 500 the whole view.
       nav = PostNeighbors.new(post: post, tags: d[:search], user: viewer)
       d.merge(prev_id: nav.prev_id, next_id: nav.next_id, order: nav.order)
+    rescue StandardError
+      d.merge(prev_id: nil, next_id: nil, order: (PostQuery.new(d[:search]).find_metatag(:order).presence || "id_desc").downcase)
     end
 
     # One batched load for every neighbour thumbnail, not a query per preview.
@@ -119,9 +164,14 @@ class ModulationPostComponent < ApplicationComponent
     return nil if neighbour.nil?
 
     { id: neighbour.id,
-      url: helpers.post_path(neighbour, preset: "modulation", q: search),
+      url: post_url_for(neighbour, search),
       thumb: (neighbour.visible?(viewer) ? neighbour.preview_file_url : nil) }
   rescue StandardError
     nil
+  end
+
+  # Route helper that works outside a render context (used by the JSON endpoint).
+  def post_url_for(target, search)
+    Rails.application.routes.url_helpers.post_path(target, preset: "modulation", q: search.presence)
   end
 end
