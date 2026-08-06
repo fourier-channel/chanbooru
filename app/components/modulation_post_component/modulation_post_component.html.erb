@@ -1,5 +1,35 @@
-<article class="modulation" x-data="{ view: 'unitag', metaOpen: false }">
-  <%# One-line mono metadata sub-header, above the image. %>
+<article class="modulation"
+  data-presets="<%= nav_presets.map { |p| p.slice(:key, :label, :prev, :next) }.to_json %>"
+  data-active-key="<%= active_preset_key %>"
+  x-data="{
+    view: 'unitag', metaOpen: false, slide: '', touchX: null, presets: [], activeKey: '',
+    init() { this.presets = JSON.parse(this.$el.dataset.presets || '[]'); this.activeKey = this.$el.dataset.activeKey || ''; },
+    get active() { return this.presets.find(p => p.key === this.activeKey) || this.presets[0] || {}; },
+    swapSort(dir) {
+      if (this.presets.length < 2) return;
+      const i = Math.max(0, this.presets.findIndex(p => p.key === this.activeKey));
+      this.activeKey = this.presets[(i + dir + this.presets.length) % this.presets.length].key;
+    },
+    go(which) {
+      const t = this.active && this.active[which];
+      if (!t || !t.url) return;
+      this.slide = (which === 'next') ? 'left' : 'right';
+      setTimeout(() => { window.location.href = t.url; }, 160);
+    },
+    onTouchStart(e) { this.touchX = e.changedTouches[0].clientX; },
+    onTouchEnd(e) {
+      if (this.touchX === null) return;
+      const dx = e.changedTouches[0].clientX - this.touchX; this.touchX = null;
+      if (Math.abs(dx) > 45) this.go(dx < 0 ? 'next' : 'prev');
+    }
+  }"
+  :class="{ 'is-slide-left': slide === 'left', 'is-slide-right': slide === 'right' }"
+  @keydown.window.arrow-left="go('prev')"
+  @keydown.window.arrow-right="go('next')"
+  @keydown.window.arrow-up.prevent="swapSort(-1)"
+  @keydown.window.arrow-down.prevent="swapSort(1)">
+
+  <%# One-line mono metadata sub-header, above the image, with the sort switch. %>
   <header class="mod-meta">
     <div class="mod-meta-fields">
       <% metadata_fields.each do |field| %>
@@ -11,14 +41,35 @@
         </span>
       <% end %>
     </div>
-    <% if media_gated? %>
-      <span class="mod-gate" title="Served through the fourier-auth media gate">R2 gated</span>
-    <% end %>
+    <div class="mod-meta-right">
+      <div class="mod-sort-switch" title="Change sort (↑ / ↓)">
+        <button type="button" class="mod-sort-arrow" @click="swapSort(-1)" :disabled="presets.length < 2" aria-label="Previous sort">▲</button>
+        <span class="mod-sort-label">sort <b x-text="active.label"></b></span>
+        <button type="button" class="mod-sort-arrow" @click="swapSort(1)" :disabled="presets.length < 2" aria-label="Next sort">▼</button>
+      </div>
+      <% if media_gated? %>
+        <span class="mod-gate" title="Served through the fourier-auth media gate">R2 gated</span>
+      <% end %>
+    </div>
   </header>
 
-  <%# Image, top-centre, in a clipping frame. Neighbour flanks (gallery nav) land here later. %>
-  <section class="mod-stage">
-    <%= render MediaAssetComponent.new(media_asset: post.media_asset, current_user: viewer, outer_classes: "mod-frame", inner_classes: "mod-image") %>
+  <%# Image top-centre in a clipping frame, flanked by faded prev/next previews.
+      < / > (and swipe, and a flank tap) move within the active sort; the flanks
+      shuffle to the new neighbours on sort-swap while the centre never moves. %>
+  <section class="mod-stage" @touchstart.passive="onTouchStart($event)" @touchend="onTouchEnd($event)">
+    <a class="mod-flank mod-flank--prev" :href="(active.prev && active.prev.url) || '#'" x-show="active.prev" @click.prevent="go('prev')" aria-label="Previous post">
+      <template x-if="active.prev && active.prev.thumb"><img :src="active.prev.thumb" alt="" loading="lazy"></template>
+      <span class="mod-flank-arrow" aria-hidden="true">‹</span>
+    </a>
+
+    <div class="mod-stage-center">
+      <%= render MediaAssetComponent.new(media_asset: post.media_asset, current_user: viewer, outer_classes: "mod-frame", inner_classes: "mod-image") %>
+    </div>
+
+    <a class="mod-flank mod-flank--next" :href="(active.next && active.next.url) || '#'" x-show="active.next" @click.prevent="go('next')" aria-label="Next post">
+      <template x-if="active.next && active.next.thumb"><img :src="active.next.thumb" alt="" loading="lazy"></template>
+      <span class="mod-flank-arrow" aria-hidden="true">›</span>
+    </a>
   </section>
 
   <%# Compact action row. %>
