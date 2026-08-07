@@ -8,6 +8,11 @@
       <a class="modcreator-msg" href="<%= matrix_url %>" target="_blank" rel="noopener noreferrer">Message on Matrix</a>
       <% if can_edit %>
         <%= link_to "Edit page", edit_creator_gallery_path(gallery), class: "modcreator-edit" %>
+      <% else %>
+        <%# The Creator Gallery write gate keys on the verified Matrix identity
+            (fourier_session). Signing in through the same-origin /fourier gate
+            lands that cookie on the booru origin; the owner then sees "Edit page". %>
+        <a class="modcreator-signin" href="/fourier/login" rel="nofollow">Sign in with Matrix</a>
       <% end %>
     </div>
   </header>
