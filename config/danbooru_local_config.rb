@@ -48,15 +48,41 @@ module Danbooru
       sample:    [850, 850],
     }.freeze
 
-    # Posts whose source is an MXC URI are served through the fourier-auth gate.
-    # Everything else (no post, non-MXC source) falls back to stock /data/ serving.
+    # Media the booru does not hold is served from R2 through the fourier-auth
+    # gate. Two kinds, two routes, because they are authorised differently:
+    #
+    #   mxc://...  -> /fourier/media/<server>/<id>   room membership (Synapse)
+    #   everything -> /fourier/booru/<md5>.<ext>     fourier session (the same
+    #                                                fourier login already used
+    #                                                to view Synapse media)
+    #
+    # The second route exists because a 4chan image lives in no Matrix room, so
+    # the mxc route's authorisation question is meaningless for it. See
+    # fourier-auth booru-media.js.
+    #
+    # PRECONDITION for the booru branch: the object is in R2 under
+    # media/<md5>.<ext>, put there by fourier-sampling's uploader. A post whose
+    # bytes exist only on this disk must NOT be routed here -- it would 404.
+    # As of 2026-08-11 that is every post: the 32 mxc ones are in R2 via
+    # Synapse's s3-storage-provider, post 34 via the uploader, and post 1 (the
+    # legacy source="test" upload) was copied up as part of this change.
     def media_asset_file_url(variant, custom_filename)
       source = variant.media_asset.post&.source
-      m = %r{\Amxc://(?<server>[A-Za-z0-9.:-]+)/(?<id>[A-Za-z0-9_-]+)\z}.match(source.to_s)
-      return super if m.nil?
-
-      url = "#{fourier_gate_path}/media/#{m[:server]}/#{m[:id]}"
       size = FOURIER_VARIANT_SIZES[variant.type]
+
+      m = %r{\Amxc://(?<server>[A-Za-z0-9.:-]+)/(?<id>[A-Za-z0-9_-]+)\z}.match(source.to_s)
+      if m
+        url = "#{fourier_gate_path}/media/#{m[:server]}/#{m[:id]}"
+        url += "?w=#{size[0]}&h=#{size[1]}" if size
+        return url
+      end
+
+      asset = variant.media_asset
+      return super if asset.md5.blank? || asset.file_ext.blank?
+
+      url = "#{fourier_gate_path}/booru/#{asset.md5}.#{asset.file_ext}"
+      # Same ?w=/?h= shape as the mxc branch; the gate snaps it to a rendition
+      # fourier-sampling actually uploaded.
       url += "?w=#{size[0]}&h=#{size[1]}" if size
       url
     end
