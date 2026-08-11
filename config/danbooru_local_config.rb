@@ -87,18 +87,72 @@ module Danbooru
       url
     end
 
-    # Pass gate URLs through untouched; everything else gets normal
-    # base_url joining. Subclass is built at call time because
-    # StorageManager::Local isn't autoloaded when this file is required.
+    # Storage lives in R2, not on this box (operator ruling 2026-08-11: the booru
+    # holds no media; R2 receives, holds and serves it).
+    #
+    # Rclone rather than Null. Null makes `store` a no-op, which silently
+    # discards the bytes of anything that is not already in R2 -- a person
+    # uploading here would get a post, no file, and a permanent 404. Manual
+    # uploads are coming, and further media sources after them (operator,
+    # 2026-08-12), so that hole is not survivable. Null also makes `open` a
+    # no-op, which breaks IQDB indexing, `regenerate!` and the media controller;
+    # rclone reads back, so all three keep working with no change to them.
+    #
+    # Keys are mapped onto fourier-sampling's layout so the bucket holds ONE
+    # scheme rather than two writers with two conventions:
+    #
+    #   /original/f2/b6/<md5>.png      -> media/<md5>.png
+    #   /180x180/f2/b6/<md5>.jpg       -> variants/<md5>/180x180.jpg
+    #   /720x720/f2/b6/<md5>.webp      -> variants/<md5>/720x720.webp
+    #   /sample/f2/b6/sample-<md5>.jpg -> variants/<md5>/sample.jpg
+    #
+    # The extension is carried through rather than fixed, because the formats
+    # are not uniform: convert_file renders 720x720 as webp q75 and the rest as
+    # jpeg q85. fourier-sampling matches that exactly, so whichever side writes
+    # first, the other finds the object it expects.
+    #
+    # An UNRECOGNISED path falls through to rclone's plain layout rather than
+    # being force-mapped. A silent misroute is worse than an obvious one.
+    #
+    # Requires RCLONE_S3_* in this service's environment. Note it is
+    # RCLONE_S3_*, the backend-type form, NOT RCLONE_CONFIG_<NAME>_*: `key`
+    # emits `:s3:` and the named-remote form fails with
+    # "didn't find backend called ...".
     def storage_manager
       @storage_manager ||= begin
-        klass = Class.new(StorageManager::Local) do
+        klass = Class.new(StorageManager::Rclone) do
           def file_url(path)
             return path if path.to_s.start_with?("/fourier/")
             super
           end
+
+          def key(path)
+            mapped = fourier_key(path)
+            return super if mapped.nil?
+            ":#{remote}:#{bucket}/#{mapped}"
+          end
+
+          # nil when the path is not one we recognise, so `key` can fall back.
+          def fourier_key(path)
+            p = path.to_s
+            if (m = %r{\A/original/\w{2}/\w{2}/(?<md5>[0-9a-f]{32})(?<ext>\.\w+)\z}.match(p))
+              "media/#{m[:md5]}#{m[:ext]}"
+            elsif (m = %r{\A/sample/\w{2}/\w{2}/sample-(?<md5>[0-9a-f]{32})(?<ext>\.\w+)\z}.match(p))
+              "variants/#{m[:md5]}/sample#{m[:ext]}"
+            elsif (m = %r{\A/(?<type>180x180|360x360|720x720)/\w{2}/\w{2}/(?<md5>[0-9a-f]{32})(?<ext>\.\w+)\z}.match(p))
+              "variants/#{m[:md5]}/#{m[:type]}#{m[:ext]}"
+            end
+          end
         end
-        klass.new(base_url: "#{Danbooru.config.canonical_url}/data", base_dir: Danbooru.config.image_storage_path)
+        klass.new(
+          remote: "s3",
+          # No default on purpose. A wrong-but-plausible fallback would write
+          # media into whichever bucket happened to be named here; an
+          # unconfigured deploy should fail loudly at boot instead. The name is
+          # also infrastructure detail, and this repo is public.
+          bucket: ENV.fetch("R2_BUCKET"),
+          base_url: "#{Danbooru.config.canonical_url}/data",
+        )
       end
     end
   end
