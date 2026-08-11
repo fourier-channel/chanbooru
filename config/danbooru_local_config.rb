@@ -146,6 +146,15 @@ module Danbooru
         end
         klass.new(
           remote: "s3",
+          # R2 tokens cannot create or probe a bucket. Without this, rclone's
+          # default bucket check turns every `store` into
+          # "AccessDenied ... status code: 403" -- reads succeed, writes fail,
+          # so it would have looked healthy until the first upload. Verified on
+          # the box: identical copy fails without the flag and round-trips with
+          # it. In code rather than an env var on purpose: it is a property of
+          # the backend, not a credential, and a missing env var would break
+          # writes silently.
+          rclone_options: ["--s3-no-check-bucket"],
           # No default on purpose. A wrong-but-plausible fallback would write
           # media into whichever bucket happened to be named here; an
           # unconfigured deploy should fail loudly at boot instead. The name is
