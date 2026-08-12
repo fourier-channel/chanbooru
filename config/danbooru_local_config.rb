@@ -54,6 +54,18 @@ module Danbooru
     #      file is a single-file bind mount whose inode the running container
     #      holds open.
     #
+    # troll_jail is applied by fourier-sampling when an image is sent to troll
+    # jail and removed when it is released, so visibility follows the jail state
+    # with no second switch to keep in sync.
+    #
+    # NOTE: %w[] takes NO comments. A comment inside the literal becomes DATA --
+    # every word of it, including any with regex metacharacters. Doing exactly
+    # that on 2026-08-12 turned "# Jailed content, hidden pending review
+    # (operator ...)" into 40-odd bogus entries; it did not crash, because
+    # "(operator|2026-08-12)" happens to be a valid group, it just silently
+    # restricted words like hidden, content, review and troll. Keep prose out
+    # here, above the literal.
+    #
     # A tag that does not exist yet is inert -- the match is against tag_string,
     # not the tags table -- so listing ones the tagger has not emitted yet is
     # deliberate and costs nothing.
@@ -69,6 +81,7 @@ module Danbooru
         young
         aged_down
         age_regression
+        troll_jail
       ]
     end
 
