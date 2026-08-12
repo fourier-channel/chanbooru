@@ -32,6 +32,46 @@ module Danbooru
       HTML
     end
 
+    # ---- Content restriction ----
+
+    # Tags visible only to Gold+ (level 30). A non-Gold viewer still sees the
+    # post listed with its tags; the IMAGE is replaced by an upgrade prompt, and
+    # PostPolicy strips md5, file_url, large_file_url and preview_file_url from
+    # the API, so the file identifiers are never handed out either.
+    #
+    # Purpose is to avoid accidentally SERVING illegal content, not to judge it.
+    # Anything found to be actually illegal is handled separately and upstream:
+    # Cloudflare scans for CSAM before it reaches this box.
+    #
+    # Two constraints on what may go in this list:
+    #
+    #   1. Plain [a-z0-9_] only. RESTRICTED_TAGS_REGEX interpolates these
+    #      straight into a pattern with NO Regexp.escape, so a tag containing
+    #      metacharacters -- anything shaped like foo_(bar) -- either mismatches
+    #      or raises at class load and takes the app down.
+    #   2. Changing this list needs a --force-recreate, not a restart. The regex
+    #      is built with /o, so it is interpolated once at class load, and this
+    #      file is a single-file bind mount whose inode the running container
+    #      holds open.
+    #
+    # A tag that does not exist yet is inert -- the match is against tag_string,
+    # not the tags table -- so listing ones the tagger has not emitted yet is
+    # deliberate and costs nothing.
+    def restricted_tags
+      %w[
+        loli
+        shota
+        toddlercon
+        child
+        toddler
+        baby
+        infant
+        young
+        aged_down
+        age_regression
+      ]
+    end
+
     # ---- Fourier media gating ----
 
     # Same-origin base path that nginx will proxy to fourier-auth.
