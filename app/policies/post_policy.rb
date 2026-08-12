@@ -80,7 +80,14 @@ class PostPolicy < ApplicationPolicy
     if imminent_get?
       { action: "posts:create", rate: 1.0 / 1.minute, burst: 1 }
     elsif user.is_contributor?
-      { action: "posts:create", rate: 6.0 / 1.minute, burst: 40 } # 360 per hour, 400 in first hour
+      # Raised from 6/min for the first-party importers (operator, 2026-08-12).
+      # The old figure is tuned for a human uploading by hand; fourier-sampling
+      # and the bridge are trusted, rate-limited upstream already, and their
+      # bytes are fetched from our own R2 rather than a third party. The real
+      # constraint is this box, which also serves Matrix: each create costs an
+      # R2 fetch plus variant rendering plus rclone writes, so this is set to a
+      # level measured against actual load rather than raised to "unlimited".
+      { action: "posts:create", rate: 30.0 / 1.minute, burst: 60 } # 1800 per hour
     elsif user.posts.active.exists?(created_at: ..1.hour.ago)
       { action: "posts:create", rate: 2.0 / 1.minute, burst: 30 } # 120 per hour, 150 in first hour
     elsif user.posts.exists?(created_at: ..1.hour.ago)
