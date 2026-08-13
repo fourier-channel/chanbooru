@@ -179,6 +179,29 @@ module Danbooru
             super
           end
 
+          # Never re-upload an object that is content-addressed.
+          #
+          # media/<md5>.<ext> is keyed by the digest of its own bytes, so an
+          # object already at that key IS those bytes -- there is nothing a
+          # second write can change. danbooru was re-uploading every original it
+          # had just FETCHED from that exact key: measured 2026-08-12, the
+          # uploader wrote media/ at 05:16:19 and danbooru overwrote it at
+          # 05:57:38, two seconds before creating the post. Roughly 1.6MB of
+          # pointless upload per image.
+          #
+          # --ignore-existing rather than a separate existence check, so this
+          # costs no extra round trip. Scoped to media/ ONLY: variant keys are
+          # md5 PLUS a variant name, not a digest of their contents, so
+          # re-rendering one must still be able to overwrite it.
+          def store(file, path)
+            k = fourier_key(path)
+            if k&.start_with?("media/")
+              rclone "copyto", "--ignore-existing", file.path, key(path)
+            else
+              super
+            end
+          end
+
           def key(path)
             mapped = fourier_key(path)
             return super if mapped.nil?
