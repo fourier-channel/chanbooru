@@ -92,6 +92,13 @@ module Danbooru
       "/fourier"
     end
 
+    # Where Matrix media lives for every surface. Not a booru-specific origin:
+    # this is the homeserver's own authenticated-media endpoint, fronted by the
+    # Cloudflare Worker that serves it from R2. One URL, one check, one copy.
+    def fourier_media_origin
+      ENV.fetch("FOURIER_MEDIA_ORIGIN", "https://matrix.41chan.net")
+    end
+
     # Danbooru variant type -> Synapse thumbnail size.
     # original and full are deliberately absent: they get the ungated-size download.
     FOURIER_VARIANT_SIZES = {
@@ -123,11 +130,27 @@ module Danbooru
       source = variant.media_asset.post&.source
       size = FOURIER_VARIANT_SIZES[variant.type]
 
+      # Matrix-sourced media goes to the CANONICAL Matrix media URL -- the same
+      # one Element and Technetium request, byte for byte.
+      #
+      # Operator ruling 2026-08-15: "41chan is 41chan... the entire site is
+      # supposed to be multiple surfaces into the same exact data. One source of
+      # truth." A booru-specific media path meant this surface deciding for
+      # itself what a user may see; now it asks the same endpoint, which asks
+      # the same gate, which applies the same room check. The booru shows the
+      # image if and only if the viewer is in the room it was posted to.
+      #
+      # An <img> cannot send a Bearer token, so the browser presents the
+      # fourier_session cookie instead -- scoped to .41chan.net for exactly this
+      # reason. booru.41chan.net and matrix.41chan.net are the same SITE, so a
+      # SameSite=Lax cookie rides along on the subresource load.
       m = %r{\Amxc://(?<server>[A-Za-z0-9.:-]+)/(?<id>[A-Za-z0-9_-]+)\z}.match(source.to_s)
       if m
-        url = "#{fourier_gate_path}/media/#{m[:server]}/#{m[:id]}"
-        url += "?w=#{size[0]}&h=#{size[1]}" if size
-        return url
+        base = "#{fourier_media_origin}/_matrix/client/v1/media"
+        if size
+          return "#{base}/thumbnail/#{m[:server]}/#{m[:id]}?width=#{size[0]}&height=#{size[1]}&method=scale"
+        end
+        return "#{base}/download/#{m[:server]}/#{m[:id]}"
       end
 
       asset = variant.media_asset
@@ -174,8 +197,13 @@ module Danbooru
     def storage_manager
       @storage_manager ||= begin
         klass = Class.new(StorageManager::Rclone) do
+          # Pass our own URLs through untouched. The base_url join is for files
+          # this storage manager serves; these are served by the media endpoint
+          # every other surface uses, so joining a base onto them produced
+          # https://booru.41chan.net/data/https://matrix.41chan.net/... -- a URL
+          # that is wrong in a way an <img> reports only as a broken image.
           def file_url(path)
-            return path if path.to_s.start_with?("/fourier/")
+            return path if path.to_s.start_with?("/fourier/", "http://", "https://")
             super
           end
 
