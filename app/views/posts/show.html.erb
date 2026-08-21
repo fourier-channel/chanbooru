@@ -5,9 +5,10 @@
   <% atom_feed_tag "Comments for post ##{@post.id}", comments_url(:atom, search: { post_id: @post.id }) %>
 <% end %>
 
-<%# "Modulation" experience preset -- opt-in single-cell redesign. The upstream
-    post page below is the default; ?preset=modulation swaps in the fork view. %>
-<% if params[:preset] == "modulation" %>
+<%# "Modulation" -- the single-cell post page, and the default. The upstream
+    post page below is retained as the hidden "historical" preset; see
+    ExperiencePreset for how a page picks between them. %>
+<% if modulation? %>
   <%= render ModulationPostComponent.new(post: @post, viewer: CurrentUser.user, query: params[:q]) %>
 <% else %>
 <%= render "posts/partials/common/secondary_links" %>

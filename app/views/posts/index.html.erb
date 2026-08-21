@@ -1,6 +1,6 @@
-<%# "Modulation" gallery preset -- opt-in themed index; the upstream page below
-    is the default. %>
-<% if params[:preset] == "modulation" %>
+<%# "Modulation" -- the themed post index, and the default. The upstream page
+    below is retained as the hidden "historical" preset. %>
+<% if modulation? %>
   <% content_for(:content) do %>
     <%= render ModulationGalleryComponent.new(post_set: @post_set, viewer: CurrentUser.user) %>
   <% end %>
