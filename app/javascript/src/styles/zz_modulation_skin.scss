@@ -374,6 +374,44 @@ body[data-preset="modulation"] {
     }
   }
 
+  /* Key/value tables. Danbooru's "show" pages (a user's statistics, an artist's
+     details, a post's metadata) are tables with row headers in <th> rather than
+     column headers. Those th's are captions, not headings, so they get the same
+     small mono label the post view's .mod-meta fields use. */
+  table tbody th {
+    font-family: var(--mod-mono);
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mod-ink-dim);
+    white-space: nowrap;
+    vertical-align: baseline;
+    padding-right: 1rem;
+  }
+
+  table.user-statistics,
+  table.table-sm {
+    background: var(--mod-surface-2);
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius);
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+    font-size: 0.86rem;
+
+    td, th { padding: 0.38rem 0.75rem; }
+  }
+
+  /* Section headings inside a page body get a hairline so a stack of sections
+     reads as a stack rather than as one run of text. Prose opts out below --
+     inside an article the headings are content, not furniture. */
+  #page h2 {
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--mod-line);
+    margin-bottom: 0.7rem;
+  }
+
   /* ------------------------------------------------------------- paginator */
 
   .paginator {
@@ -454,6 +492,10 @@ body[data-preset="modulation"] {
     line-height: 1.62;
 
     h1, h2, h3, h4 { margin-top: 1.4em; margin-bottom: 0.5em; }
+
+    /* Opt out of the section hairline above: these headings are article
+       structure, and ruling every one of them turns a wiki page into a form. */
+    h2 { padding-bottom: 0; border-bottom: 0; }
 
     code, .inline-code {
       background: var(--mod-surface-2);
