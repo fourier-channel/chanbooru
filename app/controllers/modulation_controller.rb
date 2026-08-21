@@ -27,6 +27,20 @@ class ModulationController < ApplicationController
   def comments_html(post)
     return nil unless Danbooru.config.comments_enabled?.to_s.truthy?
 
+    # Partial lookup follows the REQUEST's format, and this request is JSON --
+    # so the comment form partial resolves to a JSON template that does not
+    # exist and the whole response 406s. The form only renders for a viewer who
+    # may comment, which is why this failed for logged-in users and nobody else:
+    # every signed-in reader's client-side navigation would have fallen back to
+    # a full page reload.
+    #
+    # Restored rather than left set: nothing after this renders a template, but
+    # a controller that quietly changes its own view lookup for the rest of the
+    # action is a trap for the next thing added here.
+    previous = lookup_context.formats
+    lookup_context.formats = [:html]
     view_context.render(CommentSectionComponent.new(post: post, current_user: CurrentUser.user))
+  ensure
+    lookup_context.formats = previous if previous
   end
 end

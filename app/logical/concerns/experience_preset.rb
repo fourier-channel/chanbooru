@@ -17,7 +17,7 @@ module ExperiencePreset
   MODULATION = "modulation"
   HISTORICAL = "historical"
   PRESETS = [MODULATION, HISTORICAL].freeze
-  DEFAULT = MODULATION
+  FALLBACK = MODULATION
   SESSION_KEY = :experience_preset
 
   included do
@@ -39,6 +39,21 @@ module ExperiencePreset
 
   private
 
+  # The preset served when nobody asked. Configurable because the test
+  # environment needs a different answer -- the reasoning is recorded on
+  # Danbooru.config.default_experience_preset, where it belongs.
+  def self.default_preset
+    configured = Danbooru.config.default_experience_preset.to_s
+    PRESETS.include?(configured) ? configured : FALLBACK
+  end
+
+  # Not self.class.default_preset: self.class is the CONTROLLER that included
+  # this module, and a module's own singleton method is not inherited by an
+  # includer's singleton.
+  def default_preset
+    ExperiencePreset.default_preset
+  end
+
   def resolve_experience_preset
     requested = params[:preset].to_s.downcase.strip
 
@@ -46,19 +61,19 @@ module ExperiencePreset
     # An unrecognised one is not an error -- it just means "the default", and it
     # clears any stickiness so a typo cannot strand someone in historical.
     if requested.present?
-      chosen = PRESETS.include?(requested) ? requested : DEFAULT
+      chosen = PRESETS.include?(requested) ? requested : default_preset
       remember_experience_preset(chosen)
       return chosen
     end
 
     stored = session[SESSION_KEY].to_s
-    PRESETS.include?(stored) ? stored : DEFAULT
+    PRESETS.include?(stored) ? stored : default_preset
   end
 
-  # Only historical needs remembering; modulation is the default, so storing it
-  # would put a cookie on every anonymous visitor for no gain.
+  # Only a non-default preset needs remembering; storing the default would put a
+  # cookie on every anonymous visitor for no gain.
   def remember_experience_preset(preset)
-    if preset == DEFAULT
+    if preset == default_preset
       session.delete(SESSION_KEY) if session[SESSION_KEY].present?
     else
       session[SESSION_KEY] = preset
