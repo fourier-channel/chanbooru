@@ -71,6 +71,10 @@ class ModulationPostComponent < ApplicationComponent
     post.source.to_s.start_with?("mxc://")
   end
 
+  def comments_enabled?
+    Danbooru.config.comments_enabled?.to_s.truthy?
+  end
+
   # --- parity with the upstream post page ---------------------------------
   # Everything below exists because the upstream page had it and this one did
   # not. A viewer who moves between a themed listing and this page should not

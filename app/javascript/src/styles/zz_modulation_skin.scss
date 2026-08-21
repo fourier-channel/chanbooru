@@ -412,6 +412,22 @@ body[data-preset="modulation"] {
     margin-bottom: 0.7rem;
   }
 
+  /* Bespoke components own their own headings. This is the explicit exclusion
+     the header comment promises: the rule above is an ID selector and would
+     otherwise outrank a component's class-based styling, which is how a global
+     skin starts quietly redecorating things it does not own. The #page wrapper
+     is not decoration: without an id of its own this selector loses to the one
+     above no matter how many classes it names. Add a root here when a new
+     Modulation component lands. */
+  #page {
+    .modulation, .modgal, .creator-gallery {
+      h1, h2, h3 {
+        padding-bottom: 0;
+        border-bottom: 0;
+      }
+    }
+  }
+
   /* ------------------------------------------------------------- paginator */
 
   .paginator {
