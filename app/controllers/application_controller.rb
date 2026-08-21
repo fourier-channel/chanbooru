@@ -5,6 +5,7 @@ class ApplicationController < ActionController::Base
   class RequestBodyNotAllowedError < StandardError; end
 
   include Pundit::Authorization
+  include ExperiencePreset
 
   helper_method :search_params, :permitted_attributes
 
