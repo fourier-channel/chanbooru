@@ -195,6 +195,16 @@ module Danbooru
     # emits `:s3:` and the named-remote form fails with
     # "didn't find backend called ...".
     def storage_manager
+      # Development and test have no R2 credentials and no reason to want them:
+      # the dev stack ships its own image volume, and upstream's local storage
+      # manager serves it directly. Falling back here keeps `bin/dev` usable
+      # without handing a dev box production bucket access.
+      #
+      # Deployed environments are NOT covered by this and still hit the
+      # ENV.fetch("R2_BUCKET") below -- an unconfigured deploy must fail loudly,
+      # which is the whole point of that fetch having no default.
+      return super if Rails.env.development? || Rails.env.test?
+
       @storage_manager ||= begin
         klass = Class.new(StorageManager::Rclone) do
           # Pass our own URLs through untouched. The base_url join is for files
