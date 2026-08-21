@@ -169,6 +169,14 @@ body[data-preset="modulation"] {
 
   /* --------------------------------------------------------------- sidebar */
 
+  /* The sidebar layout renders #sidebar whether or not the page filled it, so a
+     page that uses the layout without providing sidebar content still pays 245px
+     of empty gutter and its content starts a quarter of the way across. The
+     bespoke views each hide the sidebar by hand; this covers every page that
+     does not. :not(:has(*)) rather than :empty, because the container holds
+     whitespace text nodes and :empty would never match. */
+  #sidebar:not(:has(*)) { display: none; }
+
   #sidebar > section {
     background: var(--mod-surface-2);
     border: 1px solid var(--mod-line);

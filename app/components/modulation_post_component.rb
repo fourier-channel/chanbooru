@@ -192,7 +192,11 @@ class ModulationPostComponent < ApplicationComponent
   def more_links
     groups = []
 
-    discover = [{ label: "Find similar", href: routes.iqdb_queries_path(post_id: post.id) }]
+    # "Find similar" only when IQDB is actually configured. Upstream shows the
+    # link unconditionally, which is survivable in a sidebar nobody had to look
+    # at; offering a dead link from the default view of every post is not.
+    discover = []
+    discover << { label: "Find similar", href: routes.iqdb_queries_path(post_id: post.id) } if Danbooru.config.iqdb_url.present?
     # A post can outlive its media asset (expunged file, failed import), so this
     # one is asked for rather than assumed.
     asset_id = post.media_asset&.id
