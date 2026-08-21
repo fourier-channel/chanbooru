@@ -58,6 +58,34 @@
     </div>
   <% end %>
 
+  <%# The subject of the search, when the search has one. Upstream keeps this
+      behind a tab on the index; here it sits above the results, because the
+      answer to "what am I looking at" should not need a click. %>
+  <% if excerpt.present? %>
+    <div class="modgal-excerpt modgal-excerpt--<%= excerpt[:kind] %>">
+      <div class="modgal-excerpt-head">
+        <span class="modgal-excerpt-kind"><%= excerpt[:kind] %></span>
+        <%= link_to excerpt[:title], excerpt[:href], class: "modgal-excerpt-title" %>
+      </div>
+      <% if excerpt_summary.present? %>
+        <p class="modgal-excerpt-body"><%= excerpt_summary %></p>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# Search-scoped navigation. Upstream's sidebar "Options" and "Related"
+      sections, minus the global discovery links that made that list a junk
+      drawer -- everything here acts on the search you are already in. %>
+  <nav class="modgal-related">
+    <span class="modgal-related-label">this search</span>
+    <% related_links.each do |link| %>
+      <%= link_to link[:label], link[:href], class: "modgal-related-link", rel: "nofollow" %>
+    <% end %>
+    <% if can_save_search? %>
+      <button type="button" class="modgal-related-link modgal-save" id="save-search">save search</button>
+    <% end %>
+  </nav>
+
   <%# The grid. Each thumbnail carries the search into the post view. %>
   <% if posts.any? %>
     <div class="modgal-grid">
@@ -84,7 +112,10 @@
     <% else %>
       <span class="modgal-page is-disabled">‹ prev</span>
     <% end %>
-    <span class="modgal-page-cur">page <%= current_page %></span>
+    <span class="modgal-page-cur">
+      page <%= current_page %><% if total_pages %> / <%= total_pages %><% end %>
+      <% if post_count %><span class="modgal-page-count"><%= number_with_delimiter(post_count) %> posts</span><% end %>
+    </span>
     <% if more_pages? %>
       <%= link_to "next ›", page_url(current_page + 1), class: "modgal-page" %>
     <% else %>

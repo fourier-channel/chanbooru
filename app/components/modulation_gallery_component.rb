@@ -82,6 +82,85 @@ class ModulationGalleryComponent < ApplicationComponent
     [post_set.current_page.to_i, 1].max
   end
 
+  # --- parity with the upstream index -------------------------------------
+  # The upstream page keeps these in sidebar sections this gallery hides. They
+  # are search-scoped navigation, so they belong with the search controls rather
+  # than as a transplanted sidebar.
+
+  def post_count
+    post_set.post_count
+  end
+
+  def total_pages
+    count = post_count
+    return nil if count.nil? || post_set.per_page.to_i <= 0
+
+    [(count.to_f / post_set.per_page).ceil, 1].max
+  end
+
+  # "Related": the same search seen another way. Deliberately only the ones that
+  # act on the CURRENT query -- the upstream list mixes those with global
+  # discovery links, and mixing them is why that section reads as a junk drawer.
+  def related_links
+    links = [
+      { label: "random", href: routes.random_posts_path(tags: query_string.presence, preset: "modulation") },
+      { label: "deleted", href: routes.posts_path(tags: [query_string.presence, "status:deleted"].compact.join(" "), preset: "modulation") },
+      { label: "count", href: routes.posts_counts_path(tags: query_string.presence) },
+    ]
+
+    if single_tag.present?
+      links << { label: "history", href: routes.post_versions_path(search: { changed_tags: single_tag }) }
+      links << { label: "discussions", href: routes.forum_posts_path(search: { linked_to: single_tag })} if forum_enabled?
+    end
+
+    links
+  end
+
+  def forum_enabled?
+    Danbooru.config.forum_enabled?.to_s.truthy?
+  end
+
+  def single_tag
+    return nil unless post_set.post_query.has_single_tag?
+
+    post_set.post_query.tag_name
+  end
+
+  def can_save_search?
+    # Not ApplicationComponent#policy: that delegates to a current_user method
+    # this component does not have -- it takes its viewer explicitly, because it
+    # is also built outside a request in the navigation payload path.
+    SavedSearchPolicy.new(viewer, SavedSearch).create?
+  end
+
+  # The excerpt: when a search IS a subject -- one tag with a wiki page, an
+  # artist entry, or a pool -- upstream offers its summary behind a tab. Search
+  # for a character and the page can say who they are; without it the search is
+  # a wall of thumbnails with no answer to "what am I looking at".
+  def excerpt
+    @excerpt ||= begin
+      if post_set.artist.present? && !post_set.artist.is_banned?
+        { kind: "artist", title: post_set.artist.name.tr("_", " "), href: routes.artist_path(post_set.artist), body: post_set.artist.wiki_page&.body }
+      elsif post_set.pool.present?
+        { kind: "pool", title: post_set.pool.pretty_name, href: routes.pool_path(post_set.pool), body: post_set.pool.description }
+      elsif post_set.wiki_page.present?
+        { kind: "wiki", title: post_set.wiki_page.pretty_title, href: routes.wiki_page_path(post_set.wiki_page), body: post_set.wiki_page.body }
+      end
+    end
+  end
+
+  # A summary, not the article: the wiki page is one click away and a long entry
+  # would push the posts off the screen the viewer came for.
+  def excerpt_summary
+    body = excerpt&.dig(:body).to_s.strip
+    return nil if body.blank?
+
+    # DText bodies are stored with CRLF, so a bare /\n{2,}/ never splits and the
+    # whole article comes through as one "first paragraph".
+    first = body.split(/(?:\r?\n){2,}/).first.to_s.squish
+    first.length > 320 ? "#{first[0, 317]}..." : first
+  end
+
   def more_pages?
     posts.size >= post_set.per_page
   end
