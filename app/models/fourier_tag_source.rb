@@ -82,6 +82,41 @@ class FourierTagSource < ApplicationRecord
     buckets_for(rows)
   end
 
+  # The tags that may be published into the DOM for `viewer`, per post, in one
+  # query for a whole page.
+  #
+  # Blacklists are applied CLIENT-side: the rules match against a data-tags
+  # attribute on each post element. That makes "which tags may this viewer see"
+  # a question that has to be answered before rendering, in bulk -- and it makes
+  # post.tag_string the wrong answer, because the denormalised tag_string this
+  # table rides alongside still contains the private creator tags this class
+  # exists to withhold. Publishing it would put prompt-derived tags in the page
+  # source of the default view of every gallery.
+  #
+  # The consequence is deliberate: a viewer's blacklist cannot match a tag that
+  # viewer is not allowed to see. That is the correct trade -- you cannot filter
+  # on what you cannot be shown, and the alternative is disclosing it.
+  #
+  # Posts with no rows here are unaffected: nothing about them is private, so
+  # they keep their full tag string and blacklist exactly as they did before.
+  def self.blacklist_tags_for(posts, viewer)
+    posts = Array(posts)
+    return {} if posts.empty?
+
+    private_rows = where(post_id: posts.map(&:id), public: false).pluck(:post_id, :tag, :added_by)
+    by_post = private_rows.group_by(&:first)
+    moderator = viewer.respond_to?(:is_moderator?) && viewer.is_moderator?
+
+    posts.index_with do |post|
+      tags = post.tag_string.to_s.split
+      rows = by_post[post.id]
+      next tags if rows.blank? || moderator
+      next tags if viewer.present? && rows.any? { |(_, _, added_by)| added_by == viewer.id }
+
+      tags - rows.map { |(_, tag, _)| tag }
+    end
+  end
+
   # The PUBLIC-SAFE projection for the Matrix state event / anonymous views.
   # Private tags and unapproved suggestions are omitted -- nothing sensitive
   # ever leaves the gated store.

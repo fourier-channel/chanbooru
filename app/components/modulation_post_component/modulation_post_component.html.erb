@@ -8,6 +8,11 @@
   data-payload="<%= payload.to_json %>"
   data-endpoint-base="/posts">
 
+  <%# The blacklist control. This view hides the upstream sidebar it normally
+      lives in, which left the blacklist with no controls and -- because the
+      rules are initialised by this component -- never applied at all. %>
+  <%= render BlacklistComponent.new(user: viewer, inline: true) %>
+
   <header class="mod-meta">
     <div class="mod-meta-fields" data-region="meta"></div>
     <div class="mod-meta-right">
@@ -24,7 +29,13 @@
 
   <section class="mod-stage" data-region="stage">
     <div class="mod-flank-col mod-flank-col--prev" data-region="flank-prev"></div>
-    <div class="mod-stage-center" data-region="center"></div>
+    <%# The blacklist attaches HERE, not to the article: its default hide method
+        is display:none, and this page's root IS the page -- blacklisting a post
+        would blank it entirely, where upstream hides only the image and leaves
+        the tags, comments and controls in place. This element is also stable
+        across client-side navigation (only its contents are replaced), so the
+        Post object the blacklist attaches to it survives a swap. %>
+    <div class="mod-stage-center mod-blacklist-target" data-region="center" <%= tag.attributes(blacklist_data) %>></div>
     <div class="mod-flank-col mod-flank-col--next" data-region="flank-next"></div>
   </section>
 
@@ -185,7 +196,17 @@
       if (!el) return;
       if (typeof cur.comments_html === "string") el.innerHTML = cur.comments_html;
     }
-    function renderAll() { renderMeta(); renderNotices(); renderCenter(); renderFlanks(); renderTags(); renderActions(); renderComments(); }
+    // Client-side navigation swaps the post under a root element the blacklist
+    // has already claimed, so the attributes it matches on have to travel with
+    // it -- and the rules have to be re-run afterwards, or the viewer sees the
+    // next post judged by the previous one's tags.
+    function renderBlacklist() {
+      const bl = cur.blacklist, el = region("center");
+      if (!bl || !el) return;
+      Object.keys(bl).forEach(k => el.setAttribute(k, bl[k] == null ? "" : bl[k]));
+      if (el.post) { el.post.applyRules(); el.post.update(); }
+    }
+    function renderAll() { renderMeta(); renderNotices(); renderCenter(); renderFlanks(); renderTags(); renderActions(); renderComments(); renderBlacklist(); }
 
     // ---- scoring and favouriting ----
     // Both were upstream-only. They write through the same endpoints the

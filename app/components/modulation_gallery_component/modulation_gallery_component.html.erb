@@ -1,4 +1,10 @@
 <section class="modgal" x-data="{ view: 'unitag' }">
+  <%# The blacklist control. Upstream puts it in the sidebar, which this gallery
+      hides -- so without it here the viewer's blacklist had no controls AND was
+      never initialised. Rendered inline so it reads as part of the search
+      controls rather than as a transplanted sidebar section. %>
+  <%= render BlacklistComponent.new(user: viewer, inline: true) %>
+
   <%# Primary control: tag search ("sort by via tag search"). %>
   <form class="modgal-search" action="/posts" method="get" role="search">
     <input type="hidden" name="preset" value="modulation">
@@ -56,7 +62,7 @@
   <% if posts.any? %>
     <div class="modgal-grid">
       <% posts.each do |post| %>
-        <a class="modgal-card" href="<%= post_link(post) %>" title="post #<%= post.id %>">
+        <a class="modgal-card" href="<%= post_link(post) %>" title="post #<%= post.id %>" <%= tag.attributes(card_data(post)) %>>
           <% thumb = thumb_for(post) %>
           <% if thumb %>
             <img class="modgal-thumb" src="<%= thumb %>" alt="" loading="lazy">
