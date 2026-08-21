@@ -127,6 +127,15 @@ module Danbooru
     # Synapse's s3-storage-provider, post 34 via the uploader, and post 1 (the
     # legacy source="test" upload) was copied up as part of this change.
     def media_asset_file_url(variant, custom_filename)
+      # Development and test have no gate and no Matrix to ask, but they DO have
+      # the dev image volume, so upstream's /data/ URL resolves and the local
+      # storage manager serves it. Without this a dev box renders every
+      # thumbnail as a link to production media it cannot fetch.
+      #
+      # Deployed environments fall through to the gate below unchanged; nothing
+      # about the authorisation story is relaxed anywhere it applies.
+      return super if Rails.env.development? || Rails.env.test?
+
       source = variant.media_asset.post&.source
       size = FOURIER_VARIANT_SIZES[variant.type]
 

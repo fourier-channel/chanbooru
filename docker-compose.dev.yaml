@@ -45,7 +45,14 @@ x-base-env: &base-env
   DANBOORU_APP_NAME: "Devbooru"
 
   # The public URL of your site. You can set this if you have a domain name for your site.
-  DANBOORU_CANONICAL_URL: ${DANBOORU_CANONICAL_URL:-}
+  #
+  # Read from DEVBOORU_CANONICAL_URL, not DANBOORU_CANONICAL_URL, because the
+  # latter is set in .env for the DEPLOYED build and compose reads .env for both
+  # files in this directory. Inheriting it here pointed every dev asset URL at
+  # the production host, so a dev box rendered thumbnails it could not fetch.
+  # Empty is the right default: relative /data URLs are what the dev nginx
+  # serves.
+  DANBOORU_CANONICAL_URL: ${DEVBOORU_CANONICAL_URL:-}
 
   # This is insecure because it lets anyone login to your development instance. This is okay
   # because giving others access is insecure anyway.
