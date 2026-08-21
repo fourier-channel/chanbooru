@@ -651,3 +651,232 @@ body[data-current-user-theme="dark"] {
     @include dark-theme;
   }
 }
+
+/*
+ * "Modulation" -- the chanbooru interface, and the default preset on every page
+ * (see ExperiencePreset). `body[data-preset="modulation"]` is set by
+ * body_attributes on every request that is not explicitly asking for the hidden
+ * historical preset.
+ *
+ * This builds ON dark-theme rather than beside it. Two reasons:
+ *
+ *  1. Coverage. Any semantic token this mixin forgot would otherwise fall back
+ *     to the :root theme -- which is the LIGHT palette. A single missed token
+ *     is white-on-warm-black. Including dark-theme first makes the failure mode
+ *     "slightly the wrong dark" instead of "unreadable", and keeps that true as
+ *     upstream adds tokens.
+ *
+ *  2. Reach. Upstream's dark mapping is written as --card-background-color:
+ *     var(--grey-8) and so on, and custom properties resolve at use time, so
+ *     re-cutting the RAMPS below re-colours every one of those mappings without
+ *     restating them. Modulation is a warm ramp where upstream's is cool, so
+ *     that indirection does most of the work for free.
+ *
+ * The neutral ramp's dark end is pinned to the tokens the Modulation components
+ * already ship (--mod-surface #1b1a17, --mod-surface-2 #242320, --mod-line
+ * #34322c) so the bespoke components and the themed upstream pages sit on
+ * literally the same surfaces.
+ */
+@mixin modulation-theme {
+  @include dark-theme;
+
+  /* --- neutral ramp, re-cut warm ------------------------------------------
+   * Dark end pinned to the Modulation component tokens; light end kept warm so
+   * the few places that use a light grey (buttons, dialog titlebars) do not
+   * read as blue-white against the ground.
+   */
+  --grey-0: #f8f7f5;
+  --grey-1: #ecebe8;
+  --grey-2: #e8e6e0; /* --mod-ink */
+  --grey-3: #bbb6ad;
+  --grey-4: #9a968c; /* --mod-ink-dim */
+  --grey-5: #6e6a61;
+  --grey-6: #4a473f;
+  --grey-7: #34322c; /* --mod-line */
+  --grey-8: #242320; /* --mod-surface-2 -- cards sit here */
+  --grey-9: #1b1a17; /* --mod-surface  -- the page ground */
+
+  /* --- accent ramps ------------------------------------------------------
+   * Anchored on the category colours the Modulation gallery already uses, so a
+   * themed upstream tag list and a Modulation tag pill are the same colour.
+   */
+  --red-0: #fcf3f4;
+  --red-1: #f5e0e2;
+  --red-2: #fab3ba;
+  --red-3: #ff6b7a; /* --cat-artist */
+  --red-4: #e55260;
+  --red-5: #d72e3f;
+  --red-6: #a52734;
+  --red-7: #6f2028;
+  --red-8: #48191e;
+  --red-9: #2b1214;
+
+  --orange-0: #fcf7f3;
+  --orange-1: #f5eae0;
+  --orange-2: #fbd4b1;
+  --orange-3: #ff9d3c; /* --mod-auto-fg */
+  --orange-4: #eb964c;
+  --orange-5: #e07c25;
+  --orange-6: #ad611f;
+  --orange-7: #764419;
+  --orange-8: #4e2f13;
+  --orange-9: #2c1c0c; /* --mod-auto-bg */
+
+  --yellow-0: #faf8f5;
+  --yellow-1: #f1ece4;
+  --yellow-2: #c9a15a; /* --cat-meta */
+  --yellow-3: #ddbc8a;
+  --yellow-4: #d0a667;
+  --yellow-5: #c28f43;
+  --yellow-6: #987034;
+  --yellow-7: #694e26;
+  --yellow-8: #46351b;
+  --yellow-9: #2b2112;
+
+  --green-0: #f4faf7;
+  --green-1: #e3f3eb;
+  --green-2: #baf2d6;
+  --green-3: #38e08a; /* --cat-character / --mod-creator-fg */
+  --green-4: #5dda9c;
+  --green-5: #38cd83;
+  --green-6: #2ca066;
+  --green-7: #216e47;
+  --green-8: #184930;
+  --green-9: #0f2c1d; /* --mod-creator-bg */
+
+  --azure-0: #f3f7fc;
+  --azure-1: #e0ebf5;
+  --azure-2: #b2d7fb;
+  --azure-3: #8fc8ff;
+  --azure-4: #6db8ff; /* --cat-general */
+  --azure-5: #2786de;
+  --azure-6: #2168ab;
+  --azure-7: #1b4974;
+  --azure-8: #15314c;
+  --azure-9: #0f1f2f;
+
+  --blue-0: #f3f7fc;
+  --blue-1: #e0e9f5;
+  --blue-2: #b2d0fb;
+  --blue-3: #75a9f3;
+  --blue-4: #4d8fea;
+  --blue-5: #2773de;
+  --blue-6: #215aab;
+  --blue-7: #1b4074;
+  --blue-8: #152c4c;
+  --blue-9: #0f1c2f;
+
+  --purple-0: #f8f3fc;
+  --purple-1: #ebe0f5;
+  --purple-2: #d9b2fa;
+  --purple-3: #c78bff; /* --cat-copyright */
+  --purple-4: #a150e7;
+  --purple-5: #882cd9;
+  --purple-6: #6a25a7;
+  --purple-7: #4a1f70;
+  --purple-8: #321849;
+  --purple-9: #20112c;
+
+  --magenta-0: #fbf4fa;
+  --magenta-1: #f4e1f2;
+  --magenta-2: #f6b6f1;
+  --magenta-3: #ea7de1;
+  --magenta-4: #df58d4;
+  --magenta-5: #d035c3;
+  --magenta-6: #a02c97;
+  --magenta-7: #6d2266;
+  --magenta-8: #471a43;
+  --magenta-9: #2b1229;
+
+  /* --- the choices the ramps cannot make --------------------------------- */
+
+  /* Green is Modulation's signature; it carries links the way azure carries
+     them upstream. General tags keep blue so the five tag categories stay
+     mutually distinguishable. */
+  --link-color: #38e08a;
+  --link-hover-color: #6ceaa8;
+  --focus-ring-color: var(--link-color);
+
+  --text-color: #e8e6e0;
+  --header-color: #f2f0ea;
+  --muted-text-color: #9a968c;
+  --inverse-text-color: #1b1a17;
+
+  --artist-tag-color: #ff6b7a;
+  --artist-tag-hover-color: #ff9aa4;
+  --copyright-tag-color: #c78bff;
+  --copyright-tag-hover-color: #dab3ff;
+  --character-tag-color: #38e08a;
+  --character-tag-hover-color: #6ceaa8;
+  --general-tag-color: #6db8ff;
+  --general-tag-hover-color: #9acfff;
+  --meta-tag-color: #c9a15a;
+  --meta-tag-hover-color: #dcbb80;
+
+  /* Upstream's dark theme gives form buttons a near-white fill, which on this
+     ground reads as a stack of bright rectangles. Modulation buttons are the
+     surface with a drawn edge, matching the pills and the sort controls in the
+     bespoke components. */
+  --form-button-text-color: var(--text-color);
+  --form-button-background: #242320;
+  --form-button-border-color: #4a473f;
+  --form-button-hover-background: #2e2c27;
+  --form-button-hover-box-shadow-color: #4a473f;
+  --form-button-active-background: #34322c;
+  --form-button-disabled-text-color: #6e6a61;
+
+  --form-input-background: #1b1a17;
+  --form-input-border-color: #34322c;
+  --form-input-placeholder-text-color: #6e6a61;
+
+  --button-text-color: #10231a;
+  --button-primary-background-color: var(--link-color);
+  --button-primary-hover-background-color: var(--link-hover-color);
+
+  --dialog-titlebar-background-color: #242320;
+  --dialog-titlebar-color: var(--text-color);
+
+  --keyboard-shortcut-color: var(--text-color);
+  --keyboard-shortcut-background-color: #34322c;
+
+  --news-updates-background: #242320;
+  --news-updates-border-color: #34322c;
+
+  --table-even-row-background: #201f1c;
+  --table-row-hover-background: #2b2a25;
+  --table-row-border-color: #34322c;
+  --table-header-border-color: #4a473f;
+
+  --selection-background-color: #1f5b3c;
+  --autocomplete-selected-background-color: #2e2c27;
+
+  /* Notes are a light sticky-note by upstream design and stay that way; the
+     surrounding chrome is what changes. */
+  --note-body-background: #f7f3e3;
+  --note-body-text-color: #1b1a17;
+
+  /* --- structural tokens the skin reads ----------------------------------
+   * Not colours, but they belong with the preset: a preset is a bundle of
+   * token overrides, and the skin (zz_modulation_skin.scss) is written against
+   * these so a future preset can retune shape without touching selectors.
+   */
+  --mod-radius: 10px;
+  --mod-radius-sm: 6px;
+  --mod-pill-radius: 999px;
+  --mod-mono: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+  --mod-surface: #1b1a17;
+  --mod-surface-2: #242320;
+  --mod-surface-3: #2e2c27;
+  --mod-line: #34322c;
+  --mod-line-strong: #4a473f;
+  --mod-ink: #e8e6e0;
+  --mod-ink-dim: #9a968c;
+  --mod-ink-faint: #6e6a61;
+}
+
+/* Last in the file on purpose: this and body[data-current-user-theme] have the
+   same specificity, so source order is what makes the preset win over the
+   viewer's light/dark preference. Modulation is the site, not a theme choice. */
+body[data-preset="modulation"] {
+  @include modulation-theme;
+}

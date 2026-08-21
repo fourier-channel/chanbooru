@@ -1,0 +1,503 @@
+/*
+ * "Modulation" skin -- the shape layer.
+ *
+ * 040_colors.scss re-colours upstream Danbooru; this file re-shapes it, so that
+ * a page with no bespoke Modulation component still reads as the same interface
+ * as the ones that have one. Everything here is written against the tokens the
+ * bespoke components already use (--mod-surface, --mod-line, --mod-radius,
+ * --mod-mono...), which is what keeps a themed upstream table and a
+ * ModulationGalleryComponent card on the same grid, the same radius and the
+ * same edge.
+ *
+ * Two rules for editing this file:
+ *
+ *  - Everything is scoped to body[data-preset="modulation"]. The historical
+ *    preset must come out of here completely untouched, because its whole job
+ *    is to be the unmodified thing to compare against.
+ *
+ *  - Never reach INTO a bespoke component (.modulation, .modgal,
+ *    .creator-gallery). They own their own layout; a component rule is more
+ *    specific than the selectors here, but relying on that is how a global skin
+ *    starts quietly fighting a component. Where a global rule would land inside
+ *    one anyway, it is excluded explicitly.
+ *
+ * Filename sorts last under the require.context that imports this directory, so
+ * it loads after base/, common/ and specific/. The selectors do not DEPEND on
+ * that -- body[data-preset] plus an element or class outranks upstream's own
+ * rules on its own -- but it removes the ambiguity for anything that ties.
+ */
+
+body[data-preset="modulation"] {
+  /* Native widgets -- scrollbars, select popups, date pickers, form controls we
+     never see the internals of -- follow this. One declaration does what a
+     hundred selectors could not. */
+  color-scheme: dark;
+
+  background: var(--mod-surface);
+  color: var(--mod-ink);
+
+  --mod-page: 1180px;
+
+  /* ---------------------------------------------------------------- layout */
+
+  #page {
+    /* width: 100% is load-bearing. #page is a flex item of a column flex body,
+       so it stretches by default -- but setting an auto inline margin turns
+       stretch off and makes it shrink-to-fit, which collapses the whole content
+       column to the width of its widest word. An explicit width restores it and
+       max-width still caps it. */
+    width: 100%;
+    max-width: var(--mod-page);
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 3rem;
+  }
+
+  /* ---------------------------------------------------------------- header */
+
+  #top {
+    background: var(--mod-surface);
+    border-bottom: 1px solid var(--mod-line);
+    margin-top: 0;
+    padding-top: 0.6rem;
+  }
+
+  /* The header's own children carry mx-8; re-centre them on the content column
+     instead so the wordmark, the nav and the page body share one left edge. */
+  #top > div,
+  #top > nav > div {
+    max-width: var(--mod-page);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  #app-name-header {
+    gap: 0.55rem;
+  }
+
+  #app-logo img {
+    height: 1.6rem;
+    border-radius: var(--mod-radius-sm);
+  }
+
+  #app-name {
+    font-size: 1.25rem;
+    letter-spacing: 0.01em;
+    color: var(--mod-ink);
+    text-decoration: none;
+
+    &:hover { color: var(--link-color); }
+  }
+
+  #nav { margin-top: 0.5rem; }
+
+  #main-menu {
+    gap: 0.15rem;
+    padding: 0 0 0.4rem;
+
+    a {
+      padding: 0.28rem 0.7rem;
+      border-radius: var(--mod-pill-radius);
+      font-size: 0.82rem;
+      color: var(--mod-ink-dim);
+      text-decoration: none;
+      transition: color 0.12s ease, background-color 0.12s ease;
+
+      &:hover {
+        color: var(--mod-ink);
+        background: var(--mod-surface-2);
+      }
+    }
+
+    .current a,
+    a.current {
+      background: var(--mod-surface-2);
+      color: var(--mod-ink);
+    }
+
+    /* Upstream paints the active item with the subnav background; the pill
+       above is doing that job now. */
+    .current { background: transparent; }
+  }
+
+  #subnav-menu {
+    background: var(--mod-surface-2);
+    border-top: 1px solid var(--mod-line);
+    border-bottom: 1px solid var(--mod-line);
+    gap: 0.15rem;
+    padding: 0.3rem 0;
+
+    a {
+      padding: 0.2rem 0.6rem;
+      border-radius: var(--mod-pill-radius);
+      font-family: var(--mod-mono);
+      font-size: 0.74rem;
+      color: var(--mod-ink-dim);
+      text-decoration: none;
+
+      &:hover { color: var(--mod-ink); background: var(--mod-surface-3); }
+    }
+
+    .current a, a.current { color: var(--mod-ink); background: var(--mod-surface-3); }
+  }
+
+  /* ------------------------------------------------------------- headings */
+
+  h1 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--mod-ink);
+  }
+
+  h2 { font-size: 1rem; font-weight: 600; color: var(--mod-ink); }
+  h3 { font-size: 0.9rem; font-weight: 600; color: var(--mod-ink); }
+
+  /* Sidebar section labels are the same small uppercase mono label the gallery
+     uses over its facet tags ("IN THIS SEARCH"). */
+  #sidebar section > h1,
+  #sidebar section > h2,
+  #sidebar section > h3 {
+    font-family: var(--mod-mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mod-ink-dim);
+    margin-bottom: 0.55rem;
+  }
+
+  /* --------------------------------------------------------------- sidebar */
+
+  #sidebar > section {
+    background: var(--mod-surface-2);
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius);
+    padding: 0.8rem 0.9rem;
+    margin-bottom: 0.8rem;
+  }
+
+  #sidebar ul { margin: 0; }
+
+  #sidebar li {
+    line-height: 1.5;
+    font-size: 0.86rem;
+  }
+
+  /* ----------------------------------------------------------------- forms */
+
+  input[type="text"],
+  input[type="search"],
+  input[type="password"],
+  input[type="email"],
+  input[type="url"],
+  input[type="number"],
+  input[type="date"],
+  input[type="datetime-local"],
+  select,
+  textarea {
+    background: var(--mod-surface);
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius-sm);
+    color: var(--mod-ink);
+    padding: 0.4rem 0.6rem;
+    font-size: 0.86rem;
+
+    &:focus {
+      outline: none;
+      border-color: var(--link-color);
+    }
+
+    &::placeholder { color: var(--mod-ink-faint); }
+  }
+
+  textarea { font-size: 0.88rem; line-height: 1.5; }
+
+  /* Tag entry is the one field that is really a query language, so it gets the
+     monospace treatment the gallery's search box has. */
+  input[data-autocomplete],
+  input#tags,
+  input[name="tags"],
+  input[name="search[name_matches]"] {
+    font-family: var(--mod-mono);
+  }
+
+  button,
+  input[type="submit"],
+  input[type="button"],
+  .button {
+    background: var(--mod-surface-2);
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius-sm);
+    color: var(--mod-ink);
+    padding: 0.38rem 0.8rem;
+    font-size: 0.84rem;
+    cursor: pointer;
+
+    &:hover { border-color: var(--mod-ink-dim); background: var(--mod-surface-3); }
+  }
+
+  /* Primary actions keep the accent fill; upstream marks them with these. */
+  .button-primary,
+  button.primary,
+  input[type="submit"].primary {
+    background: var(--link-color);
+    border-color: var(--link-color);
+    color: #10231a;
+
+    &:hover { background: var(--link-hover-color); border-color: var(--link-hover-color); }
+  }
+
+  /* simple_form rows: labels read as field captions, not headings. */
+  .input label,
+  .simple_form label,
+  form label {
+    font-size: 0.8rem;
+    color: var(--mod-ink-dim);
+  }
+
+  fieldset {
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius);
+    padding: 0.8rem 1rem;
+  }
+
+  /* Filter forms. Upstream renders these as a ladder of right-aligned labels
+     with the fields hanging off them, which on a page with no sidebar reads as
+     debris floating above the results. Made into one card of compact
+     label-over-field groups -- the same object as the gallery's search bar, so
+     "the controls" look like one thing on every listing page. */
+  form.search-form.inline-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.65rem 1rem;
+    background: var(--mod-surface-2);
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius);
+    padding: 0.85rem 1rem;
+    margin-bottom: 1.1rem;
+
+    .input {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      margin: 0;
+    }
+
+    label {
+      font-family: var(--mod-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--mod-ink-dim);
+      text-align: left;
+      width: auto;
+    }
+
+    /* One height for every control, so the label row above them stays on a
+       single baseline whatever mix of inputs and selects a page happens to
+       have. Without it each field sets its own height and the labels stagger. */
+    input, select {
+      height: 2.15rem;
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+
+    /* The submit is an <input> too, and must not inherit the field width. */
+    input:not([type="submit"]):not([type="button"]), select {
+      min-width: 11rem;
+    }
+
+    /* The submit sits on the field baseline rather than starting a new row. */
+    input[type="submit"], button { margin-top: 0; }
+  }
+
+  /* The subnav's quick search is already compact; it just needs the field to
+     stop looking like a browser default. */
+  form.quick-search-form input {
+    background: var(--mod-surface);
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-pill-radius);
+    padding: 0.25rem 0.7rem;
+    font-family: var(--mod-mono);
+    font-size: 0.74rem;
+  }
+
+  /* Page title rhythm: listings open with a heading, then controls, then the
+     results, and each needs to be told apart at a glance. */
+  #content > h1:first-child,
+  .page-heading {
+    margin-bottom: 0.9rem;
+  }
+
+  #page > h1:first-child { margin-bottom: 0.9rem; }
+
+  /* ---------------------------------------------------------------- tables */
+
+  table.striped {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius);
+    overflow: hidden;
+    background: var(--mod-surface-2);
+    font-size: 0.86rem;
+
+    td, th { padding: 0.5rem 0.75rem; }
+
+    thead {
+      tr { border-bottom: 0; }
+
+      th {
+        background: var(--mod-surface-3);
+        border-bottom: 1px solid var(--mod-line-strong);
+        font-family: var(--mod-mono);
+        font-size: 0.7rem;
+        font-weight: 500;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--mod-ink-dim);
+        white-space: nowrap;
+      }
+    }
+
+    /* Row borders move to the cells: in border-collapse: separate -- which the
+       rounded corner above requires -- a border on a <tr> is not painted. */
+    tbody {
+      tr { border-bottom: 0; }
+      td { border-bottom: 1px solid var(--mod-line); }
+      tr:last-child td { border-bottom: 0; }
+      tr:hover { background: var(--mod-surface-3); }
+    }
+  }
+
+  /* ------------------------------------------------------------- paginator */
+
+  .paginator {
+    gap: 0.4rem;
+
+    a, span {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2rem;
+      padding: 0.3rem 0.7rem;
+      border-radius: var(--mod-radius-sm);
+      font-size: 0.84rem;
+      text-decoration: none;
+    }
+
+    a {
+      background: var(--mod-surface-2);
+      border: 1px solid var(--mod-line);
+      color: var(--mod-ink);
+
+      &:hover { border-color: var(--mod-ink-dim); background: var(--mod-surface-3); }
+    }
+
+    .paginator-current {
+      background: var(--mod-surface-3);
+      border: 1px solid var(--mod-line-strong);
+      color: var(--mod-ink);
+      font-family: var(--mod-mono);
+    }
+
+    .paginator-ellipsis { border: 0; background: transparent; min-width: 0; }
+  }
+
+  /* ------------------------------------------------------- post thumbnails
+   * Upstream galleries (pools, favourites, a user's uploads) use
+   * PostPreviewComponent rather than the Modulation grid. Give its cards the
+   * same edge and lift so a pool page and the post index are recognisably the
+   * same surface.
+   */
+
+  article.post-preview {
+    .post-preview-link {
+      display: block;
+      border-radius: var(--mod-radius);
+      overflow: hidden;
+      border: 1px solid var(--mod-line);
+      background: var(--mod-surface-2);
+      transition: border-color 0.12s ease, transform 0.12s ease;
+
+      &:hover {
+        border-color: var(--link-color);
+        transform: translateY(-2px);
+      }
+    }
+
+    .post-preview-image { display: block; }
+  }
+
+  /* ------------------------------------------------------------ tag lists */
+
+  .tag-list li,
+  #tag-box li,
+  .search-tag-list li {
+    line-height: 1.55;
+  }
+
+  .tag-list .post-count,
+  .tag-count {
+    font-family: var(--mod-mono);
+    font-size: 0.74rem;
+    color: var(--mod-ink-faint);
+  }
+
+  /* --------------------------------------------------------- dtext / prose */
+
+  .prose, .dtext-container {
+    line-height: 1.62;
+
+    h1, h2, h3, h4 { margin-top: 1.4em; margin-bottom: 0.5em; }
+
+    code, .inline-code {
+      background: var(--mod-surface-2);
+      border: 1px solid var(--mod-line);
+      border-radius: var(--mod-radius-sm);
+      padding: 0.05rem 0.3rem;
+      font-family: var(--mod-mono);
+      font-size: 0.86em;
+    }
+
+    blockquote {
+      border-left: 2px solid var(--mod-line-strong);
+      background: var(--mod-surface-2);
+      border-radius: 0 var(--mod-radius-sm) var(--mod-radius-sm) 0;
+      padding: 0.6rem 0.9rem;
+    }
+
+    hr { border-color: var(--mod-line); }
+  }
+
+  /* --------------------------------------------------------------- notices */
+
+  .notice {
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius);
+    padding: 0.7rem 0.9rem;
+  }
+
+  /* ------------------------------------------------------------- comments */
+
+  article.comment,
+  .comment {
+    border-radius: var(--mod-radius);
+  }
+
+  /* ---------------------------------------------------------------- footer */
+
+  footer#footer, #footer {
+    border-top: 1px solid var(--mod-line);
+    margin-top: 2rem;
+    padding: 1rem 0;
+    font-size: 0.8rem;
+    color: var(--mod-ink-dim);
+
+    a { color: var(--mod-ink-dim); &:hover { color: var(--link-color); } }
+  }
+}
