@@ -205,10 +205,15 @@ class ModulationPostComponent < ApplicationComponent
     groups << { label: "discover", links: discover }
 
     if policy.update?
+      # These route to the upstream page because Modulation has no native form
+      # for them yet. preset_sticky: 0 is what keeps that a detour rather than
+      # a one-way door -- the viewer edits and comes back, instead of silently
+      # spending the rest of their session in the old interface.
+      edit_href = routes.post_path(post, preset: "historical", preset_sticky: 0, anchor: "edit")
       groups << { label: "contribute", links: [
-        { label: "Edit tags", href: routes.post_path(post, preset: "historical", anchor: "edit") },
-        { label: "Add to pool", href: routes.post_path(post, preset: "historical", anchor: "edit") },
-        { label: "Add commentary", href: routes.post_path(post, preset: "historical", anchor: "edit") },
+        { label: "Edit tags", href: edit_href },
+        { label: "Add to pool", href: edit_href },
+        { label: "Add commentary", href: edit_href },
       ] }
     end
 

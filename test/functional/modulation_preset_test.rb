@@ -54,6 +54,17 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         assert_select "body[data-preset=?]", "historical"
       end
 
+      # The post view links out to a few upstream pages it has no Modulation form
+      # for yet. Without this, following one would switch the whole session to
+      # the old interface and leave the viewer there.
+      should "not remember a preset marked as this-request-only" do
+        get post_path(@post, preset: "historical", preset_sticky: 0)
+        assert_select "body[data-preset=?]", "historical"
+
+        get posts_path
+        assert_select "body[data-preset=?]", ExperiencePreset.default_preset
+      end
+
       should "fall back to the default for an unrecognised preset, not error" do
         get posts_path(preset: "nonsense")
 
