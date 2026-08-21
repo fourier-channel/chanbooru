@@ -3,15 +3,23 @@
 }
 
 .blacklisted-blurred {
-  .post-preview-link, &.image-container {
+  .post-preview-link, &.image-container, &.modgal-card, &.mod-blacklist-target, .mod-frame {
     overflow: hidden;
   }
 
-  .post-preview-image, #image {
+  // .modgal-thumb and .mod-image are the Modulation gallery thumbnail and post
+  // image. Without them a blacklisted post in the default view was hidden by
+  // the "hide" rules and shown in full by the "blur" ones.
+  .post-preview-image, #image, .modgal-thumb, .mod-image {
     filter: blur(var(--blacklist-blur-amount, 40px)) !important;
   }
 }
 
-.post-preview:not(.blacklist-initialized), .image-container:not(.blacklist-initialized) {
+// Hide posts until the blacklist has run, so a blacklisted image never paints
+// before the rules are applied. The Modulation views need this for the same
+// reason the upstream ones do.
+.post-preview:not(.blacklist-initialized),
+.image-container:not(.blacklist-initialized),
+.modgal-card:not(.blacklist-initialized) {
   visibility: hidden;
 }

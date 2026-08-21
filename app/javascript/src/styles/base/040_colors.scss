@@ -833,6 +833,14 @@ body[data-current-user-theme="dark"] {
   --button-primary-background-color: var(--link-color);
   --button-primary-hover-background-color: var(--link-hover-color);
 
+  /* Toggles and checkboxes are the one control the theme kept upstream's blue
+     for; the blacklist switch sits right in the gallery header, so it read as
+     borrowed. */
+  --checkbox-selected-color: var(--link-color);
+  --toggle-switch-selected-color: var(--link-color);
+  --toggle-switch-unselected-color: #4a473f;
+  --toggle-switch-handle-color: #1b1a17;
+
   --dialog-titlebar-background-color: #242320;
   --dialog-titlebar-color: var(--text-color);
 

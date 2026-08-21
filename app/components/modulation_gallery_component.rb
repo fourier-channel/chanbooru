@@ -49,6 +49,29 @@ class ModulationGalleryComponent < ApplicationComponent
     post_set.sidebar_tags.any?
   end
 
+  # Blacklist rules are matched client-side against these attributes, so every
+  # card has to carry them or the viewer's blacklist silently does not apply --
+  # which is what happened for as long as this gallery rendered bare <a> cards
+  # and the blacklist's selector list knew nothing about them.
+  #
+  # data-tags comes from FourierTagSource.blacklist_tags_for, NOT post.tag_string:
+  # tag_string still holds the private creator tags, and this is the default view
+  # of the site.
+  def card_data(post)
+    {
+      "data-id" => post.id,
+      "data-tags" => blacklist_tags[post].to_a.join(" "),
+      "data-rating" => post.rating,
+      "data-flags" => post.status_flags,
+      "data-score" => post.score,
+      "data-uploader-id" => post.uploader_id,
+    }
+  end
+
+  def blacklist_tags
+    @blacklist_tags ||= FourierTagSource.blacklist_tags_for(posts, viewer)
+  end
+
   def thumb_for(post)
     post.visible?(viewer) ? post.preview_file_url : nil
   rescue StandardError

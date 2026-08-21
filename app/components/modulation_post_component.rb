@@ -75,6 +75,24 @@ class ModulationPostComponent < ApplicationComponent
     Danbooru.config.comments_enabled?.to_s.truthy?
   end
 
+  # What the client-side blacklist matches this post against. Same contract as
+  # the gallery cards, and the same reason data-tags is not post.tag_string:
+  # the denormalised string still holds the private creator tags.
+  def blacklist_data
+    {
+      "data-id" => post.id,
+      "data-tags" => blacklist_tags.join(" "),
+      "data-rating" => post.rating,
+      "data-flags" => post.status_flags,
+      "data-score" => post.score,
+      "data-uploader-id" => post.uploader_id,
+    }
+  end
+
+  def blacklist_tags
+    @blacklist_tags ||= FourierTagSource.blacklist_tags_for([post], viewer).fetch(post, [])
+  end
+
   # --- parity with the upstream post page ---------------------------------
   # Everything below exists because the upstream page had it and this one did
   # not. A viewer who moves between a themed listing and this page should not
@@ -226,6 +244,10 @@ class ModulationPostComponent < ApplicationComponent
       fav: fav_payload,
       notices: notices,
       more: more_links,
+      # The blacklist is applied to the root element, so navigating without a
+      # reload has to hand the client the next post's attributes too -- otherwise
+      # the blacklist keeps matching the post the viewer arrived on.
+      blacklist: blacklist_data,
     }
   end
 
