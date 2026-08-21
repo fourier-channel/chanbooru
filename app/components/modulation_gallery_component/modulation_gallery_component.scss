@@ -111,6 +111,58 @@ body:has(.modgal) {
     }
   }
 
+  // --- search subject -----------------------------------------------------
+  // The wiki/artist/pool summary for a search that IS a subject. Sits between
+  // the facets and the grid so it reads as context for the results below it.
+  .modgal-excerpt {
+    background: var(--mod-surface);
+    border: 1px solid var(--mod-line);
+    border-left: 2px solid var(--cat-general);
+    border-radius: var(--mod-radius);
+    padding: 0.8rem 1rem;
+  }
+  .modgal-excerpt--artist { border-left-color: var(--cat-artist); }
+  .modgal-excerpt--pool { border-left-color: var(--cat-copyright); }
+  .modgal-excerpt-head { display: flex; align-items: baseline; gap: 0.6rem; }
+  .modgal-excerpt-kind {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.64rem; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--mod-ink-dim);
+  }
+  .modgal-excerpt-title {
+    color: var(--mod-ink); text-decoration: none; font-size: 0.95rem; font-weight: 600;
+    &:hover { color: var(--cat-character); }
+  }
+  .modgal-excerpt-body {
+    margin: 0.45rem 0 0;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--mod-ink-dim);
+  }
+
+  // --- search-scoped navigation -------------------------------------------
+  .modgal-related {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem;
+  }
+  .modgal-related-label {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.64rem; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--mod-ink-dim); margin-right: 0.2rem;
+  }
+  .modgal-related-link {
+    font-family: inherit;
+    font-size: 0.78rem;
+    color: var(--mod-ink-dim);
+    text-decoration: none;
+    padding: 0.15rem 0.6rem;
+    border-radius: var(--mod-pill-radius);
+    border: 1px solid var(--mod-line);
+    background: var(--mod-surface);
+    cursor: pointer;
+    &:hover { color: var(--mod-ink); border-color: var(--mod-ink-dim); }
+  }
+  .modgal-save { margin-left: auto; }
+
   // --- post grid ---------------------------------------------------------
   .modgal-grid {
     display: grid;
@@ -156,7 +208,11 @@ body:has(.modgal) {
     &:hover { border-color: var(--mod-ink-dim); }
     &.is-disabled { opacity: 0.35; pointer-events: none; }
   }
-  .modgal-page-cur { color: var(--mod-ink-dim); font-family: ui-monospace, monospace; font-size: 0.8rem; }
+  .modgal-page-cur {
+    display: inline-flex; align-items: baseline; gap: 0.6rem;
+    color: var(--mod-ink-dim); font-family: ui-monospace, monospace; font-size: 0.8rem;
+  }
+  .modgal-page-count { font-size: 0.72rem; color: var(--mod-ink-dim); opacity: 0.75; }
 }
 
 [x-cloak] { display: none !important; }
