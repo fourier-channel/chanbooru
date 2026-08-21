@@ -313,6 +313,15 @@ module ApplicationHelper
     render "table_builder/table", table: table
   end
 
+  # The experience preset for this page, exposed to CSS as `body[data-preset]`.
+  # Guarded because error pages can render outside a controller that has the
+  # ExperiencePreset concern; the default is the same one the concern uses.
+  def current_experience_preset
+    return experience_preset if respond_to?(:experience_preset)
+
+    ExperiencePreset::DEFAULT
+  end
+
   def body_attributes(current_user, params, current_item, exception)
     if exception
       controller_param = "static"
@@ -336,6 +345,7 @@ module ApplicationHelper
         "layout": layout,
         "current-user-ip-addr": request.remote_ip,
         "current-user-save-data": CurrentUser.save_data,
+        "preset": current_experience_preset,
         **data_attributes_for(current_user, "current-user", USER_DATA_ATTRIBUTES),
         **data_attributes_for(cookies, "cookie", COOKIE_DATA_ATTRIBUTES),
         **extra_attributes,
