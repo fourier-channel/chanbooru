@@ -62,7 +62,13 @@ module ExperiencePreset
     # clears any stickiness so a typo cannot strand someone in historical.
     if requested.present?
       chosen = PRESETS.include?(requested) ? requested : default_preset
-      remember_experience_preset(chosen)
+      # ?preset_sticky=0 means "this request only". It exists because the post
+      # view links out to a handful of upstream pages it has no Modulation
+      # equivalent for yet (tag editing, pools, commentary) -- and without it,
+      # following one of those links would silently switch the viewer's whole
+      # session to the old interface and leave them there. A one-page detour
+      # must not be a one-way door.
+      remember_experience_preset(chosen) unless params[:preset_sticky].to_s == "0"
       return chosen
     end
 
