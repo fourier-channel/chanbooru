@@ -17,7 +17,7 @@ Rails.application.routes.draw do
   # show = identity-gated read (private creator tags only to the creator/mod).
   post "posts/:post_id/tag_sources", to: "fourier_tag_sources#create"
   get  "posts/:post_id/tag_sources", to: "fourier_tag_sources#show"
-  get  "posts/:post_id/modulation",  to: "modulation#show" # client-side nav payload
+  get  "posts/:post_id/modulation",  to: "modulation#show", as: :post_modulation # client-side nav payload
 
   # Creator Gallery -- reads public, writes gated to the page's Matrix identity.
   resources :creator_galleries, path: "creators", param: :slug, only: %i[index show new create edit update]

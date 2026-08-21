@@ -319,7 +319,7 @@ module ApplicationHelper
   def current_experience_preset
     return experience_preset if respond_to?(:experience_preset)
 
-    ExperiencePreset::DEFAULT
+    ExperiencePreset.default_preset
   end
 
   def body_attributes(current_user, params, current_item, exception)

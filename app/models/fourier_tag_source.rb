@@ -107,11 +107,18 @@ class FourierTagSource < ApplicationRecord
     by_post = private_rows.group_by(&:first)
     moderator = viewer.respond_to?(:is_moderator?) && viewer.is_moderator?
 
+    # viewer.id is nil for an anonymous viewer, and added_by is nil for any row
+    # recorded without an attributed creator -- so a bare `added_by == viewer.id`
+    # is nil == nil, and every unattributed private tag is disclosed to exactly
+    # the viewer who should never see one. private_visible_to? guards this with
+    # `.where.not(added_by: nil)`; the same guard has to be here.
+    viewer_id = viewer.respond_to?(:id) ? viewer.id : nil
+
     posts.index_with do |post|
       tags = post.tag_string.to_s.split
       rows = by_post[post.id]
       next tags if rows.blank? || moderator
-      next tags if viewer.present? && rows.any? { |(_, _, added_by)| added_by == viewer.id }
+      next tags if viewer_id.present? && rows.any? { |(_, _, added_by)| added_by.present? && added_by == viewer_id }
 
       tags - rows.map { |(_, tag, _)| tag }
     end
