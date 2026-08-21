@@ -315,6 +315,46 @@ body:has(.modulation) {
     &:hover { border-color: var(--mod-creator-fg); color: var(--mod-creator-fg); }
   }
 
+  // --- comments -----------------------------------------------------------
+  // The frame is Modulation's; the contents are upstream's CommentSectionComponent,
+  // deliberately left to style itself from the theme tokens rather than being
+  // re-skinned rule by rule here. Anything this block reaches into is markup
+  // this component does not own.
+  .mod-comments {
+    background: var(--mod-surface);
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius);
+    padding: 1rem;
+  }
+  .mod-comments-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.85rem;
+  }
+  .mod-comments-title {
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mod-ink-dim);
+    margin: 0;
+  }
+  .mod-comments-body {
+    font-size: 0.88rem;
+
+    .list-of-comments { display: flex; flex-direction: column; gap: 0.7rem; }
+
+    article, .comment {
+      background: var(--mod-surface-2);
+      border: 1px solid var(--mod-line);
+      border-radius: var(--mod-radius);
+      padding: 0.7rem 0.85rem;
+    }
+
+    .new-comment { margin-top: 0.9rem; }
+  }
+
   // --- notice strip -------------------------------------------------------
   // Post status and post family. Colour carries the difference: a takedown and
   // "this post has children" must not look alike.

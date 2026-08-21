@@ -32,6 +32,21 @@
 
   <section class="mod-tags" data-region="tags"></section>
 
+  <%# Comments were upstream-only. The section is server-rendered on first load
+      and swapped from the navigation payload afterwards; CommentSectionComponent
+      is upstream's own, so nothing about posting or moderating a comment is
+      reimplemented here -- only the frame around it is Modulation's. %>
+  <% if comments_enabled? %>
+    <section class="mod-comments" id="mod-comments">
+      <div class="mod-comments-head">
+        <h2 class="mod-comments-title">Comments</h2>
+      </div>
+      <div class="mod-comments-body" data-region="comments">
+        <%= render CommentSectionComponent.new(post: post, current_user: viewer) %>
+      </div>
+    </section>
+  <% end %>
+
   <script type="application/javascript">
   (function () {
     const root = document.getElementById("modulation-root");
@@ -161,7 +176,16 @@
           'More <span class="mod-caret' + (moreOpen ? " is-open" : "") + '">&#9656;</span></button>' +
         moreHTML();
     }
-    function renderAll() { renderMeta(); renderNotices(); renderCenter(); renderFlanks(); renderTags(); renderActions(); }
+    // Comments arrive as HTML rather than data: they are upstream's own component,
+    // and re-implementing comment rendering client-side to avoid one string would
+    // mean owning comment markup forever. Danbooru binds its comment handlers on
+    // document, so swapped-in markup stays live.
+    function renderComments() {
+      const el = region("comments");
+      if (!el) return;
+      if (typeof cur.comments_html === "string") el.innerHTML = cur.comments_html;
+    }
+    function renderAll() { renderMeta(); renderNotices(); renderCenter(); renderFlanks(); renderTags(); renderActions(); renderComments(); }
 
     // ---- scoring and favouriting ----
     // Both were upstream-only. They write through the same endpoints the

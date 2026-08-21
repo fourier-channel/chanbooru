@@ -11,6 +11,22 @@ class ModulationController < ApplicationController
     skip_authorization
     post = Post.find(params[:post_id])
     component = ModulationPostComponent.new(post: post, viewer: CurrentUser.user, query: params[:q])
-    render json: component.payload, status: :ok
+    render json: component.payload.merge(comments_html: comments_html(post)), status: :ok
+  end
+
+  private
+
+  # The comment section travels as rendered HTML rather than as data. It is
+  # upstream's own component -- rebuilding comment markup client-side to avoid
+  # one string would mean owning comment rendering, moderation affordances and
+  # DText output forever, and they would drift.
+  #
+  # nil (rather than an empty string) when comments are off, so the client can
+  # tell "no comments section" from "a section with nothing in it" and leave the
+  # server-rendered markup alone.
+  def comments_html(post)
+    return nil unless Danbooru.config.comments_enabled?.to_s.truthy?
+
+    view_context.render(CommentSectionComponent.new(post: post, current_user: CurrentUser.user))
   end
 end
