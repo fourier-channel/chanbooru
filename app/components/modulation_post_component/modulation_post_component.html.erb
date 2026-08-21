@@ -20,6 +20,8 @@
     </div>
   </header>
 
+  <section class="mod-notices" data-region="notices" hidden></section>
+
   <section class="mod-stage" data-region="stage">
     <div class="mod-flank-col mod-flank-col--prev" data-region="flank-prev"></div>
     <div class="mod-stage-center" data-region="center"></div>
@@ -42,7 +44,7 @@
 
     let cur = JSON.parse(root.dataset.payload || "null");
     let activeKey = cur ? cur.active_key : "";
-    let view = "unitag", metaOpen = false, busy = false;
+    let view = "unitag", metaOpen = false, busy = false, moreOpen = false;
     const cache = new Map(); // `${id}|${search}` -> payload
 
     const presets = () => (cur && cur.presets) || [];
@@ -108,14 +110,94 @@
             '<span class="mod-meta-caret ' + (metaOpen ? "is-open" : "") + '">&#9656;</span> quality &amp; meta tags <span class="mod-meta-count">' + meta.length + "</span></button>" +
             '<div class="mod-meta-tags"' + (metaOpen ? "" : " hidden") + ">" + meta.map(tag => pill(tag, "meta", false)).join("") + "</div></div>" : "");
     }
+    // The notice strip: why a post is in the modqueue, and its family. Both were
+    // upstream-only, and the family notices are how you reach a parent or the
+    // children at all.
+    function renderNotices() {
+      const ns = cur.notices || [];
+      region("notices").innerHTML = ns.map(n =>
+        '<div class="mod-notice mod-notice--' + esc(n.kind) + '">' +
+          '<span class="mod-notice-text">' + esc(n.text) + "</span>" +
+          (n.href ? '<a class="mod-notice-link" href="' + esc(n.href) + '">' + esc(n.label || "view") + "</a>" : "") +
+        "</div>").join("");
+      region("notices").hidden = ns.length === 0;
+    }
+
+    function moreHTML() {
+      const groups = cur.more || [];
+      if (!groups.length) return "";
+      return '<div class="mod-more"' + (moreOpen ? "" : " hidden") + ">" + groups.map(g =>
+        '<div class="mod-more-group"><span class="mod-more-label">' + esc(g.label) + "</span>" +
+          (g.links || []).map(l => '<a class="mod-more-link" href="' + esc(l.href) + '">' + esc(l.label) + "</a>").join("") +
+        "</div>").join("") + "</div>";
+    }
+
+    function voteHTML(dir, glyph) {
+      const sc = cur.score || {};
+      const on = sc.vote === dir;
+      const act = sc.can_vote ? "vote" : "signin";
+      return '<button type="button" class="mod-vote mod-vote--' + dir + (on ? " is-on" : "") + '"' +
+        ' data-act="' + act + '" data-dir="' + dir + '" aria-pressed="' + (on ? "true" : "false") +
+        '" title="' + (sc.can_vote ? (on ? "Remove vote" : (dir === "up" ? "Upvote" : "Downvote")) : "Sign in to vote") + '">' + glyph + "</button>";
+    }
+
     function renderActions() {
       const m = cur.media, full = (m && (m.full || m.src)) || "#";
+      const sc = cur.score || {}, fv = cur.fav || {};
+      const total = sc.total == null ? 0 : sc.total;
+      const favCount = fv.count == null ? 0 : fv.count;
       region("actions").innerHTML =
+        '<span class="mod-score">' +
+          voteHTML("up", "&#9650;") +
+          '<span class="mod-score-num" title="score">' + total + "</span>" +
+          voteHTML("down", "&#9660;") +
+        "</span>" +
+        '<button type="button" class="mod-action mod-fav' + (fv.faved ? " is-on" : "") + '"' +
+          ' data-act="' + (fv.can_fav ? "fav" : "signin") + '" title="' + (fv.can_fav ? (fv.faved ? "Remove from favourites" : "Favourite") : "Sign in to favourite") + '">' +
+          (fv.faved ? "&#9733;" : "&#9734;") + ' <span class="mod-fav-count">' + favCount + "</span></button>" +
         '<a class="mod-action" href="' + esc(full) + '" target="_blank" rel="noopener">View original</a>' +
         '<a class="mod-action" href="' + esc(full) + '" download>Download</a>' +
-        '<a class="mod-action mod-fav" href="' + esc(cur.url) + '">&#9734; Favorite</a>';
+        '<button type="button" class="mod-action mod-more-toggle" data-act="more" aria-expanded="' + moreOpen + '">' +
+          'More <span class="mod-caret' + (moreOpen ? " is-open" : "") + '">&#9656;</span></button>' +
+        moreHTML();
     }
-    function renderAll() { renderMeta(); renderCenter(); renderFlanks(); renderTags(); renderActions(); }
+    function renderAll() { renderMeta(); renderNotices(); renderCenter(); renderFlanks(); renderTags(); renderActions(); }
+
+    // ---- scoring and favouriting ----
+    // Both were upstream-only. They write through the same endpoints the
+    // upstream page uses, then re-read the post rather than guessing the new
+    // numbers locally -- a score is server state and rate limits, locks and
+    // moderation can all make the optimistic answer the wrong one.
+    function csrfToken() {
+      const el = document.querySelector('meta[name="csrf-token"]');
+      return el ? el.getAttribute("content") : "";
+    }
+    function write(url, method) {
+      return fetch(url, {
+        method: method,
+        headers: { "X-CSRF-Token": csrfToken(), Accept: "application/json" },
+        credentials: "same-origin",
+      });
+    }
+    function refreshCurrent() {
+      const search = (active() || {}).search || "";
+      cache.delete(cur.id + "|" + search);
+      return fetchPayload(cur.id, search).then(p => { cur = p; renderActions(); renderMeta(); });
+    }
+    function vote(dir) {
+      const sc = cur.score || {};
+      if (!sc.can_vote || busy) return;
+      const clearing = sc.vote === dir;
+      const url = clearing ? "/post_votes/" + sc.vote_id
+                           : "/posts/" + cur.id + "/votes?score=" + (dir === "up" ? 1 : -1);
+      write(url, clearing ? "DELETE" : "POST").then(r => { if (r.ok) refreshCurrent(); });
+    }
+    function toggleFav() {
+      const fv = cur.fav || {};
+      if (!fv.can_fav || busy) return;
+      const url = fv.faved ? "/favorites/" + cur.id : "/favorites?post_id=" + cur.id;
+      write(url, fv.faved ? "DELETE" : "POST").then(r => { if (r.ok) refreshCurrent(); });
+    }
 
     // ---- data + preloading ----
     const endpointFor = (id, search) => BASE + "/" + id + "/modulation.json?q=" + encodeURIComponent(search || "");
@@ -173,6 +255,10 @@
       else if (a === "sort-down") swapSort(1);
       else if (a === "view") { view = act.dataset.view; renderTags(); }
       else if (a === "meta-toggle") { metaOpen = !metaOpen; renderTags(); }
+      else if (a === "more") { moreOpen = !moreOpen; renderActions(); }
+      else if (a === "vote") vote(act.dataset.dir);
+      else if (a === "fav") toggleFav();
+      else if (a === "signin") window.location.href = "/login?url=" + encodeURIComponent(location.pathname + location.search);
     });
 
     window.addEventListener("keydown", e => {

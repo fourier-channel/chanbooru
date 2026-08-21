@@ -213,7 +213,146 @@ body:has(.modulation) {
     transition: background 0.12s ease, border-color 0.12s ease;
     &:hover { background: var(--mod-surface); border-color: var(--mod-ink-dim); }
   }
-  .mod-fav { margin-left: auto; }
+
+  // The action row grew the things that only existed on the upstream page:
+  // score, favourites, and a disclosure holding the long tail of its sidebar.
+  // Score and favourite sit first because they are the two a viewer uses; the
+  // rest is one control away, which keeps this a single-cell viewer.
+  .mod-score {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0.15rem 0.35rem;
+    border-radius: var(--mod-radius);
+    background: var(--mod-surface-2);
+    border: 1px solid var(--mod-line);
+  }
+  .mod-score-num {
+    min-width: 1.6rem;
+    text-align: center;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.82rem;
+    color: var(--mod-ink);
+  }
+  .mod-vote {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--mod-ink-dim);
+    cursor: pointer;
+    line-height: 1;
+    font-size: 0.62rem;
+    padding: 0.3rem 0.4rem;
+    border-radius: var(--mod-radius);
+    transition: color 0.12s ease, background 0.12s ease;
+
+    &:hover { color: var(--mod-ink); background: var(--mod-surface); }
+    &--up.is-on { color: var(--mod-creator-fg); }
+    &--down.is-on { color: #ff6b7a; }
+  }
+
+  .mod-fav {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    font-family: inherit;
+
+    &.is-on { color: var(--mod-auto-fg); border-color: color-mix(in srgb, var(--mod-auto-fg) 40%, transparent); }
+  }
+  .mod-fav-count {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.78rem;
+    color: var(--mod-ink-dim);
+  }
+
+  .mod-more-toggle {
+    cursor: pointer;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .mod-caret {
+    display: inline-block;
+    transition: transform 0.14s ease;
+    font-size: 0.7rem;
+    color: var(--mod-ink-dim);
+    &.is-open { transform: rotate(90deg); }
+  }
+
+  // The disclosure is a full-width row of its own so opening it never reflows
+  // the buttons above.
+  .mod-more {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.75rem;
+    margin-top: 0.15rem;
+    padding: 0.8rem 1rem;
+    border-radius: var(--mod-radius);
+    background: var(--mod-surface-2);
+    border: 1px solid var(--mod-line);
+  }
+  .mod-more-group { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; }
+  .mod-more-label {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mod-ink-faint, var(--mod-ink-dim));
+    margin-right: 0.15rem;
+  }
+  .mod-more-link {
+    font-size: 0.8rem;
+    color: var(--mod-ink);
+    text-decoration: none;
+    padding: 0.15rem 0.55rem;
+    border-radius: var(--mod-pill-radius);
+    border: 1px solid var(--mod-line);
+    background: var(--mod-surface);
+    &:hover { border-color: var(--mod-creator-fg); color: var(--mod-creator-fg); }
+  }
+
+  // --- notice strip -------------------------------------------------------
+  // Post status and post family. Colour carries the difference: a takedown and
+  // "this post has children" must not look alike.
+  .mod-notices { display: flex; flex-direction: column; gap: 0.4rem; }
+  .mod-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    padding: 0.45rem 0.8rem;
+    border-radius: var(--mod-radius);
+    border: 1px solid var(--mod-line);
+    background: var(--mod-surface-2);
+    font-size: 0.82rem;
+    color: var(--mod-ink);
+  }
+  .mod-notice-link {
+    color: var(--mod-creator-fg);
+    text-decoration: none;
+    border-bottom: 1px dotted currentcolor;
+    font-size: 0.8rem;
+  }
+  .mod-notice--pending {
+    background: var(--mod-auto-bg);
+    border-color: color-mix(in srgb, var(--mod-auto-fg) 35%, transparent);
+    .mod-notice-text { color: var(--mod-auto-fg); }
+  }
+  .mod-notice--deleted,
+  .mod-notice--banned {
+    background: #2e1216;
+    border-color: color-mix(in srgb, #ff6b7a 35%, transparent);
+    .mod-notice-text { color: #ff6b7a; }
+  }
+  .mod-notice--parent,
+  .mod-notice--child {
+    background: var(--mod-creator-bg);
+    border-color: color-mix(in srgb, var(--mod-creator-fg) 30%, transparent);
+  }
 
   // --- tags block ---------------------------------------------------------
   .mod-tags {

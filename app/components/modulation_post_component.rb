@@ -71,6 +71,136 @@ class ModulationPostComponent < ApplicationComponent
     post.source.to_s.start_with?("mxc://")
   end
 
+  # --- parity with the upstream post page ---------------------------------
+  # Everything below exists because the upstream page had it and this one did
+  # not. A viewer who moves between a themed listing and this page should not
+  # discover that scoring, favouriting, flagging or the reason a post is in the
+  # modqueue are things that only happen on the other interface.
+
+  def policy
+    @policy ||= PostPolicy.new(viewer, post)
+  end
+
+  def anonymous?
+    viewer.nil? || viewer.is_anonymous?
+  end
+
+  def current_vote
+    return @current_vote if defined?(@current_vote)
+
+    # Deliberately NOT post.vote_by_current_user: that association reads the
+    # CurrentUser thread-global, and this component is also rendered from the
+    # navigation endpoint where the viewer is passed in explicitly.
+    @current_vote = anonymous? ? nil : PostVote.active.find_by(post: post, user: viewer)
+  end
+
+  def score_payload
+    vote = current_vote
+    {
+      total: post.score,
+      up: post.up_score,
+      down: post.down_score,
+      vote: (vote.nil? ? nil : (vote.is_positive? ? "up" : "down")),
+      vote_id: vote&.id,
+      can_vote: !anonymous?,
+    }
+  end
+
+  def fav_payload
+    { count: post.fav_count, faved: post.favorited_by?(viewer), can_fav: !anonymous? }
+  end
+
+  # One word for the post's moderation state, shown in the metadata line.
+  def status
+    return "banned" if post.is_banned?
+    return "deleted" if post.is_deleted?
+    return "flagged" if post.is_flagged?
+    return "appealed" if post.is_appealed?
+    return "pending" if post.is_pending?
+
+    "active"
+  end
+
+  # The notice strip above the image: the things upstream put in coloured boxes
+  # -- why a post is in the modqueue, that it was deleted, that it has a parent
+  # or children. Navigation between related posts is the reason the parent and
+  # child notices matter most; without them a post family is invisible here.
+  def notices
+    list = []
+
+    case status
+    when "banned"
+      list << { kind: "banned", text: "This post was removed following a takedown request or rule violation." }
+    when "deleted"
+      list << { kind: "deleted", text: "This post was deleted." }
+    when "pending"
+      list << { kind: "pending", text: "This post is pending approval." }
+    when "flagged"
+      list << { kind: "pending", text: "This post was flagged and is pending approval." }
+    when "appealed"
+      list << { kind: "pending", text: "This post was appealed and is pending approval." }
+    end
+
+    if post.parent_id.present?
+      list << {
+        kind: "parent",
+        text: "This post belongs to a parent.",
+        href: routes.post_path(post.parent_id, preset: "modulation"),
+        label: "view parent ##{post.parent_id}",
+      }
+    end
+
+    if post.has_visible_children?
+      list << {
+        kind: "child",
+        text: "This post has children.",
+        href: routes.posts_path(tags: "parent:#{post.id}", preset: "modulation"),
+        label: "view children",
+      }
+    end
+
+    list
+  end
+
+  # The long tail of upstream's sidebar "Options" and "History" sections. They
+  # live behind a disclosure rather than in the action row: this page is a
+  # single-cell viewer by design, and putting twenty links permanently on screen
+  # would undo that. Behind one control they are still reachable, which is the
+  # part that was actually missing.
+  def more_links
+    groups = []
+
+    discover = [{ label: "Find similar", href: routes.iqdb_queries_path(post_id: post.id) }]
+    # A post can outlive its media asset (expunged file, failed import), so this
+    # one is asked for rather than assumed.
+    asset_id = post.media_asset&.id
+    discover << { label: "Media asset", href: routes.media_asset_path(asset_id) } if asset_id
+    discover << { label: "Comments", href: "#mod-comments", local: true }
+    groups << { label: "discover", links: discover }
+
+    if policy.update?
+      groups << { label: "contribute", links: [
+        { label: "Edit tags", href: routes.post_path(post, preset: "historical", anchor: "edit") },
+        { label: "Add to pool", href: routes.post_path(post, preset: "historical", anchor: "edit") },
+        { label: "Add commentary", href: routes.post_path(post, preset: "historical", anchor: "edit") },
+      ] }
+    end
+
+    report = []
+    report << { label: "Flag", href: routes.new_post_flag_path(post_flag: { post_id: post.id }) } if post.is_active?
+    report << { label: "Appeal", href: routes.new_post_appeal_path(post_appeal: { post_id: post.id }) } if post.is_appealable?
+    groups << { label: "report", links: report } if report.any?
+
+    groups << { label: "history", links: [
+      { label: "Tags", href: routes.post_versions_path(search: { post_id: post.id }) },
+      { label: "Notes", href: routes.note_versions_path(search: { post_id: post.id }) },
+      { label: "Pools", href: routes.pool_versions_path(search: { post_id: post.id }) },
+      { label: "Moderation", href: routes.post_post_events_path(post.id) },
+    ] }
+
+    groups
+  end
+
   # Everything the client needs to render this post in the Modulation view, as a
   # plain hash so the same builder serves the initial embed AND the client-side
   # navigation endpoint (no page reload). Tag buckets come from for_viewer, so the
@@ -86,7 +216,19 @@ class ModulationPostComponent < ApplicationComponent
       tags: buckets,
       presets: nav_presets.map { |p| p.slice(:key, :label, :search, :prev, :next) },
       active_key: active_preset_key,
+      status: status,
+      rating: post.rating,
+      score: score_payload,
+      fav: fav_payload,
+      notices: notices,
+      more: more_links,
     }
+  end
+
+  # Rails' route helpers, for the payload builders above. Kept as one reader so
+  # the "context-free, no view helpers" contract stays easy to see.
+  def routes
+    Rails.application.routes.url_helpers
   end
 
   private
@@ -108,6 +250,11 @@ class ModulationPostComponent < ApplicationComponent
   def meta_payload
     fields = metadata_fields.map { |text| { text: text } }
     fields << { text: "source", href: post.normalized_source } if post.source.present? && post.normalized_source.present?
+    # Rating rides in the metadata line rather than the action row: it is a
+    # property of the post, not something you do to it. Status only appears when
+    # it is not "active" -- a badge that is always there stops being read.
+    fields << { text: "rating:#{post.rating}" }
+    fields << { text: status, status: true } unless status == "active"
     fields
   end
 
