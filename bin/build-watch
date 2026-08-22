@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Make a Danbooru image build legible.
+#
+# `docker buildx build` piped to a file falls back to --progress=plain, which
+# prints every line every compiler emits -- tens of thousands of them. Almost
+# none of it is about whether the build is working. This filters that firehose
+# down to the four kinds of line that actually carry state:
+#
+#   #12 [build-ruby 3/8] RUN ...   a step started
+#   #12 DONE 154.7s                it finished
+#   #12 CACHED                     it was reused, not rebuilt
+#   #12 ERROR: ...                 it failed  <- the only one that means stop
+#
+# Usage:
+#   bin/build-watch                      # follow the running build
+#   bin/build-watch --summary            # what has happened so far, and where it is
+#   bin/build-watch /path/to/build.log   # a different log
+set -uo pipefail
+
+LOG="/tmp/chanbooru-build.log"
+MODE="follow"
+
+for arg in "$@"; do
+  case "$arg" in
+    --summary|-s) MODE="summary" ;;
+    *) LOG="$arg" ;;
+  esac
+done
+
+[[ -r "$LOG" ]] || { echo "no readable build log at $LOG" >&2; exit 1; }
+
+# Step lines only. `grep -a` because a compile log is not reliably valid UTF-8
+# and grep will otherwise decide it is binary and print nothing at all.
+filter() { grep -aE '^#[0-9]+ (\[|DONE|CACHED|ERROR)|^ERROR:|^#[0-9]+ ERROR'; }
+
+if [[ "$MODE" == "summary" ]]; then
+  echo "=== build: $LOG"
+  echo
+  echo "-- slowest steps ------------------------------------------------"
+  # Pair each step's name with its DONE time, so "#17 154.7s" says what #17 was.
+  awk '
+    /^#[0-9]+ \[/ { id=$1; sub(/^#/,"",id); name=$0; sub(/^#[0-9]+ /,"",name); step[id]=name }
+    /^#[0-9]+ DONE/ { id=$1; sub(/^#/,"",id); t=$3; sub(/s$/,"",t); if (t+0 > secs[id]+0) { secs[id]=t+0 } }
+    END { for (id in secs) if (secs[id] >= 5) printf "%8.1fs  %s\n", secs[id], step[id] }
+  ' "$LOG" | sort -rn | head -12
+
+  echo
+  echo "-- cache --------------------------------------------------------"
+  printf "  reused (CACHED): %s\n" "$(grep -acE '^#[0-9]+ CACHED' "$LOG")"
+  printf "  rebuilt (DONE):  %s\n" "$(grep -acE '^#[0-9]+ DONE' "$LOG")"
+
+  echo
+  echo "-- failures -----------------------------------------------------"
+  if grep -aqE '^#[0-9]+ ERROR|^ERROR:' "$LOG"; then
+    grep -aE '^#[0-9]+ ERROR|^ERROR:' "$LOG" | head -5
+    echo
+    echo "  context:"
+    grep -aE '^#[0-9]+ ERROR' "$LOG" | head -1 | grep -aoE '^#[0-9]+' | while read -r id; do
+      grep -a "^${id} " "$LOG" | tail -15 | sed 's/^/    /'
+    done
+  else
+    echo "  none"
+  fi
+
+  echo
+  echo "-- currently ----------------------------------------------------"
+  last_start=$(grep -aE '^#[0-9]+ \[' "$LOG" | tail -1)
+  last_done=$(grep -aE '^#[0-9]+ (DONE|CACHED)' "$LOG" | tail -1)
+  echo "  started: ${last_start:-none}"
+  echo "  last finished: ${last_done:-none}"
+  if grep -aq 'writing image\|exporting layers' "$LOG"; then
+    echo "  -> exporting the image (nearly done)"
+  fi
+  exit 0
+fi
+
+echo "following $LOG -- step transitions only. Ctrl-C to stop."
+tail -f -n +1 "$LOG" | filter
