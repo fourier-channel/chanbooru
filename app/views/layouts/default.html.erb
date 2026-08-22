@@ -59,7 +59,13 @@
 <%= tag.body **body_attributes(CurrentUser.user, params, @current_item, @exception) do %>
   <%= render NewsUpdateComponent.new(cookies: cookies) %>
 
-  <%= render NavbarComponent.new(current_user: CurrentUser.user) %>
+  <%# The Modulation header is its own component, not a restyle: upstream's is
+      what the historical preset must keep serving. %>
+  <% if modulation? %>
+    <%= render ModulationNavbarComponent.new(current_user: CurrentUser.user) %>
+  <% else %>
+    <%= render NavbarComponent.new(current_user: CurrentUser.user) %>
+  <% end %>
 
   <div id="page" class="relative flex-1 mx-8 mt-4 sm:mx-2 sm:mt-2">
     <% if CurrentUser.user.is_restricted? && (params[:controller] == "users" || cookies[:hide_verify_account_notice].blank?) %>

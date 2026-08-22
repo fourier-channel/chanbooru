@@ -55,91 +55,10 @@ body[data-preset="modulation"] {
 
   /* ---------------------------------------------------------------- header */
 
-  #top {
-    background: var(--mod-surface);
-    border-bottom: 1px solid var(--mod-line);
-    margin-top: 0;
-    padding-top: 0.6rem;
-  }
-
-  /* The header's own children carry mx-8; re-centre them on the content column
-     instead so the wordmark, the nav and the page body share one left edge. */
-  #top > div,
-  #top > nav > div {
-    max-width: var(--mod-page);
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  #app-name-header {
-    gap: 0.55rem;
-  }
-
-  #app-logo img {
-    height: 1.6rem;
-    border-radius: var(--mod-radius-sm);
-  }
-
-  #app-name {
-    font-size: 1.25rem;
-    letter-spacing: 0.01em;
-    color: var(--mod-ink);
-    text-decoration: none;
-
-    &:hover { color: var(--link-color); }
-  }
-
-  #nav { margin-top: 0.5rem; }
-
-  #main-menu {
-    gap: 0.15rem;
-    padding: 0 0 0.4rem;
-
-    a {
-      padding: 0.28rem 0.7rem;
-      border-radius: var(--mod-pill-radius);
-      font-size: 0.82rem;
-      color: var(--mod-ink-dim);
-      text-decoration: none;
-      transition: color 0.12s ease, background-color 0.12s ease;
-
-      &:hover {
-        color: var(--mod-ink);
-        background: var(--mod-surface-2);
-      }
-    }
-
-    .current a,
-    a.current {
-      background: var(--mod-surface-2);
-      color: var(--mod-ink);
-    }
-
-    /* Upstream paints the active item with the subnav background; the pill
-       above is doing that job now. */
-    .current { background: transparent; }
-  }
-
-  #subnav-menu {
-    background: var(--mod-surface-2);
-    border-top: 1px solid var(--mod-line);
-    border-bottom: 1px solid var(--mod-line);
-    gap: 0.15rem;
-    padding: 0.3rem 0;
-
-    a {
-      padding: 0.2rem 0.6rem;
-      border-radius: var(--mod-pill-radius);
-      font-family: var(--mod-mono);
-      font-size: 0.74rem;
-      color: var(--mod-ink-dim);
-      text-decoration: none;
-
-      &:hover { color: var(--mod-ink); background: var(--mod-surface-3); }
-    }
-
-    .current a, a.current { color: var(--mod-ink); background: var(--mod-surface-3); }
-  }
+  /* The header is ModulationNavbarComponent, which styles itself. The rules
+     that used to live here restyled upstream's NavbarComponent, and became dead
+     the moment the layout stopped rendering it under this preset -- kept only
+     as this note, so nobody re-adds them and wonders why nothing changes. */
 
   /* ------------------------------------------------------------- headings */
 

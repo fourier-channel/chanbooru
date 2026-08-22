@@ -1,0 +1,166 @@
+// The Modulation site header. Centred wordmark, centred row of nav pills.
+//
+// The pills are deliberately the SAME object as a tag pill -- same radius, same
+// tint recipe, same dot -- so the header reads as part of the same interface as
+// the tag lists below it rather than as chrome bolted on top.
+//
+// Categories are referenced by NAME through the theme's semantic tokens
+// (--artist-tag-color, --general-tag-color, --meta-tag-color), never by hex.
+// This fork and upstream Danbooru colour their tag categories differently, so a
+// literal here would mean "the colour artists happen to be on chanbooru today"
+// instead of "whatever artists look like on this site".
+
+// #top.modnav, not .modnav: specific/post_mode_menu.scss sets a background on
+// #top, and an id beats a class no matter what order they load in.
+#top.modnav {
+  --modnav-col: 1180px;
+
+  background: var(--mod-surface, var(--body-background-color));
+  border-bottom: 1px solid var(--mod-line, var(--default-border-color));
+  margin-top: 0;
+  padding: 0.75rem 0 0;
+
+  // --- wordmark ----------------------------------------------------------
+  .modnav-brand {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    max-width: var(--modnav-col);
+    margin: 0 auto;
+    padding: 0 1rem;
+  }
+
+  .modnav-logo img {
+    display: block;
+    height: 1.7rem;
+    width: auto;
+    border-radius: var(--mod-radius-sm, 6px);
+
+    &:hover { filter: brightness(1.15); }
+  }
+
+  .modnav-wordmark {
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    line-height: 1;
+    color: var(--mod-ink, var(--text-color));
+    text-decoration: none;
+
+    &:hover { color: var(--link-color); }
+  }
+
+  // The menu button sits at the edge without pulling the wordmark off centre.
+  .modnav-burger {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: var(--mod-ink-dim, var(--muted-text-color));
+  }
+
+  // --- nav pills ---------------------------------------------------------
+  .modnav-nav { margin-top: 0.6rem; }
+
+  .modnav-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    max-width: var(--modnav-col);
+    margin: 0 auto;
+    padding: 0 1rem 0.7rem;
+  }
+
+  .modnav-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.24rem 0.7rem;
+    border-radius: var(--mod-pill-radius, 999px);
+    border: 1px solid transparent;
+    font-size: 0.82rem;
+    line-height: 1.2;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: border-color 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+  }
+
+  .modnav-pill-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentcolor;
+    opacity: 0.85;
+  }
+
+  .modnav-pill-count {
+    font-family: var(--mod-mono, ui-monospace, monospace);
+    font-size: 0.68rem;
+    opacity: 0.85;
+  }
+
+  // One tint recipe, applied per category. `$token` names the semantic variable
+  // so adding a category is one line and never a colour.
+  @each $name, $token in (general: --general-tag-color, artist: --artist-tag-color, meta: --meta-tag-color) {
+    .modnav-pill--#{$name} {
+      color: var(#{$token});
+      border-color: color-mix(in srgb, var(#{$token}) 26%, transparent);
+      background: color-mix(in srgb, var(#{$token}) 10%, var(--mod-surface-2, transparent));
+
+      &:hover {
+        border-color: color-mix(in srgb, var(#{$token}) 55%, transparent);
+        background: color-mix(in srgb, var(#{$token}) 18%, var(--mod-surface-2, transparent));
+      }
+
+      // The current page is the one pill that fills; everything else is outline
+      // plus tint, so there is exactly one thing drawing the eye.
+      &.is-current {
+        background: color-mix(in srgb, var(#{$token}) 26%, var(--mod-surface-2, transparent));
+        border-color: color-mix(in srgb, var(#{$token}) 70%, transparent);
+        font-weight: 600;
+      }
+    }
+  }
+
+  // --- subnav ------------------------------------------------------------
+  .modnav-subnav {
+    background: var(--mod-surface-2, transparent);
+    border-top: 1px solid var(--mod-line, var(--default-border-color));
+    padding: 0.3rem 0;
+  }
+
+  .modnav-subnav-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    max-width: var(--modnav-col);
+    margin: 0 auto;
+    padding: 0 1rem;
+
+    a {
+      padding: 0.2rem 0.6rem;
+      border-radius: var(--mod-pill-radius, 999px);
+      font-family: var(--mod-mono, ui-monospace, monospace);
+      font-size: 0.74rem;
+      color: var(--mod-ink-dim, var(--muted-text-color));
+      text-decoration: none;
+
+      &:hover {
+        color: var(--mod-ink, var(--text-color));
+        background: var(--mod-surface-3, transparent);
+      }
+    }
+
+    .current a, a.current {
+      color: var(--mod-ink, var(--text-color));
+      background: var(--mod-surface-3, transparent);
+    }
+  }
+}

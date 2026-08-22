@@ -1,0 +1,36 @@
+<header id="top" class="modnav" x-data="{ menuOpen: false }">
+  <div class="modnav-brand">
+    <%= link_to main_app.root_path, id: "app-logo", class: "modnav-logo" do %>
+      <%= image_pack_tag("static/danbooru-logo-128x128.png", alt: "") %>
+    <% end %>
+    <%= link_to app_name, main_app.root_path, id: "app-name", class: "modnav-wordmark" %>
+
+    <a class="modnav-burger mobile-only" x-on:click="menuOpen = !menuOpen" aria-label="Menu">
+      <%= menu_icon(class: "block w-6", "x-show": "!menuOpen") %>
+      <%= close_icon(class: "block w-6", "x-show": "menuOpen", "x-cloak": true) %>
+    </a>
+  </div>
+
+  <nav class="modnav-nav desktop-only" x-bind:class="{ 'desktop-only': !menuOpen }">
+    <div class="modnav-links">
+      <% entries.each do |entry| %>
+        <%= link_to entry[:href],
+              id: dom_id(entry),
+              class: "modnav-pill modnav-pill--#{entry[:category]}#{' is-current' if current?(entry)}",
+              rel: entry[:rel] do %>
+          <span class="modnav-pill-dot" aria-hidden="true"></span><%= entry[:label] %>
+          <% if entry[:count].to_i > 0 %>
+            <span class="modnav-pill-count"><%= entry[:count] %></span>
+          <% end %>
+          <%= entry[:badge] %>
+        <% end %>
+      <% end %>
+    </div>
+
+    <% if content_for?(:secondary_links) %>
+      <div class="modnav-subnav">
+        <div class="modnav-subnav-inner"><%= content_for :secondary_links %></div>
+      </div>
+    <% end %>
+  </nav>
+</header>
