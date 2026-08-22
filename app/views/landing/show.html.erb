@@ -1,0 +1,9 @@
+<% page_title Danbooru.config.app_name %>
+<% meta_description "#{Danbooru.config.app_name} — a preview of what's here." %>
+
+<%= render ModulationLandingComponent.new(
+      slides: @slides,
+      feature: @feature,
+      promoted: @promoted,
+      preference: @preference,
+      viewer: CurrentUser.user) %>

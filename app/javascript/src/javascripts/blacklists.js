@@ -20,7 +20,7 @@ class Blacklist {
     // the Modulation post view's media container -- the DEFAULT views of this
     // site, so a selector list that does not name them means the blacklist
     // matches nothing on almost every page.
-    this.posts = $(".post-preview, .image-container, #c-comments .post, .mod-queue-preview.post-preview, .modgal-card, .mod-blacklist-target").toArray().map(post => new Post(post, this));
+    this.posts = $(".post-preview, .image-container, #c-comments .post, .mod-queue-preview.post-preview, .modgal-card, .mod-blacklist-target, .modland-slide").toArray().map(post => new Post(post, this));
     this.apply();
     this.cleanupStorage();
 

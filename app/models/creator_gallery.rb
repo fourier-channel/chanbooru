@@ -18,6 +18,19 @@ class CreatorGallery < ApplicationRecord
   validates :title, length: { maximum: 120 }
   validates :bio, length: { maximum: 4000 }
 
+  # Landing-page promotion. Timestamps, not flags: promoted wants an order, and
+  # "creator of the month" wants history -- setting this month's feature must
+  # not erase who it was last month.
+  scope :promoted, -> { where.not(promoted_at: nil).order(promoted_at: :desc) }
+
+  # The current feature is simply the most recently featured one. No cron job,
+  # no month arithmetic, nothing to expire: setting a new feature is the whole
+  # act, and until someone does, last month's stands rather than the page
+  # showing an empty slot.
+  def self.current_feature
+    where.not(featured_at: nil).order(featured_at: :desc).first
+  end
+
   before_validation :default_contact
 
   # URL key is the slug (Matrix localpart), not the numeric id.
