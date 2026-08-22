@@ -257,6 +257,7 @@ class ModulationPostComponent < ApplicationComponent
       # reload has to hand the client the next post's attributes too -- otherwise
       # the blacklist keeps matching the post the viewer arrived on.
       blacklist: blacklist_data,
+      can_browse: can_browse?,
     }
   end
 
@@ -307,7 +308,20 @@ class ModulationPostComponent < ApplicationComponent
     [tags.presence, "order:#{order}"].compact.join(" ").squish
   end
 
+  # Whether this viewer may walk the archive from here. A restricted viewer can
+  # see this post -- they were given a link to it -- but the post page is not a
+  # doorway into everything else.
+  def can_browse?
+    viewer.present? && viewer.can_browse_freely?
+  end
+
   def build_nav_presets
+    # No neighbours for a restricted viewer: the sorts and the flank previews
+    # ARE the browsing this tier does not have. Withholding them here rather
+    # than letting the links 410 means the restriction reads as a boundary
+    # instead of as a broken page.
+    return [] unless can_browse?
+
     incoming_order = PostQuery.new(query.to_s).find_metatag(:order).presence&.downcase
 
     defs = []

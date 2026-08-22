@@ -105,6 +105,14 @@
     <p class="modgal-empty">No posts match this search.</p>
   <% end %>
 
+  <%# The cut-off, explained where it happens. %>
+  <% if truncated? %>
+    <p class="modgal-capped">
+      Showing the most recent <%= posts.size %> of <%= number_with_delimiter(post_count) %>.
+      <span class="modgal-capped-note">Search is unlimited; browsing the full archive needs a full account.</span>
+    </p>
+  <% end %>
+
   <%# Pagination. %>
   <nav class="modgal-pager">
     <% if current_page > 1 %>

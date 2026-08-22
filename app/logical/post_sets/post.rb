@@ -102,12 +102,20 @@ module PostSets
     end
 
     def max_per_page
+      # A restricted viewer's ceiling clamps ?limit= as well, because per_page
+      # clamps to this -- otherwise the whole restriction would be one query
+      # parameter wide.
+      return Danbooru.config.restricted_browsing_per_page.to_i unless current_user.can_browse_freely?
+
       (format.to_sym == :sitemap) ? 10_000 : MAX_PER_PAGE
     end
 
     def posts
       post_query.validate_tag_limit!
-      normalized_query.paginated_posts(page, includes: includes, count: post_count, search_count: !post_count.nil?, limit: per_page, max_limit: max_per_page).load
+      # page_limit passed explicitly: paginate defaults it to the user's
+      # app-wide page limit, and the browsing restriction applies to the post
+      # archive only -- not to the forum or the tag lists.
+      normalized_query.paginated_posts(page, includes: includes, count: post_count, search_count: !post_count.nil?, limit: per_page, max_limit: max_per_page, page_limit: current_user.post_page_limit).load
     end
 
     # @return [Integer, nil] The number of posts returned by the search, or nil if unknown.

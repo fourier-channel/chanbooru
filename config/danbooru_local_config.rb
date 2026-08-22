@@ -12,6 +12,38 @@ module Danbooru
       false
     end
 
+    # ---- Browsing tier -------------------------------------------------
+    #
+    # Full browsing is a privilege this site grants, not the default state of
+    # having an account. Below the threshold a viewer can still SEE any post
+    # they are given a link to, and can search as often as they like -- they
+    # just cannot walk the whole archive: one page of results, and no
+    # post-to-post navigation from a post they landed on.
+    #
+    # Threshold, page size and the level new accounts start at are all config
+    # rather than constants because the right answer is a policy decision, and
+    # policy should not need a code change and a rebuild to move.
+
+    # A viewer at or above this level browses without restriction.
+    def full_browsing_level
+      User::Levels::MEMBER
+    end
+
+    # How many posts a restricted viewer sees per search. This is a ceiling, not
+    # a default: it clamps ?limit= too, or the restriction would be one query
+    # parameter wide.
+    def restricted_browsing_per_page
+      20
+    end
+
+    # The level a newly created account starts at. Signup is disabled on this
+    # site, so accounts are made deliberately -- and starting them below the
+    # threshold means granting full browsing is an explicit act rather than
+    # something that happens by default.
+    def default_user_level
+      User::Levels::RESTRICTED
+    end
+
     # Which UI preset a page renders in when nobody has asked for one.
     #
     # "modulation" -- this fork's interface -- everywhere the site actually runs.

@@ -79,6 +79,12 @@
 
     // ---- rendering (single renderer for initial load AND navigation) ----
     function renderMeta() {
+      // The sort switch is browsing machinery: with no presets to move between
+      // it is a control that does nothing, so it goes away entirely rather than
+      // sitting there disabled.
+      const sortEl = root.querySelector(".mod-sort-switch");
+      if (sortEl) sortEl.hidden = !(cur.presets && cur.presets.length);
+
       region("meta").innerHTML = (cur.meta || []).map(f =>
         f.href ? '<span class="mod-meta-field"><a class="mod-link" href="' + esc(f.href) + '" rel="nofollow noreferrer">' + esc(f.text) + "</a></span>"
                : '<span class="mod-meta-field">' + esc(f.text) + "</span>").join("");
