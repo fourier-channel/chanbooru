@@ -31,7 +31,10 @@ Rails.application.routes.draw do
 
   # XXX This comes *after* defining posts above because otherwise the paginator
   # generates `/?page=2` instead of `/posts?page=2` on the posts#index page.
-  root "posts#index"
+  # The landing page is what the bare domain serves; browsing lives at /posts.
+  root "landing#show"
+  get  "landing/slides",     to: "landing#slides",     as: :landing_slides
+  post "landing/preference", to: "landing#preference", as: :landing_preference
 
   namespace :admin do
     resources :users, only: [:edit, :update]

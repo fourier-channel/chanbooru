@@ -85,7 +85,13 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
         end
 
         should "render the second page" do
-          get posts_path(page: 2, limit: 1)
+          # Signed in because this fork restricts browsing below
+          # Danbooru.config.full_browsing_level, and an anonymous viewer is
+          # below it. What this test is about -- the paginator and the canonical
+          # URL on page 2 -- is unchanged; it just needs an account that is
+          # allowed to reach page 2 at all. The restriction itself is covered in
+          # modulation_preset_test.rb.
+          get_auth posts_path(page: 2, limit: 1), create(:user)
           assert_response :success
           assert_seo_canonical_url_equals(posts_url(page: 2, limit: 1))
         end

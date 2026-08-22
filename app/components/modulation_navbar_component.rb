@@ -50,6 +50,11 @@ class ModulationNavbarComponent < NavbarComponent
   end
 
   def current?(entry)
+    # The landing page is not a nav destination, and upstream's matcher falls
+    # through to /static for controllers it does not know -- which made "More"
+    # light up on the front page.
+    return false if helpers.controller_name == "landing"
+
     nav_link_match(entry[:href]).present?
   end
 
