@@ -19,6 +19,8 @@ Rails.application.routes.draw do
   get  "posts/:post_id/tag_sources", to: "fourier_tag_sources#show"
   get  "posts/:post_id/modulation",  to: "modulation#show", as: :post_modulation # client-side nav payload
   get  "fourier_identity",           to: "fourier_identity#show", as: :fourier_identity # "am I linked yet?" poll
+  # Error cards, shown in place of an image that failed to load.
+  get  "errors/:status",             to: "errors#show", as: :error_art, constraints: { status: /\d{3}/, format: /svg/ }
 
   # Creator Gallery -- reads public, writes gated to the page's Matrix identity.
   resources :creator_galleries, path: "creators", param: :slug, only: %i[index show new create edit update]

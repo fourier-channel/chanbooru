@@ -12,25 +12,6 @@ module Danbooru
       false
     end
 
-    # Whether the Matrix sign-in flow may be shown in a frame.
-    #
-    #   :auto   - ask the provider (MatrixSigninFrameability), cached
-    #   :never  - always use the popup
-    #   :always - always frame, without asking
-    #
-    # :auto is right unless you are debugging. Measured on this deployment
-    # 2026-08-22, :auto resolves to "no": the identity provider answers
-    # X-Frame-Options: SAMEORIGIN and it is a different origin from the booru.
-    # Left on :auto rather than pinned to :never so that changing providers
-    # fixes itself instead of leaving a stale decision in a config file.
-    # :never in TEST, because :auto makes a real HTTP request to the identity
-    # provider, and a test suite that reaches the network is a test suite that
-    # fails when someone else's server is slow. The decision logic is unit
-    # tested directly against stubbed headers instead.
-    def matrix_signin_frame_mode
-      Rails.env.test? ? :never : :auto
-    end
-
     # ---- Browsing tier -------------------------------------------------
     #
     # Full browsing is a privilege this site grants, not the default state of

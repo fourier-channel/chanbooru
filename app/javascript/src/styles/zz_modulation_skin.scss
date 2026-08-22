@@ -553,3 +553,12 @@ body[data-preset="modulation"] .modlogin {
     color: var(--mod-ink-dim);
   }
 }
+
+/* An image replaced by an error card. The card carries its own aspect ratio and
+   its own background, so it must not be cropped by whatever object-fit the
+   thumbnail it replaced was using -- cover would cut the status number off. */
+body[data-preset="modulation"] img.error-card {
+  object-fit: contain;
+  background: var(--mod-surface);
+  border-radius: var(--mod-radius-sm);
+}
