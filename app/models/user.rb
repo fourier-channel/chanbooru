@@ -76,7 +76,10 @@ class User < ApplicationRecord
   attribute :created_at
   attribute :updated_at
   attribute :name
-  attribute :level, default: Levels::MEMBER
+  # Config-driven rather than a constant: what a new account is allowed to do is
+  # a policy decision (see Danbooru.config.default_user_level). Factories and
+  # any caller that sets a level explicitly are unaffected.
+  attribute :level, default: -> { Danbooru.config.default_user_level }
   attribute :bcrypt_password_hash
   attribute :inviter_id
   attribute :last_logged_in_at, default: -> { Time.zone.now }
@@ -739,6 +742,23 @@ class User < ApplicationRecord
 
     def page_limit
       User.page_limit(level)
+    end
+
+    # Whether this viewer may browse the archive rather than only see what they
+    # are pointed at. See Danbooru.config.full_browsing_level for what the
+    # restriction is and is not.
+    def can_browse_freely?
+      level >= Danbooru.config.full_browsing_level.to_i
+    end
+
+    # The highest page of POST results this viewer may reach.
+    #
+    # Deliberately not folded into #page_limit: that one is the default for
+    # every paginated resource in the app, so lowering it would silently cap the
+    # forum, comments and tag lists too. The restriction is about browsing the
+    # archive, and nothing else.
+    def post_page_limit
+      can_browse_freely? ? page_limit : 1
     end
 
     def tag_query_limit

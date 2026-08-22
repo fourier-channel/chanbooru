@@ -161,8 +161,24 @@ class ModulationGalleryComponent < ApplicationComponent
     first.length > 320 ? "#{first[0, 317]}..." : first
   end
 
+  def can_browse?
+    viewer.present? && viewer.can_browse_freely?
+  end
+
   def more_pages?
-    posts.size >= post_set.per_page
+    # A restricted viewer gets one page, so there is no next to offer. Not
+    # rendering the link is the point: a "next" that 410s is a bug-shaped way to
+    # express a policy.
+    can_browse? && posts.size >= post_set.per_page
+  end
+
+  # Shown when there are more results than this viewer is allowed to page
+  # through, so the cut-off is explained where it happens rather than being
+  # discovered as a missing button.
+  def truncated?
+    return false if can_browse?
+
+    post_count.to_i > posts.size
   end
 
   def page_url(page)

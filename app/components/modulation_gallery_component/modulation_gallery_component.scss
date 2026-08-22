@@ -216,3 +216,19 @@ body:has(.modgal) {
 }
 
 [x-cloak] { display: none !important; }
+
+// Shown when a restricted viewer's results are cut off. Deliberately quiet: it
+// is a boundary, not an error, and it should not read like something broke.
+.modgal .modgal-capped {
+  margin: 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--mod-ink-dim);
+
+  .modgal-capped-note {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.75rem;
+    color: var(--mod-ink-faint, var(--mod-ink-dim));
+  }
+}

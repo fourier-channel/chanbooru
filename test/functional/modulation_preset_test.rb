@@ -206,6 +206,79 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
       end
     end
 
+    # The browsing tier: a restricted viewer can see any post they are handed a
+    # link to, and can search as often as they like -- they just cannot walk the
+    # archive. See Danbooru.config.full_browsing_level.
+    context "the browsing tier" do
+      setup do
+        @restricted = create(:restricted_user)
+        @member = create(:user)
+      end
+
+      should "start new accounts below the threshold" do
+        assert_equal(User::Levels::RESTRICTED, User.new.level)
+        assert_not(User.new.can_browse_freely?)
+        assert(@member.can_browse_freely?)
+      end
+
+      should "give a restricted viewer one page of posts" do
+        get_auth posts_path(preset: "modulation"), @restricted
+        assert_response :success
+
+        get_auth posts_path(preset: "modulation", page: 2), @restricted
+        assert_response :gone
+      end
+
+      should "let a full account page past the first" do
+        get_auth posts_path(preset: "modulation", page: 2), @member
+
+        assert_response :success
+      end
+
+      # Otherwise the whole restriction is one query parameter wide.
+      should "clamp a restricted viewer's page size, including an explicit limit" do
+        set = PostSets::Post.new("", 1, 200, user: @restricted)
+
+        assert_equal(Danbooru.config.restricted_browsing_per_page, set.per_page)
+        assert_equal(1, @restricted.post_page_limit)
+      end
+
+      should "not clamp a full account" do
+        set = PostSets::Post.new("", 1, 200, user: @member)
+
+        assert_equal(200, set.per_page)
+        assert_operator(@member.post_page_limit, :>, 1)
+      end
+
+      # The restriction is about the post archive. Lowering the app-wide page
+      # limit instead would have capped the forum and the tag lists too.
+      should "leave other paginated resources alone" do
+        get_auth forum_topics_path(page: 2), @restricted
+
+        assert_response :success
+      end
+
+      should "show a restricted viewer a post they are linked to, without neighbours" do
+        get_auth post_path(@post, preset: "modulation"), @restricted
+
+        assert_response :success
+        assert_select ".mod-stage", 1
+        assert_select "#mod-comments", 1
+
+        payload = JSON.parse(css_select(".modulation").first["data-payload"])
+        assert_equal(false, payload["can_browse"])
+        assert_empty(payload["presets"])
+      end
+
+      should "give a full account the post neighbours" do
+        get_auth post_path(@post, preset: "modulation"), @member
+
+        payload = JSON.parse(css_select(".modulation").first["data-payload"])
+        assert_equal(true, payload["can_browse"])
+        assert_not_empty(payload["presets"])
+      end
+    end
+
     context "the navigation payload" do
       should "carry everything the client re-renders a post from" do
         get post_modulation_path(post_id: @post.id), as: :json
