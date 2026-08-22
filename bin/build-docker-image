@@ -38,16 +38,46 @@ PLATFORM="${2:-$CURRENT_PLATFORM}"
 
 DOCKER_IMAGE_REVISION=$(git rev-parse HEAD)
 DOCKER_IMAGE_BUILD_DATE="$(TZ=UTC git show --no-patch --date=format-local:"%Y-%m-%dT%H:%M:%SZ" --format="%cd" $DOCKER_IMAGE_REVISION)"
-SOURCE_DATE_EPOCH=$(git show --no-patch --format=%ct $DOCKER_IMAGE_REVISION)
+
+# SOURCE_DATE_EPOCH is deliberately NOT set, and the exporter is not asked to
+# rewrite timestamps. Upstream derives it from the HEAD commit for reproducible
+# image timestamps; on this fork that cost about ten minutes of every build.
+#
+# BuildKit turns SOURCE_DATE_EPOCH into an implicit ARG for EVERY stage, so it
+# lands in every cache key. A new commit means a new timestamp, which means the
+# whole dependency chain -- Ruby, MozJPEG, vips, FFmpeg, ExifTool, OpenResty,
+# Node -- is a cache miss, on every single build, no matter how small the change.
+#
+# Measured on this hardware 2026-08-22, building the same tree three ways:
+#
+#   per-commit epoch (upstream's behaviour)   ~960s     2 cached / 50 rebuilt
+#   epoch pinned to a constant                 102s    86 cached / 20 rebuilt
+#   no epoch at all (this)                     102s    86 cached / 20 rebuilt
+#
+# Isolated by bisection rather than guessed: holding the epoch constant while
+# varying the revision cached; holding the revision constant while varying the
+# epoch rebuilt; and re-using a previously seen epoch cached again. Passing it
+# through the environment instead of --build-arg does NOT help -- buildx feeds
+# it into the build either way.
+#
+# What this gives up is reproducible layer timestamps, which upstream added for
+# their CI and which a single-box deploy gets little from. What it gains, beyond
+# the time, is that `docker images` finally shows when an image was actually
+# BUILT rather than when its source was committed -- which is the question
+# anyone reading that column is asking.
+#
+# Nothing else depends on it: DOCKER_IMAGE_BUILD_DATE is a separate build arg,
+# consumed only in the final stages, and remains the commit date that
+# ServerStatus reports.
 
 docker buildx create --use --name nonparallel-builder --config buildkitd.toml 2> /dev/null || true;
 
 if [[ $PLATFORM != $CURRENT_PLATFORM && $PLATFORM != *,* ]]; then
   # If we're building for a different platform, and it's not a multi-platform image, then name the image after the platform so it doesn't conflict with images for the native platform.
   TARGET_ARCH="${PLATFORM#*/}" # linux/arm64 -> arm64
-  git archive HEAD | docker buildx build - --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH --build-arg JOBS=$JOBS --target development --file Dockerfile --output type=docker,name=$IMAGE:development-$TARGET_ARCH,rewrite-timestamp=true
-  git archive HEAD | docker buildx build - --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH --build-arg JOBS=$JOBS --target production  --file Dockerfile --output type=docker,name=$IMAGE:$TARGET_ARCH,rewrite-timestamp=true
+  git archive HEAD | docker buildx build - --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg JOBS=$JOBS --target development --file Dockerfile --output type=docker,name=$IMAGE:development-$TARGET_ARCH
+  git archive HEAD | docker buildx build - --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg JOBS=$JOBS --target production  --file Dockerfile --output type=docker,name=$IMAGE:$TARGET_ARCH
 else
-  git archive HEAD | docker buildx build - --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH --build-arg JOBS=$JOBS --target development --file Dockerfile --output type=docker,name=$IMAGE:development,rewrite-timestamp=true
-  git archive HEAD | docker buildx build - --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH --build-arg JOBS=$JOBS --target production  --file Dockerfile --output type=docker,name=$IMAGE,rewrite-timestamp=true
+  git archive HEAD | docker buildx build - --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg JOBS=$JOBS --target development --file Dockerfile --output type=docker,name=$IMAGE:development
+  git archive HEAD | docker buildx build - --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg JOBS=$JOBS --target production  --file Dockerfile --output type=docker,name=$IMAGE
 fi
