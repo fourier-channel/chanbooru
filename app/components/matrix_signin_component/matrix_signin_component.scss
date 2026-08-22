@@ -1,0 +1,125 @@
+// The Matrix sign-in panel. Same card language as the rest of Modulation.
+
+.mxsign {
+  background: var(--mod-surface-2, var(--card-background-color));
+  border: 1px solid var(--mod-line, var(--default-border-color));
+  border-radius: var(--mod-radius, 10px);
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+
+  .mxsign-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .mxsign-title {
+    font-family: var(--mod-mono, ui-monospace, monospace);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mod-ink-dim, var(--muted-text-color));
+  }
+
+  .mxsign-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--mod-mono, ui-monospace, monospace);
+    font-size: 0.72rem;
+    color: var(--mod-ink-dim, var(--muted-text-color));
+  }
+
+  .mxsign-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--mod-ink-faint, var(--muted-text-color));
+  }
+
+  &.is-linked {
+    border-color: color-mix(in srgb, var(--character-tag-color) 40%, transparent);
+
+    .mxsign-dot { background: var(--character-tag-color); }
+    .mxsign-state { color: var(--character-tag-color); }
+  }
+
+  .mxsign-id {
+    margin: 0;
+    font-family: var(--mod-mono, ui-monospace, monospace);
+    font-size: 0.85rem;
+    color: var(--mod-ink, var(--text-color));
+  }
+
+  // --- the framed attempt -------------------------------------------------
+  .mxsign-frame-wrap {
+    border: 1px solid var(--mod-line, var(--default-border-color));
+    border-radius: var(--mod-radius-sm, 6px);
+    overflow: hidden;
+    background: var(--mod-surface, var(--body-background-color));
+    // Tall enough to hold a real sign-in form without the frame scrolling
+    // inside a page that also scrolls.
+    height: 22rem;
+  }
+
+  .mxsign-frame {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+
+  // Once the frame has had its chance and nothing has happened, it stops taking
+  // up the page and the button becomes the obvious move. The frame is not
+  // removed -- a slow provider may still finish in it.
+  &.is-frame-stalled .mxsign-frame-wrap {
+    height: 7rem;
+    opacity: 0.45;
+  }
+
+  // --- the always-present way out ----------------------------------------
+  .mxsign-fallback {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+  }
+
+  .mxsign-button {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 0.85rem;
+    border-radius: var(--mod-radius-sm, 6px);
+    border: 1px solid color-mix(in srgb, var(--character-tag-color) 45%, transparent);
+    background: color-mix(in srgb, var(--character-tag-color) 12%, transparent);
+    color: var(--character-tag-color);
+    font-family: inherit;
+    font-size: 0.84rem;
+    text-decoration: none;
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--character-tag-color);
+      background: color-mix(in srgb, var(--character-tag-color) 20%, transparent);
+    }
+  }
+
+  .mxsign-note {
+    font-size: 0.76rem;
+    color: var(--mod-ink-dim, var(--muted-text-color));
+
+    a { color: var(--link-color); }
+  }
+}
+
+// The gate answered badly on preflight: no frame is shown at all, rather than
+// letting someone else's error page paint inside the login form.
+.mxsign.is-unavailable {
+  border-color: color-mix(in srgb, var(--meta-tag-color) 40%, transparent);
+
+  .mxsign-dot { background: var(--meta-tag-color); }
+  .mxsign-state { color: var(--meta-tag-color); }
+}

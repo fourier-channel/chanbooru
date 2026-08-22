@@ -1,0 +1,30 @@
+<section class="mxsign<%= " is-linked" if linked? %>" data-mxsign data-config="<%= config.to_json %>">
+  <div class="mxsign-head">
+    <span class="mxsign-title"><%= heading %></span>
+    <span class="mxsign-state" data-region="state">
+      <span class="mxsign-dot"></span><span data-region="state-text"><%= linked? ? "linked" : "not linked" %></span>
+    </span>
+  </div>
+
+  <% if linked? %>
+    <p class="mxsign-id" data-region="id"><%= matrix_id %></p>
+  <% else %>
+    <p class="mxsign-id" data-region="id" hidden></p>
+
+    <%# The frame is the preferred path; the link beside it is always present
+        rather than appearing only once a guess decides the frame failed. %>
+    <div class="mxsign-frame-wrap" data-region="frame-wrap">
+      <iframe class="mxsign-frame" data-region="frame" src="<%= login_url %>" title="Sign in with Matrix"
+              referrerpolicy="same-origin"></iframe>
+    </div>
+
+    <div class="mxsign-fallback" data-region="fallback">
+      <button type="button" class="mxsign-button" data-act="popup">Sign in with Matrix</button>
+      <span class="mxsign-note" data-region="note">Opens a window — this page stays as it is.</span>
+    </div>
+
+    <noscript>
+      <a class="mxsign-button" href="<%= login_url %>">Sign in with Matrix</a>
+    </noscript>
+  <% end %>
+</section>
