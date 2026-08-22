@@ -123,3 +123,32 @@
   .mxsign-dot { background: var(--meta-tag-color); }
   .mxsign-state { color: var(--meta-tag-color); }
 }
+
+.mxsign {
+  .mxsign-linked {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  // Quiet next to the identity it undoes: signing out is not what anyone came
+  // to this panel to do.
+  .mxsign-signout {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--mod-line, var(--default-border-color));
+    border-radius: var(--mod-radius-sm, 6px);
+    color: var(--mod-ink-dim, var(--muted-text-color));
+    font-family: inherit;
+    font-size: 0.76rem;
+    padding: 0.2rem 0.6rem;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--artist-tag-color);
+      border-color: color-mix(in srgb, var(--artist-tag-color) 45%, transparent);
+    }
+  }
+}

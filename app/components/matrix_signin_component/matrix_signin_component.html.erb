@@ -6,25 +6,32 @@
     </span>
   </div>
 
-  <% if linked? %>
+  <div class="mxsign-linked" data-region="linked" <%= "hidden" unless linked? %>>
     <p class="mxsign-id" data-region="id"><%= matrix_id %></p>
-  <% else %>
-    <p class="mxsign-id" data-region="id" hidden></p>
+    <button type="button" class="mxsign-signout" data-act="logout">Sign out of Matrix</button>
+  </div>
 
-    <%# The frame is the preferred path; the link beside it is always present
-        rather than appearing only once a guess decides the frame failed. %>
+  <%# Framed only where the provider permits it. On a provider that refuses to
+      be embedded, showing a frame anyway means a blank box for however long a
+      fallback timer runs -- so the question is answered server-side before
+      anything renders, and the button is simply what this panel is. %>
+  <% if frameable? %>
     <div class="mxsign-frame-wrap" data-region="frame-wrap">
       <iframe class="mxsign-frame" data-region="frame" src="<%= login_url %>" title="Sign in with Matrix"
               referrerpolicy="same-origin"></iframe>
     </div>
-
-    <div class="mxsign-fallback" data-region="fallback">
-      <button type="button" class="mxsign-button" data-act="popup">Sign in with Matrix</button>
-      <span class="mxsign-note" data-region="note">Opens a window — this page stays as it is.</span>
-    </div>
-
-    <noscript>
-      <a class="mxsign-button" href="<%= login_url %>">Sign in with Matrix</a>
-    </noscript>
   <% end %>
+
+  <%# Rendered even when linked, hidden. Signing out has to be able to put this
+      panel back the way it was without reloading the page -- there may be a
+      half-typed booru login beside it, and throwing that away to redraw a panel
+      would undo the reason this thing does not navigate in the first place. %>
+  <div class="mxsign-fallback" data-region="fallback" <%= "hidden" if linked? %>>
+    <button type="button" class="mxsign-button" data-act="popup">Sign in with Matrix</button>
+    <span class="mxsign-note" data-region="note">Opens a window — this page stays as it is.</span>
+  </div>
+
+  <noscript>
+    <a class="mxsign-button" href="<%= login_url %>">Sign in with Matrix</a>
+  </noscript>
 </section>
