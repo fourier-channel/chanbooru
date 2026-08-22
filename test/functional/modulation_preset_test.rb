@@ -137,6 +137,75 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
       end
     end
 
+    context "the sign-in page" do
+      should "offer both the Matrix panel and the booru form" do
+        get login_path(preset: "modulation")
+
+        assert_response :success
+        assert_select ".mxsign", 1
+        assert_select ".modlogin-form input[name=?]", "session[name]", 1
+      end
+
+      should "open the Matrix panel unlinked when the request carries no identity" do
+        get login_path(preset: "modulation")
+
+        assert_select ".mxsign.is-linked", 0
+        assert_select "[data-region=frame]", 1
+      end
+
+      # An already-verified request should not be asked to sign in again.
+      should "open the Matrix panel linked when the request carries an identity" do
+        get login_path(preset: "modulation"), headers: { "X-Fourier-Identity" => "@alice:41chan.net" }
+
+        assert_select ".mxsign.is-linked", 1
+        assert_select "[data-region=id]", text: "@alice:41chan.net"
+        assert_select "[data-region=frame]", 0
+      end
+
+      should "leave the upstream login page alone under historical" do
+        get login_path(preset: "historical")
+
+        assert_response :success
+        assert_select ".mxsign", 0
+        assert_select "input[name=?]", "session[name]", 1
+      end
+    end
+
+    context "the identity endpoint" do
+      should "report not linked without a verified identity" do
+        get fourier_identity_path(format: :json)
+
+        assert_response :success
+        assert_equal(false, response.parsed_body["linked"])
+        assert_nil(response.parsed_body["matrix_id"])
+      end
+
+      should "report the identity the request carries" do
+        get fourier_identity_path(format: :json), headers: { "X-Fourier-Identity" => "@alice:41chan.net" }
+
+        assert_response :success
+        assert_equal(true, response.parsed_body["linked"])
+        assert_equal("@alice:41chan.net", response.parsed_body["matrix_id"])
+      end
+    end
+
+    context "the header" do
+      should "render Modulation nav pills, with Creators in the artist category" do
+        get posts_path(preset: "modulation")
+
+        assert_response :success
+        assert_select ".modnav-pill", minimum: 5
+        assert_select "a.modnav-pill--artist", text: /Creators/
+      end
+
+      should "leave the upstream header alone under historical" do
+        get posts_path(preset: "historical")
+
+        assert_select ".modnav-pill", 0
+        assert_select "#main-menu", 1
+      end
+    end
+
     context "the navigation payload" do
       should "carry everything the client re-renders a post from" do
         get post_modulation_path(post_id: @post.id), as: :json

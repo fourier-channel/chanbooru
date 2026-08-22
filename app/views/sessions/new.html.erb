@@ -4,6 +4,37 @@
 
 <%= render "sessions/secondary_links" %>
 
+<%# "Modulation" sign-in -- two ways in, side by side: the Matrix identity that
+    links this account to the rest of 41chan, and the booru account itself. The
+    Matrix panel runs its flow without navigating this page, so arriving here to
+    sign in with one does not throw away a half-filled form for the other. %>
+<% if modulation? %>
+  <div id="c-sessions" class="modlogin">
+    <h1 class="modlogin-title">Sign in</h1>
+
+    <div class="modlogin-panels">
+      <%= render MatrixSigninComponent.new(matrix_id: FourierIdentity.current(request)) %>
+
+      <section class="modlogin-booru">
+        <div class="modlogin-head">
+          <span class="modlogin-label">Booru account</span>
+        </div>
+
+        <%= edit_form_for(@session, as: :session, url: session_path, html: { class: "modlogin-form stacked-form stacked-hints", "data-validate-form": "true" }) do |f| %>
+          <%= f.input :url, as: :hidden, input_html: { value: @url } %>
+          <%= f.input :name, label: "Name or Email", input_html: { autofocus: true, autocapitalize: "none", value: params.dig(:session, :name) } %>
+          <%= f.input :password, hint: link_to("Forgot password?", password_reset_path), input_html: { autocomplete: "current-password" } %>
+          <%= captcha_tag class: "mb-4", action: :login %>
+          <%= f.submit "Login", class: "button-primary" %>
+        <% end %>
+
+        <p class="modlogin-fineprint">
+          Don't have an account? <%= link_to "Create a new account", new_user_path(url: @url) %>.
+        </p>
+      </section>
+    </div>
+  </div>
+<% else %>
 <div id="c-sessions">
   <div id="a-new">
     <div class="card mt-8 p-4 max-w-360px mx-auto flex flex-col items-center">
@@ -23,3 +54,4 @@
     </div>
   </div>
 </div>
+<% end %>

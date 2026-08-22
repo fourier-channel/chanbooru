@@ -18,6 +18,7 @@ Rails.application.routes.draw do
   post "posts/:post_id/tag_sources", to: "fourier_tag_sources#create"
   get  "posts/:post_id/tag_sources", to: "fourier_tag_sources#show"
   get  "posts/:post_id/modulation",  to: "modulation#show", as: :post_modulation # client-side nav payload
+  get  "fourier_identity",           to: "fourier_identity#show", as: :fourier_identity # "am I linked yet?" poll
 
   # Creator Gallery -- reads public, writes gated to the page's Matrix identity.
   resources :creator_galleries, path: "creators", param: :slug, only: %i[index show new create edit update]

@@ -486,3 +486,70 @@ body[data-preset="modulation"] {
     a { color: var(--mod-ink-dim); &:hover { color: var(--link-color); } }
   }
 }
+
+/* The Modulation sign-in page. Lives with the skin rather than as a component
+   stylesheet because the page is a layout around two things that already style
+   themselves: MatrixSigninComponent, and the upstream login form. */
+body[data-preset="modulation"] .modlogin {
+  max-width: 880px;
+  margin: 2rem auto 0;
+
+  .modlogin-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 1.2rem;
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  /* Two panels of equal weight: neither way in is the "real" one. They stack on
+     narrow screens with Matrix first, because that is the one that connects the
+     account to the rest of the site. */
+  .modlogin-panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .modlogin-booru {
+    background: var(--mod-surface-2);
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius);
+    padding: 0.9rem 1rem;
+  }
+
+  .modlogin-head { margin-bottom: 0.7rem; }
+
+  .modlogin-label {
+    font-family: var(--mod-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mod-ink-dim);
+  }
+
+  .modlogin-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+
+    input[type="text"], input[type="password"], input[type="email"] { width: 100%; }
+
+    input[type="submit"] {
+      align-self: flex-start;
+      background: var(--link-color);
+      border-color: var(--link-color);
+      color: #10231a;
+
+      &:hover { background: var(--link-hover-color); border-color: var(--link-hover-color); }
+    }
+  }
+
+  .modlogin-fineprint {
+    margin-top: 0.9rem;
+    font-size: 0.78rem;
+    color: var(--mod-ink-dim);
+  }
+}
