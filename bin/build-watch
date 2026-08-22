@@ -14,24 +14,39 @@
 # Usage:
 #   bin/build-watch                      # follow the running build
 #   bin/build-watch --summary            # what has happened so far, and where it is
+#   bin/build-watch --wait               # follow until the build ends, then summarise
 #   bin/build-watch /path/to/build.log   # a different log
+#
+# --wait exists because the obvious way to block until a build finishes --
+#   until ! tmux has-session -t chanbooru-build; do sleep 20; done
+# is a blinking cursor for fifteen minutes. It ends on its own, which is more
+# than `tail -f` manages, but it still leaves you with no idea whether anything
+# is happening. A wait that shows nothing is only half a fix.
 set -uo pipefail
 
 LOG="/tmp/chanbooru-build.log"
 MODE="follow"
+SESSION="chanbooru-build"
 
 for arg in "$@"; do
   case "$arg" in
     --summary|-s) MODE="summary" ;;
+    --wait|-w) MODE="wait" ;;
     *) LOG="$arg" ;;
   esac
 done
 
 [[ -r "$LOG" ]] || { echo "no readable build log at $LOG" >&2; exit 1; }
 
-# Step lines only. `grep -a` because a compile log is not reliably valid UTF-8
-# and grep will otherwise decide it is binary and print nothing at all.
-filter() { grep -aE '^#[0-9]+ (\[|DONE|CACHED|ERROR)|^ERROR:|^#[0-9]+ ERROR'; }
+# Step lines only.
+#
+#   -a             a compile log is not reliably valid UTF-8, and grep otherwise
+#                  decides it is binary and prints nothing at all
+#   --line-buffered grep block-buffers when its output is not a terminal, so
+#                  piping this to a file or another process shows nothing for
+#                  4KB at a time -- which on a slow step is minutes of silence
+#                  from the tool whose entire job is to prove work is happening
+filter() { grep -a --line-buffered -E '^#[0-9]+ (\[|DONE|CACHED|ERROR)|^ERROR:|^#[0-9]+ ERROR'; }
 
 if [[ "$MODE" == "summary" ]]; then
   echo "=== build: $LOG"
@@ -72,6 +87,27 @@ if [[ "$MODE" == "summary" ]]; then
     echo "  -> exporting the image (nearly done)"
   fi
   exit 0
+fi
+
+if [[ "$MODE" == "wait" ]]; then
+  echo "following $LOG until the build ends..."
+  echo
+
+  # Stream transitions in the background, stop streaming when the build is gone.
+  tail -f -n +1 "$LOG" | filter &
+  tail_pid=$!
+  # Kill the tail even if this script is interrupted, or it outlives the shell.
+  trap 'kill "$tail_pid" 2>/dev/null' EXIT INT TERM
+
+  while tmux has-session -t "$SESSION" 2>/dev/null; do sleep 5; done
+  sleep 2   # let the last lines flush through the pipe before cutting it
+  kill "$tail_pid" 2>/dev/null
+  trap - EXIT INT TERM
+
+  echo
+  echo "=== BUILD ENDED ==="
+  echo
+  exec "$0" --summary "$LOG"
 fi
 
 echo "following $LOG -- step transitions only. Ctrl-C to stop."
