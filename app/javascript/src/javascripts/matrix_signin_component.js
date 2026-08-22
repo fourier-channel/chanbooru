@@ -35,6 +35,7 @@ function initPanel(root) {
     // without reloading the page, and a removed element cannot come back.
     show("linked", true);
     show("fallback", false);
+    window.__fourierLoginPopupOpen = false;
     if (popup && !popup.closed) popup.close();
   }
 
@@ -79,14 +80,34 @@ function initPanel(root) {
   }
 
   function openPopup() {
+    // Marks THIS window as the one waiting on a login popup. The popup reads it
+    // back through window.opener to recognise that it is a login popup and
+    // should close rather than render. See closeIfLoginPopup below for why this
+    // flag exists instead of checking window.name.
+    window.__fourierLoginPopupOpen = true;
+
     const w = 520;
     const h = 680;
     const y = window.top.outerHeight / 2 + window.top.screenY - h / 2;
     const x = window.top.outerWidth / 2 + window.top.screenX - w / 2;
     popup = window.open(cfg.loginUrl, "fourier-login",
       `popup=yes,width=${w},height=${h},top=${Math.max(0, y)},left=${Math.max(0, x)}`);
+
+    // Clear the flag if the popup is dismissed without finishing. Otherwise it
+    // stays set, and the next page of ours opened from this window -- any
+    // target=_blank link -- would recognise itself as a login popup and close
+    // on sight.
+    if (popup) {
+      const watch = setInterval(() => {
+        if (!popup || popup.closed) {
+          clearInterval(watch);
+          window.__fourierLoginPopupOpen = false;
+        }
+      }, 500);
+    }
     // Popup blocked: say so, and leave a real link rather than a dead button.
     if (!popup) {
+      window.__fourierLoginPopupOpen = false;
       const note = region("note");
       if (note) {
         note.innerHTML = "";
@@ -137,6 +158,40 @@ function initPanel(root) {
   timer = setInterval(poll, cfg.pollIntervalMs);
   poll();
 }
+
+// A page of ours that finds itself inside the login popup closes immediately,
+// rather than rendering.
+//
+// The sign-in flow ends by redirecting the popup to this site's post-login URL,
+// which is a whole page -- so without this the popup loads and paints the entire
+// landing page for a moment before the opener notices the login finished and
+// closes it. That flash is the "click here to leave the page and we will send
+// you back" pattern showing through, and there is no reason for a login popup to
+// render a site at all.
+//
+// The signal is a flag the opener sets on ITSELF, read back through
+// window.opener, which is same-origin and therefore readable. Deliberately not
+// window.name: browsers clear that across cross-origin navigation, and this
+// window has been to the identity provider and back by the time it matters.
+//
+// Runs at module scope on purpose. The pack is a blocking script in <head>, so
+// this executes before the body is parsed -- which is the difference between
+// closing silently and closing after a flash of the site.
+function closeIfLoginPopup() {
+  try {
+    const opener = window.opener;
+    if (!opener || opener.closed) return;
+    // Cross-origin opener throws here, which is the correct answer: not ours.
+    if (!opener.__fourierLoginPopupOpen) return;
+
+    opener.__fourierLoginPopupOpen = false;
+    window.close();
+  } catch (e) {
+    // Not our opener, or not allowed to look. Render normally.
+  }
+}
+
+closeIfLoginPopup();
 
 function initAll() {
   document.querySelectorAll("[data-mxsign]").forEach(initPanel);

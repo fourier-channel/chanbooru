@@ -40,7 +40,7 @@ class ErrorArt
     451 => { title: "Taken Down!",     accent: RED,    body: "This means the image was removed following a takedown request or a rule violation." },
     500 => { title: "We Broke It!",    accent: GOLD,   body: "This means something failed on our end, not yours. It's worth reporting if it keeps happening." },
     501 => { title: "Not Built Yet!",  accent: GOLD,   body: "This means you found something that isn't finished." },
-    502 => { title: "Bad Gateway!",    accent: GOLD,   body: "No one knows what this means." },
+    502 => { title: "Bad Gateway!",    accent: GOLD,   body: "Something went wrong somewhere, and we're trying to figure out who to blame." },
     503 => { title: "Back Shortly!",   accent: GOLD,   body: "This means the server is down or busy. It's usually brief." },
     504 => { title: "Took Too Long!",  accent: GOLD,   body: "This means something upstream never answered. Trying again often works." },
   }.freeze
