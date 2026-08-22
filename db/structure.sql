@@ -531,7 +531,9 @@ CREATE TABLE public.creator_galleries (
     matrix_contact character varying DEFAULT ''::character varying NOT NULL,
     settings jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
-    updated_at timestamp(6) without time zone NOT NULL
+    updated_at timestamp(6) without time zone NOT NULL,
+    promoted_at timestamp(6) without time zone,
+    featured_at timestamp(6) without time zone
 );
 
 
@@ -4309,10 +4311,24 @@ CREATE INDEX index_completed_user_upgrades_on_updater_id_and_created_at ON publi
 
 
 --
+-- Name: index_creator_galleries_on_featured_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_galleries_on_featured_at ON public.creator_galleries USING btree (featured_at);
+
+
+--
 -- Name: index_creator_galleries_on_matrix_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX index_creator_galleries_on_matrix_id ON public.creator_galleries USING btree (matrix_id);
+
+
+--
+-- Name: index_creator_galleries_on_promoted_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_galleries_on_promoted_at ON public.creator_galleries USING btree (promoted_at);
 
 
 --
@@ -7447,6 +7463,7 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260822010000'),
 ('20260806090000'),
 ('20260805014433'),
 ('20260804064839'),
