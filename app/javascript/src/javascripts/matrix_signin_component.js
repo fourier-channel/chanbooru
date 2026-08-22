@@ -12,20 +12,54 @@ function initPanel(root) {
   let timer = null;
   let popup = null;
 
+  function show(name, visible) {
+    const el = region(name);
+    if (el) el.hidden = !visible;
+  }
+
   function markLinked(matrixId) {
     if (timer) { clearInterval(timer); timer = null; }
     root.classList.add("is-linked");
     const stateText = region("state-text");
     if (stateText) stateText.textContent = "linked";
     const id = region("id");
-    if (id) { id.textContent = matrixId || ""; id.hidden = !matrixId; }
-    // The flow is done: everything that existed to run it goes away, in place,
-    // without touching the rest of the page.
-    ["frame-wrap", "fallback"].forEach((name) => {
-      const el = region(name);
-      if (el) el.remove();
-    });
+    if (id) id.textContent = matrixId || "";
+
+    // Hidden, not removed. Signing out has to be able to put this panel back
+    // without reloading the page, and a removed element cannot come back.
+    show("linked", true);
+    show("fallback", false);
+    show("frame-wrap", false);
     if (popup && !popup.closed) popup.close();
+  }
+
+  function markUnlinked() {
+    root.classList.remove("is-linked", "is-unavailable", "is-frame-stalled");
+    const stateText = region("state-text");
+    if (stateText) stateText.textContent = "not linked";
+    const id = region("id");
+    if (id) id.textContent = "";
+
+    show("linked", false);
+    show("fallback", true);
+    // The frame is NOT restored. It is only ever rendered where the provider
+    // permits framing, and if it was hidden it had already been used; the
+    // button is the path that always works.
+    const note = region("note");
+    if (note) note.textContent = "Opens a window — this page stays as it is.";
+
+    // Watch again, so signing back in still updates in place.
+    if (!timer) timer = setInterval(poll, cfg.pollIntervalMs || 2000);
+  }
+
+  function logout() {
+    fetch(cfg.logoutUrl, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    })
+      .then((r) => { if (r.ok) markUnlinked(); })
+      .catch(() => {});
   }
 
   function poll() {
@@ -64,13 +98,14 @@ function initPanel(root) {
 
   root.addEventListener("click", (e) => {
     const act = e.target.closest("[data-act]");
-    if (act && act.dataset.act === "popup") openPopup();
+    if (!act) return;
+    if (act.dataset.act === "popup") openPopup();
+    else if (act.dataset.act === "logout") logout();
   });
 
   function markUnavailable() {
     root.classList.add("is-unavailable");
-    const wrap = region("frame-wrap");
-    if (wrap) wrap.remove();
+    show("frame-wrap", false);
     const stateText = region("state-text");
     if (stateText) stateText.textContent = "unavailable";
     const note = region("note");
@@ -96,29 +131,31 @@ function initPanel(root) {
       .catch(() => false);
   }
 
+  // The preflight runs whether or not there is a frame. Whether the provider can
+  // be EMBEDDED was already settled server-side; this asks the different
+  // question of whether it is answering at all -- worth knowing before someone
+  // clicks a button that opens a window onto a 502.
   const wrap = region("frame-wrap");
-  if (wrap) {
-    const frame = region("frame");
-    // Held back until the preflight answers, so a broken gate never paints.
-    const src = frame && frame.getAttribute("src");
-    if (frame) frame.removeAttribute("src");
+  const frame = region("frame");
+  // Held back until the preflight answers, so a broken gate never paints.
+  const src = frame && frame.getAttribute("src");
+  if (frame) frame.removeAttribute("src");
 
-    preflight().then((ok) => {
-      if (!ok) { markUnavailable(); return; }
-      if (frame && src) frame.setAttribute("src", src);
+  preflight().then((ok) => {
+    if (!ok) { markUnavailable(); return; }
+    if (frame && src) frame.setAttribute("src", src);
+    if (!wrap) return;
 
-      // The gate is up but the frame may still be refused by the provider, and
-      // a refused frame can report that it loaded -- so this is a nudge on a
-      // timer, not a diagnosis. Nothing here claims to know why it has not
-      // finished, only that it has not.
-      setTimeout(() => {
-        if (root.classList.contains("is-linked")) return;
-        root.classList.add("is-frame-stalled");
-        const note = region("note");
-        if (note) note.textContent = "Not loading? Use the button — some providers refuse to be embedded.";
-      }, cfg.frameGraceMs);
-    });
-  }
+    // The gate is up and the provider said it permits framing, but a frame can
+    // still fail for reasons no header predicts -- so this is a nudge on a
+    // timer, not a diagnosis. It only exists where a frame was actually shown.
+    setTimeout(() => {
+      if (root.classList.contains("is-linked")) return;
+      root.classList.add("is-frame-stalled");
+      const note = region("note");
+      if (note) note.textContent = "Not loading? Use the button instead.";
+    }, cfg.frameGraceMs);
+  });
 
   timer = setInterval(poll, cfg.pollIntervalMs);
   poll();

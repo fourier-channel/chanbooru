@@ -150,7 +150,21 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         get login_path(preset: "modulation")
 
         assert_select ".mxsign.is-linked", 0
-        assert_select "[data-region=frame]", 1
+        assert_select "[data-act=popup]", 1
+      end
+
+      # The frame is rendered only where the provider positively permits framing,
+      # which is decided server-side (MatrixSigninFrameability) and is "no" here.
+      # Showing a frame a provider will refuse means a blank box on the login
+      # page; the button is the path that always works.
+      should "not render a frame when framing is not permitted" do
+        get login_path(preset: "modulation")
+
+        assert_select "[data-region=frame]", 0
+        assert_select "button[data-act=popup]", 1
+        # ...and a plain link for anyone without JS, which is why .mxsign-button
+        # appears twice and is not what to count here.
+        assert_select "noscript a.mxsign-button", 1
       end
 
       # An already-verified request should not be asked to sign in again.
@@ -160,6 +174,23 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         assert_select ".mxsign.is-linked", 1
         assert_select "[data-region=id]", text: "@alice:41chan.net"
         assert_select "[data-region=frame]", 0
+      end
+
+      # Signing out has to put the panel back without reloading, so the sign-in
+      # affordances are rendered even when linked -- hidden, not absent.
+      should "offer a Matrix sign-out when linked, and keep sign-in restorable" do
+        get login_path(preset: "modulation"), headers: { "X-Fourier-Identity" => "@alice:41chan.net" }
+
+        assert_select "[data-act=logout]", 1
+        assert_select "[data-region=fallback][hidden]", 1
+        assert_select "[data-region=linked]:not([hidden])", 1
+      end
+
+      should "hide the sign-out affordance when not linked" do
+        get login_path(preset: "modulation")
+
+        assert_select "[data-region=linked][hidden]", 1
+        assert_select "[data-region=fallback]:not([hidden])", 1
       end
 
       should "leave the upstream login page alone under historical" do

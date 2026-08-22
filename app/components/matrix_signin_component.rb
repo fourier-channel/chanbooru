@@ -39,14 +39,28 @@ class MatrixSigninComponent < ApplicationComponent
     matrix_id.present?
   end
 
+  # Only frame when the provider positively permits it. Asked once and cached;
+  # see MatrixSigninFrameability for why the browser cannot answer this and the
+  # server can.
+  def frameable?
+    return false if linked?
+
+    MatrixSigninFrameability.frameable?(login_url)
+  end
+
   def login_url
     "/fourier/login"
+  end
+
+  def logout_url
+    "/fourier/logout"
   end
 
   def config
     {
       statusUrl: Rails.application.routes.url_helpers.fourier_identity_path(format: :json),
       loginUrl: login_url,
+      logoutUrl: logout_url,
       frameGraceMs: FRAME_GRACE_MS,
       pollIntervalMs: POLL_INTERVAL_MS,
       pollCeilingMs: POLL_CEILING_MS,
