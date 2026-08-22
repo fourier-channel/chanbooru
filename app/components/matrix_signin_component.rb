@@ -10,15 +10,14 @@
 # identity on the next same-origin request. One completion mechanism for both
 # paths, coupled to neither.
 #
-# The frame is attempted first and falls back to a popup, because identity
-# providers commonly refuse to be framed (X-Frame-Options / frame-ancestors) and
-# a refusal is not reliably detectable from script -- a blocked frame can still
-# fire load. So the fallback is driven by "nothing has happened for a while"
-# rather than by a detection that would sometimes lie, and the escape hatch is
-# on screen the whole time instead of appearing only when a guess fires.
+# It opens a popup rather than a frame. Framing was tried first and measured
+# against the real provider, which answers X-Frame-Options: SAMEORIGIN from a
+# different origin than the booru -- so the frame could never load, and every
+# sign-in would have waited out a fallback timer staring at a blank box. The
+# popup is the path that works, so it is the path the panel offers, plainly and
+# with the caveat stated up front: a popup can be blocked, and a user who does
+# not know that just sees nothing happen.
 class MatrixSigninComponent < ApplicationComponent
-  # How long a framed attempt gets before the popup is offered as the way out.
-  FRAME_GRACE_MS = 6_000
   POLL_INTERVAL_MS = 2_000
   # Polling stops eventually; a login page left open overnight should not talk
   # to the server until the tab closes.
@@ -39,14 +38,7 @@ class MatrixSigninComponent < ApplicationComponent
     matrix_id.present?
   end
 
-  # Only frame when the provider positively permits it. Asked once and cached;
-  # see MatrixSigninFrameability for why the browser cannot answer this and the
-  # server can.
-  def frameable?
-    return false if linked?
 
-    MatrixSigninFrameability.frameable?(login_url)
-  end
 
   def login_url
     "/fourier/login"
@@ -61,7 +53,6 @@ class MatrixSigninComponent < ApplicationComponent
       statusUrl: Rails.application.routes.url_helpers.fourier_identity_path(format: :json),
       loginUrl: login_url,
       logoutUrl: logout_url,
-      frameGraceMs: FRAME_GRACE_MS,
       pollIntervalMs: POLL_INTERVAL_MS,
       pollCeilingMs: POLL_CEILING_MS,
     }

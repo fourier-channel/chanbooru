@@ -12,6 +12,12 @@ function initPanel(root) {
   let timer = null;
   let popup = null;
 
+  // Captured from the server-rendered markup rather than written out again
+  // here. The popup caveat is user-facing copy; keeping a second copy of it in
+  // JavaScript is how the two end up saying different things.
+  const noteEl = root.querySelector('[data-region="note"]');
+  const NOTE_DEFAULT = noteEl ? noteEl.textContent : "";
+
   function show(name, visible) {
     const el = region(name);
     if (el) el.hidden = !visible;
@@ -29,12 +35,11 @@ function initPanel(root) {
     // without reloading the page, and a removed element cannot come back.
     show("linked", true);
     show("fallback", false);
-    show("frame-wrap", false);
     if (popup && !popup.closed) popup.close();
   }
 
   function markUnlinked() {
-    root.classList.remove("is-linked", "is-unavailable", "is-frame-stalled");
+    root.classList.remove("is-linked", "is-unavailable");
     const stateText = region("state-text");
     if (stateText) stateText.textContent = "not linked";
     const id = region("id");
@@ -42,11 +47,8 @@ function initPanel(root) {
 
     show("linked", false);
     show("fallback", true);
-    // The frame is NOT restored. It is only ever rendered where the provider
-    // permits framing, and if it was hidden it had already been used; the
-    // button is the path that always works.
     const note = region("note");
-    if (note) note.textContent = "Opens a window — this page stays as it is.";
+    if (note) note.textContent = NOTE_DEFAULT;
 
     // Watch again, so signing back in still updates in place.
     if (!timer) timer = setInterval(poll, cfg.pollIntervalMs || 2000);
@@ -105,20 +107,16 @@ function initPanel(root) {
 
   function markUnavailable() {
     root.classList.add("is-unavailable");
-    show("frame-wrap", false);
     const stateText = region("state-text");
     if (stateText) stateText.textContent = "unavailable";
     const note = region("note");
     if (note) note.textContent = "Matrix sign-in is not responding right now. The booru login still works.";
   }
 
-  // Preflight before framing. /fourier/login is same-origin here (the proxy
-  // forwards it), so unlike the framed document itself its status IS readable --
-  // and the difference between "the provider is fine and will redirect" and
-  // "the gate is down" is worth knowing BEFORE handing the page a frame that
-  // renders someone else's 502 in the middle of the login form.
+  // Is the gate answering at all? /fourier/login is same-origin here (the proxy
+  // forwards it), so unlike the provider's own pages this status IS readable.
   //
-  // HEAD, and redirect: "manual", so this neither downloads the page nor follows
+  // HEAD, and redirect: "manual", so this neither downloads the page nor walks
   // the flow: a healthy gate answers with an opaque redirect (status 0), which
   // is the success case, not a failure.
   function preflight() {
@@ -131,31 +129,10 @@ function initPanel(root) {
       .catch(() => false);
   }
 
-  // The preflight runs whether or not there is a frame. Whether the provider can
-  // be EMBEDDED was already settled server-side; this asks the different
-  // question of whether it is answering at all -- worth knowing before someone
-  // clicks a button that opens a window onto a 502.
-  const wrap = region("frame-wrap");
-  const frame = region("frame");
-  // Held back until the preflight answers, so a broken gate never paints.
-  const src = frame && frame.getAttribute("src");
-  if (frame) frame.removeAttribute("src");
-
-  preflight().then((ok) => {
-    if (!ok) { markUnavailable(); return; }
-    if (frame && src) frame.setAttribute("src", src);
-    if (!wrap) return;
-
-    // The gate is up and the provider said it permits framing, but a frame can
-    // still fail for reasons no header predicts -- so this is a nudge on a
-    // timer, not a diagnosis. It only exists where a frame was actually shown.
-    setTimeout(() => {
-      if (root.classList.contains("is-linked")) return;
-      root.classList.add("is-frame-stalled");
-      const note = region("note");
-      if (note) note.textContent = "Not loading? Use the button instead.";
-    }, cfg.frameGraceMs);
-  });
+  // The gate can be down, and a button that opens a window onto a 502 is worse
+  // than one that says so first. Same-origin through the proxy, so unlike the
+  // provider's own pages this status IS readable.
+  preflight().then((ok) => { if (!ok) markUnavailable(); });
 
   timer = setInterval(poll, cfg.pollIntervalMs);
   poll();

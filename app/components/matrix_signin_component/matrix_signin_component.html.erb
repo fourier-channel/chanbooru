@@ -11,27 +11,26 @@
     <button type="button" class="mxsign-signout" data-act="logout">Sign out of Matrix</button>
   </div>
 
-  <%# Framed only where the provider permits it. On a provider that refuses to
-      be embedded, showing a frame anyway means a blank box for however long a
-      fallback timer runs -- so the question is answered server-side before
-      anything renders, and the button is simply what this panel is. %>
-  <% if frameable? %>
-    <div class="mxsign-frame-wrap" data-region="frame-wrap">
-      <iframe class="mxsign-frame" data-region="frame" src="<%= login_url %>" title="Sign in with Matrix"
-              referrerpolicy="same-origin"></iframe>
-    </div>
-  <% end %>
-
   <%# Rendered even when linked, hidden. Signing out has to be able to put this
       panel back the way it was without reloading the page -- there may be a
       half-typed booru login beside it, and throwing that away to redraw a panel
       would undo the reason this thing does not navigate in the first place. %>
   <div class="mxsign-fallback" data-region="fallback" <%= "hidden" if linked? %>>
-    <button type="button" class="mxsign-button" data-act="popup">Sign in with Matrix</button>
-    <span class="mxsign-note" data-region="note">Opens a window — this page stays as it is.</span>
+    <button type="button" class="mxsign-button" data-act="popup">
+      Log in with your 41chan Matrix ID
+    </button>
+
+    <%# The popup caveat is stated BEFORE it happens, not after. A blocked popup
+        is silent -- the button appears to do nothing -- and a user who has not
+        been told to look at the URL bar has no way to discover why. %>
+    <p class="mxsign-note" data-region="note">
+      This opens a popup window, which your browser may prevent. If nothing
+      happens, check the URL bar for the blocked popup and allow it — you can
+      then continue logging in normally.
+    </p>
   </div>
 
   <noscript>
-    <a class="mxsign-button" href="<%= login_url %>">Sign in with Matrix</a>
+    <a class="mxsign-button" href="<%= login_url %>">Log in with your 41chan Matrix ID</a>
   </noscript>
 </section>

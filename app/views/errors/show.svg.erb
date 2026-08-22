@@ -1,0 +1,65 @@
+<%# The error card, as a standalone image.
+
+    No external CSS or fonts: an SVG loaded through <img> is an isolated
+    document, so everything it needs is inside it. Font families are generic
+    stacks for the same reason -- a webfont reference here would silently fail
+    and fall back to whatever the renderer defaults to.
+
+    Two layouts, because one card cannot serve both sizes. An SVG in an <img>
+    scales as a whole, so the full card shrunk into a 170px thumbnail renders
+    its explanation at about four pixels tall -- present, and unreadable. The
+    compact layout drops the sentence and keeps what still reads at that size.
+    Which one is served is the caller's choice, since only the caller knows how
+    big the box is. %>
+<% if @compact %>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="320" height="320"
+       preserveAspectRatio="xMidYMid meet" role="img"
+       aria-label="<%= @art.code %> <%= @art.title %>. <%= @art.body %>">
+    <title><%= @art.code %> — <%= @art.title %></title>
+
+    <rect width="320" height="320" fill="<%= ErrorArt::SURFACE %>"/>
+    <rect x="0.5" y="0.5" width="319" height="319" fill="none" stroke="<%= ErrorArt::LINE %>" stroke-width="1" rx="10"/>
+    <rect x="1" y="1" width="318" height="4" fill="<%= @art.accent %>" opacity="0.85" rx="2"/>
+
+    <text x="160" y="170" text-anchor="middle"
+          font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="86" font-weight="700" fill="<%= @art.accent %>"><%= @art.code %></text>
+
+    <text x="160" y="206" text-anchor="middle"
+          font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="18" font-weight="600" letter-spacing="0.5" fill="<%= ErrorArt::INK %>"><%= @art.title %></text>
+  </svg>
+<% else %>
+  <%# Height follows the copy. A fixed canvas left a third of every short card
+      empty, and an <img> scales the whole viewBox -- so the padding was not just
+      ugly, it shrank the text on the cards with the least to say. %>
+  <% height = 284 + ((@lines.size - 1) * 26) %>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 <%= height %>" width="640" height="<%= height %>"
+       preserveAspectRatio="xMidYMid meet" role="img"
+       aria-label="<%= @art.code %> <%= @art.title %>. <%= @art.body %>">
+    <title><%= @art.code %> — <%= @art.title %></title>
+
+    <rect width="640" height="<%= height %>" fill="<%= ErrorArt::SURFACE %>"/>
+    <rect x="0.5" y="0.5" width="639" height="<%= height - 1 %>" fill="none" stroke="<%= ErrorArt::LINE %>" stroke-width="1" rx="10"/>
+
+    <%# A tint of the accent above the number, so severity reads before the text
+        does: red for "you may not", gold for "our fault", blue for "not here". %>
+    <rect x="1" y="1" width="638" height="4" fill="<%= @art.accent %>" opacity="0.85" rx="2"/>
+
+    <text x="320" y="150" text-anchor="middle"
+          font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="96" font-weight="700" fill="<%= @art.accent %>"><%= @art.code %></text>
+
+    <text x="320" y="196" text-anchor="middle"
+          font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="24" font-weight="600" letter-spacing="1.5" fill="<%= ErrorArt::INK %>"><%= @art.title %></text>
+
+    <%# Wrapped server-side: SVG has no text wrapping, so a long sentence would
+        run straight off the edge of the card. %>
+    <% @lines.each_with_index do |line, i| %>
+      <text x="320" y="<%= 244 + (i * 26) %>" text-anchor="middle"
+            font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+            font-size="16" fill="<%= ErrorArt::INK_DIM %>"><%= line %></text>
+    <% end %>
+  </svg>
+<% end %>
