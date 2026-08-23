@@ -61,6 +61,20 @@ class ErrorsControllerTest < ActionDispatch::IntegrationTest
 
       assert_response :success
     end
+
+    # The client asks for this one whenever it could not read a status at all:
+    # cross-origin media, a network failure, a reader who went offline. It is
+    # spelled with three digits because the route constrains :status to \d{3},
+    # and error_card.js spelled it "0" -- so /errors/0.svg 404'd, the fallback
+    # card never rendered once, and every undetermined failure showed the
+    # browser's broken-image icon. Which is the outcome the cards exist to
+    # prevent, reached by the card meant to prevent it.
+    should "serve the fallback card the client asks for when it cannot read a status" do
+      get error_art_path(status: "000", format: :svg)
+
+      assert_response :success
+      assert_match(/Unavailable!/, response.body)
+    end
   end
 
   context "ErrorArt" do

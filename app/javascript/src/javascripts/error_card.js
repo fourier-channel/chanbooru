@@ -30,9 +30,18 @@ const MEDIA_SELECTOR = [
 // component retunes each card between the full and compact layouts as its cell
 // changes size -- so the reason for the exclusion is gone.
 
-// The card for a status we could not determine. Rendered by the same endpoint,
-// which answers for any number.
-const UNKNOWN = 0;
+// The card for a status we could not determine.
+//
+// Three digits, as a STRING, and that is not cosmetic. This was 0, which built
+// the URL /errors/0.svg -- and the route constrains :status to \d{3}, so it
+// 404'd. The fallback card has therefore never rendered once: every failure
+// where the status could not be read fell back to a card that was itself a
+// failure, and the reader got the browser's broken-image icon, which is the
+// exact outcome this whole file exists to prevent.
+//
+// It reaches ErrorArt as 0 either way, so FALLBACK and the "?" code are
+// unchanged; only the URL had to be three digits wide.
+const UNKNOWN = "000";
 
 // Below this, the full card's explanation renders too small to read, so the
 // compact layout is served instead. Roughly the width at which 16px text inside

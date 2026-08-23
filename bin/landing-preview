@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# Look at the landing carousel with LIVE data and the WORKING TREE's code.
+#
+#   bin/landing-preview            then open /tmp/landing-preview/index.html
+#   bin/landing-preview --out DIR
+#   bin/landing-preview --live URL --local URL
+#
+# The dev database holds a handful of synthetic gradients: all the same shape,
+# all loading. Production has neither property, and the carousel's behaviour
+# depends on both -- the focal cell is cut to each picture's aspect, and for a
+# signed-out visitor every picture 401s. Judging the carousel against dev data
+# means judging it against the one case that never happens.
+#
+# So: the page, its stylesheet and its script come from the LOCAL dev stack, so
+# an unreleased change can be looked at. The carousel payload comes from the
+# live front page, which is public HTML -- the same bytes any visitor gets. The
+# media keeps its live URLs, so production answers for it exactly as it would
+# for a stranger. Nothing is built on or written to the serving box.
+#
+# Two things this does NOT cover.
+#
+# The Ruby that builds the payload: this is the dev stack's code with
+# production's data pasted over it, so a change to LandingShowcase itself needs
+# a database, not this.
+#
+# And the STATUS on an error card. error_card asks the server what went wrong
+# with a HEAD request, and here the media is cross-origin, so the browser
+# refuses to report it -- cards read "Unavailable!" where the real site reads
+# "401". The card is still the right size in the right place, which is what
+# this is for; to check the wording, read the live site directly.
+set -uo pipefail
+
+LIVE="https://booru.41chan.net/"
+LOCAL="http://127.0.0.1:3000/"
+OUT="/tmp/landing-preview"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --live)  LIVE="$2"; shift 2 ;;
+    --local) LOCAL="$2"; shift 2 ;;
+    --out)   OUT="$2"; shift 2 ;;
+    *) echo "unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+
+mkdir -p "$OUT"
+
+curl -sfL --max-time 30 "$LIVE"  -o "$OUT/live.html"  || { echo "cannot reach $LIVE" >&2; exit 1; }
+curl -sfL --max-time 30 "$LOCAL" -o "$OUT/local.html" || { echo "cannot reach $LOCAL -- is the dev stack up? (bin/dev up -d)" >&2; exit 1; }
+
+OUT="$OUT" LIVE="$LIVE" LOCAL="$LOCAL" node - <<'JS'
+const fs = require("fs"), path = require("path");
+const { OUT, LIVE, LOCAL } = process.env;
+const liveOrigin = new URL(LIVE).origin, localOrigin = new URL(LOCAL).origin;
+
+const read = (f) => fs.readFileSync(path.join(OUT, f), "utf8");
+const live = read("live.html");
+let local = read("local.html");
+
+const CONFIG = /data-config="([^"]*)"/;
+const found = live.match(CONFIG);
+if (!found) { console.error("no carousel payload on the live front page"); process.exit(1); }
+
+const unesc = (s) => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+const cfg = JSON.parse(unesc(found[1]));
+
+// Media stays pointed at production, so the preview gets the same answer a
+// visitor gets -- which for a signed-out visitor is 401 on every one.
+cfg.categories.forEach((c) => c.slides.forEach((s) => {
+  if (s.src && s.src.startsWith("/")) s.src = liveOrigin + s.src;
+}));
+
+console.log("payload from " + liveOrigin);
+for (const c of cfg.categories) {
+  const a = c.slides.map((s) => (s.w > 0 && s.h > 0 ? (s.w / s.h).toFixed(2) : "?"));
+  console.log(`  ${c.label.padEnd(20)} ${String(c.slides.length).padStart(2)} slides   aspects ${a.join(" ")}`);
+}
+
+// A <base>, not a rewrite of every href. The error cards' URLs are built at
+// RUNTIME by error_card.js, so no amount of editing the served HTML reaches
+// them -- opened from a file they resolved to file:///errors/401.svg and the
+// cards themselves came out broken. <base> catches those too.
+local = local.replace(/<head([^>]*)>/i, `<head$1><base href="${localOrigin}/">`);
+
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+if (!CONFIG.test(local)) { console.error("the local page has no carousel to replace -- check the preset"); process.exit(1); }
+local = local.replace(CONFIG, `data-config="${esc(JSON.stringify(cfg))}"`);
+
+const dest = path.join(OUT, "index.html");
+fs.writeFileSync(dest, local);
+console.log("\nwrote " + dest);
+console.log("markup, css and js: " + localOrigin + " (your working tree)");
+console.log("data and media:     " + liveOrigin + " (live, read with a plain GET)");
+JS
