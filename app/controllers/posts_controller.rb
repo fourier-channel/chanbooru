@@ -10,11 +10,22 @@ class PostsController < ApplicationController
   def index
     if params[:md5].present?
       @post = authorize Post.find_by!(md5: params[:md5])
+      # Same rule by the other door: an md5 lookup must not confirm a gated post
+      # exists when the post page would not.
+      raise ActiveRecord::RecordNotFound if @post.hidden_from_anonymous?(CurrentUser.user)
       respond_with(@post) do |format|
         format.html { redirect_to(@post) }
       end
     elsif params[:random].to_s.truthy?
-      query = "#{post_set.normalized_query} random:#{post_set.per_page}".strip
+      # post_query, NOT normalized_query. The normalized one carries the implicit
+      # metatags, and stringifying it into a redirect publishes them: a signed-out
+      # visitor clicking "Random" got the whole gated tag list in their URL bar,
+      # and then blew their own tag limit on the request that followed.
+      #
+      # Nothing is lost by dropping them here. The redirect target rebuilds a
+      # PostSet, which applies the implicit metatags again -- so the random pick
+      # is still made over the filtered set.
+      query = "#{post_set.post_query} random:#{post_set.per_page}".strip
       authorize Post
       redirect_to posts_path(tags: query, page: params[:page], limit: params[:limit], format: request.format.symbol)
     else
@@ -30,6 +41,12 @@ class PostsController < ApplicationController
 
   def show
     @post = authorize Post.eager_load(:uploader, :media_asset).find(params[:id])
+    # Gated content does not exist for a signed-out visitor, including by direct
+    # link. RecordNotFound rather than a 403: telling someone "there is something
+    # here you may not see" is itself a disclosure, and for the tags on this list
+    # it is the one kind of disclosure most worth not making. A 404 says only
+    # what a 404 says.
+    raise ActiveRecord::RecordNotFound if @post.hidden_from_anonymous?(CurrentUser.user)
     raise PageRemovedError if request.format.html? && !request.variant.tooltip? && @post.banblocked?(CurrentUser.user)
 
     if request.format.html?

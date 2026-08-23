@@ -222,10 +222,30 @@ class PostQuery
 
   # Implicit metatags are metatags added by the user's account settings. rating:g,s is implicit under safe mode.
   def implicit_metatags
+    safe_mode_metatags + gated_metatags
+  end
+
+  def safe_mode_metatags
     return [] unless safe_mode?
 
     tags = Danbooru.config.safe_mode_restricted_tags.map { |tag| -AST.tag(tag) }
     [AST.metatag("rating", "g"), *tags]
+  end
+
+  # Gated posts are removed from a signed-out visitor's searches entirely, rather
+  # than listed with the image withheld.
+  #
+  # Here rather than in a filter over the results, because it has to hold for
+  # things a filter never sees: the post COUNT, the paginator, "N posts", and the
+  # neighbour lookups that drive post-to-post navigation. A row that is excluded
+  # from the query cannot leak through any of them.
+  #
+  # Costs a negated term per gated tag on every anonymous query, which is the
+  # same shape and the same cost safe mode has always had.
+  def gated_metatags
+    return [] unless current_user.present? && current_user.is_anonymous?
+
+    Danbooru.config.restricted_tags.map { |tag| -AST.tag(tag) }
   end
 
   concerning :CountMethods do
@@ -347,5 +367,5 @@ class PostQuery
     end
   end
 
-  memoize :tags, :replace_aliases, :with_implicit_metatags, :to_cnf, :aliases, :implicit_metatags, :term_count
+  memoize :tags, :replace_aliases, :with_implicit_metatags, :to_cnf, :aliases, :implicit_metatags, :safe_mode_metatags, :gated_metatags, :term_count
 end
