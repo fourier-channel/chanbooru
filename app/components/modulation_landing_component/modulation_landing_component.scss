@@ -92,6 +92,9 @@
   .modland-ride {
     @include modulation-stage;
     @include modulation-stage-vertical;
+    // A hero band, not a page's subject: the centre must not resize with each
+    // slide, or the flanks travel and the panel appears to come apart.
+    @include modulation-stage-fixed-centre;
 
     // Retuned after the include: the post view stacks at most a few sorts around
     // a tall post page, while this panel is a fixed hero band. At the inherited
@@ -108,10 +111,7 @@
     // A short shove backwards before the ride starts again.
     &.is-lurching { transform: translateX(14px); }
 
-    // The stage is a hero here rather than a page's subject, so the centre is
-    // capped: without it every slide resizes the panel and the page jumps under
-    // whatever the reader is looking at.
-    .mod-frame img { max-height: clamp(280px, 46vh, 480px); width: auto; }
+    --stage-h: clamp(300px, 46vh, 460px);
   }
 
   .modland-pool { display: none; }
