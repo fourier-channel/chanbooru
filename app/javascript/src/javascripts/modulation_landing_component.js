@@ -12,6 +12,14 @@
 //
 // Auto-advance runs the current category once, then moves to the next one. Any
 // manual interaction stops it until the reader asks for it back.
+//
+// THE CHROME NEVER WAITS ON THE MEDIA. The panel is a structure with its own
+// size and its own cadence; a picture is a fill that arrives into it, or does
+// not. Nothing about whether a picture loads may change when the stage moves or
+// how big anything is. The first version of this file broke that rule twice --
+// see `prewarm` and the node caches below for what replaced each -- and the
+// result was a carousel that stuttered for exactly as long as the network took
+// to answer, on every single advance.
 
 function initLanding(root) {
   if (root.dataset.modlandBooted) return;
@@ -55,22 +63,164 @@ function initLanding(root) {
     return list[((p % list.length) + list.length) % list.length];
   }
 
-  // --- rendering ----------------------------------------------------------
+  // --- media nodes --------------------------------------------------------
+  //
+  // Every slide's picture is built ONCE and kept; rendering moves the cached
+  // node into place rather than rebuilding markup around a fresh source.
+  //
+  // What this replaces: the centre and both flank columns each had their
+  // innerHTML reassigned on every advance. Seven elements destroyed and seven
+  // created, six times a minute, every one of them re-requesting its source.
+  // For media that loads, that is a decode per advance for a picture already
+  // decoded. For media that does not -- which is every picture on this site for
+  // a signed-out visitor -- it is a fresh round trip to be told "no" again, and
+  // a fresh empty panel while it waits. Nodes that persist have neither
+  // problem: a picture that arrived stays arrived, and one that failed stays
+  // failed without asking twice.
+  const failed = new Set();      // slide ids whose media will not load
+  const centreNodes = new Map(); // id -> .mod-frame
+  const rowNodes = new Map();    // `${side}:${axis}:${id}` -> .mod-sortrow
 
-  function frameHTML(slide) {
-    if (!slide || !slide.src) return '<div class="mod-frame mod-image mod-image--placeholder">nothing here</div>';
-
-    // A video in an <img> is a broken frame every time. Muted and looping,
-    // because a showcase that makes noise at a visitor is a showcase they close.
+  function mediaEl(slide, className, playing) {
+    const el = document.createElement(slide.kind === "video" ? "video" : "img");
+    if (className) el.className = className;
     if (slide.kind === "video") {
-      return `<div class="mod-frame"><video class="mod-image" src="${esc(slide.src)}" autoplay muted loop playsinline></video></div>`;
+      el.muted = true;
+      el.playsInline = true;
+      // Looping and playing in the centre; a poster frame in the flanks,
+      // because three looping videos around a fourth is a slot machine.
+      if (playing) { el.loop = true; el.autoplay = true; } else { el.preload = "metadata"; }
+    } else {
+      el.alt = "";
     }
-    return `<div class="mod-frame"><img class="mod-image" src="${esc(slide.src)}" alt=""></div>`;
+    el.addEventListener("error", () => failed.add(String(slide.id)), { once: true });
+    el.src = slide.src;
+    return el;
   }
+
+  function buildCentre(slide) {
+    const frame = document.createElement("div");
+    if (!slide || !slide.src) {
+      frame.className = "mod-frame mod-image mod-image--placeholder";
+      frame.textContent = "nothing here";
+      return frame;
+    }
+    frame.className = "mod-frame";
+    frame.appendChild(mediaEl(slide, "mod-image", true));
+    return frame;
+  }
+
+  function centreFor(slide) {
+    if (!slide || !slide.src) return buildCentre(null);
+    const key = String(slide.id);
+    if (!centreNodes.has(key)) centreNodes.set(key, buildCentre(slide));
+    return centreNodes.get(key);
+  }
+
+  // A thumbnail that cannot load becomes the empty-slot hatch, not the browser's
+  // broken-file icon (Chrome) or a blank hole (Firefox). The stage already has a
+  // treatment for "no picture here"; a failed one is the same situation.
+  function markRowEmpty(row) {
+    if (!row) return;
+    row.classList.add("is-empty");
+    const m = row.querySelector("img, video");
+    if (m) m.remove();
+  }
+
+  function buildRow(a, slide, side) {
+    const row = document.createElement("a");
+    row.className = "mod-sortrow";
+    row.dataset.a = String(a);
+    row.dataset.side = side;
+    row.href = (slide && slide.url) || "#";
+    row.title = cats[a].label;
+
+    // A slide already known to fail is built hatched and never asked for. The
+    // flanks meet every picture before the centre does, so by the time one
+    // reaches the middle its outcome is usually already settled.
+    if (slide && slide.src && !failed.has(String(slide.id))) {
+      const m = mediaEl(slide, "", false);
+      m.addEventListener("error", () => markRowEmpty(row), { once: true });
+      row.appendChild(m);
+    } else {
+      row.classList.add("is-empty");
+    }
+
+    const tag = document.createElement("span");
+    tag.className = "mod-sortrow-tag";
+    tag.textContent = cats[a].label;
+    row.appendChild(tag);
+    return row;
+  }
+
+  function rowFor(a, slide, side) {
+    const key = `${side}:${a}:${slide ? slide.id : "none"}`;
+    if (!rowNodes.has(key)) rowNodes.set(key, buildRow(a, slide, side));
+    const row = rowNodes.get(key);
+    // A cached row that failed after it was built still carries its broken
+    // media, since the error fired on a node nobody was looking at.
+    if (slide && failed.has(String(slide.id)) && !row.classList.contains("is-empty")) markRowEmpty(row);
+    return row;
+  }
+
+  // A cached row keeps whatever inline transform a shuffle left on it -- it is
+  // no longer thrown away between renders. Clearing that with the transition
+  // suppressed is what stops a reused row animating back from a journey it made
+  // at some previous position.
+  function settleRows() {
+    rowNodes.forEach((row) => {
+      if (!row.style.transform && !row.style.transition) return;
+      row.style.transition = "none";
+      row.style.transform = "";
+      row.classList.remove("is-travelling");
+    });
+  }
+
+  function releaseRows() {
+    rowNodes.forEach((row) => { if (row.style.transition) row.style.transition = ""; });
+  }
+
+  // --- prewarm ------------------------------------------------------------
+  //
+  // Build the pictures the reader is one step away from before they are needed,
+  // in a holder that is off-screen but REAL -- a node in the document fetches
+  // its media, and if that media fails it has already been turned into an error
+  // card by the time it is moved into the stage.
+  //
+  // This is what removes the blank-panel-then-populate: the panel arrives
+  // resolved, whichever way it resolved. The old code chased the same goal by
+  // awaiting an `Image()` before starting the animation, which got it backwards
+  // -- it made the chrome wait on the network instead of making the picture
+  // ready ahead of it.
+  //
+  // Off-screen at full size rather than `display: none` or a 1px box, because
+  // the error card chooses its layout from the element's measured width, and a
+  // card measured at 1px is the compact one meant for thumbnails.
+  let holder = null;
+  function warmHolder() {
+    if (!holder) {
+      holder = document.createElement("div");
+      holder.className = "modland-warm";
+      holder.setAttribute("aria-hidden", "true");
+      root.appendChild(holder);
+    }
+    return holder;
+  }
+
+  function prewarm() {
+    const wanted = [at(axis, pos + 1), at(axis, pos - 1)];
+    cats.forEach((_, a) => { if (a !== axis) wanted.push(at(a, pos)); });
+    wanted.filter(Boolean).forEach((slide) => {
+      const node = centreFor(slide);
+      if (!node.isConnected) warmHolder().appendChild(node);
+    });
+  }
+
+  // --- rendering ----------------------------------------------------------
 
   function renderCentre() {
     const slide = at(axis, pos);
-    region("center").innerHTML = frameHTML(slide);
+    region("center").replaceChildren(centreFor(slide));
     renderCredit(slide);
   }
 
@@ -95,40 +245,11 @@ function initLanding(root) {
     el.innerHTML = `${parts.join(" and ")}.`;
   }
 
-  function rowHTML(a, side) {
-    const slide = at(a, side === "prev" ? pos - 1 : pos + 1);
-    const label = cats[a].label;
-    // The flank is a preview, so a video shows its poster frame rather than
-    // playing: three looping videos around one more is a slot machine.
-    const inner = slide && slide.src
-      ? (slide.kind === "video"
-          ? `<video src="${esc(slide.src)}" muted playsinline preload="metadata"></video>`
-          : `<img src="${esc(slide.src)}" alt="" loading="lazy">`)
-      : '<span class="fill"></span>';
-    const empty = slide ? "" : " is-empty";
-    return `<a class="mod-sortrow${empty}" data-a="${a}" data-side="${side}" href="${esc((slide && slide.url) || "#")}" title="${esc(label)}">` +
-      `${inner}<span class="mod-sortrow-tag">${esc(label)}</span></a>`;
-  }
-
-  // A thumbnail that cannot load becomes the empty-slot hatch, not the browser's
-  // broken-file icon (Chrome) or a blank hole (Firefox). The stage already has a
-  // treatment for "no picture here"; a failed one is the same situation.
-  function markRowEmpty(row) {
-    row.classList.add("is-empty");
-    const m = row.querySelector("img, video");
-    if (m) m.remove();
-  }
-
   function renderFlanks() {
     ["prev", "next"].forEach((side) => {
       const col = region(`flank-${side}`);
-      col.innerHTML = cats.map((_, a) => rowHTML(a, side)).join("");
-      col.querySelectorAll("img, video").forEach((m) => {
-        m.addEventListener("error", () => markRowEmpty(m.closest(".mod-sortrow")), { once: true });
-        // A cached failure never fires error again, so check the ones that have
-        // already resolved by the time this runs.
-        if (m.tagName === "IMG" && m.complete && m.naturalWidth === 0) markRowEmpty(m.closest(".mod-sortrow"));
-      });
+      const rows = cats.map((_, a) => rowFor(a, at(a, side === "prev" ? pos - 1 : pos + 1), side));
+      col.replaceChildren(...rows);
     });
     applyRanks();
   }
@@ -160,30 +281,9 @@ function initLanding(root) {
     thumb.style.transform = `translateX(${active.offsetLeft}px)`;
   }
 
-  function renderAll() { renderCentre(); renderFlanks(); renderTabs(); }
+  function renderAll() { renderCentre(); renderFlanks(); renderTabs(); prewarm(); }
 
   // --- movement -----------------------------------------------------------
-
-  // Nothing is allowed to paint before its picture is ready.
-  //
-  // The old swap replaced the centre's markup and let the browser fetch: for a
-  // frame or two that left an empty panel, then a picture appearing inside it.
-  // The incoming image is already on screen in the flank, so it is normally in
-  // cache and this resolves immediately; the timeout is for the case where it
-  // is not, and a late slide is better than a blank one.
-  function ready(src, kind) {
-    // Only images are preloadable this way; a video is allowed to start on its
-    // own, since waiting on one would hold the whole shuffle for a download.
-    if (!src || kind === "video") return Promise.resolve();
-    return new Promise((resolve) => {
-      const img = new Image();
-      const done = () => resolve();
-      img.onload = () => (img.decode ? img.decode().then(done, done) : done());
-      img.onerror = done;
-      img.src = src;
-      setTimeout(done, 600);
-    });
-  }
 
   const rectOf = (el) => (el ? el.getBoundingClientRect() : null);
   const centreOf = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
@@ -199,9 +299,12 @@ function initLanding(root) {
   //
   // Positions are measured rather than assumed, so the motion stays correct if
   // the flank size, the gap or the stage width change.
+  //
+  // It begins in the same frame the reader asked for it. There is deliberately
+  // no wait on the incoming picture: prewarm has already fetched it, and if it
+  // has not arrived the stage still owes the reader the movement they asked for.
   function shuffle(delta) {
     if (busy) return;
-    const incoming = at(axis, pos + delta);
     const inSide = delta > 0 ? "next" : "prev";
     const outSide = delta > 0 ? "prev" : "next";
 
@@ -214,52 +317,52 @@ function initLanding(root) {
 
     busy = true;
 
-    ready(incoming && incoming.src, incoming && incoming.kind).then(() => {
-      const cRect = rectOf(centre);
-      const iRect = rectOf(inRow);
-      const oRect = rectOf(outRow);
-      const c = centreOf(cRect);
-      const i = centreOf(iRect);
+    const cRect = rectOf(centre);
+    const iRect = rectOf(inRow);
+    const oRect = rectOf(outRow);
+    const c = centreOf(cRect);
+    const i = centreOf(iRect);
 
-      // Scale by height: the flank crops its picture and the centre letterboxes
-      // it, so no single factor matches both dimensions. Height is the one the
-      // eye tracks in a horizontal move.
-      const growTo = cRect.height / iRect.height;
-      const shrinkTo = oRect ? oRect.height / cRect.height : 0.3;
+    // Scale by height: the flank crops its picture and the centre letterboxes
+    // it, so no single factor matches both dimensions. Height is the one the
+    // eye tracks in a horizontal move.
+    const growTo = cRect.height / iRect.height;
+    const shrinkTo = oRect ? oRect.height / cRect.height : 0.3;
 
-      ride.classList.add("is-shuffling");
-      inRow.classList.add("is-travelling");
+    ride.classList.add("is-shuffling");
+    inRow.classList.add("is-travelling");
 
-      // Incoming: flank slot -> centre. The row's own transform already carries
-      // translate(-50%,-50%), so the journey is composed on top of it.
-      inRow.style.transform =
-        `translate(-50%, -50%) translate(${c.x - i.x}px, ${c.y - i.y}px) scale(${growTo})`;
+    // Incoming: flank slot -> centre. The row's own transform already carries
+    // translate(-50%,-50%), so the journey is composed on top of it.
+    inRow.style.transform =
+      `translate(-50%, -50%) translate(${c.x - i.x}px, ${c.y - i.y}px) scale(${growTo})`;
 
-      // Outgoing: centre -> opposite flank slot.
-      if (oRect) {
-        const o = centreOf(oRect);
-        centre.style.transform = `translate(${o.x - c.x}px, ${o.y - c.y}px) scale(${shrinkTo})`;
-      } else {
-        centre.style.transform = `translateX(${delta > 0 ? -cRect.width : cRect.width}px) scale(0.4)`;
-      }
-      centre.style.opacity = "0.15";
+    // Outgoing: centre -> opposite flank slot.
+    if (oRect) {
+      const o = centreOf(oRect);
+      centre.style.transform = `translate(${o.x - c.x}px, ${o.y - c.y}px) scale(${shrinkTo})`;
+    } else {
+      centre.style.transform = `translateX(${delta > 0 ? -cRect.width : cRect.width}px) scale(0.4)`;
+    }
+    centre.style.opacity = "0.15";
 
-      setTimeout(() => {
-        // Land: adopt the new position, redraw canonically, and drop the
-        // journey transforms in the same frame so nothing animates back.
-        pos += delta;
-        centre.style.transition = "none";
-        centre.style.transform = "";
-        centre.style.opacity = "";
-        renderAll();
-        ride.classList.remove("is-shuffling");
+    setTimeout(() => {
+      // Land: adopt the new position, redraw canonically, and drop the journey
+      // transforms in the same frame so nothing animates back.
+      pos += delta;
+      centre.style.transition = "none";
+      centre.style.transform = "";
+      centre.style.opacity = "";
+      settleRows();
+      renderAll();
+      ride.classList.remove("is-shuffling");
 
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          centre.style.transition = "";
-          busy = false;
-        }));
-      }, SHUFFLE_MS);
-    });
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        centre.style.transition = "";
+        releaseRows();
+        busy = false;
+      }));
+    }, SHUFFLE_MS);
   }
 
   function step(delta) {
@@ -278,24 +381,22 @@ function initLanding(root) {
     if (target === axis || target < 0 || target >= cats.length || busy) return;
     busy = true;
 
-    const incoming = at(target, pos);
     const outClass = direction > 0 ? "is-axis-down" : "is-axis-up";
     const inClass = direction > 0 ? "is-enter-down" : "is-enter-up";
 
-    // Same rule as the shuffle: never paint a panel before its picture is ready.
-    ready(incoming && incoming.src, incoming && incoming.kind).then(() => {
-      ride.classList.add(outClass);
-      setTimeout(() => {
-        axis = target;
-        ride.classList.remove(outClass);
-        ride.classList.add(inClass);
-        renderAll();
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          ride.classList.remove(inClass);
-          busy = false;
-        }));
-      }, NAV_MS);
-    });
+    ride.classList.add(outClass);
+    setTimeout(() => {
+      axis = target;
+      ride.classList.remove(outClass);
+      ride.classList.add(inClass);
+      settleRows();
+      renderAll();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        ride.classList.remove(inClass);
+        releaseRows();
+        busy = false;
+      }));
+    }, NAV_MS);
   }
 
   function shiftAxis(delta) {
