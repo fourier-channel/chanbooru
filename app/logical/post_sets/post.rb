@@ -112,10 +112,35 @@ module PostSets
 
     def posts
       post_query.validate_tag_limit!
-      # page_limit passed explicitly: paginate defaults it to the user's
-      # app-wide page limit, and the browsing restriction applies to the post
-      # archive only -- not to the forum or the tag lists.
-      normalized_query.paginated_posts(page, includes: includes, count: post_count, search_count: !post_count.nil?, limit: per_page, max_limit: max_per_page, page_limit: current_user.post_page_limit).load
+      enforce_browsing_cap!
+      # page_limit is the viewer's ORDINARY app-wide limit, passed explicitly so
+      # paginate does not fall back to reading CurrentUser -- this set is handed
+      # a user, and is built outside a request in tests and in the showcase. The
+      # browsing cap is enforced above instead; see enforce_browsing_cap! for
+      # why it must not be expressed here.
+      normalized_query.paginated_posts(page, includes: includes, count: post_count, search_count: !post_count.nil?, limit: per_page, max_limit: max_per_page, page_limit: current_user.page_limit).load
+    end
+
+    # The browsing tier's page cap, enforced here rather than by handing the cap
+    # to paginate as its page_limit.
+    #
+    # Passing page_limit: 1 looked equivalent and was not. paginate has a branch
+    # for "you are on the last page you are allowed" that switches the paginator
+    # into sequential_after mode while still building numbered SQL -- and
+    # PaginationExtension#records REVERSES results in that mode, because a real
+    # sequential-after query fetches ascending and has to be flipped for display.
+    # This one had not been. The visible effect was that every signed-out visitor
+    # saw the gallery oldest-first: page 1 was also the last allowed page, so the
+    # equality branch fired on every request they ever made.
+    #
+    # Upstream never reaches it because its smallest page_limit is 1000. Raising
+    # the error ourselves keeps the 410 and the message while leaving paginate on
+    # the numbered path it was written for.
+    def enforce_browsing_cap!
+      cap = current_user.post_page_limit
+      return if current_page <= cap
+
+      raise PaginationExtension::PaginationError, "You cannot go beyond page #{cap}."
     end
 
     # @return [Integer, nil] The number of posts returned by the search, or nil if unknown.

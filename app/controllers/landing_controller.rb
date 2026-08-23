@@ -24,16 +24,16 @@ class LandingController < ApplicationController
       redirect_to(posts_path) and return
     end
 
-    @slides = showcase.slides
+    @categories = showcase.categories
     @feature = CreatorGallery.current_feature
     @promoted = promoted_galleries
     @preference = cookies[PREFERENCE_COOKIE].to_s
   end
 
-  # A fresh shuffle, for the page to swap in on its timer without a reload.
+  # A fresh set, for the page to swap in on its timer without a reload.
   def slides
     skip_authorization
-    render json: { slides: showcase.slides }, status: :ok
+    render json: { categories: showcase.categories }, status: :ok
   end
 
   # POST rather than a link: it writes state, and a preference that a link

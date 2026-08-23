@@ -281,6 +281,22 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         assert_operator(@member.post_page_limit, :>, 1)
       end
 
+      # Regression, and the reason the cap is not expressed as paginate's
+      # page_limit: doing that made page 1 also the LAST allowed page, which
+      # switches the paginator into sequential_after mode -- and records are
+      # reversed in that mode. Every signed-out visitor saw the gallery
+      # oldest-first, on every request, silently.
+      should "show a restricted viewer the newest posts first, like everyone else" do
+        posts = as(@user) { create_list(:post, 4, tag_string: "ordering_probe") }
+        newest_first = posts.map(&:id).sort.reverse
+
+        restricted_ids = PostSets::Post.new("ordering_probe", 1, 10, user: @restricted).posts.map(&:id)
+        member_ids = PostSets::Post.new("ordering_probe", 1, 10, user: @member).posts.map(&:id)
+
+        assert_equal(newest_first, restricted_ids)
+        assert_equal(newest_first, member_ids, "the two tiers must not disagree about order")
+      end
+
       # The restriction is about the post archive. Lowering the app-wide page
       # limit instead would have capped the forum and the tag lists too.
       should "leave other paginated resources alone" do
