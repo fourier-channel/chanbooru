@@ -150,6 +150,12 @@
   --belt-h: clamp(300px, 46vh, 460px);
   --belt-move-ms: 430ms;
 
+  // Overshoot lives in the MOVE, not after it. A cell is carried past its slot
+  // and comes back inside one continuous travel, which is what inertia looks
+  // like -- the y1 above 1 is what does it. The script swaps this for a
+  // stronger curve the longer the run has been, and back on rest.
+  --belt-ease: cubic-bezier(0.32, 1.25, 0.62, 1);
+
   // Longer than the move on purpose: the operator's ask is that the incoming
   // cell "keeps its green border while moving as it slowly gradients to
   // orange", so the colour must still be resolving after the travel has landed.
@@ -180,8 +186,12 @@
     z-index: var(--cz, 1);
     transform: translate(-50%, -50%) translateX(var(--cx, 0));
 
+    // Only transform overshoots. A cell whose WIDTH overshot would bulge past
+    // the size it is settling into, which reads as a wobble rather than as
+    // weight: the box should arrive once and stay arrived while the run rocks
+    // into place around it.
     transition:
-      transform var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
+      transform var(--belt-move-ms) var(--belt-ease),
       width var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
       height var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
       opacity var(--belt-move-ms) ease,
@@ -236,19 +246,13 @@
     background: linear-gradient(to top, color-mix(in srgb, var(--mod-surface) 88%, transparent), transparent);
   }
 
-  // Inertia. Fired only once the run has actually stopped -- a lurch after
-  // every step of a held-down arrow is a stutter, not weight. --lurch carries
-  // both the direction and the accumulated distance of the burst.
-  &.is-lurching .mod-belt { animation: mod-belt-lurch 340ms cubic-bezier(0.33, 0, 0.2, 1); }
-
   @media (prefers-reduced-motion: reduce) {
-    .mod-cell { transition-duration: 1ms; }
-    &.is-lurching .mod-belt { animation: none; }
-  }
-}
+    .mod-cell {
+      transition-duration: 1ms;
 
-@keyframes mod-belt-lurch {
-  0%   { transform: translateX(var(--lurch, 0)); }
-  58%  { transform: translateX(calc(var(--lurch, 0px) * -0.34)); }
-  100% { transform: translateX(0); }
+      // No overshoot either: the request is for less motion, and an overshoot
+      // is motion that goes somewhere it was not asked to go.
+      transition-timing-function: linear;
+    }
+  }
 }
