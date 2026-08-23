@@ -28,11 +28,14 @@
         <button type="button" class="modland-arrow modland-arrow--prev" data-act="prev" aria-label="Previous">&#8249;</button>
         <button type="button" class="modland-arrow modland-arrow--next" data-act="next" aria-label="Next">&#8250;</button>
 
+        <%# One run of cells, magnified in the middle. Empty here because every
+            cell is a persistent node the script owns: cells are built once per
+            slide, positioned by their distance from the centre, and MOVED
+            rather than re-rendered. Server-rendering them would only give the
+            script something to throw away on its first frame. %>
         <article class="modland-ride" data-region="ride">
           <section class="mod-stage">
-            <div class="mod-flank-col mod-flank-col--prev" data-region="flank-prev"></div>
-            <div class="mod-stage-center" data-region="center"></div>
-            <div class="mod-flank-col mod-flank-col--next" data-region="flank-next"></div>
+            <div class="mod-belt" data-region="belt"></div>
           </section>
         </article>
 

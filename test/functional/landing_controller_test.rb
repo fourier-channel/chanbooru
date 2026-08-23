@@ -13,9 +13,12 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
 
         assert_response :success
         assert_select ".modland", 1
-        # The post view's stage, not a lookalike -- same classes, same mixin.
         assert_select ".modland-ride .mod-stage", 1
-        assert_select ".mod-flank-col", 2
+        # The belt is served EMPTY and filled by the script, because every cell
+        # is a node it owns and moves rather than re-renders. Server-rendering
+        # cells here would only give it something to discard on its first frame.
+        assert_select ".modland-ride .mod-belt", 1
+        assert_select ".mod-belt .mod-cell", 0
         assert_select ".modland-poolitem", minimum: 1
       end
 

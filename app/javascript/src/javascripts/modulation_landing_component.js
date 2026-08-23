@@ -33,9 +33,6 @@ function initLanding(root) {
   const cats = cfg.categories || [];
   if (!cats.length) return;
 
-  const NAV_MS = 260;
-  const SHUFFLE_MS = 430;
-
   let axis = 0;
   let pos = 0;
   let runLeft = 0;
@@ -63,165 +60,173 @@ function initLanding(root) {
     return list[((p % list.length) + list.length) % list.length];
   }
 
-  // --- media nodes --------------------------------------------------------
+  // --- the belt -----------------------------------------------------------
   //
-  // Every slide's picture is built ONCE and kept; rendering moves the cached
-  // node into place rather than rebuilding markup around a fresh source.
+  // One run of cells along the current axis, magnified in the middle. Every
+  // cell is built ONCE per slide and thereafter only moved: its position, size
+  // and opacity are custom properties derived from its signed distance from the
+  // centre, and advancing the position rewrites all of them in the same frame.
   //
-  // What this replaces: the centre and both flank columns each had their
-  // innerHTML reassigned on every advance. Seven elements destroyed and seven
-  // created, six times a minute, every one of them re-requesting its source.
-  // For media that loads, that is a decode per advance for a picture already
-  // decoded. For media that does not -- which is every picture on this site for
-  // a signed-out visitor -- it is a fresh round trip to be told "no" again, and
-  // a fresh empty panel while it waits. Nodes that persist have neither
-  // problem: a picture that arrived stays arrived, and one that failed stays
-  // failed without asking twice.
-  const failed = new Set();      // slide ids whose media will not load
-  const centreNodes = new Map(); // id -> .mod-frame
-  const rowNodes = new Map();    // `${side}:${axis}:${id}` -> .mod-sortrow
+  // That is the whole mechanism, and it is why the run now moves as one object.
+  // The version this replaces animated exactly two cells -- the incoming
+  // neighbour and the outgoing centre -- by measuring their rects and
+  // transforming them, then re-rendered everything else at the destination. Two
+  // things sliding while the rest cut is not a conveyor; it reads as a swap
+  // with scenery. Nothing here is measured, nothing is destroyed, and no cell
+  // is special-cased for travelling. The belt just gets a new set of numbers.
+  const RANKS = 3;             // cells visible either side of the focus
+  const HEAD_H = 0.42;         // first neighbour's height, as a fraction of the focus
+  const FALLOFF = 0.72;        // each further cell against the one before it
+  const HEAD_O = 0.55;         // and the same idea for opacity
+  const FALLOFF_O = 0.62;
+  const THUMB_RATIO = 0.8;     // w/h of a non-focus cell: fixed, so the focal
+                               // cell's true aspect is what makes the border
+                               // morph as it arrives
+  const GAP = 18;              // px between focus and first neighbour
+  const GAP_FALLOFF = 0.78;
 
-  function mediaEl(slide, className, playing) {
+  const BASE_MS = 430;
+  const MIN_MS = 130;          // floor for a held-down arrow
+  const SETTLE_MS = 180;       // quiet time that counts as "the run stopped"
+  // Lurch grows with the length of the burst, per the ask, but on a square root
+  // rather than linearly: linear reached 72px after eight steps, which on a
+  // 330px focal cell is a fifth of the picture and reads as the belt slipping
+  // rather than settling. This gives 12px for a single step, 24 for four, 34
+  // for eight -- clearly more emphatic the further you went, still a settle.
+  const LURCH_PX = 12;
+  const LURCH_CAP = 12;
+  const NAV_MS = 260;
+
+  const failed = new Set();    // slide ids whose media will not load
+  const cells = new Map();     // `${axis}:${id}` -> element
+  const aspect = new Map();    // slide id -> natural w/h, once known
+
+  let burst = 0;               // steps since the run last came to rest
+  let lastDelta = 1;
+  let settleTimer = null;
+
+  function mediaEl(slide) {
     const el = document.createElement(slide.kind === "video" ? "video" : "img");
-    if (className) el.className = className;
+    // Every cell's media carries .mod-image, so a failure anywhere on the belt
+    // becomes an error card rather than a broken icon. That is a change from
+    // the stacked flanks, where a card sized for the stage was unreadable at
+    // 122px and six of them were worse than the glyph. A belt cell is far
+    // larger, and a run of identical "401" cards reads as a locked archive --
+    // which is exactly what it is.
+    el.className = "mod-image";
     if (slide.kind === "video") {
       el.muted = true;
       el.playsInline = true;
-      // Looping and playing in the centre; a poster frame in the flanks,
-      // because three looping videos around a fourth is a slot machine.
-      if (playing) { el.loop = true; el.autoplay = true; } else { el.preload = "metadata"; }
+      el.loop = true;
+      el.autoplay = true;
     } else {
       el.alt = "";
+      el.addEventListener("load", () => {
+        if (el.naturalWidth <= 0) return;
+        aspect.set(String(slide.id), el.naturalWidth / el.naturalHeight);
+        // The focal cell is cut to its picture's shape, and at boot the first
+        // picture has not loaded when the belt is first laid out -- so without
+        // this it keeps the thumbnail's proportions until something else moves.
+        // Prewarm covers every later cell; this covers the first one.
+        const shown = at(axis, pos);
+        if (shown && String(shown.id) === String(slide.id)) render();
+      }, { once: true });
     }
-    el.addEventListener("error", () => failed.add(String(slide.id)), { once: true });
+    el.addEventListener("error", () => {
+      failed.add(String(slide.id));
+      const cell = el.closest(".mod-cell");
+      if (cell) cell.classList.add("is-failed");
+    }, { once: true });
     el.src = slide.src;
     return el;
   }
 
-  function buildCentre(slide) {
-    const frame = document.createElement("div");
-    if (!slide || !slide.src) {
-      frame.className = "mod-frame mod-image mod-image--placeholder";
-      frame.textContent = "nothing here";
-      return frame;
-    }
-    frame.className = "mod-frame";
-    frame.appendChild(mediaEl(slide, "mod-image", true));
-    return frame;
-  }
-
-  function centreFor(slide) {
-    if (!slide || !slide.src) return buildCentre(null);
-    const key = String(slide.id);
-    if (!centreNodes.has(key)) centreNodes.set(key, buildCentre(slide));
-    return centreNodes.get(key);
-  }
-
-  // A thumbnail that cannot load becomes the empty-slot hatch, not the browser's
-  // broken-file icon (Chrome) or a blank hole (Firefox). The stage already has a
-  // treatment for "no picture here"; a failed one is the same situation.
-  function markRowEmpty(row) {
-    if (!row) return;
-    row.classList.add("is-empty");
-    const m = row.querySelector("img, video");
-    if (m) m.remove();
-  }
-
-  function buildRow(a, slide, side) {
-    const row = document.createElement("a");
-    row.className = "mod-sortrow";
-    row.dataset.a = String(a);
-    row.dataset.side = side;
-    row.href = (slide && slide.url) || "#";
-    row.title = cats[a].label;
-
-    // A slide already known to fail is built hatched and never asked for. The
-    // flanks meet every picture before the centre does, so by the time one
-    // reaches the middle its outcome is usually already settled.
-    if (slide && slide.src && !failed.has(String(slide.id))) {
-      const m = mediaEl(slide, "", false);
-      m.addEventListener("error", () => markRowEmpty(row), { once: true });
-      row.appendChild(m);
-    } else {
-      row.classList.add("is-empty");
-    }
+  function buildCell(a, slide) {
+    const cell = document.createElement("a");
+    cell.className = "mod-cell";
+    cell.href = slide.url || "#";
+    cell.title = cats[a].label;
+    if (slide.src && !failed.has(String(slide.id))) cell.appendChild(mediaEl(slide));
+    else cell.classList.add("is-failed");
 
     const tag = document.createElement("span");
-    tag.className = "mod-sortrow-tag";
+    tag.className = "mod-cell-tag";
     tag.textContent = cats[a].label;
-    row.appendChild(tag);
-    return row;
+    cell.appendChild(tag);
+    return cell;
   }
 
-  function rowFor(a, slide, side) {
-    const key = `${side}:${a}:${slide ? slide.id : "none"}`;
-    if (!rowNodes.has(key)) rowNodes.set(key, buildRow(a, slide, side));
-    const row = rowNodes.get(key);
-    // A cached row that failed after it was built still carries its broken
-    // media, since the error fired on a node nobody was looking at.
-    if (slide && failed.has(String(slide.id)) && !row.classList.contains("is-empty")) markRowEmpty(row);
-    return row;
+  function cellFor(a, slide) {
+    const key = `${a}:${slide.id}`;
+    if (!cells.has(key)) cells.set(key, buildCell(a, slide));
+    return cells.get(key);
   }
 
-  // A cached row keeps whatever inline transform a shuffle left on it -- it is
-  // no longer thrown away between renders. Clearing that with the transition
-  // suppressed is what stops a reused row animating back from a journey it made
-  // at some previous position.
-  function settleRows() {
-    rowNodes.forEach((row) => {
-      if (!row.style.transform && !row.style.transition) return;
-      row.style.transition = "none";
-      row.style.transform = "";
-      row.classList.remove("is-travelling");
-    });
+  // A cell that failed while small carries the compact card, and cells change
+  // size for a living here -- one promoted to the focus would otherwise keep a
+  // thumbnail's card at full size, and one demoted keeps an unreadable essay.
+  // The card has to follow the box it is in.
+  const CARD_SRC = /^\/errors\/(\d+)\.svg/;
+  const COMPACT_BELOW = 320; // matches error_card.js
+
+  function retuneCard(cell, width) {
+    const img = cell.querySelector("img");
+    if (!img) return;
+    const src = img.getAttribute("src") || "";
+    const m = src.match(CARD_SRC);
+    if (!m) return;
+    const wanted = `/errors/${m[1]}.svg${width > 0 && width < COMPACT_BELOW ? "?compact=1" : ""}`;
+    if (src !== wanted) img.setAttribute("src", wanted);
   }
 
-  function releaseRows() {
-    rowNodes.forEach((row) => { if (row.style.transition) row.style.transition = ""; });
+  // Shortest signed distance around the ring, so a cell at the end of a short
+  // category travels IN from the near side rather than all the way around.
+  function ringDelta(i, p, n) {
+    let d = (i - p) % n;
+    if (d > n / 2) d -= n;
+    if (d < -n / 2) d += n;
+    return d;
   }
 
-  // --- prewarm ------------------------------------------------------------
-  //
-  // Build the pictures the reader is one step away from before they are needed,
-  // in a holder that is off-screen but REAL -- a node in the document fetches
-  // its media, and if that media fails it has already been turned into an error
-  // card by the time it is moved into the stage.
-  //
-  // This is what removes the blank-panel-then-populate: the panel arrives
-  // resolved, whichever way it resolved. The old code chased the same goal by
-  // awaiting an `Image()` before starting the animation, which got it backwards
-  // -- it made the chrome wait on the network instead of making the picture
-  // ready ahead of it.
-  //
-  // Off-screen at full size rather than `display: none` or a 1px box, because
-  // the error card chooses its layout from the element's measured width, and a
-  // card measured at 1px is the compact one meant for thumbnails.
-  let holder = null;
-  function warmHolder() {
-    if (!holder) {
-      holder = document.createElement("div");
-      holder.className = "modland-warm";
-      holder.setAttribute("aria-hidden", "true");
-      root.appendChild(holder);
+  function beltHeight() {
+    const belt = region("belt");
+    return belt ? belt.clientHeight || 400 : 400;
+  }
+
+  // Rank 0 is the focus, at the band's full height; each rank out is a fixed
+  // fraction of the one before it, which is what makes the run recede.
+  function cellHeight(k) {
+    return k === 0 ? beltHeight() : beltHeight() * HEAD_H * Math.pow(FALLOFF, k - 1);
+  }
+
+  // The focal cell is cut to its picture's own aspect; every other cell is a
+  // fixed portrait thumb. That difference is what the operator asked for as the
+  // border "morphing its size as it moves into place" -- a cell arriving at the
+  // centre changes shape as well as growing, because the box stops being a
+  // thumbnail and becomes the picture.
+  function cellWidth(k, slide) {
+    const h = cellHeight(k);
+    if (k !== 0) return h * THUMB_RATIO;
+    const ratio = aspect.get(String(slide.id));
+    if (!ratio) return h * THUMB_RATIO;
+    const belt = region("belt");
+    const maxW = (belt ? belt.clientWidth : 800) * 0.62;
+    return Math.min(h * ratio, maxW);
+  }
+
+  // Walk outward from the centre, accumulating half-widths and a shrinking gap.
+  // Positions are cumulative rather than a fixed pitch because the cells are
+  // different sizes; a constant pitch leaves the outer ones swimming in space.
+  function layout(list) {
+    const focus = list.find((e) => e.d === 0);
+    const xs = { 0: 0 };
+    let acc = 0;
+    for (let k = 1; k <= RANKS + 1; k++) {
+      const prevW = k === 1 ? cellWidth(0, focus ? focus.slide : {}) : cellWidth(k - 1, {});
+      acc += (prevW / 2) + (GAP * Math.pow(GAP_FALLOFF, k - 1)) + (cellWidth(k, {}) / 2);
+      xs[k] = acc;
     }
-    return holder;
-  }
-
-  function prewarm() {
-    const wanted = [at(axis, pos + 1), at(axis, pos - 1)];
-    cats.forEach((_, a) => { if (a !== axis) wanted.push(at(a, pos)); });
-    wanted.filter(Boolean).forEach((slide) => {
-      const node = centreFor(slide);
-      if (!node.isConnected) warmHolder().appendChild(node);
-    });
-  }
-
-  // --- rendering ----------------------------------------------------------
-
-  function renderCentre() {
-    const slide = at(axis, pos);
-    region("center").replaceChildren(centreFor(slide));
-    renderCredit(slide);
+    return xs;
   }
 
   function renderCredit(slide) {
@@ -245,23 +250,12 @@ function initLanding(root) {
     el.innerHTML = `${parts.join(" and ")}.`;
   }
 
-  function renderFlanks() {
-    ["prev", "next"].forEach((side) => {
-      const col = region(`flank-${side}`);
-      const rows = cats.map((_, a) => rowFor(a, at(a, side === "prev" ? pos - 1 : pos + 1), side));
-      col.replaceChildren(...rows);
-    });
-    applyRanks();
-  }
-
-  // Rank is the axis's distance from the active one; the stylesheet turns that
-  // into vertical offset and scale.
-  function applyRanks() {
-    ride.querySelectorAll(".mod-sortrow").forEach((el) => {
-      const a = Number(el.dataset.a);
-      el.style.setProperty("--rank", a - axis);
-      el.classList.toggle("is-current", a === axis);
-    });
+  function positionThumb() {
+    const thumb = region("thumb");
+    const active = root.querySelector("[data-act='axis'].is-active");
+    if (!thumb || !active) return;
+    thumb.style.width = `${active.offsetWidth}px`;
+    thumb.style.transform = `translateX(${active.offsetLeft}px)`;
   }
 
   function renderTabs() {
@@ -273,110 +267,133 @@ function initLanding(root) {
     positionThumb();
   }
 
-  function positionThumb() {
-    const thumb = region("thumb");
-    const active = root.querySelector("[data-act='axis'].is-active");
-    if (!thumb || !active) return;
-    thumb.style.width = `${active.offsetWidth}px`;
-    thumb.style.transform = `translateX(${active.offsetLeft}px)`;
+  // --- prewarm ------------------------------------------------------------
+  //
+  // Build what the reader is a few steps away from, off-screen but real, so a
+  // cell arrives resolved -- its picture fetched, or its failure already turned
+  // into an error card. Off-screen at full size rather than display:none or a
+  // 1px box, because the card picks its layout from measured width.
+  let holder = null;
+
+  function warmHolder() {
+    if (!holder) {
+      holder = document.createElement("div");
+      holder.className = "modland-warm";
+      holder.setAttribute("aria-hidden", "true");
+      root.appendChild(holder);
+    }
+    return holder;
   }
 
-  function renderAll() { renderCentre(); renderFlanks(); renderTabs(); prewarm(); }
+  function prewarm() {
+    const wanted = [];
+    for (let d = -(RANKS + 2); d <= RANKS + 2; d++) wanted.push([axis, at(axis, pos + d)]);
+    cats.forEach((_, a) => { if (a !== axis) wanted.push([a, at(a, pos)], [a, at(a, pos + 1)]); });
+
+    wanted.forEach(([a, slide]) => {
+      if (!slide) return;
+      const cell = cellFor(a, slide);
+      if (!cell.isConnected) warmHolder().appendChild(cell);
+    });
+  }
+
+  function render() {
+    const belt = region("belt");
+    if (!belt) return;
+    const list = slidesOf(axis);
+    if (!list.length) return;
+
+    const placed = list.map((slide, i) => ({ slide, d: ringDelta(i, pos, list.length) }));
+    const xs = layout(placed);
+
+    placed.forEach(({ slide, d }) => {
+      const k = Math.abs(d);
+      const cell = cellFor(axis, slide);
+
+      const shown = k <= RANKS;
+      const x = (xs[Math.min(k, RANKS + 1)] || 0) * Math.sign(d);
+      const w = cellWidth(k, slide);
+      cell.style.setProperty("--cx", `${x}px`);
+      cell.style.setProperty("--cw", `${w}px`);
+      cell.style.setProperty("--ch", `${cellHeight(k)}px`);
+      cell.style.setProperty("--co", k === 0 ? "1" : String(HEAD_O * Math.pow(FALLOFF_O, k - 1)));
+      cell.style.setProperty("--cz", String(10 - k));
+      cell.dataset.d = String(d);
+
+      // Sized BEFORE it joins the belt, not after. An error card picks its
+      // layout from the element's measured width, and a cell appended without
+      // its width yet measures at the stylesheet's fallback -- so the focal
+      // cell was being handed the compact card meant for thumbnails, losing
+      // the explanation that is the entire reason the cards are written out.
+      if (!cell.isConnected) belt.appendChild(cell);
+      retuneCard(cell, w);
+
+      cell.classList.toggle("is-offstage", !shown);
+      cell.classList.toggle("is-focus", d === 0);
+      cell.classList.toggle("is-incoming", k === 1);
+      if (failed.has(String(slide.id))) cell.classList.add("is-failed");
+    });
+
+    // Cells belonging to other axes stay built but must not sit on this belt.
+    cells.forEach((cell, key) => {
+      if (!key.startsWith(`${axis}:`) && cell.isConnected) cell.remove();
+    });
+
+    renderCredit(at(axis, pos));
+    renderTabs();
+    prewarm();
+  }
+
+  function renderAll() { render(); }
 
   // --- movement -----------------------------------------------------------
-
-  const rectOf = (el) => (el ? el.getBoundingClientRect() : null);
-  const centreOf = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
-
-  // A shuffle, not a swap.
   //
-  // The whole strip moves one place: the neighbour on the incoming side travels
-  // into the centre and grows to fill it, while the centre travels out to the
-  // opposite flank and shrinks to its size. That is what a carousel does, and
-  // it is what the previous version did NOT do -- it shrank the centre away and
-  // grew the neighbour in place, which reads as two separate things happening
-  // rather than one row of pictures sliding along.
+  // A step is not an animation to be scheduled and waited on; it is a change of
+  // one number. The transitions do the rest, which is what lets input arrive
+  // mid-flight: the belt simply re-targets from wherever it currently is.
   //
-  // Positions are measured rather than assumed, so the motion stays correct if
-  // the flank size, the gap or the stage width change.
-  //
-  // It begins in the same frame the reader asked for it. There is deliberately
-  // no wait on the incoming picture: prewarm has already fetched it, and if it
-  // has not arrived the stage still owes the reader the movement they asked for.
-  function shuffle(delta) {
-    if (busy) return;
-    const inSide = delta > 0 ? "next" : "prev";
-    const outSide = delta > 0 ? "prev" : "next";
+  // That is also the whole of "holding the arrow plays smoothly but faster" --
+  // there is no queue to drain and no busy flag to bounce off. The duration
+  // shortens as the burst grows so the belt keeps up with the key repeat.
+  function settle() {
+    const magnitude = Math.round(LURCH_PX * Math.sqrt(Math.min(burst, LURCH_CAP)));
+    burst = 0;
+    ride.style.setProperty("--belt-move-ms", `${BASE_MS}ms`);
+    ride.style.setProperty("--lurch", `${magnitude * Math.sign(lastDelta)}px`);
 
-    const centre = region("center");
-    const inRow = ride.querySelector(`.mod-flank-col--${inSide} .mod-sortrow.is-current`);
-    const outRow = ride.querySelector(`.mod-flank-col--${outSide} .mod-sortrow.is-current`);
-
-    // No flank to move from (a single-slide axis): fall back to a plain swap.
-    if (!inRow || !centre) { pos += delta; renderAll(); return; }
-
-    busy = true;
-
-    const cRect = rectOf(centre);
-    const iRect = rectOf(inRow);
-    const oRect = rectOf(outRow);
-    const c = centreOf(cRect);
-    const i = centreOf(iRect);
-
-    // Scale by height: the flank crops its picture and the centre letterboxes
-    // it, so no single factor matches both dimensions. Height is the one the
-    // eye tracks in a horizontal move.
-    const growTo = cRect.height / iRect.height;
-    const shrinkTo = oRect ? oRect.height / cRect.height : 0.3;
-
-    ride.classList.add("is-shuffling");
-    inRow.classList.add("is-travelling");
-
-    // Incoming: flank slot -> centre. The row's own transform already carries
-    // translate(-50%,-50%), so the journey is composed on top of it.
-    inRow.style.transform =
-      `translate(-50%, -50%) translate(${c.x - i.x}px, ${c.y - i.y}px) scale(${growTo})`;
-
-    // Outgoing: centre -> opposite flank slot.
-    if (oRect) {
-      const o = centreOf(oRect);
-      centre.style.transform = `translate(${o.x - c.x}px, ${o.y - c.y}px) scale(${shrinkTo})`;
-    } else {
-      centre.style.transform = `translateX(${delta > 0 ? -cRect.width : cRect.width}px) scale(0.4)`;
-    }
-    centre.style.opacity = "0.15";
-
-    setTimeout(() => {
-      // Land: adopt the new position, redraw canonically, and drop the journey
-      // transforms in the same frame so nothing animates back.
-      pos += delta;
-      centre.style.transition = "none";
-      centre.style.transform = "";
-      centre.style.opacity = "";
-      settleRows();
-      renderAll();
-      ride.classList.remove("is-shuffling");
-
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        centre.style.transition = "";
-        releaseRows();
-        busy = false;
-      }));
-    }, SHUFFLE_MS);
+    // Restart the animation from zero. Without the reflow the browser coalesces
+    // remove-then-add into no change at all, and the lurch silently never runs
+    // from the second time onward.
+    ride.classList.remove("is-lurching");
+    void ride.offsetWidth;
+    ride.classList.add("is-lurching");
+    setTimeout(() => ride.classList.remove("is-lurching"), 360);
   }
 
   function step(delta) {
-    shuffle(delta);
+    const list = slidesOf(axis);
+    if (list.length < 2) return;
+
+    pos += delta;
+    lastDelta = delta;
+    burst += 1;
+
+    const ms = Math.max(MIN_MS, Math.round(BASE_MS / (1 + (burst * 0.38))));
+    ride.style.setProperty("--belt-move-ms", `${ms}ms`);
+
+    ride.classList.remove("is-lurching");
+    render();
+
+    // The run has stopped only when nothing else has arrived. Every step pushes
+    // this out, so a held arrow never lurches mid-travel -- it lurches once, at
+    // the end, harder for having gone further.
+    if (settleTimer) clearTimeout(settleTimer);
+    settleTimer = setTimeout(settle, ms + SETTLE_MS);
   }
 
   // Up/down changes axis and carries the position with it, so the centre really
   // does change -- the post view keeps its centre because the post IS the thing
   // being sorted; here the axes hold different images.
-  //
-  // One entry point, and the new axis is set inside the swap's callback. An
-  // earlier version assigned it straight after calling the animated move, which
-  // raced: the callback then overwrote it a quarter-second later with the value
-  // it had captured.
   function goToAxis(target, direction) {
     if (target === axis || target < 0 || target >= cats.length || busy) return;
     busy = true;
@@ -389,22 +406,20 @@ function initLanding(root) {
       axis = target;
       ride.classList.remove(outClass);
       ride.classList.add(inClass);
-      settleRows();
-      renderAll();
+      render();
       requestAnimationFrame(() => requestAnimationFrame(() => {
         ride.classList.remove(inClass);
-        releaseRows();
         busy = false;
       }));
     }, NAV_MS);
   }
 
-  function shiftAxis(delta) {
-    goToAxis(((axis + delta) % cats.length + cats.length) % cats.length, delta);
-  }
-
   function selectAxis(a) {
     goToAxis(a, a > axis ? 1 : -1);
+  }
+
+  function shiftAxis(delta) {
+    goToAxis(((((axis + delta) % cats.length) + cats.length) % cats.length), delta);
   }
 
   // --- the ride -----------------------------------------------------------
@@ -483,13 +498,15 @@ function initLanding(root) {
   // --- interaction --------------------------------------------------------
 
   root.addEventListener("click", (e) => {
-    const row = e.target.closest(".mod-sortrow");
-    if (row && ride.contains(row)) {
+    const cell = e.target.closest(".mod-cell");
+    if (cell && ride.contains(cell)) {
+      const d = Number(cell.dataset.d || 0);
+      // The cell under the microscope is the one you are looking at, so a click
+      // there means "open this". Any other cell means "bring that one here",
+      // which is the same gesture the arrows make, just aimed.
+      if (d === 0) return;
       e.preventDefault();
-      const a = Number(row.dataset.a);
-      // The post view's rule: the active row navigates, any other selects.
-      if (a === axis) step(row.dataset.side === "next" ? 1 : -1);
-      else selectAxis(a);
+      step(d);
       pause();
       return;
     }

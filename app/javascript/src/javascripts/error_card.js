@@ -14,14 +14,21 @@ const MEDIA_SELECTOR = [
   ".mod-image",
   ".modland-slide-img",
   ".modland-promoted-thumb",
+  // The class sits on the wrapping link here, not the image, so the element
+  // form of this never matched and the Creator of the Month thumbnail was the
+  // one picture on the front page still showing a browser's broken-file icon.
+  ".modland-feature-thumb img",
   ".modcreator-thumb",
   "[data-error-card]",
 ].join(", ");
 
-// Deliberately NOT the carousel's flank thumbnails (.mod-sortrow img). A card
-// sized for a 520px stage is unreadable at 122px, and six of them stacked either
-// side of the picture is worse than the broken icon it replaced. Those degrade
-// to the stage's own empty-slot hatch instead -- see the landing component.
+// The landing conveyor's cells DO match, via .mod-image, and that is a reversal
+// of an earlier decision worth recording. When the flanks were a stacked column
+// of 122px thumbnails they were excluded: a card sized for a 520px stage is
+// unreadable that small, and six of them around the picture was worse than the
+// glyph it replaced. The belt made them big enough to read, and the landing
+// component retunes each card between the full and compact layouts as its cell
+// changes size -- so the reason for the exclusion is gone.
 
 // The card for a status we could not determine. Rendered by the same endpoint,
 // which answers for any number.
