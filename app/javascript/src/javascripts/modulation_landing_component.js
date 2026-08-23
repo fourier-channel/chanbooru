@@ -99,7 +99,6 @@ function initLanding(root) {
 
   const failed = new Set();    // slide ids whose media will not load
   const cells = new Map();     // `${axis}:${id}` -> element
-  const aspect = new Map();    // slide id -> natural w/h, once known
 
   let burst = 0;               // steps since the run last came to rest
   let lastDelta = 1;
@@ -121,16 +120,6 @@ function initLanding(root) {
       el.autoplay = true;
     } else {
       el.alt = "";
-      el.addEventListener("load", () => {
-        if (el.naturalWidth <= 0) return;
-        aspect.set(String(slide.id), el.naturalWidth / el.naturalHeight);
-        // The focal cell is cut to its picture's shape, and at boot the first
-        // picture has not loaded when the belt is first laid out -- so without
-        // this it keeps the thumbnail's proportions until something else moves.
-        // Prewarm covers every later cell; this covers the first one.
-        const shown = at(axis, pos);
-        if (shown && String(shown.id) === String(slide.id)) render();
-      }, { once: true });
     }
     el.addEventListener("error", () => {
       failed.add(String(slide.id));
@@ -207,7 +196,14 @@ function initLanding(root) {
   function cellWidth(k, slide) {
     const h = cellHeight(k);
     if (k !== 0) return h * THUMB_RATIO;
-    const ratio = aspect.get(String(slide.id));
+    // The payload carries the picture's real dimensions, so the focal cell is
+    // cut to the right shape BEFORE the picture arrives -- and stays right when
+    // it never arrives at all, which is what every image on this site does for
+    // a signed-out visitor. An earlier version measured naturalWidth on load
+    // instead, so on production the focal cell would have kept a thumbnail's
+    // proportions permanently and the border would have had nothing to morph
+    // into. The server knew the answer the whole time.
+    const ratio = slide.w > 0 && slide.h > 0 ? slide.w / slide.h : 0;
     if (!ratio) return h * THUMB_RATIO;
     const belt = region("belt");
     const maxW = (belt ? belt.clientWidth : 800) * 0.62;
