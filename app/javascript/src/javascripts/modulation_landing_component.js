@@ -182,6 +182,22 @@ function initLanding(root) {
     }
   });
 
+  // Left/right move the carousel, the same keys that move post-to-post in the
+  // Modulation post view. Same guard as there: a key pressed while typing
+  // belongs to the field, not to the page.
+  //
+  // Only left and right. Up and down scroll the page here -- the post view
+  // binds them because it has a second axis to move along, and this does not.
+  //
+  // Counts as taking over, exactly as clicking an arrow does. Reaching for the
+  // keyboard is the same intent as reaching for the arrow, and it would be
+  // strange for one to stop the ride and the other not to.
+  window.addEventListener("keydown", (e) => {
+    if (e.target.closest("input, textarea, select, [contenteditable]")) return;
+    if (e.key === "ArrowLeft") { step(-1); pause(); }
+    else if (e.key === "ArrowRight") { step(1); pause(); }
+  });
+
   // Keep the segment highlight aligned when the row reflows.
   window.addEventListener("resize", positionThumb);
 
