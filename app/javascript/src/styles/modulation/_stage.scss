@@ -129,3 +129,81 @@
   &.is-enter-up .mod-stage-center { transform: translateY(40%) scale(0.4); opacity: 0; transition: none; }
   &.is-enter-down .mod-stage-center { transform: translateY(-40%) scale(0.4); opacity: 0; transition: none; }
 }
+
+// A centre cell that does not resize with its contents.
+//
+// The stage sizes its centre column to the image, which is correct where the
+// image IS the page's subject: a post page should be as wide as its post. It is
+// wrong for a carousel. There, every slide has a different aspect ratio, so a
+// content-sized column re-lays the whole stage out on each change -- measured at
+// 191px of horizontal travel for the flank columns between a portrait and a
+// landscape slide, mid-animation, which reads as the panel coming apart.
+//
+// So: the column takes a fixed share, the frame fills it, and the image is
+// contained inside. The stage stops moving; only the picture changes.
+//
+// --stage-h is the caller's to set.
+@mixin modulation-stage-fixed-centre {
+  // A FIXED centre width, not 1fr. 1fr also stops the stage resizing, but it
+  // hands the centre every spare pixel and pushes the flanks out to the panel's
+  // edges -- which loses the thing the stage is for: a picture with its
+  // neighbours gathered around it. A fixed width keeps the three columns
+  // grouped, and the base stage already centres them.
+  .mod-stage {
+    grid-template-columns: var(--flank-w) var(--stage-w, clamp(260px, 40vw, 520px)) var(--flank-w);
+    align-items: center;
+  }
+
+  .mod-stage-center {
+    width: 100%;
+    height: var(--stage-h, clamp(300px, 46vh, 460px));
+    place-self: center stretch;
+  }
+
+  // Positioned, not grid. The image is absolutely placed inside it, which is
+  // what makes its size definite -- see below.
+  .mod-frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    // The frame is the stable box now, so it carries no border of its own --
+    // otherwise every slide sits in a letterboxed rectangle rather than looking
+    // like the picture it is.
+    border: 0;
+    background: transparent;
+  }
+
+  // Absolutely placed, then letterboxed by object-fit.
+  //
+  // The two obvious spellings both silently fail here, and both were measured
+  // failing: `max-height: 100%` with auto sizing, and `height: 100%`. A
+  // percentage on a grid item resolves against its grid AREA, which is sized by
+  // its content -- an indefinite containing block, so the percentage is dropped
+  // and a tall image overflows and is clipped by the panel. A 700x1000 image
+  // computed to 1000px inside a 460px frame while reporting max-height "100%".
+  //
+  // Absolute positioning against a parent with a definite height has no such
+  // ambiguity, so this stays correct regardless of what the frame is laid out
+  // with later.
+  // `.mod-frame .mod-image` is listed first and is not decoration: the base
+  // stage sets `.mod-frame .mod-image { height: auto }` at specificity (0,2,0),
+  // and the images carry BOTH the class and the tag -- so a rule written only as
+  // `.mod-frame img` (0,1,1) loses no matter which mixin is included last. That
+  // is what defeated the two previous attempts here, each of which looked
+  // correct and changed nothing.
+  .mod-frame .mod-image,
+  .mod-frame img,
+  .mod-frame video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: var(--mod-radius);
+  }
+
+  .mod-image--placeholder {
+    width: auto;
+    aspect-ratio: auto;
+  }
+}
