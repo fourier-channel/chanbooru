@@ -1,10 +1,23 @@
 # frozen_string_literal: true
 
 class UserPolicy < ApplicationPolicy
+  # Signup being closed is a SERVER-side fact.
+  #
+  # It was previously expressed as `opacity: 0.4; pointer-events: none` on the
+  # form plus a JS-inserted notice, injected globally through
+  # custom_html_header_content. That greys out the door; it does not lock it. A
+  # POST to /users with a valid CSRF token created a real account, and an
+  # account is exactly what the media gate is checking for -- so the one
+  # mechanism holding the site closed could be stepped around with curl.
+  #
+  # Danbooru.config.enable_signup? existed for this and was read by nothing.
   def create?
-    user.is_anonymous?
+    user.is_anonymous? && Danbooru.config.enable_signup?
   end
 
+  # Deliberately NOT gated on the config: the page still renders when signups
+  # are closed, because it is where a visitor is told what is going on. Turning
+  # the only explanation into a 403 answers the question with a slammed door.
   def new?
     user.is_anonymous?
   end

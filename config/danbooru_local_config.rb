@@ -8,8 +8,21 @@ module Danbooru
       "chanbooru"
     end
 
+    # Whether anyone may create an account. False here: 41chan is not open, and
+    # accounts are made deliberately rather than claimed.
+    #
+    # TRUE in test, for the same narrow reason default_experience_preset is
+    # historical there: thirty-nine tests in upstream's own users_controller_test
+    # POST to /users and assert an account comes out. Closing signup under test
+    # turns all of them red at once, saying the same thing -- "this fork does not
+    # allow signups" -- which is the intended change, not a defect, and a
+    # permanently-red suite cannot report the fortieth break.
+    #
+    # The closed path is NOT left untested by this. test/functional/
+    # signup_closed_test.rb sets this false and asserts the POST is refused,
+    # which is the case that actually matters.
     def enable_signup?
-      false
+      Rails.env.test?
     end
 
     # ---- Browsing tier -------------------------------------------------
@@ -68,25 +81,6 @@ module Danbooru
       Rails.env.test? ? "historical" : "modulation"
     end
 
-    def custom_html_header_content
-      <<~HTML
-        <style>
-          form#signup-form input { opacity: 0.4; pointer-events: none; }
-          form#signup-form button { opacity: 0.4; pointer-events: none; }
-        </style>
-        <script>
-          document.addEventListener("DOMContentLoaded", function() {
-            var form = document.querySelector("form#signup-form");
-            if (form) {
-              var notice = document.createElement("div");
-              notice.style.cssText = "background:#1a1a1a;border:1px solid #555;color:#aaa;padding:1rem;margin-bottom:1rem;text-align:center;";
-              notice.textContent = "Registrations are currently disabled.";
-              form.prepend(notice);
-            }
-          });
-        </script>
-      HTML
-    end
 
     # ---- Content restriction ----
 

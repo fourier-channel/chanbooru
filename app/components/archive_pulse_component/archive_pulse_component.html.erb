@@ -1,0 +1,15 @@
+<div class="modpulse">
+  <% stats.each do |value, label| %>
+    <span class="modpulse-stat">
+      <span class="modpulse-value"><%= value %></span>
+      <span class="modpulse-label"><%= label %></span>
+    </span>
+  <% end %>
+
+  <% if newest? %>
+    <span class="modpulse-stat modpulse-stat--live">
+      <span class="modpulse-dot" aria-hidden="true"></span>
+      <span class="modpulse-label"><%= newest_phrase %></span>
+    </span>
+  <% end %>
+</div>

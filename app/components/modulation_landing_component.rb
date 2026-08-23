@@ -39,6 +39,12 @@ class ModulationLandingComponent < ApplicationComponent
     promoted.any?
   end
 
+  # Viewer-scoped, like everything else here: the numbers describe the archive
+  # as it exists for whoever is looking.
+  def pulse
+    @pulse ||= ArchivePulse.new(viewer: viewer)
+  end
+
   # The showcase refreshes itself; these travel to the client as one blob rather
   # than as a dozen data attributes.
   def config

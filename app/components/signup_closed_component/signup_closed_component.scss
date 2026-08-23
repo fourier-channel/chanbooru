@@ -1,0 +1,77 @@
+// A full-size sibling of the error cards: same accent rule across the top, same
+// mono title, same habit of explaining at length. Someone who has just read
+// three 401 cards should recognise the same site talking.
+.modclosed {
+  box-sizing: border-box;
+  max-width: 44rem;
+  margin: 2.5rem auto;
+  padding: 0 0 1.75rem;
+  border: 1px solid var(--mod-line);
+  border-radius: var(--mod-radius);
+  background: var(--mod-surface);
+  overflow: hidden;
+  text-align: center;
+  color: var(--mod-ink);
+
+  *, *::before, *::after { box-sizing: border-box; }
+}
+
+// The accent rule the error cards wear, in the theme's link colour rather than
+// a copy of the card's blue. Named token, not a matched hex: the palette
+// differs between chanbooru and devbooru, so anything that hardcodes a value
+// here is right on one of them and wrong on the other.
+.modclosed-rule {
+  display: block;
+  height: 4px;
+  background: var(--link-color);
+  opacity: 0.85;
+}
+
+.modclosed-title {
+  margin: 2rem 1.5rem 1.25rem;
+  padding: 0;
+  border: 0;
+  font-family: var(--mod-mono);
+  font-size: clamp(1.35rem, 4vw, 1.9rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--mod-ink);
+}
+
+.modclosed-body {
+  margin: 0 auto 1.75rem;
+  padding: 0 clamp(1.25rem, 5vw, 3rem);
+  max-width: 34rem;
+
+  p {
+    margin: 0 0 0.9rem;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--mod-ink-dim);
+
+    &:last-child { margin-bottom: 0; }
+  }
+}
+
+// Named by colour role, the same two the showcase credit line uses: a person is
+// a creator, a place they can be reached is a platform. Consistent naming is
+// what lets a reader learn the palette once.
+.modclosed-who { color: var(--artist-tag-color); font-weight: 600; }
+.modclosed-where { color: var(--meta-tag-color); font-weight: 600; }
+
+// The pulse strip sits between the explanation and the way out, fenced off, so
+// the numbers read as evidence attached to the claim rather than as more prose.
+.modclosed .modpulse {
+  margin: 0 clamp(1.25rem, 5vw, 3rem);
+  padding: 1.1rem 0;
+  border-top: 1px solid var(--mod-line);
+  border-bottom: 1px solid var(--mod-line);
+}
+
+.modclosed-fineprint {
+  margin: 1.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--mod-ink-dim);
+
+  a { color: var(--link-color); }
+}
