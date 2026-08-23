@@ -23,10 +23,10 @@ class ModulationLandingComponent < ApplicationComponent
     categories.any?
   end
 
-  # Every slide of every category, rendered up front and hidden. Switching
-  # segments is then instant, and -- more importantly -- the blacklist sees the
-  # whole set once at load rather than needing to be re-run each time a segment
-  # changes.
+  # Every slide of every category, flattened. Rendered hidden so the blacklist
+  # sees the whole set once at load: the carousel builds its visible cells from
+  # the payload, but the blacklist matches on elements, and an element it never
+  # saw is an element it never filtered.
   def all_slides
     categories.flat_map { |category| category[:slides].map { |slide| slide.merge(category: category[:key]) } }
   end
@@ -44,7 +44,10 @@ class ModulationLandingComponent < ApplicationComponent
   def config
     {
       slidesUrl: routes.landing_slides_path(format: :json),
-      categories: categories.map { |c| { key: c[:key], label: c[:label], count: c[:slides].size } },
+      # The whole set travels to the client: every axis has to be renderable at
+      # any position, including the ones not on screen, because that is what
+      # "up from image X lands on image X" means.
+      categories: categories,
       # How long a slide holds before the next one.
       advanceMs: 6_000,
       # How long the resume control takes to fill before it restarts the ride.

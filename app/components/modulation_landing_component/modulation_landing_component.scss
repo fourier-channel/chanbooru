@@ -1,3 +1,5 @@
+@use "../../javascript/src/styles/modulation/stage" as *;
+
 // The landing page. Same surfaces, radii and mono labels as everything else --
 // a stranger's first screen should look like the site they are about to enter.
 
@@ -30,8 +32,8 @@
   .modland-showcase { display: flex; flex-direction: column; gap: 0.7rem; }
 
   // One elongated pill, segmented. The highlight is a single element that
-  // slides, rather than a background on each segment: when the carousel changes
-  // category on its own, the movement is what tells the reader it happened.
+  // slides rather than a background on each segment: when the axis changes on
+  // its own, the movement is what says so.
   .modland-tabs {
     position: relative;
     align-self: center;
@@ -73,68 +75,55 @@
     &.is-active { color: var(--mod-ink); font-weight: 600; }
   }
 
-  .modland-stage {
+  // The wrapper exists so the arrows can sit at the OUTER edges without
+  // overlapping the flank columns, which are the stage's own navigation.
+  .modland-stage-wrap {
     position: relative;
+    padding: 0.5rem 3rem 0;
     border-radius: var(--mod-radius);
     border: 1px solid var(--mod-line);
     background: var(--mod-surface-2);
     overflow: hidden;
+  }
+
+  // The post view's stage, from the same mixin it uses. Both axes: left/right
+  // along a category, up/down between them -- and unlike the post view, the
+  // centre changes on the vertical move, because the axes hold different images.
+  .modland-ride {
+    @include modulation-stage;
+    @include modulation-stage-vertical;
+
+    // Retuned after the include: the post view stacks at most a few sorts around
+    // a tall post page, while this panel is a fixed hero band. At the inherited
+    // spacing the third axis fell past the bottom edge and was clipped, which
+    // hides exactly the thing the stack exists to advertise -- that there are
+    // more axes than the one you are on.
+    --stack-gap: calc(var(--flank-h) * 0.56);
+    --flank-scale: 0.5;
+
+    display: block;
+    padding-bottom: 2.2rem;
     transition: transform 0.16s ease;
+
+    // A short shove backwards before the ride starts again.
+    &.is-lurching { transform: translateX(14px); }
+
+    // The stage is a hero here rather than a page's subject, so the centre is
+    // capped: without it every slide resizes the panel and the page jumps under
+    // whatever the reader is looking at.
+    .mod-frame img { max-height: clamp(280px, 46vh, 480px); width: auto; }
   }
 
-  // The lurch: a short shove backwards before the ride starts again, so the
-  // restart reads as deliberate rather than as the page twitching.
-  .modland-stage.is-lurching { transform: translateX(14px); }
-
-  .modland-slides {
-    position: relative;
-    // A fixed stage, so swapping slides of different shapes does not make the
-    // page jump under whatever the reader is looking at.
-    height: clamp(320px, 52vh, 560px);
-  }
-
-  .modland-slide {
-    position: absolute;
-    inset: 0;
-    display: block;
-    opacity: 0;
-    // Not `visibility`, because a slide that is only transparent still takes
-    // clicks -- following a link you cannot see is a genuinely confusing bug.
-    pointer-events: none;
-    transition: opacity 0.7s ease;
-
-    &.is-active { opacity: 1; pointer-events: auto; }
-  }
-
-  .modland-slide-bg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-    filter: blur(28px) saturate(0.75) brightness(0.4);
-    // The blur samples from outside the element, leaving a soft edge; scaling up
-    // pushes that edge off-stage.
-    transform: scale(1.12);
-  }
-
-  .modland-slide-img {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    display: block;
-  }
+  .modland-pool { display: none; }
 
   // --- arrows ------------------------------------------------------------
   .modland-arrow {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    z-index: 3;
+    z-index: 4;
     appearance: none;
-    width: 2.4rem;
+    width: 2.2rem;
     height: 3.4rem;
     display: grid;
     place-items: center;
@@ -163,11 +152,10 @@
     bottom: 0;
     z-index: 2;
     margin: 0;
-    padding: 0.55rem 3.2rem;
+    padding: 0.5rem 3.2rem;
     text-align: center;
     font-size: 0.82rem;
     color: var(--mod-ink-dim);
-    background: linear-gradient(to top, color-mix(in srgb, var(--mod-surface) 88%, transparent), transparent);
     pointer-events: none;
   }
 
@@ -195,10 +183,10 @@
   // and the credit along the bottom, and never over the middle of the image.
   .modland-resume {
     position: absolute;
-    top: 0.7rem;
+    top: 0.6rem;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 4;
+    z-index: 5;
   }
 
   .modland-resume-btn {
@@ -372,7 +360,8 @@
 // Reduced motion: the lurch and the slide crossfade are decorative, and the fill
 // is a countdown whose meaning survives being instant.
 @media (prefers-reduced-motion: reduce) {
-  .modland .modland-stage.is-lurching { transform: none; }
-  .modland .modland-slide { transition: none; }
+  .modland .modland-ride.is-lurching { transform: none; }
+  .modland .modland-ride .mod-stage-center,
+  .modland .modland-ride .mod-sortrow { transition: none; }
   .modland .modland-tabs-thumb { transition: none; }
 }
