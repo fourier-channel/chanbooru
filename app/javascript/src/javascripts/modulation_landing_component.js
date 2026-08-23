@@ -26,6 +26,7 @@ function initLanding(root) {
   if (!cats.length) return;
 
   const NAV_MS = 260;
+  const SHUFFLE_MS = 430;
 
   let axis = 0;
   let pos = 0;
@@ -136,29 +137,104 @@ function initLanding(root) {
 
   // --- movement -----------------------------------------------------------
 
-  // Shared-element swap, the same one the post view uses: the centre shrinks
-  // into the slot it is leaving while the incoming cell grows out of it.
-  function move(outClass, inClass, mutate) {
-    if (busy) return;
-    busy = true;
-    ride.classList.add(outClass);
+  // Nothing is allowed to paint before its picture is ready.
+  //
+  // The old swap replaced the centre's markup and let the browser fetch: for a
+  // frame or two that left an empty panel, then a picture appearing inside it.
+  // The incoming image is already on screen in the flank, so it is normally in
+  // cache and this resolves immediately; the timeout is for the case where it
+  // is not, and a late slide is better than a blank one.
+  function ready(src) {
+    if (!src) return Promise.resolve();
+    return new Promise((resolve) => {
+      const img = new Image();
+      const done = () => resolve();
+      img.onload = () => (img.decode ? img.decode().then(done, done) : done());
+      img.onerror = done;
+      img.src = src;
+      setTimeout(done, 600);
+    });
+  }
 
-    setTimeout(() => {
-      mutate();
-      ride.classList.remove(outClass);
-      ride.classList.add(inClass);
-      renderAll();
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        ride.classList.remove(inClass);
-        busy = false;
-      }));
-    }, NAV_MS);
+  const rectOf = (el) => (el ? el.getBoundingClientRect() : null);
+  const centreOf = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+
+  // A shuffle, not a swap.
+  //
+  // The whole strip moves one place: the neighbour on the incoming side travels
+  // into the centre and grows to fill it, while the centre travels out to the
+  // opposite flank and shrinks to its size. That is what a carousel does, and
+  // it is what the previous version did NOT do -- it shrank the centre away and
+  // grew the neighbour in place, which reads as two separate things happening
+  // rather than one row of pictures sliding along.
+  //
+  // Positions are measured rather than assumed, so the motion stays correct if
+  // the flank size, the gap or the stage width change.
+  function shuffle(delta) {
+    if (busy) return;
+    const incoming = at(axis, pos + delta);
+    const inSide = delta > 0 ? "next" : "prev";
+    const outSide = delta > 0 ? "prev" : "next";
+
+    const centre = region("center");
+    const inRow = ride.querySelector(`.mod-flank-col--${inSide} .mod-sortrow.is-current`);
+    const outRow = ride.querySelector(`.mod-flank-col--${outSide} .mod-sortrow.is-current`);
+
+    // No flank to move from (a single-slide axis): fall back to a plain swap.
+    if (!inRow || !centre) { pos += delta; renderAll(); return; }
+
+    busy = true;
+
+    ready(incoming && incoming.src).then(() => {
+      const cRect = rectOf(centre);
+      const iRect = rectOf(inRow);
+      const oRect = rectOf(outRow);
+      const c = centreOf(cRect);
+      const i = centreOf(iRect);
+
+      // Scale by height: the flank crops its picture and the centre letterboxes
+      // it, so no single factor matches both dimensions. Height is the one the
+      // eye tracks in a horizontal move.
+      const growTo = cRect.height / iRect.height;
+      const shrinkTo = oRect ? oRect.height / cRect.height : 0.3;
+
+      ride.classList.add("is-shuffling");
+      inRow.classList.add("is-travelling");
+
+      // Incoming: flank slot -> centre. The row's own transform already carries
+      // translate(-50%,-50%), so the journey is composed on top of it.
+      inRow.style.transform =
+        `translate(-50%, -50%) translate(${c.x - i.x}px, ${c.y - i.y}px) scale(${growTo})`;
+
+      // Outgoing: centre -> opposite flank slot.
+      if (oRect) {
+        const o = centreOf(oRect);
+        centre.style.transform = `translate(${o.x - c.x}px, ${o.y - c.y}px) scale(${shrinkTo})`;
+      } else {
+        centre.style.transform = `translateX(${delta > 0 ? -cRect.width : cRect.width}px) scale(0.4)`;
+      }
+      centre.style.opacity = "0.15";
+
+      setTimeout(() => {
+        // Land: adopt the new position, redraw canonically, and drop the
+        // journey transforms in the same frame so nothing animates back.
+        pos += delta;
+        centre.style.transition = "none";
+        centre.style.transform = "";
+        centre.style.opacity = "";
+        renderAll();
+        ride.classList.remove("is-shuffling");
+
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          centre.style.transition = "";
+          busy = false;
+        }));
+      }, SHUFFLE_MS);
+    });
   }
 
   function step(delta) {
-    move(delta > 0 ? "is-nav-next" : "is-nav-prev",
-         delta > 0 ? "is-enter-next" : "is-enter-prev",
-         () => { pos += delta; });
+    shuffle(delta);
   }
 
   // Up/down changes axis and carries the position with it, so the centre really
@@ -170,10 +246,27 @@ function initLanding(root) {
   // raced: the callback then overwrote it a quarter-second later with the value
   // it had captured.
   function goToAxis(target, direction) {
-    if (target === axis || target < 0 || target >= cats.length) return;
-    move(direction > 0 ? "is-axis-down" : "is-axis-up",
-         direction > 0 ? "is-enter-down" : "is-enter-up",
-         () => { axis = target; });
+    if (target === axis || target < 0 || target >= cats.length || busy) return;
+    busy = true;
+
+    const incoming = at(target, pos);
+    const outClass = direction > 0 ? "is-axis-down" : "is-axis-up";
+    const inClass = direction > 0 ? "is-enter-down" : "is-enter-up";
+
+    // Same rule as the shuffle: never paint a panel before its picture is ready.
+    ready(incoming && incoming.src).then(() => {
+      ride.classList.add(outClass);
+      setTimeout(() => {
+        axis = target;
+        ride.classList.remove(outClass);
+        ride.classList.add(inClass);
+        renderAll();
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          ride.classList.remove(inClass);
+          busy = false;
+        }));
+      }, NAV_MS);
+    });
   }
 
   function shiftAxis(delta) {
