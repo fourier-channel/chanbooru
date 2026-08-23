@@ -146,6 +146,58 @@ class GatedPostsTest < ActionDispatch::IntegrationTest
       end
     end
 
+    # The names travel even when the content cannot: readable over a shoulder,
+    # screenshotted, broadcast. Hiding the posts while listing the tags that
+    # describe them gives away the part that actually spreads.
+    context "the tag name, for a signed-out visitor" do
+      should "not appear in the tag index" do
+        get tags_path(search: { name_matches: GATED_TAG })
+
+        assert_response :success
+        assert_select "a.tag-type-0", text: GATED_TAG, count: 0
+        assert_no_match(/#{GATED_TAG}/, css_select("#c-tags").to_s)
+      end
+
+      should "not be suggested by autocomplete" do
+        results = AutocompleteService.new(GATED_TAG[0, 3], :tag_query, current_user: User.anonymous).autocomplete_results
+
+        assert_not_includes(results.map { _1[:value] }, GATED_TAG)
+      end
+
+      # An alias pointing at a gated tag discloses it just as plainly as naming
+      # it, so the antecedent is checked too.
+      should "not be reachable through an alias in autocomplete" do
+        create(:tag_alias, antecedent_name: "kiddo", consequent_name: GATED_TAG)
+        results = AutocompleteService.new("kid", :tag_query, current_user: User.anonymous).autocomplete_results
+
+        assert_not_includes(results.map { _1[:value] }, GATED_TAG)
+        assert_not_includes(results.map { _1[:antecedent] }, GATED_TAG)
+      end
+
+      should "leave ordinary tags alone" do
+        get tags_path(search: { name_matches: "aaaa" })
+
+        assert_response :success
+        results = AutocompleteService.new("aaa", :tag_query, current_user: User.anonymous).autocomplete_results
+        assert_includes(results.map { _1[:value] }, "aaaa")
+      end
+    end
+
+    context "the tag name, for a Gold account" do
+      should "still appear in the tag index" do
+        get_auth tags_path(search: { name_matches: GATED_TAG }), @gold
+
+        assert_response :success
+        assert_match(/#{GATED_TAG}/, response.body)
+      end
+
+      should "still be suggested by autocomplete" do
+        results = AutocompleteService.new(GATED_TAG[0, 3], :tag_query, current_user: @gold).autocomplete_results
+
+        assert_includes(results.map { _1[:value] }, GATED_TAG)
+      end
+    end
+
     should "treat an unknown viewer as anonymous" do
       # A rule about withholding content has to fail towards withholding.
       assert(@gated.hidden_from_anonymous?(nil))
