@@ -100,6 +100,8 @@ class LandingShowcase
   # back empty with no error anywhere. It failed only where CurrentUser was not
   # set, which is every context except the one it was tried in.
   def showable?(post)
+    return false unless post.is_image? || post.is_video?
+
     post.visible?(viewer)
   end
 
@@ -110,6 +112,10 @@ class LandingShowcase
       src: media_url(post),
       w: post.image_width,
       h: post.image_height,
+      # Videos are real posts and belong in the showcase, but they are not
+      # <img> content -- rendering one as an image is a guaranteed broken frame
+      # regardless of whether the viewer may load it.
+      kind: media_kind(post),
       creator: creator_for(post),
       platform: platform_for(post),
       # Same contract as the gallery cards; see FourierTagSource.blacklist_tags_for
@@ -148,6 +154,13 @@ class LandingShowcase
     { name: name.to_s, key: name.to_s.parameterize }
   rescue StandardError
     nil
+  end
+
+  def media_kind(post)
+    return "video" if post.is_video?
+    return "image" if post.is_image?
+
+    "other"
   end
 
   def media_url(post)
