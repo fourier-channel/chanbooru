@@ -32,6 +32,25 @@ class Tag < ApplicationRecord
 
   versionable :name, :category, :is_deprecated, merge_window: nil, delay_first_version: true
 
+  # Tag names a viewer may be shown.
+  #
+  # Gated posts are already absent for a signed-out visitor, but their TAG NAMES
+  # were not: the tag index listed them, with post counts, to anyone who loaded
+  # the site. The content is legal; the point of gating it is that it is
+  # troublesome, and a list of those names is exactly the part that travels
+  # -- readable over a shoulder, screenshotted, broadcast -- without any of the
+  # content having to load at all.
+  #
+  # Signed-out only, matching Post#hidden_from_anonymous?: a signed-in viewer
+  # below the threshold still sees the names, because they already see the
+  # listings.
+  scope :visible_to, ->(user) {
+    next all unless user.nil? || user.is_anonymous?
+    next all if Danbooru.config.restricted_tags.blank?
+
+    where.not(name: Danbooru.config.restricted_tags)
+  }
+
   scope :empty, -> { where("tags.post_count <= 0") }
   scope :nonempty, -> { where("tags.post_count > 0") }
   scope :deprecated, -> { where(is_deprecated: true) }

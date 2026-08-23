@@ -127,7 +127,26 @@ class AutocompleteService
       results = tag_prefix_matches(string)
     end
 
-    results
+    withhold_gated_tags(results)
+  end
+
+  # Drop gated tag names from a signed-out visitor's suggestions.
+  #
+  # The tag index hides these, and leaving autocomplete alone would have made
+  # that pointless: typing two letters into the search box is a faster way to
+  # read the list than browsing to it. Both the suggested tag and the alias that
+  # led to it are checked -- an alias pointing at a gated tag discloses the gated
+  # tag just as plainly as naming it.
+  def withhold_gated_tags(results)
+    return results if current_user.present? && !current_user.is_anonymous?
+
+    gated = Danbooru.config.restricted_tags
+    return results if gated.blank?
+
+    # Hashes at this stage; they only become Result structs later.
+    results.reject do |result|
+      result[:value].to_s.in?(gated) || result[:antecedent].to_s.in?(gated)
+    end
   end
 
   # Find tags or tag aliases containing all the words in the search string, in any order.

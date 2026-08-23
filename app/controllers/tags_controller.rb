@@ -4,10 +4,14 @@ class TagsController < ApplicationController
   respond_to :html, :xml, :json
 
   def index
+    # visible_to before the search, so the exclusion survives whatever the search
+    # params ask for -- including a name_matches that names a gated tag outright.
+    scope = Tag.visible_to(CurrentUser.user)
+
     if request.format.html?
-      @tags = authorize Tag.paginated_search(params, defaults: { hide_empty: true })
+      @tags = authorize scope.paginated_search(params, defaults: { hide_empty: true })
     else
-      @tags = authorize Tag.paginated_search(params)
+      @tags = authorize scope.paginated_search(params)
     end
 
     @tags = @tags.includes(:consequent_aliases) if request.format.html?
