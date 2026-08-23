@@ -13,7 +13,10 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
 
         assert_response :success
         assert_select ".modland", 1
-        assert_select ".modland-slide", minimum: 1
+        # The post view's stage, not a lookalike -- same classes, same mixin.
+        assert_select ".modland-ride .mod-stage", 1
+        assert_select ".mod-flank-col", 2
+        assert_select ".modland-poolitem", minimum: 1
       end
 
       should "offer the categories as one segmented control" do
@@ -26,12 +29,28 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
         assert_select ".modland-arrow", 2
       end
 
-      # The credit is rebuilt from whatever slide is on screen, so it travels on
-      # the slide rather than in a parallel index the two could drift apart.
-      should "carry the credit on each slide" do
+      # The carousel builds its cells from the payload, so the credit travels in
+      # the payload rather than on the markup.
+      should "carry the credit in the payload" do
         get root_path
 
-        assert_select "[data-slide][data-creator]", minimum: 1
+        config = JSON.parse(css_select(".modland").first["data-config"])
+        slides = config["categories"].flat_map { _1["slides"] }
+
+        assert_operator(slides.size, :>, 0)
+        assert(slides.any? { _1.dig("creator", "name").present? }, "no slide named a creator")
+      end
+
+      # The blacklist matches on ELEMENTS. The carousel draws from the payload,
+      # so every slide also exists as a hidden element for the blacklist to mark
+      # -- without it the filter simply would not apply to this page.
+      should "expose every slide to the blacklist" do
+        get root_path
+
+        config = JSON.parse(css_select(".modland").first["data-config"])
+        expected = config["categories"].sum { _1["slides"].size }
+
+        assert_select ".modland-poolitem[data-tags][data-rating]", expected
       end
 
       # Present but hidden: it must never be on screen until the reader has

@@ -1,67 +1,70 @@
 <div class="modland" data-modland data-config="<%= config.to_json %>">
 
-  <%# --- the showcase ------------------------------------------------- %>
+  <%# --- the showcase -------------------------------------------------
+      The post view's stage, not a lookalike: same grid, same flank columns,
+      same shared-element motion, from the same mixin. A visitor's first glimpse
+      of the site should be the object they will actually use once inside.
+
+      The axes here are the categories. Left/right moves along the current one;
+      up/down changes which one, carrying the position across -- so image X of
+      "Newest" swaps for image X of "Community Favorites". Every axis holds its
+      place, whether or not it is the one on screen. %>
   <% if any_slides? %>
-    <section class="modland-showcase" data-region="showcase">
-      <%# One elongated pill, segmented. The active segment slides rather than
-          just recolouring, so a category change that happens on its own is
-          still legible as movement. %>
+    <section class="modland-showcase">
+      <%# One elongated pill, segmented. The flank rows are the post view's own
+          axis control; this labels all three at once, which the front page
+          needs and a post page does not. %>
       <div class="modland-tabs" role="tablist" aria-label="What to show">
         <span class="modland-tabs-thumb" data-region="thumb" aria-hidden="true"></span>
         <% categories.each_with_index do |category, i| %>
           <button type="button" role="tab"
                   class="modland-tab<%= " is-active" if i.zero? %>"
-                  data-act="tab" data-cat="<%= category[:key] %>"
+                  data-act="axis" data-cat="<%= category[:key] %>"
                   aria-selected="<%= i.zero? %>"><%= category[:label] %></button>
         <% end %>
       </div>
 
-      <div class="modland-stage" data-region="stage">
-        <div class="modland-slides" data-region="slides">
-          <% all_slides.each_with_index do |slide, i| %>
-            <a class="modland-slide<%= " is-active" if i.zero? %>"
-               href="<%= slide[:url] %>"
-               data-slide
-               data-cat="<%= slide[:category] %>"
-               data-id="<%= slide[:id] %>"
-               data-tags="<%= slide[:tags] %>"
-               data-rating="<%= slide[:rating] %>"
-               data-flags="<%= slide[:flags] %>"
-               data-score="<%= slide[:score] %>"
-               data-uploader-id="<%= slide[:uploader_id] %>"
-               <%# Credit travels on the slide so the overlay is rebuilt from
-                   whatever is on screen, rather than from a parallel index the
-                   two could drift out of. %>
-               data-creator="<%= slide.dig(:creator, :name) %>"
-               data-platform="<%= slide.dig(:platform, :name) %>"
-               data-platform-key="<%= slide.dig(:platform, :key) %>">
-              <%# The same image twice: a blurred cover behind, the real one
-                  contained in front. A portrait post in a wide stage otherwise
-                  sits in a slab of dead surface, and cropping it to fill would
-                  cut the subject out of the picture being shown off. %>
-              <img class="modland-slide-bg" src="<%= slide[:src] %>" alt="" aria-hidden="true" loading="lazy">
-              <img class="modland-slide-img" src="<%= slide[:src] %>" alt="" loading="<%= i.zero? ? "eager" : "lazy" %>">
-            </a>
-          <% end %>
-        </div>
-
-        <%# Arrows sit outside the credit and the resume control, so nothing the
-            reader might want to click is ever underneath them. %>
+      <div class="modland-stage-wrap">
         <button type="button" class="modland-arrow modland-arrow--prev" data-act="prev" aria-label="Previous">&#8249;</button>
         <button type="button" class="modland-arrow modland-arrow--next" data-act="next" aria-label="Next">&#8250;</button>
 
-        <%# Credit. Written as a sentence rather than a pair of labelled fields,
-            because it reads as one. The two names are the only coloured things
-            in it so the eye lands on them and not on "and posted on". %>
+        <article class="modland-ride" data-region="ride">
+          <section class="mod-stage">
+            <div class="mod-flank-col mod-flank-col--prev" data-region="flank-prev"></div>
+            <div class="mod-stage-center" data-region="center"></div>
+            <div class="mod-flank-col mod-flank-col--next" data-region="flank-next"></div>
+          </section>
+        </article>
+
+        <%# Credit. A sentence, because it reads as one, with only the two names
+            coloured so the eye lands on them and not on "and posted on". %>
         <p class="modland-credit" data-region="credit"></p>
 
-        <%# The resume control. Only ever present after a manual interaction --
-            see the component's JS for why it is not simply always there. %>
+        <%# The resume control. Only ever present after a manual interaction. %>
         <div class="modland-resume" data-region="resume" hidden>
           <button type="button" class="modland-resume-btn" data-act="resume">
             <span class="modland-resume-fill" data-region="fill" aria-hidden="true"></span>
             <span class="modland-resume-label">The ride never ends.</span>
           </button>
+        </div>
+
+        <%# The blacklist matches on ELEMENTS, and the carousel builds its cells
+            from the payload -- so every slide also exists here, hidden, for the
+            blacklist to register and mark. The carousel asks these before it
+            shows anything. Without them the filter would simply not apply to
+            this page, silently. %>
+        <div class="modland-pool" hidden aria-hidden="true">
+          <% all_slides.each do |slide| %>
+            <span class="modland-poolitem"
+                  data-slide
+                  data-cat="<%= slide[:category] %>"
+                  data-id="<%= slide[:id] %>"
+                  data-tags="<%= slide[:tags] %>"
+                  data-rating="<%= slide[:rating] %>"
+                  data-flags="<%= slide[:flags] %>"
+                  data-score="<%= slide[:score] %>"
+                  data-uploader-id="<%= slide[:uploader_id] %>"></span>
+          <% end %>
         </div>
       </div>
     </section>

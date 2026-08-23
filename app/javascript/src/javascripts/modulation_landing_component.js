@@ -1,11 +1,17 @@
-// The landing carousel.
+// The landing carousel, built on the post view's stage.
 //
-// Auto-advances within a category, then moves on to the next one, so a visitor
-// who does nothing still sees all three. Any manual interaction stops it -- the
-// point of touching the arrows is to look at something, and a carousel that
-// slides out from under you while you are reading is worse than one that never
-// moved. Stopping is therefore permanent until the reader asks for it back,
-// which is what the resume control is for.
+// Two axes, exactly as the post view has two: left/right moves along the
+// current category, up/down changes which category. The position is SHARED --
+// image X of "Newest Posts" sits opposite image X of "Community Favorites", so
+// moving up or down is a straight swap at the same place in the run. Every
+// category holds that place whether or not it is the one on screen.
+//
+// Categories are different lengths, so each wraps at its own: position 4 of a
+// three-slide category is its second image. That is what makes the axes line up
+// without needing to be the same size.
+//
+// Auto-advance runs the current category once, then moves to the next one. Any
+// manual interaction stops it until the reader asks for it back.
 
 function initLanding(root) {
   if (root.dataset.modlandBooted) return;
@@ -13,93 +19,196 @@ function initLanding(root) {
 
   const cfg = JSON.parse(root.dataset.config || "{}");
   const region = (name) => root.querySelector(`[data-region="${name}"]`);
-  const slidesEl = region("slides");
-  if (!slidesEl) return;
+  const ride = region("ride");
+  if (!ride) return;
 
-  const cats = (cfg.categories || []).map((c) => c.key);
-  let catIndex = 0;
-  let index = 0;
+  const cats = cfg.categories || [];
+  if (!cats.length) return;
+
+  const NAV_MS = 260;
+
+  let axis = 0;
+  let pos = 0;
+  let runLeft = 0;
   let advanceTimer = null;
   let resumeTimer = null;
   let paused = false;
+  let busy = false;
 
-  const inCategory = () =>
-    Array.from(slidesEl.querySelectorAll(`[data-slide][data-cat="${cats[catIndex]}"]`));
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-  // A blacklisted slide is skipped rather than shown-and-hidden: the blacklist
-  // hides by removing from layout, which in a fixed-height stage is a blank
-  // frame holding for six seconds with no explanation.
-  const visible = () => inCategory().filter((el) => !el.classList.contains("blacklisted-active"));
+  // A slide the viewer's blacklist has marked is skipped. The marks live on the
+  // hidden pool elements, because that is what the blacklist can see.
+  const blocked = (id) => {
+    const el = root.querySelector(`.modland-poolitem[data-id="${id}"]`);
+    return !!el && el.classList.contains("blacklisted-active");
+  };
 
-  function paintCredit(slide) {
+  const slidesOf = (a) => (cats[a] && cats[a].slides ? cats[a].slides : []).filter((s) => !blocked(s.id));
+
+  // Each axis wraps at its own length, which is what lets categories of
+  // different sizes stay lined up under one shared position.
+  function at(a, p) {
+    const list = slidesOf(a);
+    if (!list.length) return null;
+    return list[((p % list.length) + list.length) % list.length];
+  }
+
+  // --- rendering ----------------------------------------------------------
+
+  function frameHTML(slide) {
+    if (!slide || !slide.src) return '<div class="mod-frame mod-image mod-image--placeholder">nothing here</div>';
+    return `<div class="mod-frame"><img class="mod-image" src="${esc(slide.src)}" alt=""></div>`;
+  }
+
+  function renderCentre() {
+    const slide = at(axis, pos);
+    region("center").innerHTML = frameHTML(slide);
+    renderCredit(slide);
+  }
+
+  function renderCredit(slide) {
     const el = region("credit");
     if (!el) return;
+    if (!slide) { el.innerHTML = ""; el.hidden = true; return; }
 
-    const creator = slide && slide.dataset.creator;
-    const platform = slide && slide.dataset.platform;
+    const creator = slide.creator && slide.creator.name;
+    const platform = slide.platform && slide.platform.name;
     if (!creator && !platform) { el.innerHTML = ""; el.hidden = true; return; }
 
     el.hidden = false;
     const parts = [];
-    if (creator) parts.push(`Created by <span class="modland-credit-creator">${creator}</span>`);
-    // The platform slug rides on a data attribute so a per-site logo can be
-    // hung off it in CSS later without this string becoming an identifier.
+    if (creator) parts.push(`Created by <span class="modland-credit-creator">${esc(creator)}</span>`);
     if (platform) {
-      const key = slide.dataset.platformKey || "";
-      parts.push(`posted on <span class="modland-credit-platform" data-platform="${key}">${platform}</span>`);
+      // The slug rides on the element so a per-site logo is later a rule per
+      // platform, and the display name never becomes an identifier.
+      const key = esc((slide.platform && slide.platform.key) || "");
+      parts.push(`posted on <span class="modland-credit-platform" data-platform="${key}">${esc(platform)}</span>`);
     }
     el.innerHTML = `${parts.join(" and ")}.`;
   }
 
-  function paint() {
-    const slides = visible();
-    if (!slides.length) return;
-    index = ((index % slides.length) + slides.length) % slides.length;
+  function rowHTML(a, side) {
+    const slide = at(a, side === "prev" ? pos - 1 : pos + 1);
+    const label = cats[a].label;
+    const inner = slide && slide.src
+      ? `<img src="${esc(slide.src)}" alt="" loading="lazy">`
+      : '<span class="fill"></span>';
+    const empty = slide ? "" : " is-empty";
+    return `<a class="mod-sortrow${empty}" data-a="${a}" data-side="${side}" href="${esc((slide && slide.url) || "#")}" title="${esc(label)}">` +
+      `${inner}<span class="mod-sortrow-tag">${esc(label)}</span></a>`;
+  }
 
-    slidesEl.querySelectorAll("[data-slide]").forEach((el) => el.classList.remove("is-active"));
-    slides[index].classList.add("is-active");
-    paintCredit(slides[index]);
+  function renderFlanks() {
+    region("flank-prev").innerHTML = cats.map((_, a) => rowHTML(a, "prev")).join("");
+    region("flank-next").innerHTML = cats.map((_, a) => rowHTML(a, "next")).join("");
+    applyRanks();
+  }
 
-    root.querySelectorAll("[data-act='tab']").forEach((tab) => {
-      const on = tab.dataset.cat === cats[catIndex];
+  // Rank is the axis's distance from the active one; the stylesheet turns that
+  // into vertical offset and scale.
+  function applyRanks() {
+    ride.querySelectorAll(".mod-sortrow").forEach((el) => {
+      const a = Number(el.dataset.a);
+      el.style.setProperty("--rank", a - axis);
+      el.classList.toggle("is-current", a === axis);
+    });
+  }
+
+  function renderTabs() {
+    root.querySelectorAll("[data-act='axis']").forEach((tab, i) => {
+      const on = i === axis;
       tab.classList.toggle("is-active", on);
       tab.setAttribute("aria-selected", String(on));
     });
     positionThumb();
   }
 
-  // The sliding highlight behind the active segment.
   function positionThumb() {
     const thumb = region("thumb");
-    const active = root.querySelector("[data-act='tab'].is-active");
+    const active = root.querySelector("[data-act='axis'].is-active");
     if (!thumb || !active) return;
     thumb.style.width = `${active.offsetWidth}px`;
     thumb.style.transform = `translateX(${active.offsetLeft}px)`;
   }
 
-  // Forward one slide; at the end of a category, move to the next one. This is
-  // the only place categories advance on their own.
-  function advance() {
-    const slides = visible();
-    if (index + 1 < slides.length) {
-      index += 1;
+  function renderAll() { renderCentre(); renderFlanks(); renderTabs(); }
+
+  // --- movement -----------------------------------------------------------
+
+  // Shared-element swap, the same one the post view uses: the centre shrinks
+  // into the slot it is leaving while the incoming cell grows out of it.
+  function move(outClass, inClass, mutate) {
+    if (busy) return;
+    busy = true;
+    ride.classList.add(outClass);
+
+    setTimeout(() => {
+      mutate();
+      ride.classList.remove(outClass);
+      ride.classList.add(inClass);
+      renderAll();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        ride.classList.remove(inClass);
+        busy = false;
+      }));
+    }, NAV_MS);
+  }
+
+  function step(delta) {
+    move(delta > 0 ? "is-nav-next" : "is-nav-prev",
+         delta > 0 ? "is-enter-next" : "is-enter-prev",
+         () => { pos += delta; });
+  }
+
+  // Up/down changes axis and carries the position with it, so the centre really
+  // does change -- the post view keeps its centre because the post IS the thing
+  // being sorted; here the axes hold different images.
+  //
+  // One entry point, and the new axis is set inside the swap's callback. An
+  // earlier version assigned it straight after calling the animated move, which
+  // raced: the callback then overwrote it a quarter-second later with the value
+  // it had captured.
+  function goToAxis(target, direction) {
+    if (target === axis || target < 0 || target >= cats.length) return;
+    move(direction > 0 ? "is-axis-down" : "is-axis-up",
+         direction > 0 ? "is-enter-down" : "is-enter-up",
+         () => { axis = target; });
+  }
+
+  function shiftAxis(delta) {
+    goToAxis(((axis + delta) % cats.length + cats.length) % cats.length, delta);
+  }
+
+  function selectAxis(a) {
+    goToAxis(a, a > axis ? 1 : -1);
+  }
+
+  // --- the ride -----------------------------------------------------------
+
+  function autoAdvance() {
+    if (runLeft > 0) {
+      runLeft -= 1;
+      step(1);
     } else {
-      catIndex = (catIndex + 1) % Math.max(cats.length, 1);
-      index = 0;
+      // A full run of this category is done; hand over to the next one.
+      resetRun((axis + 1) % cats.length);
+      shiftAxis(1);
     }
-    paint();
+  }
+
+  function resetRun(forAxis = axis) {
+    runLeft = Math.max(slidesOf(forAxis).length - 1, 0);
   }
 
   function startTimer() {
     stopTimer();
-    advanceTimer = setInterval(advance, cfg.advanceMs || 6000);
+    advanceTimer = setInterval(autoAdvance, cfg.advanceMs || 6000);
   }
 
   function stopTimer() {
     if (advanceTimer) { clearInterval(advanceTimer); advanceTimer = null; }
   }
-
-  // --- pausing and resuming ----------------------------------------------
 
   function pause() {
     if (paused) return;
@@ -114,9 +223,9 @@ function initLanding(root) {
     if (!box || !fill) return;
 
     box.hidden = false;
-    // Restart the fill animation from zero. Removing the class and forcing a
-    // reflow is what makes it replay when the reader interacts again mid-fill;
-    // without the reflow the browser coalesces the change and nothing happens.
+    // Replay the fill from zero. Removing the class and forcing a reflow is what
+    // makes it restart when the reader interacts again mid-fill; without the
+    // reflow the browser coalesces the change and nothing happens.
     fill.classList.remove("is-filling");
     void fill.offsetWidth;
     fill.style.animationDuration = `${cfg.resumeMs || 10000}ms`;
@@ -134,74 +243,62 @@ function initLanding(root) {
     if (box) box.hidden = true;
   }
 
-  // A lurch backwards, then forward into the next slide. The backward nudge is
-  // what makes the restart feel deliberate rather than like the page twitching:
-  // it signals "picking up where we left off" before it moves on.
+  // A shove backwards before going forward, so the restart reads as picking up
+  // where it left off rather than as the page twitching.
   function resume() {
     hideResume();
     paused = false;
-
-    const stage = region("stage");
-    if (stage) {
-      stage.classList.add("is-lurching");
-      setTimeout(() => {
-        stage.classList.remove("is-lurching");
-        advance();
-        startTimer();
-      }, 260);
-    } else {
-      advance();
+    ride.classList.add("is-lurching");
+    setTimeout(() => {
+      ride.classList.remove("is-lurching");
+      resetRun();
+      step(1);
       startTimer();
-    }
+    }, 260);
   }
 
   // --- interaction --------------------------------------------------------
 
-  function step(delta) {
-    const slides = visible();
-    if (!slides.length) return;
-    index += delta;
-    if (index >= slides.length) { catIndex = (catIndex + 1) % cats.length; index = 0; }
-    if (index < 0) { catIndex = (catIndex - 1 + cats.length) % cats.length; index = Math.max(visible().length - 1, 0); }
-    paint();
-  }
-
   root.addEventListener("click", (e) => {
+    const row = e.target.closest(".mod-sortrow");
+    if (row && ride.contains(row)) {
+      e.preventDefault();
+      const a = Number(row.dataset.a);
+      // The post view's rule: the active row navigates, any other selects.
+      if (a === axis) step(row.dataset.side === "next" ? 1 : -1);
+      else selectAxis(a);
+      pause();
+      return;
+    }
+
     const act = e.target.closest("[data-act]");
     if (!act) return;
 
     if (act.dataset.act === "resume") { e.preventDefault(); resume(); return; }
 
-    // Everything else here is the reader taking over.
-    if (act.dataset.act === "next") { e.preventDefault(); step(1); pause(); }
-    else if (act.dataset.act === "prev") { e.preventDefault(); step(-1); pause(); }
-    else if (act.dataset.act === "tab") {
-      e.preventDefault();
-      const i = cats.indexOf(act.dataset.cat);
-      if (i >= 0) { catIndex = i; index = 0; paint(); pause(); }
+    e.preventDefault();
+    if (act.dataset.act === "next") step(1);
+    else if (act.dataset.act === "prev") step(-1);
+    else if (act.dataset.act === "axis") {
+      selectAxis(Array.from(root.querySelectorAll("[data-act='axis']")).indexOf(act));
     }
+    pause();
   });
 
-  // Left/right move the carousel, the same keys that move post-to-post in the
-  // Modulation post view. Same guard as there: a key pressed while typing
-  // belongs to the field, not to the page.
-  //
-  // Only left and right. Up and down scroll the page here -- the post view
-  // binds them because it has a second axis to move along, and this does not.
-  //
-  // Counts as taking over, exactly as clicking an arrow does. Reaching for the
-  // keyboard is the same intent as reaching for the arrow, and it would be
-  // strange for one to stop the ride and the other not to.
+  // Same keys and the same guard as the post view: left/right along the axis,
+  // up/down between axes. A key pressed while typing belongs to the field.
   window.addEventListener("keydown", (e) => {
     if (e.target.closest("input, textarea, select, [contenteditable]")) return;
     if (e.key === "ArrowLeft") { step(-1); pause(); }
     else if (e.key === "ArrowRight") { step(1); pause(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); shiftAxis(-1); pause(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); shiftAxis(1); pause(); }
   });
 
-  // Keep the segment highlight aligned when the row reflows.
   window.addEventListener("resize", positionThumb);
 
-  paint();
+  resetRun();
+  renderAll();
   startTimer();
 }
 

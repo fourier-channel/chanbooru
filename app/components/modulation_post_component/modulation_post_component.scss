@@ -1,3 +1,5 @@
+@use "../../javascript/src/styles/modulation/stage" as *;
+
 // "Modulation" -- redesigned single-cell post page. Everything here is driven by
 // CSS custom properties so an experience preset is just a bundle of token
 // overrides. Hardcode frugally; var ahead of need.
@@ -99,102 +101,10 @@ body:has(.modulation) {
   }
   .mod-sort-label { white-space: nowrap; }
 
-  // --- image stage + multi-sort gallery flanks ---------------------------
-  // Stage tokens (a preset can retune the flank size / spacing).
-  --flank-w: clamp(58px, 13vw, 122px);
-  --flank-h: calc(var(--flank-w) * 1.25);
-  --stack-gap: calc(var(--flank-h) * 0.82); // vertical spacing between stacked sorts
-  --flank-scale: 0.56;                       // relative size of the non-active sorts
-
-  .mod-stage {
-    display: grid;
-    grid-template-columns: var(--flank-w) minmax(0, auto) var(--flank-w);
-    align-items: stretch; // flank columns stretch to the image height
-    justify-content: center;
-    gap: clamp(0.5rem, 2vw, 1.25rem);
-  }
-  .mod-stage-center {
-    place-self: center; // the image keeps its intrinsic size, not stretched
-    min-width: 0;
-    z-index: 2;
-    transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.26s ease;
-  }
-
-  // Each column is the stacking context for its sort rows.
-  .mod-flank-col { position: relative; }
-
-  // One row per sort, centred then offset by rank and scaled. The active row
-  // (rank 0) is large and level with the post; ↑/↓ (or tapping another sort)
-  // re-ranks them and the transform transition slides + grows/shrinks them,
-  // swapping the chosen sort into the centre spot. The post never moves.
-  .mod-sortrow {
-    position: absolute; top: 50%; left: 50%;
-    width: var(--flank-w); height: var(--flank-h);
-    border-radius: var(--mod-radius);
-    overflow: hidden;
-    background: var(--mod-surface);
-    border: 1px solid var(--mod-line);
-    text-decoration: none;
-    opacity: 0.4;
-    transform: translate(-50%, -50%) translateY(calc(var(--rank, 0) * var(--stack-gap))) scale(var(--flank-scale));
-    transition: transform 0.34s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.28s ease;
-    will-change: transform;
-    img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  }
-  .mod-sortrow:hover { opacity: 0.85; }
-  .mod-sortrow.is-current {
-    opacity: 1; z-index: 3;
-    transform: translate(-50%, -50%) scale(1);
-    border-color: color-mix(in srgb, var(--mod-creator-fg) 30%, var(--mod-line));
-  }
-  .mod-sortrow.is-empty {
-    background: repeating-linear-gradient(45deg, var(--mod-surface) 0 6px, var(--mod-surface-2) 6px 12px);
-    img { display: none; }
-  }
-  .mod-sortrow-tag {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    text-align: center; padding: 0.1rem 0;
-    font-family: ui-monospace, monospace; font-size: 0.6rem; letter-spacing: 0.02em;
-    color: var(--mod-ink);
-    background: linear-gradient(to top, color-mix(in srgb, var(--mod-surface) 88%, transparent), transparent);
-  }
-
-  .mod-frame {
-    max-width: 100%;
-    border-radius: var(--mod-radius);
-    overflow: hidden;
-    background: var(--mod-surface);
-    border: 1px solid var(--mod-line);
-    line-height: 0;
-  }
-  .mod-image img, .mod-frame img, .mod-frame video, .mod-frame .mod-image {
-    max-width: 100%;
-    height: auto;
-    display: block;
-  }
-  .mod-image--placeholder {
-    display: grid; place-items: center;
-    width: clamp(240px, 44vw, 360px); aspect-ratio: 3 / 4;
-    color: var(--mod-ink-dim); font-family: ui-monospace, monospace; font-size: 0.8rem;
-  }
-
-  // navigate (< / >): the centre shrinks into the slot while the active sort's
-  // neighbour on that side grows toward the centre -- a shared-element swap.
-  &.is-nav-next .mod-stage-center { transform: translateX(46%) scale(0.28); opacity: 0; }
-  &.is-nav-prev .mod-stage-center { transform: translateX(-46%) scale(0.28); opacity: 0; }
-  &.is-nav-next .mod-flank-col--next .mod-sortrow.is-current { transform: translate(-50%, -50%) translateX(-150%) scale(1.7); opacity: 1; z-index: 5; }
-  &.is-nav-prev .mod-flank-col--prev .mod-sortrow.is-current { transform: translate(-50%, -50%) translateX(150%) scale(1.7); opacity: 1; z-index: 5; }
-
-  // incoming (after the page load): the new centre grows from the slot it was
-  // navigated from. The class is set pre-paint (no transition), then released.
-  &.is-enter-next .mod-stage-center { transform: translateX(46%) scale(0.28); opacity: 0; transition: none; }
-  &.is-enter-prev .mod-stage-center { transform: translateX(-46%) scale(0.28); opacity: 0; transition: none; }
-
-  // narrow screens: drop the flanks, keep the centre + swipe.
-  @media (max-width: 560px) {
-    .mod-stage { grid-template-columns: minmax(0, 1fr); }
-    .mod-flank-col { display: none; }
-  }
+  // --- image stage + multi-axis gallery flanks ---------------------------
+  // Shared with the landing carousel, which uses the same stage so a visitor's
+  // first glimpse of the site is the object they will actually use.
+  @include modulation-stage;
 
   // --- action row ---------------------------------------------------------
   .mod-actions {
