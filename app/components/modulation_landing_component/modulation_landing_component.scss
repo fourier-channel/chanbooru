@@ -26,13 +26,65 @@
   }
 
   // --- showcase ----------------------------------------------------------
+
+  .modland-showcase { display: flex; flex-direction: column; gap: 0.7rem; }
+
+  // One elongated pill, segmented. The highlight is a single element that
+  // slides, rather than a background on each segment: when the carousel changes
+  // category on its own, the movement is what tells the reader it happened.
+  .modland-tabs {
+    position: relative;
+    align-self: center;
+    display: inline-flex;
+    padding: 3px;
+    border-radius: var(--mod-pill-radius);
+    border: 1px solid var(--mod-line);
+    background: var(--mod-surface-2);
+  }
+
+  .modland-tabs-thumb {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    left: 0;
+    border-radius: var(--mod-pill-radius);
+    background: color-mix(in srgb, var(--character-tag-color) 22%, var(--mod-surface));
+    border: 1px solid color-mix(in srgb, var(--character-tag-color) 45%, transparent);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+  }
+
+  .modland-tab {
+    position: relative;
+    z-index: 1;
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--mod-ink-dim);
+    font-family: inherit;
+    font-size: 0.82rem;
+    padding: 0.35rem 0.95rem;
+    border-radius: var(--mod-pill-radius);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.16s ease;
+
+    &:hover { color: var(--mod-ink); }
+    &.is-active { color: var(--mod-ink); font-weight: 600; }
+  }
+
   .modland-stage {
     position: relative;
     border-radius: var(--mod-radius);
     border: 1px solid var(--mod-line);
     background: var(--mod-surface-2);
     overflow: hidden;
+    transition: transform 0.16s ease;
   }
+
+  // The lurch: a short shove backwards before the ride starts again, so the
+  // restart reads as deliberate rather than as the page twitching.
+  .modland-stage.is-lurching { transform: translateX(14px); }
 
   .modland-slides {
     position: relative;
@@ -51,10 +103,7 @@
     pointer-events: none;
     transition: opacity 0.7s ease;
 
-    &.is-active {
-      opacity: 1;
-      pointer-events: auto;
-    }
+    &.is-active { opacity: 1; pointer-events: auto; }
   }
 
   .modland-slide-bg {
@@ -64,7 +113,7 @@
     height: 100%;
     object-fit: cover;
     display: block;
-    filter: blur(28px) saturate(0.75) brightness(0.45);
+    filter: blur(28px) saturate(0.75) brightness(0.4);
     // The blur samples from outside the element, leaving a soft edge; scaling up
     // pushes that edge off-stage.
     transform: scale(1.12);
@@ -78,39 +127,111 @@
     display: block;
   }
 
-  .modland-slide-tag {
+  // --- arrows ------------------------------------------------------------
+  .modland-arrow {
     position: absolute;
-    z-index: 1;
-    left: 0.7rem;
-    bottom: 0.7rem;
-    padding: 0.15rem 0.55rem;
-    border-radius: var(--mod-pill-radius);
-    background: color-mix(in srgb, var(--mod-surface) 82%, transparent);
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 3;
+    appearance: none;
+    width: 2.4rem;
+    height: 3.4rem;
+    display: grid;
+    place-items: center;
     border: 1px solid var(--mod-line);
-    font-family: var(--mod-mono);
-    font-size: 0.68rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--mod-ink-dim);
+    background: color-mix(in srgb, var(--mod-surface) 72%, transparent);
+    color: var(--mod-ink);
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.55;
+    transition: opacity 0.14s ease, background-color 0.14s ease;
+
+    &:hover { opacity: 1; background: var(--mod-surface); }
+
+    &--prev { left: 0; border-radius: 0 var(--mod-radius) var(--mod-radius) 0; border-left: 0; }
+    &--next { right: 0; border-radius: var(--mod-radius) 0 0 var(--mod-radius); border-right: 0; }
   }
 
-  .modland-dots {
+  // --- credit ------------------------------------------------------------
+  // A sentence, not a pair of labelled fields, because it reads as one. Only the
+  // two names are coloured, so the eye lands on them and not on "and posted on".
+  .modland-credit {
     position: absolute;
-    right: 0.7rem;
-    bottom: 0.7rem;
-    display: flex;
-    gap: 0.3rem;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    margin: 0;
+    padding: 0.55rem 3.2rem;
+    text-align: center;
+    font-size: 0.82rem;
+    color: var(--mod-ink-dim);
+    background: linear-gradient(to top, color-mix(in srgb, var(--mod-surface) 88%, transparent), transparent);
+    pointer-events: none;
   }
 
-  .modland-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--mod-line-strong);
-    transition: background-color 0.2s ease;
+  .modland-credit-creator { color: var(--artist-tag-color); font-weight: 600; }
 
-    &.is-active { background: var(--character-tag-color); }
+  .modland-credit-platform {
+    color: var(--meta-tag-color);
+    font-weight: 600;
+    // Slot for a per-site mark. The slug is on the element, so adding one later
+    // is a rule per platform and no change here or in the markup.
+    &::before {
+      content: "";
+      display: none;
+      width: 1em;
+      height: 1em;
+      margin-right: 0.3em;
+      vertical-align: -0.15em;
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
   }
+
+  // --- the resume control ------------------------------------------------
+  // Obvious, and out of the way: top-centre, clear of the arrows at the sides
+  // and the credit along the bottom, and never over the middle of the image.
+  .modland-resume {
+    position: absolute;
+    top: 0.7rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4;
+  }
+
+  .modland-resume-btn {
+    position: relative;
+    appearance: none;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 1.1rem;
+    border-radius: var(--mod-pill-radius);
+    border: 1px solid color-mix(in srgb, var(--character-tag-color) 55%, transparent);
+    background: color-mix(in srgb, var(--mod-surface) 92%, transparent);
+    color: var(--mod-ink);
+    font-family: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+
+    &:hover { border-color: var(--character-tag-color); }
+  }
+
+  // Fills left to right over the countdown, then the ride restarts. The button
+  // is still a button: clicking it restarts immediately.
+  .modland-resume-fill {
+    position: absolute;
+    inset: 0;
+    transform-origin: left center;
+    transform: scaleX(0);
+    background: color-mix(in srgb, var(--character-tag-color) 26%, transparent);
+
+    &.is-filling { animation: modland-fill linear forwards; }
+  }
+
+  .modland-resume-label { position: relative; z-index: 1; }
 
   // --- creator of the month ---------------------------------------------
   .modland-feature {
@@ -239,4 +360,19 @@
 
     &:hover { color: var(--mod-ink); }
   }
+}
+
+// Named outside the component block: keyframes are global regardless of nesting,
+// and pretending otherwise is how two components end up sharing one by accident.
+@keyframes modland-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+// Reduced motion: the lurch and the slide crossfade are decorative, and the fill
+// is a countdown whose meaning survives being instant.
+@media (prefers-reduced-motion: reduce) {
+  .modland .modland-stage.is-lurching { transform: none; }
+  .modland .modland-slide { transition: none; }
+  .modland .modland-tabs-thumb { transition: none; }
 }

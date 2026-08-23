@@ -8,11 +8,11 @@
 # state is worse than one that renders nothing -- so every section here asks
 # whether it has anything to say before it takes up space.
 class ModulationLandingComponent < ApplicationComponent
-  attr_reader :slides, :feature, :promoted, :preference, :viewer
+  attr_reader :categories, :feature, :promoted, :preference, :viewer
 
-  def initialize(slides:, feature: nil, promoted: [], preference: nil, viewer: nil)
+  def initialize(categories:, feature: nil, promoted: [], preference: nil, viewer: nil)
     super
-    @slides = slides.to_a
+    @categories = categories.to_a
     @feature = feature
     @promoted = promoted.to_a
     @preference = preference.to_s
@@ -20,7 +20,15 @@ class ModulationLandingComponent < ApplicationComponent
   end
 
   def any_slides?
-    slides.any?
+    categories.any?
+  end
+
+  # Every slide of every category, rendered up front and hidden. Switching
+  # segments is then instant, and -- more importantly -- the blacklist sees the
+  # whole set once at load rather than needing to be re-run each time a segment
+  # changes.
+  def all_slides
+    categories.flat_map { |category| category[:slides].map { |slide| slide.merge(category: category[:key]) } }
   end
 
   def feature?
@@ -36,11 +44,15 @@ class ModulationLandingComponent < ApplicationComponent
   def config
     {
       slidesUrl: routes.landing_slides_path(format: :json),
+      categories: categories.map { |c| { key: c[:key], label: c[:label], count: c[:slides].size } },
       # How long a slide holds before the next one.
       advanceMs: 6_000,
-      # How long before the whole set is replaced with a fresh shuffle, so a
-      # page left open does not become a fixed poster.
-      refreshMs: 5 * 60 * 1_000,
+      # How long the resume control takes to fill before it restarts the ride.
+      resumeMs: 10_000,
+      # No periodic re-fetch. The carousel cycling three categories is what keeps
+      # a page left open from becoming a fixed poster, and a background swap
+      # would either yank the slide out from under a reader or silently undo the
+      # pause they asked for.
     }
   end
 

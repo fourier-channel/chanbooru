@@ -1,28 +1,25 @@
 # frozen_string_literal: true
 
-# Picks the posts the landing page shows off.
+# Picks what the landing page shows off, grouped into the categories the
+# carousel's segmented control switches between.
 #
-# Drawn from several orderings rather than one, because a slideshow of nothing
-# but the newest uploads is a picture of the last hour and a slideshow of nothing
-# but the highest-scoring is the same twelve images forever. Mixing them and
-# shuffling gives a stranger a fair impression of the place, and gives a returning
-# visitor something different to look at.
+# Several orderings rather than one, because a carousel of nothing but the
+# newest uploads is a picture of the last hour and one of nothing but the
+# highest-scoring is the same twelve images forever. The categories are named
+# for what they are, so a visitor can tell which they are looking at.
 #
-# Everything here is viewer-scoped: PostQuery applies the viewer's safe mode and
-# visibility, and anything they may not see is dropped before it reaches the page.
-# The slides also carry the blacklist attributes, so a viewer's own rules apply
-# here exactly as they do in the gallery -- a showcase is the worst possible place
-# to be shown something you have asked never to see.
+# Everything is viewer-scoped: PostQuery applies the viewer's safe mode, the
+# browsing tier and the gating rules, so anything they may not see never reaches
+# the page. Slides also carry the blacklist attributes -- a showcase is the worst
+# possible place to be shown something the viewer asked never to see.
 class LandingShowcase
-  # Each pool contributes at most POOL_DEPTH posts to the shuffle.
-  POOLS = {
-    "new" => "order:id_desc",
-    "loved" => "order:favcount",
-    "top" => "order:score",
-  }.freeze
+  CATEGORIES = [
+    { key: "new", label: "Newest Posts", query: "order:id_desc" },
+    { key: "favorites", label: "Community Favorites", query: "order:favcount" },
+    { key: "creators", label: "Featured Creators", query: nil },
+  ].freeze
 
-  POOL_DEPTH = 12
-  SLIDE_COUNT = 18
+  PER_CATEGORY = 10
   QUERY_TIMEOUT_SECONDS = 3
 
   attr_reader :viewer
@@ -31,65 +28,90 @@ class LandingShowcase
     @viewer = viewer
   end
 
-  # @return [Array<Hash>] slides, shuffled, ready to serialise.
-  def slides
-    picked = {}
+  # @return [Array<Hash>] one entry per category: { key:, label:, slides: [...] }.
+  #   Categories with nothing to show are dropped rather than rendered empty --
+  #   a segment that switches to a blank panel is worse than one that is absent.
+  def categories
+    @categories ||= CATEGORIES.filter_map do |category|
+      posts = category_posts[category[:key]]
+      next if posts.blank?
 
-    pools.each do |label, posts|
-      posts.each do |post|
-        # First pool to claim a post keeps it, so a post that is both new and
-        # popular appears once rather than twice.
-        picked[post.id] ||= { post: post, label: label }
-      end
+      { key: category[:key], label: category[:label], slides: posts.map { |post| slide_for(post) } }
     end
+  end
 
-    picked.values.shuffle.first(SLIDE_COUNT).map { |entry| slide_for(entry[:post], entry[:label]) }
+  def any?
+    categories.any?
   end
 
   private
 
-  # Run once per instance. Memoised because the blacklist lookup needs the same
-  # posts the slides were built from -- and because these are ordered queries, a
-  # second call would not merely cost another round trip, it could return
-  # different posts and leave slides whose tags were never fetched.
-  def pools
-    @pools ||= POOLS.transform_values { |query| posts_for(query) }
+  # Posts per category, fetched once.
+  #
+  # Deliberately separate from slide building. Slides need the blacklist tag
+  # projection, which needs every post on the page in ONE query -- so if slide
+  # building were what produced the posts, asking for the tags would re-enter
+  # this method and recurse. Gather first, then render.
+  def category_posts
+    @category_posts ||= CATEGORIES.to_h do |category|
+      posts = (category[:key] == "creators") ? featured_creator_posts : posts_for(category[:query])
+      [category[:key], posts.uniq(&:id).first(PER_CATEGORY)]
+    end
   end
 
   def posts_for(query)
     PostQuery.new(query, current_user: viewer)
-      # page_limit passed explicitly because paginate otherwise defaults it to
-      # CurrentUser.user.page_limit -- a thread-global this class is given a
-      # viewer precisely so it does not have to read. The showcase only ever
-      # wants the first page of each pool.
-      .posts_with_timeout(POOL_DEPTH, includes: [:media_asset], page_limit: 1)
+      # The viewer's ORDINARY page limit, passed explicitly so paginate does not
+      # read CurrentUser -- this class is handed a viewer precisely so it need
+      # not touch the thread-global. Deliberately not 1: that would make page 1
+      # the last allowed page, which puts paginate into a mode whose results are
+      # reversed, and "Newest Posts" would render oldest-first. See
+      # PostSets::Post#enforce_browsing_cap!.
+      .posts_with_timeout(PER_CATEGORY * 2, includes: [:media_asset], page_limit: viewer.page_limit)
       .select { |post| showable?(post) }
   rescue StandardError => e
-    # The landing page is the first thing a stranger sees, so one bad pool must
-    # not be the difference between a showcase and an error page. But it is
-    # REPORTED, not swallowed: an earlier version of this rescue turned a typo
-    # into a silently empty landing page that looked like "no posts yet", and a
-    # blanket rescue with nothing behind it buys exactly that.
+    # The landing page is the first thing a stranger sees, so one bad category
+    # must not be the difference between a showcase and an error page. But it is
+    # REPORTED, not swallowed: a blanket rescue with nothing behind it buys a
+    # silent outage, not resilience.
     DanbooruLogger.log(e, query: query)
     []
   end
 
-  # Visible AND actually renderable: a post whose file the viewer may not load
-  # would be an empty frame in a slideshow with no explanation.
-  def showable?(post)
-    post.visible?(viewer) && !post.levelblocked? && !post.banblocked? && !post.safeblocked?
-  rescue StandardError
-    false
+  # The work promoted creators chose to put forward, in their own curated order.
+  def featured_creator_posts
+    CreatorGallery.promoted.limit(6).flat_map do |gallery|
+      gallery.creator_gallery_posts.includes(post: :media_asset).filter_map do |cgp|
+        cgp.post if cgp.post && showable?(cgp.post)
+      end.first(3)
+    end
+  rescue StandardError => e
+    DanbooruLogger.log(e, category: "creators")
+    []
   end
 
-  def slide_for(post, label)
+  # Visible to THIS viewer.
+  #
+  # Post#visible? already asks all three questions (safe mode, level, ban), so
+  # repeating them here was redundant -- and worse than redundant: those repeats
+  # were called without a viewer, which makes them fall back to the CurrentUser
+  # thread-global. Outside a request that is nil, they raise, and the rescue
+  # turned the exception into "nothing is showable", so the landing page came
+  # back empty with no error anywhere. It failed only where CurrentUser was not
+  # set, which is every context except the one it was tried in.
+  def showable?(post)
+    post.visible?(viewer)
+  end
+
+  def slide_for(post)
     {
       id: post.id,
-      label: label,
       url: Rails.application.routes.url_helpers.post_path(post, preset: "modulation"),
       src: media_url(post),
       w: post.image_width,
       h: post.image_height,
+      creator: creator_for(post),
+      platform: platform_for(post),
       # Same contract as the gallery cards; see FourierTagSource.blacklist_tags_for
       # for why the tags are the gated projection and not the tag string.
       tags: blacklist_tags[post].to_a.join(" "),
@@ -98,6 +120,34 @@ class LandingShowcase
       score: post.score,
       uploader_id: post.uploader_id,
     }
+  end
+
+  # Who made it. The artist tag is what this site calls a Creator, so it is the
+  # answer when there is one; the uploader is the fallback, because "created by
+  # nobody" is not a sentence worth rendering.
+  def creator_for(post)
+    artist = post.tags.detect(&:artist?)
+    return { name: artist.name.tr("_", " "), url: routes.posts_path(tags: artist.name, preset: "modulation") } if artist
+
+    { name: post.uploader.name, url: routes.user_path(post.uploader_id) }
+  end
+
+  # Where it was posted. `key` is a stable slug so a per-platform logo can be
+  # hung off it later without the name (which is display text, and may be
+  # retitled) becoming an identifier.
+  def platform_for(post)
+    source = post.source.to_s
+    return nil if source.blank?
+    # Matrix media is addressed by mxc:// URI, which no generic URL parser names.
+    return { name: "Matrix", key: "matrix" } if source.start_with?("mxc://")
+
+    name = Source::URL.site_name(source)
+    name = Addressable::URI.parse(source).host if name.blank?
+    return nil if name.blank?
+
+    { name: name.to_s, key: name.to_s.parameterize }
+  rescue StandardError
+    nil
   end
 
   def media_url(post)
@@ -111,6 +161,10 @@ class LandingShowcase
   end
 
   def all_posts
-    @all_posts ||= pools.values.flatten.uniq(&:id)
+    @all_posts ||= category_posts.values.flatten.uniq(&:id)
+  end
+
+  def routes
+    Rails.application.routes.url_helpers
   end
 end

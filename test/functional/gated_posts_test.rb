@@ -102,9 +102,10 @@ class GatedPostsTest < ActionDispatch::IntegrationTest
       end
 
       should "be absent from the landing showcase" do
-        slides = LandingShowcase.new(viewer: User.anonymous).slides
+        slides = LandingShowcase.new(viewer: User.anonymous).categories.flat_map { _1[:slides] }
 
         assert_not_includes(slides.map { _1[:id] }, @gated.id)
+        assert_operator(slides.size, :>, 0, "the showcase must not be empty, or this asserts nothing")
       end
     end
 

@@ -16,6 +16,33 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
         assert_select ".modland-slide", minimum: 1
       end
 
+      should "offer the categories as one segmented control" do
+        get root_path
+
+        assert_response :success
+        assert_select ".modland-tabs", 1
+        assert_select ".modland-tab", minimum: 1
+        assert_select ".modland-tab.is-active", 1
+        assert_select ".modland-arrow", 2
+      end
+
+      # The credit is rebuilt from whatever slide is on screen, so it travels on
+      # the slide rather than in a parallel index the two could drift apart.
+      should "carry the credit on each slide" do
+        get root_path
+
+        assert_select "[data-slide][data-creator]", minimum: 1
+      end
+
+      # Present but hidden: it must never be on screen until the reader has
+      # actually taken over, or it is just clutter offering to fix nothing.
+      should "keep the resume control hidden until it is needed" do
+        get root_path
+
+        assert_select "[data-region=resume][hidden]", 1
+        assert_select ".modland-resume-label", text: "The ride never ends."
+      end
+
       should "render for a signed-in user" do
         get_auth root_path, @user
 
@@ -63,16 +90,27 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
     end
 
     context "slides action" do
-      should "return a fresh set as JSON" do
+      should "return the categories as JSON" do
         get landing_slides_path(format: :json)
 
         assert_response :success
-        slides = response.parsed_body["slides"]
-        assert_operator(slides.size, :>, 0)
+        categories = response.parsed_body["categories"]
+        assert_operator(categories.size, :>, 0)
+        assert(categories.all? { |c| c.key?("key") && c.key?("label") && c["slides"].present? })
+
+        slides = categories.flat_map { |c| c["slides"] }
         assert(slides.all? { |s| s.key?("url") && s.key?("src") })
         # Same blacklist contract as the gallery cards; a showcase is the worst
         # place to be shown something the viewer asked never to see.
         assert(slides.all? { |s| s.key?("tags") && s.key?("rating") })
+      end
+
+      should "name a creator and a platform where it can" do
+        categories = LandingShowcase.new(viewer: User.anonymous).categories
+        slides = categories.flat_map { _1[:slides] }
+
+        assert(slides.any? { _1[:creator].present? }, "no slide named a creator")
+        assert(slides.all? { _1.key?(:platform) }, "platform must always be present, even when nil")
       end
     end
 
