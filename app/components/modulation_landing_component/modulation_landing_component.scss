@@ -83,6 +83,9 @@
     border-radius: var(--mod-radius);
     border: 1px solid var(--mod-line);
     background: var(--mod-surface-2);
+    // Clip, so a picture leaving the stage disappears at the panel edge rather
+    // than sliding out over the page. The travelling row stays inside these
+    // bounds -- it moves between two slots that are both within them.
     overflow: hidden;
   }
 
@@ -112,6 +115,27 @@
     &.is-lurching { transform: translateX(14px); }
 
     --stage-h: clamp(300px, 46vh, 460px);
+
+    // The shuffle: the incoming neighbour travels over the centre, so it has to
+    // be above it, and the centre needs the same easing as the rows it is
+    // trading places with or the two halves of one movement arrive apart.
+    .mod-stage-center {
+      transition: transform 0.43s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.43s ease;
+    }
+
+    &.is-shuffling {
+      // Nothing may clip the travelling picture on its way across.
+      .mod-flank-col { overflow: visible; }
+
+      .mod-sortrow.is-travelling {
+        z-index: 6;
+        transition: transform 0.43s cubic-bezier(0.4, 0, 0.2, 1);
+        // The flank crops its thumbnail; while it is growing into the centre it
+        // should stop cropping, or the picture appears to change shape as it
+        // arrives.
+        img { object-fit: contain; }
+      }
+    }
   }
 
   .modland-pool { display: none; }
