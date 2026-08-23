@@ -1,0 +1,48 @@
+// Mono figures, quiet labels: this is instrumentation, and it should read as
+// measured rather than advertised. The numbers are the loud part; the words
+// around them are not.
+.modpulse {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.4rem 1.4rem;
+  font-size: 0.82rem;
+  color: var(--mod-ink-dim);
+}
+
+.modpulse-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.modpulse-value {
+  font-family: var(--mod-mono);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--mod-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+// The only moving thing on the page, and deliberately: a pulse is the one claim
+// here that cannot be faked by a static screenshot.
+.modpulse-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--link-color);
+  align-self: center;
+  animation: modpulse-beat 2.4s ease-in-out infinite;
+}
+
+@keyframes modpulse-beat {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+
+// Someone who has asked not to see motion is asking about this exactly.
+@media (prefers-reduced-motion: reduce) {
+  .modpulse-dot { animation: none; opacity: 0.8; }
+}

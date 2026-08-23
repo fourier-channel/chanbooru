@@ -29,7 +29,12 @@ class ErrorArt
 
   ERRORS = {
     400 => { title: "Bad Request!",   accent: ORANGE, body: "This means the request came out garbled. Reloading usually settles it." },
-    401 => { title: "Who Goes There!", accent: BLUE,  body: "This means you need to be logged in to see this. Signing in should do it." },
+    # Two audiences read this card and it has to be true for both: a member
+    # whose session lapsed, for whom signing in really does fix it, and a
+    # stranger with no account, for whom it does not and cannot. The old wording
+    # ("Signing in should do it") addressed only the first and sent the second
+    # to a form they are not allowed to submit.
+    401 => { title: "Who Goes There!", accent: BLUE,  body: "This means the picture is behind the door. 41chan is not open yet -- there is no waiting list and nothing to sign. If you already have an account, signing in brings the pictures back. If you don't, the signup page explains where things stand." },
     403 => { title: "Not Authorized!", accent: RED,   body: "This means you don't have permission to see this image." },
     404 => { title: "Not Found!",      accent: BLUE,  body: "This means the image you were looking for isn't here." },
     405 => { title: "Not That Way!",   accent: ORANGE, body: "This means the request was made in a way this page doesn't accept." },

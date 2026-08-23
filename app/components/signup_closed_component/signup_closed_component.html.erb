@@ -1,0 +1,25 @@
+<section class="modclosed">
+  <span class="modclosed-rule" aria-hidden="true"></span>
+
+  <h1 class="modclosed-title">Not Ready For You Yet!</h1>
+
+  <div class="modclosed-body">
+    <p>
+      You're probably here because the front page suggested that you could log in
+      to see media. It's not wrong. We're just not ready for users yet, so account
+      creation is disabled.
+    </p>
+    <p>
+      Message <span class="modclosed-who">Saber (@Mnemonic)</span> on
+      <span class="modclosed-where">Discord</span> with any questions.
+    </p>
+  </div>
+
+  <%# The proof that the thing behind the door is worth the wait. Without it,
+      "not ready yet" and "nothing here yet" are the same sentence. %>
+  <%= render ArchivePulseComponent.new(pulse: pulse) %>
+
+  <p class="modclosed-fineprint">
+    Already have an account? <%= link_to "Sign in", login_path(url: url.presence || root_path) %>.
+  </p>
+</section>

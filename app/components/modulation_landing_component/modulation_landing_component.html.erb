@@ -112,6 +112,13 @@
     </section>
   <% end %>
 
+  <%# --- the vital signs ----------------------------------------------
+      Directly above the way in, and that placement is the argument: a visitor
+      who has just watched a carousel of pictures that would not load needs to
+      know the difference between a locked archive and an empty one before they
+      decide whether the door is worth trying. %>
+  <%= render ArchivePulseComponent.new(pulse: pulse) %>
+
   <%# --- the way in --------------------------------------------------- %>
   <nav class="modland-enter">
     <%= link_to "Browse the booru", gallery_path, class: "modland-enter-button" %>

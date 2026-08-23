@@ -1,8 +1,27 @@
-<% page_title "Sign up" %>
-<% meta_description "Create a new account for free on #{Danbooru.config.app_name}." %>
+<%# The tab and the search-result blurb are read by people who never scroll to
+    the page, so they carry the same fact the page does. "Create a new account
+    for free" was being served to search engines for a site that accepts none. %>
+<% if Danbooru.config.enable_signup? %>
+  <% page_title "Sign up" %>
+  <% meta_description "Create a new account for free on #{Danbooru.config.app_name}." %>
+<% else %>
+  <% page_title "Not open yet" %>
+  <% meta_description "#{Danbooru.config.app_name} is not open for new accounts yet." %>
+<% end %>
 
 <%= render "sessions/secondary_links" %>
 
+<%# Closed is not a disabled form. The form used to render greyed out, which
+    said "you cannot do this here" while the endpoint behind it happily accepted
+    a POST -- and told a visitor nothing about why or for how long. When signups
+    are off, the page is the explanation instead. %>
+<% if !Danbooru.config.enable_signup? %>
+  <div id="c-users">
+    <div id="a-new">
+      <%= render SignupClosedComponent.new(viewer: CurrentUser.user, url: @url) %>
+    </div>
+  </div>
+<% else %>
 <div id="c-users">
   <div id="a-new">
     <div class="card mt-8 p-4 max-w-360px mx-auto flex flex-col items-center">
@@ -27,3 +46,4 @@
     </div>
   </div>
 </div>
+<% end %>
