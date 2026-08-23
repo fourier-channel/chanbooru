@@ -52,11 +52,19 @@ if [[ "$MODE" == "summary" ]]; then
   echo "=== build: $LOG"
   echo
   echo "-- slowest steps ------------------------------------------------"
-  # Pair each step's name with its DONE time, so "#17 154.7s" says what #17 was.
+  # Pair each step's name with its DONE time.
+  #
+  # bin/build-docker-image runs TWO builds (development, then production), and
+  # BuildKit numbers each from #1. So a single log holds two different steps
+  # called #17. An earlier version kept one name per id and reported times from
+  # one build against names from the other -- it announced "build-vips 70.0s" on
+  # a run where vips was CACHED. Keying by build AND id keeps them apart.
   awk '
-    /^#[0-9]+ \[/ { id=$1; sub(/^#/,"",id); name=$0; sub(/^#[0-9]+ /,"",name); step[id]=name }
-    /^#[0-9]+ DONE/ { id=$1; sub(/^#/,"",id); t=$3; sub(/s$/,"",t); if (t+0 > secs[id]+0) { secs[id]=t+0 } }
-    END { for (id in secs) if (secs[id] >= 5) printf "%8.1fs  %s\n", secs[id], step[id] }
+    /^#1 \[internal\] load/ { if (seen1++) build++ }
+    /^#[0-9]+ \[/ { id=$1; sub(/^#/,"",id); name=$0; sub(/^#[0-9]+ /,"",name); step[build"/"id]=name }
+    /^#[0-9]+ DONE/ { id=$1; sub(/^#/,"",id); t=$3; sub(/s$/,"",t);
+                      k=build"/"id; if (t+0 > secs[k]+0) secs[k]=t+0 }
+    END { for (k in secs) if (secs[k] >= 5 && step[k] != "") printf "%8.1fs  [build %d] %s\n", secs[k], substr(k,1,index(k,"/")-1)+1, step[k] }
   ' "$LOG" | sort -rn | head -12
 
   echo
