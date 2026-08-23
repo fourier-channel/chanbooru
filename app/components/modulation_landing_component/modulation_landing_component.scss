@@ -140,6 +140,26 @@
 
   .modland-pool { display: none; }
 
+  // Where the next slides are built before they are needed. Off-screen but
+  // laid out, which is the whole point: a node with real dimensions fetches its
+  // media AND, when that media fails, gets turned into an error card here --
+  // so the panel is already resolved by the time it moves into the stage.
+  //
+  // Not `display: none`, and not a 1px box. The error card picks its layout
+  // from the element's measured width, so a card built inside a collapsed
+  // holder is the compact one meant for thumbnails, and would then be shown at
+  // full stage size. Same dimensions as the real centre cell, parked outside
+  // the viewport.
+  .modland-warm {
+    position: fixed;
+    left: -10000px;
+    top: 0;
+    width: var(--stage-w, clamp(260px, 40vw, 520px));
+    height: var(--stage-h, clamp(300px, 46vh, 460px));
+    overflow: hidden;
+    pointer-events: none;
+  }
+
   // --- arrows ------------------------------------------------------------
   .modland-arrow {
     position: absolute;
