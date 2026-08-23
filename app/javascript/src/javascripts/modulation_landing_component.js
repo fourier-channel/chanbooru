@@ -88,21 +88,51 @@ function initLanding(root) {
   const BASE_MS = 430;
   const MIN_MS = 130;          // floor for a held-down arrow
   const SETTLE_MS = 180;       // quiet time that counts as "the run stopped"
-  // Lurch grows with the length of the burst, per the ask, but on a square root
-  // rather than linearly: linear reached 72px after eight steps, which on a
-  // 330px focal cell is a fifth of the picture and reads as the belt slipping
-  // rather than settling. This gives 12px for a single step, 24 for four, 34
-  // for eight -- clearly more emphatic the further you went, still a settle.
-  const LURCH_PX = 12;
-  const LURCH_CAP = 12;
+  // Overshoot is part of the travel, not a twitch after it. A back-out curve
+  // carries a cell past its slot and brings it back inside one continuous
+  // movement -- which is what the ask was: the cell arrives at speed, goes too
+  // far, and settles. What this replaces played a separate keyframe animation
+  // on the whole belt AFTER the move had finished, so the picture visibly came
+  // to a stop and only then jerked, which reads as a glitch rather than mass.
+  //
+  // y1 is what sets how far past. It grows with the run so a long scroll lands
+  // harder, and it is capped where the overshoot reaches roughly one cell --
+  // beyond that the incoming cell crosses into its neighbour's slot and the run
+  // stops reading as a run.
+  // Tuned against measurement, not taste. The overshoot a back-out curve
+  // produces is a fraction of the distance THAT transition covers, and during a
+  // fast run the last one covers several slots -- so a curve that is a pleasant
+  // nudge on a single step became 225px, or 162% of a cell, after ten. These
+  // numbers keep the worst case inside one cell while leaving a single step
+  // clearly springy.
+  const EASE_Y1_BASE = 1.38;
+  const EASE_Y1_STEP = 0.22;
+  const EASE_Y1_MAX = 2.72;
+
+  function easeFor(n) {
+    const y1 = Math.min(EASE_Y1_BASE + (n * EASE_Y1_STEP), EASE_Y1_MAX);
+    return `cubic-bezier(0.32, ${y1.toFixed(2)}, 0.62, 1)`;
+  }
   const NAV_MS = 260;
 
   const failed = new Set();    // slide ids whose media will not load
   const cells = new Map();     // `${axis}:${id}` -> element
 
   let burst = 0;               // steps since the run last came to rest
-  let lastDelta = 1;
   let settleTimer = null;
+
+  // A failure changes a cell's SHAPE, not just its contents -- a failed cell is
+  // card-shaped rather than picture-shaped -- so the run has to be laid out
+  // again once one arrives. Coalesced to one redraw per frame because on a
+  // signed-out visit every cell fails, and each of them failing separately
+  // would otherwise relayout the whole belt.
+  let redrawQueued = false;
+
+  function scheduleRender() {
+    if (redrawQueued) return;
+    redrawQueued = true;
+    requestAnimationFrame(() => { redrawQueued = false; render(); });
+  }
 
   function mediaEl(slide) {
     const el = document.createElement(slide.kind === "video" ? "video" : "img");
@@ -125,6 +155,7 @@ function initLanding(root) {
       failed.add(String(slide.id));
       const cell = el.closest(".mod-cell");
       if (cell) cell.classList.add("is-failed");
+      scheduleRender();
     }, { once: true });
     el.src = slide.src;
     return el;
@@ -155,6 +186,7 @@ function initLanding(root) {
   // size for a living here -- one promoted to the focus would otherwise keep a
   // thumbnail's card at full size, and one demoted keeps an unreadable essay.
   // The card has to follow the box it is in.
+  const CARD_RATIO = 640 / 362;   // the full error card's own viewBox
   const CARD_SRC = /^\/errors\/(\d+)\.svg/;
   const COMPACT_BELOW = 320; // matches error_card.js
 
@@ -203,7 +235,15 @@ function initLanding(root) {
     // instead, so on production the focal cell would have kept a thumbnail's
     // proportions permanently and the border would have had nothing to morph
     // into. The server knew the answer the whole time.
-    const ratio = slide.w > 0 && slide.h > 0 ? slide.w / slide.h : 0;
+    // A cell whose picture will not load has no picture's shape to keep, and
+    // keeping it anyway is actively bad: a portrait slide gives a 272px focal
+    // cell, the error card's explanation renders under 9px inside that, and the
+    // reader is served the thumbnail-sized card on the one cell that exists to
+    // be read. So a failed cell takes the CARD's shape instead. The box should
+    // fit what it actually contains, and what it contains is a sentence.
+    const ratio = failed.has(String(slide.id))
+      ? CARD_RATIO
+      : (slide.w > 0 && slide.h > 0 ? slide.w / slide.h : 0);
     if (!ratio) return h * THUMB_RATIO;
     const belt = region("belt");
     const maxW = (belt ? belt.clientWidth : 800) * 0.62;
@@ -289,7 +329,10 @@ function initLanding(root) {
     wanted.forEach(([a, slide]) => {
       if (!slide) return;
       const cell = cellFor(a, slide);
-      if (!cell.isConnected) warmHolder().appendChild(cell);
+      // Only adopt a cell that is nowhere. isConnected would be true of a cell
+      // already ON the belt, but so would it be of one already in the holder --
+      // see render(), where that distinction is the whole bug.
+      if (!cell.parentNode) warmHolder().appendChild(cell);
     });
   }
 
@@ -321,7 +364,14 @@ function initLanding(root) {
       // its width yet measures at the stylesheet's fallback -- so the focal
       // cell was being handed the compact card meant for thumbnails, losing
       // the explanation that is the entire reason the cards are written out.
-      if (!cell.isConnected) belt.appendChild(cell);
+      // parentNode, NOT isConnected. A cell prewarmed for another axis sits in
+      // the off-screen holder, which is in the document -- so isConnected is
+      // true of it, and the cell was never moved onto the belt when its axis
+      // became the current one. Its position was still computed and its
+      // variables still written, so the run had a correctly-spaced hole in it
+      // that moved with the conveyor, and stayed there: nothing ever
+      // reconsidered a cell once it was "connected".
+      if (cell.parentNode !== belt) belt.appendChild(cell);
       retuneCard(cell, w);
 
       cell.classList.toggle("is-offstage", !shown);
@@ -332,7 +382,7 @@ function initLanding(root) {
 
     // Cells belonging to other axes stay built but must not sit on this belt.
     cells.forEach((cell, key) => {
-      if (!key.startsWith(`${axis}:`) && cell.isConnected) cell.remove();
+      if (!key.startsWith(`${axis}:`) && cell.parentNode === belt) cell.remove();
     });
 
     renderCredit(at(axis, pos));
@@ -351,19 +401,13 @@ function initLanding(root) {
   // That is also the whole of "holding the arrow plays smoothly but faster" --
   // there is no queue to drain and no busy flag to bounce off. The duration
   // shortens as the burst grows so the belt keeps up with the key repeat.
+  // The run has come to rest. Nothing to animate here any more -- the overshoot
+  // has already happened, inside the last step's own travel. This just puts the
+  // pace and the curve back where a fresh, unhurried step expects them.
   function settle() {
-    const magnitude = Math.round(LURCH_PX * Math.sqrt(Math.min(burst, LURCH_CAP)));
     burst = 0;
     ride.style.setProperty("--belt-move-ms", `${BASE_MS}ms`);
-    ride.style.setProperty("--lurch", `${magnitude * Math.sign(lastDelta)}px`);
-
-    // Restart the animation from zero. Without the reflow the browser coalesces
-    // remove-then-add into no change at all, and the lurch silently never runs
-    // from the second time onward.
-    ride.classList.remove("is-lurching");
-    void ride.offsetWidth;
-    ride.classList.add("is-lurching");
-    setTimeout(() => ride.classList.remove("is-lurching"), 360);
+    ride.style.setProperty("--belt-ease", easeFor(1));
   }
 
   function step(delta) {
@@ -371,13 +415,17 @@ function initLanding(root) {
     if (list.length < 2) return;
 
     pos += delta;
-    lastDelta = delta;
     burst += 1;
 
     const ms = Math.max(MIN_MS, Math.round(BASE_MS / (1 + (burst * 0.38))));
     ride.style.setProperty("--belt-move-ms", `${ms}ms`);
+    // Every step gets the overshoot, and mid-run you never see it resolve: the
+    // next step re-targets the transition from wherever the cell has got to,
+    // so the settle-back only plays on the step nobody follows. That is the
+    // "no lurch while still scrolling" rule, and it costs no bookkeeping --
+    // the curve simply runs out of time on every step but the last.
+    ride.style.setProperty("--belt-ease", easeFor(burst));
 
-    ride.classList.remove("is-lurching");
     render();
 
     // The run has stopped only when nothing else has arrived. Every step pushes
