@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+# Bring the serving box up to a commit: fast-forward, build, restart, verify.
+#
+# Usage, on the origin box:
+#   cd /opt/danbooru && bin/chanbooru-deploy
+#
+#   --no-pull   build and restart what is already checked out
+#   --no-build  restart and verify only (config or compose change)
+#
+# This runs in the FOREGROUND and prints step transitions as they happen. It
+# does not start a tmux session. Backgrounding the build into tmux is how this
+# used to be done and it produced the two worst outcomes available: a blinking
+# cursor with no way to tell whether anything was happening, and an operator
+# stranded inside a session they did not know they were in.
+#
+# What it verifies is not "did the container start" but "is the container
+# running the commit I just built". Those come apart in the ways that matter --
+# a failed build leaves the previous image in place under the same tag, and
+# `docker compose up -d` will happily report success having changed nothing.
+set -uo pipefail
+
+BRANCH="chanbooru"
+LOG="/tmp/chanbooru-build.log"
+PORT="${DANBOORU_PORT:-3000}"
+PULL=1; BUILD=1
+
+for a in "$@"; do
+  case "$a" in
+    --no-pull)  PULL=0 ;;
+    --no-build) BUILD=0 ;;
+    --reexec)   PULL=0 ;;   # set by the re-exec below; the pull already happened
+    *) echo "unknown option: $a" >&2; exit 2 ;;
+  esac
+done
+
+die() { echo; echo "FAILED: $*" >&2; exit 1; }
+step() { echo; echo "== $*"; }
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || die "not in a git checkout"
+cd "$ROOT" || die "cannot enter $ROOT"
+
+# --- 0. sanity ----------------------------------------------------------
+# The build ships `git archive HEAD`, so anything uncommitted is silently NOT
+# in the image. A deploy that quietly leaves out the change you are deploying
+# is worse than one that refuses.
+[[ "$(git rev-parse --abbrev-ref HEAD)" == "$BRANCH" ]] \
+  || die "on $(git rev-parse --abbrev-ref HEAD), not $BRANCH. Fork work lives on $BRANCH."
+# Tracked files only. Untracked cruft on the serving box is not shipped by
+# git archive either, so it is not a reason to refuse a deploy -- but a MODIFIED
+# tracked file is exactly the change someone thinks they are deploying.
+DIRTY="$(git status --porcelain --untracked-files=no)"
+[[ -z "$DIRTY" ]] || die "tracked files are modified. The build ships git archive HEAD, so these would NOT be in the image:
+$DIRTY"
+
+UNTRACKED="$(git status --porcelain --untracked-files=normal | grep -c '^??' || true)"
+(( UNTRACKED > 0 )) && echo "note: $UNTRACKED untracked file(s) present; they are not shipped either."
+
+# --- 1. fast-forward ----------------------------------------------------
+if (( PULL )); then
+  step "fetching origin/$BRANCH"
+  git fetch --quiet origin "$BRANCH" || die "fetch failed"
+
+  BEFORE="$(git rev-parse HEAD)"
+  if [[ "$BEFORE" == "$(git rev-parse "origin/$BRANCH")" ]]; then
+    echo "   already at $(git rev-parse --short HEAD)"
+  else
+    git merge --ff-only "origin/$BRANCH" --quiet || die "not a fast-forward. The serving box does not merge; fix the branch first."
+    echo "   $(git rev-parse --short "$BEFORE") -> $(git rev-parse --short HEAD)"
+    git --no-pager log --oneline "$BEFORE..HEAD" | sed 's/^/   /'
+
+    # Bash reads a script incrementally, so a deploy script that just replaced
+    # itself is being executed half-old and half-new from this line on. Start
+    # again as the new one.
+    if ! git diff --quiet "$BEFORE" HEAD -- "$0"; then
+      step "this script changed in that merge -- restarting as the new version"
+      exec "$0" --reexec "$@"
+    fi
+  fi
+fi
+
+TARGET="$(git rev-parse HEAD)"
+
+# --- 2. build -----------------------------------------------------------
+if (( BUILD )); then
+  step "building $(git rev-parse --short HEAD) -- full log at $LOG"
+  # Same filter bin/build-watch uses: step starts, finishes, cache hits, errors.
+  # Everything else is compiler noise, and there are tens of thousands of lines
+  # of it. PIPESTATUS because the build's exit code is the one that matters and
+  # grep's is not -- a build that fails still has lines to print.
+  bin/build-docker-image danbooru 2>&1 \
+    | tee "$LOG" \
+    | grep -a --line-buffered -E '^#[0-9]+ (\[|DONE|CACHED|ERROR)|^ERROR:|^#[0-9]+ ERROR'
+  (( ${PIPESTATUS[0]} == 0 )) || die "build failed. Full log: $LOG"
+
+  [[ -x bin/build-watch ]] && bin/build-watch --summary "$LOG"
+fi
+
+# --- 3. restart ---------------------------------------------------------
+step "starting containers"
+docker compose up -d || die "compose up failed"
+
+# --- 4. verify ----------------------------------------------------------
+# Not "is it up" -- "is it running what I just built". A failed build leaves
+# the old image under the same tag and compose reports success either way.
+step "verifying"
+
+RUNNING=""
+for _ in $(seq 1 30); do
+  RUNNING="$(docker compose exec -T danbooru printenv DOCKER_IMAGE_REVISION 2>/dev/null | tr -d '\r')"
+  [[ -n "$RUNNING" ]] && break
+  sleep 2
+done
+
+[[ -n "$RUNNING" ]] || die "container never reported a revision. docker compose logs danbooru"
+if [[ "$RUNNING" != "$TARGET" ]]; then
+  die "running ${RUNNING:0:12}, expected ${TARGET:0:12}. The new image did not take."
+fi
+echo "   revision  ${RUNNING:0:12}  matches HEAD"
+
+# db:prepare runs on container start, so the app answering at all is also the
+# migration having succeeded.
+CODE=""
+for _ in $(seq 1 45); do
+  CODE="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}/" || true)"
+  [[ "$CODE" == "200" ]] && break
+  sleep 2
+done
+[[ "$CODE" == "200" ]] || die "front page answered ${CODE:-nothing} after 90s. docker compose logs danbooru"
+echo "   front page 200"
+
+echo
+echo "deployed $(git rev-parse --short HEAD) -- $(git log -1 --format=%s)"
