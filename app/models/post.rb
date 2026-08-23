@@ -1952,6 +1952,33 @@ class Post < ApplicationRecord
     CurrentUser.safe_mode? && (rating != "g" || Danbooru.config.safe_mode_restricted_tags.any? { |tag| tag.in?(tag_array) })
   end
 
+  # Does this post carry a gated tag?
+  #
+  # "Gated" classifies the CONTENT, not the viewer: the tags in
+  # Danbooru.config.restricted_tags mark material this site will not serve
+  # casually, so the question has nothing to do with who is asking. Who is
+  # asking is what #levelblocked? and #hidden_from_anonymous? decide.
+  def gated?
+    tag_string.match?(RESTRICTED_TAGS_REGEX)
+  end
+
+  # Gated posts do not exist as far as a signed-out visitor is concerned.
+  #
+  # This is a different rule from the browsing tier, and deliberately stricter.
+  # The tier says "you may see this, but only if you already know where it is" --
+  # a limit on browsing. Gating says "you may not see this kind of thing at all",
+  # which is a statement about the content, and a rule of that shape is not
+  # satisfied by merely withholding the image while still listing the post, its
+  # tags and its id.
+  #
+  # Scoped to anonymous on purpose. A signed-in viewer below the threshold still
+  # sees the listing, because for them there is something to do about it.
+  def hidden_from_anonymous?(user = CurrentUser.user)
+    # nil counts as anonymous. This is a rule about withholding content, and the
+    # unknown-viewer case has to fail towards withholding, not towards serving.
+    (user.nil? || user.is_anonymous?) && gated?
+  end
+
   def levelblocked?(user = CurrentUser.user)
     # !user.is_gold? && RESTRICTED_TAGS.any? { |tag| has_tag?(tag) }
     user.id != uploader_id && !user.is_gold? && tag_string.match?(RESTRICTED_TAGS_REGEX)
