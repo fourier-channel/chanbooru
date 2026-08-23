@@ -112,7 +112,7 @@
   &.is-enter-prev .mod-stage-center { transform: translateX(-46%) scale(0.28); opacity: 0; transition: none; }
 
   // narrow screens: drop the flanks, keep the centre + swipe.
-  @media (max-width: 560px) {
+  @media (width <= 560px) {
     .mod-stage { grid-template-columns: minmax(0, 1fr); }
     .mod-flank-col { display: none; }
   }
@@ -130,80 +130,125 @@
   &.is-enter-down .mod-stage-center { transform: translateY(-40%) scale(0.4); opacity: 0; transition: none; }
 }
 
-// A centre cell that does not resize with its contents.
+// A conveyor: one run of cells along a single axis, magnified in the middle.
 //
-// The stage sizes its centre column to the image, which is correct where the
-// image IS the page's subject: a post page should be as wide as its post. It is
-// wrong for a carousel. There, every slide has a different aspect ratio, so a
-// content-sized column re-lays the whole stage out on each change -- measured at
-// 191px of horizontal travel for the flank columns between a portrait and a
-// landscape slide, mid-animation, which reads as the panel coming apart.
+// This is NOT the flank-column stage above, and deliberately not a change to
+// it. There the flanks hold the SORT AXES around a fixed subject, which is what
+// the post page means -- the post is the thing being sorted, so it stays put.
+// A landing carousel means something else: the cells are neighbours in one run,
+// and the middle is a focal point they travel through. Same tokens, same
+// easing, same cell markup; different arrangement, because it is a different
+// statement about what the flanking things ARE.
 //
-// So: the column takes a fixed share, the frame fills it, and the image is
-// contained inside. The stage stops moving; only the picture changes.
-//
-// --stage-h is the caller's to set.
-@mixin modulation-stage-fixed-centre {
-  // A FIXED centre width, not 1fr. 1fr also stops the stage resizing, but it
-  // hands the centre every spare pixel and pushes the flanks out to the panel's
-  // edges -- which loses the thing the stage is for: a picture with its
-  // neighbours gathered around it. A fixed width keeps the three columns
-  // grouped, and the base stage already centres them.
-  .mod-stage {
-    grid-template-columns: var(--flank-w) var(--stage-w, clamp(260px, 40vw, 520px)) var(--flank-w);
-    align-items: center;
-  }
+// Every cell's position, size and opacity is written by JS as a custom property
+// derived from its signed distance from the centre. That is what makes the
+// whole run move as one object: advancing the position rewrites every cell's
+// variables in the same frame, and the transitions below carry all of them
+// together. Nothing is measured, nothing is destroyed and rebuilt, and no cell
+// is special-cased for travelling -- the belt just has a new set of numbers.
+@mixin modulation-stage-conveyor {
+  --belt-h: clamp(300px, 46vh, 460px);
+  --belt-move-ms: 430ms;
 
-  .mod-stage-center {
-    width: 100%;
-    height: var(--stage-h, clamp(300px, 46vh, 460px));
-    place-self: center stretch;
-  }
+  // Longer than the move on purpose: the operator's ask is that the incoming
+  // cell "keeps its green border while moving as it slowly gradients to
+  // orange", so the colour must still be resolving after the travel has landed.
+  --belt-tint-ms: 900ms;
 
-  // Positioned, not grid. The image is absolutely placed inside it, which is
-  // what makes its size definite -- see below.
-  .mod-frame {
+  .mod-belt {
     position: relative;
-    width: 100%;
-    height: 100%;
-    // The frame is the stable box now, so it carries no border of its own --
-    // otherwise every slide sits in a letterboxed rectangle rather than looking
-    // like the picture it is.
-    border: 0;
-    background: transparent;
+    height: var(--belt-h);
+
+    // The run continues past the panel on both sides; the wrapper clips it.
+    // Without this the outermost cells are visible sliding in from the page.
+    overflow: visible;
   }
 
-  // Absolutely placed, then letterboxed by object-fit.
-  //
-  // The two obvious spellings both silently fail here, and both were measured
-  // failing: `max-height: 100%` with auto sizing, and `height: 100%`. A
-  // percentage on a grid item resolves against its grid AREA, which is sized by
-  // its content -- an indefinite containing block, so the percentage is dropped
-  // and a tall image overflows and is clipped by the panel. A 700x1000 image
-  // computed to 1000px inside a 460px frame while reporting max-height "100%".
-  //
-  // Absolute positioning against a parent with a definite height has no such
-  // ambiguity, so this stays correct regardless of what the frame is laid out
-  // with later.
-  // `.mod-frame .mod-image` is listed first and is not decoration: the base
-  // stage sets `.mod-frame .mod-image { height: auto }` at specificity (0,2,0),
-  // and the images carry BOTH the class and the tag -- so a rule written only as
-  // `.mod-frame img` (0,1,1) loses no matter which mixin is included last. That
-  // is what defeated the two previous attempts here, each of which looked
-  // correct and changed nothing.
-  .mod-frame .mod-image,
-  .mod-frame img,
-  .mod-frame video {
+  .mod-cell {
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
+    top: 50%;
+    left: 50%;
+    width: var(--cw, 120px);
+    height: var(--ch, 150px);
+    margin: 0;
+    border: 2px solid var(--mod-line);
     border-radius: var(--mod-radius);
+    background: var(--mod-surface);
+    overflow: hidden;
+    text-decoration: none;
+    opacity: var(--co, 0.3);
+    z-index: var(--cz, 1);
+    transform: translate(-50%, -50%) translateX(var(--cx, 0));
+
+    transition:
+      transform var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
+      width var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
+      height var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
+      opacity var(--belt-move-ms) ease,
+      border-color var(--belt-tint-ms) ease;
+
+    // Cover for the small cells, contain for the one under the microscope. A
+    // cropped thumbnail reads as a thumbnail; the focal cell should show the
+    // whole picture, and its box is already cut to the picture's own aspect.
+    img, video, .mod-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    &.is-focus {
+      border-color: var(--mod-belt-focus);
+      img, video, .mod-image { object-fit: contain; }
+    }
+
+    // The one arriving next, either side. Green while it travels; the
+    // border-color transition above is what turns it orange as it lands.
+    &.is-incoming { border-color: var(--mod-belt-incoming); }
+
+    // A hatch BEHIND the failure, not instead of it. The belt lets error cards
+    // render at every rank now, and an earlier version of this rule hid the
+    // img -- which hid the card too, since the card IS that img with a new src.
+    // Video keeps the old treatment: error_card only handles images, so a
+    // broken <video> has nothing to become.
+    &.is-failed {
+      background: repeating-linear-gradient(45deg, var(--mod-surface) 0 6px, var(--mod-surface-2) 6px 12px);
+      video { display: none; }
+    }
+
+    // Past the visible run. Kept in the DOM and kept positioned, so a cell
+    // wrapping around the ring travels in rather than appearing.
+    &.is-offstage { opacity: 0; pointer-events: none; }
   }
 
-  .mod-image--placeholder {
-    width: auto;
-    aspect-ratio: auto;
+  // The label travels WITH its cell, because it is part of the thing moving.
+  .mod-cell-tag {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    padding: 0.12rem 0;
+    font-family: var(--mod-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.02em;
+    color: var(--mod-ink);
+    background: linear-gradient(to top, color-mix(in srgb, var(--mod-surface) 88%, transparent), transparent);
   }
+
+  // Inertia. Fired only once the run has actually stopped -- a lurch after
+  // every step of a held-down arrow is a stutter, not weight. --lurch carries
+  // both the direction and the accumulated distance of the burst.
+  &.is-lurching .mod-belt { animation: mod-belt-lurch 340ms cubic-bezier(0.33, 0, 0.2, 1); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mod-cell { transition-duration: 1ms; }
+    &.is-lurching .mod-belt { animation: none; }
+  }
+}
+
+@keyframes mod-belt-lurch {
+  0%   { transform: translateX(var(--lurch, 0)); }
+  58%  { transform: translateX(calc(var(--lurch, 0px) * -0.34)); }
+  100% { transform: translateX(0); }
 }

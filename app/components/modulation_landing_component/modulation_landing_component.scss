@@ -83,6 +83,7 @@
     border-radius: var(--mod-radius);
     border: 1px solid var(--mod-line);
     background: var(--mod-surface-2);
+
     // Clip, so a picture leaving the stage disappears at the panel edge rather
     // than sliding out over the page. The travelling row stays inside these
     // bounds -- it moves between two slots that are both within them.
@@ -95,17 +96,17 @@
   .modland-ride {
     @include modulation-stage;
     @include modulation-stage-vertical;
-    // A hero band, not a page's subject: the centre must not resize with each
-    // slide, or the flanks travel and the panel appears to come apart.
-    @include modulation-stage-fixed-centre;
 
-    // Retuned after the include: the post view stacks at most a few sorts around
-    // a tall post page, while this panel is a fixed hero band. At the inherited
-    // spacing the third axis fell past the bottom edge and was clipped, which
-    // hides exactly the thing the stack exists to advertise -- that there are
-    // more axes than the one you are on.
-    --stack-gap: calc(var(--flank-h) * 0.56);
-    --flank-scale: 0.5;
+    // The conveyor replaces the flank columns. The vertical mixin above still
+    // applies, and still means what it did: up/down changes which run you are
+    // on, and the whole belt slides to say so.
+    @include modulation-stage-conveyor;
+
+    // Named for what they mark, not for what colour they are -- the palettes
+    // differ between chanbooru and devbooru, so a matched hex is right on one
+    // and wrong on the other.
+    --mod-belt-focus: var(--orange-3);      // the cell under the microscope
+    --mod-belt-incoming: var(--link-color); // the cell arriving next
 
     display: block;
     padding-bottom: 2.2rem;
@@ -114,28 +115,14 @@
     // A short shove backwards before the ride starts again.
     &.is-lurching { transform: translateX(14px); }
 
+    // One number for the band's height. --stage-h is what the warm holder and
+    // the old fixed-centre sizing read; --belt-h is what the conveyor reads.
     --stage-h: clamp(300px, 46vh, 460px);
+    --belt-h: var(--stage-h);
 
-    // The shuffle: the incoming neighbour travels over the centre, so it has to
-    // be above it, and the centre needs the same easing as the rows it is
-    // trading places with or the two halves of one movement arrive apart.
-    .mod-stage-center {
-      transition: transform 0.43s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.43s ease;
-    }
-
-    &.is-shuffling {
-      // Nothing may clip the travelling picture on its way across.
-      .mod-flank-col { overflow: visible; }
-
-      .mod-sortrow.is-travelling {
-        z-index: 6;
-        transition: transform 0.43s cubic-bezier(0.4, 0, 0.2, 1);
-        // The flank crops its thumbnail; while it is growing into the centre it
-        // should stop cropping, or the picture appears to change shape as it
-        // arrives.
-        img { object-fit: contain; }
-      }
-    }
+    // One column. The belt positions its own cells, so the three-column grid
+    // the base stage sets up would only be a box for it to ignore.
+    .mod-stage { display: block; }
   }
 
   .modland-pool { display: none; }
@@ -165,7 +152,10 @@
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    z-index: 4;
+
+    // Above the belt. The outermost cells run under the arrows on their way off
+    // the panel, and a cell showing through a control makes both unreadable.
+    z-index: 12;
     appearance: none;
     width: 2.2rem;
     height: 3.4rem;
@@ -208,6 +198,7 @@
   .modland-credit-platform {
     color: var(--meta-tag-color);
     font-weight: 600;
+
     // Slot for a per-site mark. The slug is on the element, so adding one later
     // is a rule per platform and no change here or in the markup.
     &::before {
@@ -405,6 +396,7 @@
 // is a countdown whose meaning survives being instant.
 @media (prefers-reduced-motion: reduce) {
   .modland .modland-ride.is-lurching { transform: none; }
+
   .modland .modland-ride .mod-stage-center,
   .modland .modland-ride .mod-sortrow { transition: none; }
   .modland .modland-tabs-thumb { transition: none; }
