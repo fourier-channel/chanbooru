@@ -59,6 +59,12 @@ function initLanding(root) {
 
   function frameHTML(slide) {
     if (!slide || !slide.src) return '<div class="mod-frame mod-image mod-image--placeholder">nothing here</div>';
+
+    // A video in an <img> is a broken frame every time. Muted and looping,
+    // because a showcase that makes noise at a visitor is a showcase they close.
+    if (slide.kind === "video") {
+      return `<div class="mod-frame"><video class="mod-image" src="${esc(slide.src)}" autoplay muted loop playsinline></video></div>`;
+    }
     return `<div class="mod-frame"><img class="mod-image" src="${esc(slide.src)}" alt=""></div>`;
   }
 
@@ -92,17 +98,38 @@ function initLanding(root) {
   function rowHTML(a, side) {
     const slide = at(a, side === "prev" ? pos - 1 : pos + 1);
     const label = cats[a].label;
+    // The flank is a preview, so a video shows its poster frame rather than
+    // playing: three looping videos around one more is a slot machine.
     const inner = slide && slide.src
-      ? `<img src="${esc(slide.src)}" alt="" loading="lazy">`
+      ? (slide.kind === "video"
+          ? `<video src="${esc(slide.src)}" muted playsinline preload="metadata"></video>`
+          : `<img src="${esc(slide.src)}" alt="" loading="lazy">`)
       : '<span class="fill"></span>';
     const empty = slide ? "" : " is-empty";
     return `<a class="mod-sortrow${empty}" data-a="${a}" data-side="${side}" href="${esc((slide && slide.url) || "#")}" title="${esc(label)}">` +
       `${inner}<span class="mod-sortrow-tag">${esc(label)}</span></a>`;
   }
 
+  // A thumbnail that cannot load becomes the empty-slot hatch, not the browser's
+  // broken-file icon (Chrome) or a blank hole (Firefox). The stage already has a
+  // treatment for "no picture here"; a failed one is the same situation.
+  function markRowEmpty(row) {
+    row.classList.add("is-empty");
+    const m = row.querySelector("img, video");
+    if (m) m.remove();
+  }
+
   function renderFlanks() {
-    region("flank-prev").innerHTML = cats.map((_, a) => rowHTML(a, "prev")).join("");
-    region("flank-next").innerHTML = cats.map((_, a) => rowHTML(a, "next")).join("");
+    ["prev", "next"].forEach((side) => {
+      const col = region(`flank-${side}`);
+      col.innerHTML = cats.map((_, a) => rowHTML(a, side)).join("");
+      col.querySelectorAll("img, video").forEach((m) => {
+        m.addEventListener("error", () => markRowEmpty(m.closest(".mod-sortrow")), { once: true });
+        // A cached failure never fires error again, so check the ones that have
+        // already resolved by the time this runs.
+        if (m.tagName === "IMG" && m.complete && m.naturalWidth === 0) markRowEmpty(m.closest(".mod-sortrow"));
+      });
+    });
     applyRanks();
   }
 
@@ -144,8 +171,10 @@ function initLanding(root) {
   // The incoming image is already on screen in the flank, so it is normally in
   // cache and this resolves immediately; the timeout is for the case where it
   // is not, and a late slide is better than a blank one.
-  function ready(src) {
-    if (!src) return Promise.resolve();
+  function ready(src, kind) {
+    // Only images are preloadable this way; a video is allowed to start on its
+    // own, since waiting on one would hold the whole shuffle for a download.
+    if (!src || kind === "video") return Promise.resolve();
     return new Promise((resolve) => {
       const img = new Image();
       const done = () => resolve();
@@ -185,7 +214,7 @@ function initLanding(root) {
 
     busy = true;
 
-    ready(incoming && incoming.src).then(() => {
+    ready(incoming && incoming.src, incoming && incoming.kind).then(() => {
       const cRect = rectOf(centre);
       const iRect = rectOf(inRow);
       const oRect = rectOf(outRow);
@@ -254,7 +283,7 @@ function initLanding(root) {
     const inClass = direction > 0 ? "is-enter-down" : "is-enter-up";
 
     // Same rule as the shuffle: never paint a panel before its picture is ready.
-    ready(incoming && incoming.src).then(() => {
+    ready(incoming && incoming.src, incoming && incoming.kind).then(() => {
       ride.classList.add(outClass);
       setTimeout(() => {
         axis = target;

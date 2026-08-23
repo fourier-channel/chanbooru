@@ -18,6 +18,11 @@ const MEDIA_SELECTOR = [
   "[data-error-card]",
 ].join(", ");
 
+// Deliberately NOT the carousel's flank thumbnails (.mod-sortrow img). A card
+// sized for a 520px stage is unreadable at 122px, and six of them stacked either
+// side of the picture is worse than the broken icon it replaced. Those degrade
+// to the stage's own empty-slot hatch instead -- see the landing component.
+
 // The card for a status we could not determine. Rendered by the same endpoint,
 // which answers for any number.
 const UNKNOWN = 0;
