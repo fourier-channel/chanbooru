@@ -97,7 +97,16 @@ fi
 
 # --- 3. restart ---------------------------------------------------------
 step "starting containers"
-docker compose up -d || die "compose up failed"
+# --progress quiet, then our own one-line-per-service summary.
+#
+# Compose's default renderer collapses per-service progress into a redrawn
+# block, and a redrawn block needs a TTY. Piped or logged it degrades to
+# printing every state transition of every service on its own line -- and since
+# four services here share one image, each phase of that image's resolution
+# printed four times over. Errors still come through: --progress quiet silences
+# the progress renderer, not failures.
+docker compose --progress quiet up -d || die "compose up failed"
+docker compose ps --format '{{.Service}}\t{{.State}}' | sort | sed 's/^/   /' 
 
 # --- 4. verify ----------------------------------------------------------
 # Not "is it up" -- "is it running what I just built". A failed build leaves
