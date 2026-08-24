@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Print who can do what, per level, across every policy in the application.
+#
+#   bin/permission-matrix                 # one row per surface, one column per level
+#   bin/permission-matrix --actions       # one row per surface#action
+#   bin/permission-matrix --level member  # everything one level may do
+#   bin/permission-matrix --diff a b      # what b can do that a cannot
+#
+# This is the grid the permission manifest is being written against. It is
+# derived from the policies rather than maintained alongside them, so it cannot
+# drift from what the application actually enforces -- a hand-kept copy of this
+# would be wrong within a week and would be believed anyway.
+set -uo pipefail
+cd "$(git rev-parse --show-toplevel)" || exit 1
+exec bin/dev exec -T danbooru bash -lc "bin/rails runner /danbooru/script/permission_matrix_report.rb $*"
