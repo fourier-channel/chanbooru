@@ -1,0 +1,82 @@
+# The power manifest: what each booru tier is permitted to do.
+#
+# SCOPE. This governs tiers 1-9 ONLY. At any other level -- anonymous, and
+# everything from restricted upward -- the manifest abstains entirely and the
+# existing policies decide alone. That boundary is deliberate: a manifest whose
+# default is "deny" would, if it applied everywhere, switch off the site the
+# moment it was introduced.
+#
+# DIRECTION. This layer can only ever SUBTRACT. An entry here does not grant an
+# ability; it permits the policy to be consulted about one. Composition is AND,
+# never OR. A tier can therefore never obtain, through this file, anything the
+# policies would refuse -- which is the property that makes a claimed level
+# worthless to an attacker even if one could be claimed.
+#
+# SHAPE. Each action carries a minimum tier per realm, not a flag per tier.
+# That is the shape Matrix already uses: m.room.power_levels maps an event type
+# to one required number, and everyone at or above it may act. Storing a
+# threshold rather than nine booleans has three consequences, all wanted here:
+# inheritance is automatic, monotonicity is guaranteed by construction rather
+# than by review, and the booru column can be handed to Synapse as-is.
+#
+# The per-tier keys read as booru_t5_artist_update; they are DERIVED from these
+# thresholds rather than stored, so the two can never disagree.
+#
+#   <realm>: <minimum tier>   an entry
+#   <realm>: null             deliberately undecided ("no opinion")
+#   key absent                OFF. Everything is off until it is written here.
+
+version: 1
+
+realms:
+  # The tier a booru account carries in its own level column, read by the
+  # server, never asserted by the client.
+  booru:
+    min: 1
+    max: 9
+  # Reserved. The eventual mapping onto Matrix room power levels, which are
+  # room-scoped and already numeric. Nothing reads this yet.
+  matrix:
+    min: 0
+    max: 100
+
+# Naming is the operator's; only the one that has been decided is filled in.
+tiers:
+  1: { name: null }
+  2: { name: null }
+  3: { name: null }
+  4: { name: null }
+  5: { name: "Confirmed Creator" }
+  6: { name: null }
+  7: { name: null }
+  8: { name: null }
+  9: { name: null }
+
+# surface.action -> minimum tier per realm.
+actions:
+  # --- reading, the floor -------------------------------------------------
+  post.index:
+    booru: 1
+    matrix: null
+  post.show:
+    booru: 1
+    matrix: null
+  tag.index:
+    booru: 1
+    matrix: null
+  tag.show:
+    booru: 1
+    matrix: null
+
+  # --- the Confirmed Creator case -----------------------------------------
+  # Reaching a tier is necessary and NOT sufficient. ArtistPolicy still has to
+  # grow a record-scoped grant -- the gallery's matrix_id matching the viewer's
+  # authenticated one -- because this layer cannot grant, only permit. Until
+  # that grant exists these entries change nothing, which is the correct
+  # behaviour for a rule whose other half is missing.
+  artist.update:
+    booru: 5
+    matrix: null
+  tag.can_change_category:
+    booru: 5
+    matrix: null
