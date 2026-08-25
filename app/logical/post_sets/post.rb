@@ -165,7 +165,20 @@ module PostSets
       posts.reject(&:is_deleted).select(&:visible?).max_by { |post| [-post.rating_id, post.score] }
     end
 
+    # Whether this search may surface deleted posts.
+    #
+    # The level check is first and is not an extra safeguard -- it is the only
+    # real one. Everything after it is the VIEWER asking: show_deleted_posts? is
+    # an account preference they set themselves, and has_status_metatag? is
+    # literally them typing status:deleted into the search box. Upstream ORs
+    # those two together and stops, so on a stock Danbooru any visitor, signed
+    # out included, can list every deleted post by asking for it.
+    #
+    # Which is why hiding the settings toggle would have achieved nothing here.
+    # The toggle was never the way in; the search box was.
     def show_deleted?
+      return false unless current_user.can_see_deleted_posts?
+
       current_user.show_deleted_posts? || has_status_metatag?
     end
 
@@ -218,7 +231,7 @@ module PostSets
       # @param categories [Array<Integer>] the category order in which tags should be sorted by
       def sort_sidebar_tags(tags, categories = TagCategory.category_ids)
         tags.sort_by.with_index do |tag, i|
-          [categories.index(tag.category) || -1, ((tag.category == TagCategory::GENERAL || tag.category == TagCategory::META) ? i : -tag.post_count)]
+          [categories.index(tag.category) || -1, ([TagCategory::GENERAL, TagCategory::META].include?(tag.category) ? i : -tag.post_count)]
         end
       end
 

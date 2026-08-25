@@ -57,7 +57,16 @@
             </div>
 
             <%= f.input :new_post_navigation_layout, :as => :select, :label => "Navigation bar position", :include_blank => false, :collection => [["Below", "true"], ["Above", "false"]], :hint => "When browsing pools or posts, place navigation links above or below the image" %>
-            <%= f.input :show_deleted_posts, as: :boolean, wrapper: "stacked-toggle-switch", hint: "Show deleted posts in searches" %>
+            <%# Hidden from accounts that cannot act on it, so the settings page
+                stops offering a switch that is wired to nothing. This is the
+                COSMETIC half of the change -- show_deleted_posts is still a
+                permitted attribute and can still be set through the API, which
+                is exactly why the enforcement lives in PostSets::Post rather
+                than here. A control removed from a page is a control removed
+                from a page. %>
+            <% if CurrentUser.user.can_see_deleted_posts? %>
+              <%= f.input :show_deleted_posts, as: :boolean, wrapper: "stacked-toggle-switch", hint: "Show deleted posts in searches" %>
+            <% end %>
             <%= f.input :show_deleted_children, as: :boolean, wrapper: "stacked-toggle-switch", hint: "Show thumbnail borders on parent posts even if the children are deleted" %>
             <%= f.input :disable_categorized_saved_searches, as: :boolean, wrapper: "stacked-toggle-switch", hint: "Don't show dialog box when creating a new saved search" %>
             <% if policy(@user).can_enable_private_favorites? %>
