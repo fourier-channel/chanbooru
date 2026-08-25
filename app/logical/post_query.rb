@@ -201,15 +201,21 @@ class PostQuery
 
   # Return a new PostQuery with implicit metatags added.
   #
-  # NOT -status:deleted, whatever this comment said before. Upstream retired the
-  # per-user hide-deleted preference -- User still carries the tombstone as
-  # _unused_hide_deleted_posts -- and nothing replaced it, so a deleted post
-  # stays in ordinary search results wearing a "deleted" label. Measured, not
-  # assumed: deleting a post leaves it findable by an empty search, fetchable by
-  # id, visible? to a viewer, and still serving its file.
+  # NOT -status:deleted, whatever this comment said before -- but not because
+  # upstream stopped hiding deleted posts. It INVERTED the preference:
+  # hide_deleted_posts (opt out, default show) was retired to
+  # _unused_hide_deleted_posts, and show_deleted_posts (opt in, default hide)
+  # took its place. Deleted posts are hidden by default; the surviving setting
+  # is the one that reveals them.
   #
-  # Today that means rating restrictions under safe mode, and this fork's gated
-  # tags for signed-out visitors.
+  # The hiding just does not happen here. It happens at the RENDER layer:
+  # PostPreviewComponent#render? declines to draw a deleted post unless
+  # show_deleted. So the query returns deleted posts and counts them, and the
+  # page simply does not draw them -- which is why a page can report more
+  # results than it shows.
+  #
+  # What IS added here: rating restrictions under safe mode, and this fork's
+  # gated tags for signed-out visitors.
   def with_implicit_metatags
     return self if implicit_metatags.empty?
     build(AST.new(:and, [ast, *implicit_metatags]))

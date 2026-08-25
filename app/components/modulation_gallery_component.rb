@@ -21,9 +21,29 @@ class ModulationGalleryComponent < ApplicationComponent
     @viewer = viewer
   end
 
+  # The posts this gallery will actually draw.
+  #
+  # Deleted posts are dropped unless the viewer has asked for them, which is
+  # upstream's rule -- PostPreviewComponent#render? refuses to draw a deleted
+  # post unless show_deleted -- and it was lost when this gallery replaced that
+  # component. So on this fork a deleted post rendered in the default gallery,
+  # which is the one place upstream is careful to keep it out of.
+  #
+  # Worth naming, because the shape recurs: a fork that reimplements an upstream
+  # view inherits its LAYOUT and silently drops its GUARDS. The blacklist went
+  # the same way in this same component.
+  #
+  # Note the inconsistency this preserves rather than fixes: post_set counts
+  # deleted posts and this does not, so a page can report more results than it
+  # draws. That is upstream's behaviour too, and correcting it belongs in a
+  # change about pagination rather than one about a missing guard.
   def posts
-    post_set.posts
+    return post_set.posts if show_deleted?
+
+    post_set.posts.reject(&:is_deleted?)
   end
+
+  delegate :show_deleted?, to: :post_set
 
   def query_string
     post_set.tag_string.to_s.strip
@@ -87,9 +107,7 @@ class ModulationGalleryComponent < ApplicationComponent
   # are search-scoped navigation, so they belong with the search controls rather
   # than as a transplanted sidebar.
 
-  def post_count
-    post_set.post_count
-  end
+  delegate :post_count, to: :post_set
 
   def total_pages
     count = post_count
@@ -110,7 +128,7 @@ class ModulationGalleryComponent < ApplicationComponent
 
     if single_tag.present?
       links << { label: "history", href: routes.post_versions_path(search: { changed_tags: single_tag }) }
-      links << { label: "discussions", href: routes.forum_posts_path(search: { linked_to: single_tag })} if forum_enabled?
+      links << { label: "discussions", href: routes.forum_posts_path(search: { linked_to: single_tag }) } if forum_enabled?
     end
 
     links
@@ -138,14 +156,12 @@ class ModulationGalleryComponent < ApplicationComponent
   # for a character and the page can say who they are; without it the search is
   # a wall of thumbnails with no answer to "what am I looking at".
   def excerpt
-    @excerpt ||= begin
-      if post_set.artist.present? && !post_set.artist.is_banned?
-        { kind: "artist", title: post_set.artist.name.tr("_", " "), href: routes.artist_path(post_set.artist), body: post_set.artist.wiki_page&.body }
-      elsif post_set.pool.present?
-        { kind: "pool", title: post_set.pool.pretty_name, href: routes.pool_path(post_set.pool), body: post_set.pool.description }
-      elsif post_set.wiki_page.present?
-        { kind: "wiki", title: post_set.wiki_page.pretty_title, href: routes.wiki_page_path(post_set.wiki_page), body: post_set.wiki_page.body }
-      end
+    if post_set.artist.present? && !post_set.artist.is_banned?
+      @excerpt ||= { kind: "artist", title: post_set.artist.name.tr("_", " "), href: routes.artist_path(post_set.artist), body: post_set.artist.wiki_page&.body }
+    elsif post_set.pool.present?
+      @excerpt ||= { kind: "pool", title: post_set.pool.pretty_name, href: routes.pool_path(post_set.pool), body: post_set.pool.description }
+    elsif post_set.wiki_page.present?
+      @excerpt ||= { kind: "wiki", title: post_set.wiki_page.pretty_title, href: routes.wiki_page_path(post_set.wiki_page), body: post_set.wiki_page.body }
     end
   end
 
@@ -158,7 +174,7 @@ class ModulationGalleryComponent < ApplicationComponent
     # DText bodies are stored with CRLF, so a bare /\n{2,}/ never splits and the
     # whole article comes through as one "first paragraph".
     first = body.split(/(?:\r?\n){2,}/).first.to_s.squish
-    first.length > 320 ? "#{first[0, 317]}..." : first
+    (first.length > 320) ? "#{first[0, 317]}..." : first
   end
 
   def can_browse?
