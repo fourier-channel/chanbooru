@@ -65,6 +65,24 @@ class PostPolicy < ApplicationPolicy
     record.visible?(user)
   end
 
+  # Whether this viewer may hold the file identifiers for this post.
+  #
+  # visible? answers about gating, rating and banned artists -- it says nothing
+  # about deletion, and a deleted post is visible? to everyone. So md5 and the
+  # file URLs were being handed out for deleted posts to anyone who asked,
+  # including through the API. Anonymous visitors are stopped further down by
+  # fourier-auth, but a signed-in ordinary account has a session that satisfies
+  # the media gate, so for them the md5 on the page was the whole of the lock.
+  #
+  # The uploader keeps theirs. Someone appealing their own deletion should be
+  # able to look at what was deleted.
+  def can_see_media?
+    return false unless visible?
+    return true unless record.is_deleted?
+
+    user.can_see_deleted_posts? || (!user.is_anonymous? && record.uploader_id == user.id)
+  end
+
   def can_use_mode_menu?
     user.is_gold?
   end
@@ -126,8 +144,8 @@ class PostPolicy < ApplicationPolicy
     attributes = super
     attributes += [:has_large, :has_visible_children, :media_asset]
     attributes += TagCategory.categories.map { |x| :"tag_string_#{x}" }
-    attributes += [:file_url, :large_file_url, :preview_file_url] if visible?
-    attributes -= [:md5] if !visible?
+    attributes += [:file_url, :large_file_url, :preview_file_url] if can_see_media?
+    attributes -= [:md5] unless can_see_media?
     attributes
   end
 
