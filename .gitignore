@@ -27,3 +27,16 @@ lib/dtext_rb/ext/dtext/dtext.cpp
 # devcontainer features lock
 .devcontainer/devcontainer-lock.json
 /.testimg/
+
+# Guard: brain/ops docs belong in fourier-basis (private), never in this public
+# repo. Added 2026-08-25 -- this file was tracked here at 7,043 bytes on the
+# public `chanbooru` branch, naming booru.41chan.net, Hetzner and /opt/danbooru.
+# Canon is fourier-basis docs/claude/CLAUDE-chanbooru.md, which is where it
+# should have lived all along; technetium has guarded the same class of file
+# this way since July.
+#
+# NOTE: this stops the NEXT commit, not the last one. The content remains in
+# this repo's history and on GitHub's, and untracking does not unpublish it.
+# Nothing here is a credential, so rotation is not the remedy; if the history
+# itself matters that is a separate, deliberate decision.
+CLAUDE.md
