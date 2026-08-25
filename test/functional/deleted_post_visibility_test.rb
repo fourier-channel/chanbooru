@@ -10,6 +10,10 @@ require "test_helper"
 # is a fair default for a booru whose deletions are routine moderation, and the
 # wrong one here.
 class DeletedPostVisibilityTest < ActionDispatch::IntegrationTest
+  def api_attrs(user, post)
+    PostPolicy.new(user, post).api_attributes
+  end
+
   def cards_for(id)
     css_select(".modgal-card[data-id='#{id}']").size
   end
@@ -73,6 +77,45 @@ class DeletedPostVisibilityTest < ActionDispatch::IntegrationTest
 
       assert_response :success
       assert_equal(1, cards_for(@visible.id))
+    end
+  end
+
+  context "A deleted post's file identifiers" do
+    setup do
+      Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
+      @uploader = create(:user)
+      @deleted = create(:post, uploader: @uploader)
+      @deleted.update!(is_deleted: true)
+    end
+
+    should "not be handed to a signed-out visitor" do
+      # fourier-auth stops anonymous at the media gate anyway. This is about not
+      # publishing the identifier in the first place.
+      assert_not_includes(api_attrs(User.anonymous, @deleted), :md5)
+      assert_not_includes(api_attrs(User.anonymous, @deleted), :file_url)
+    end
+
+    should "not be handed to an ordinary signed-in account" do
+      # The case that mattered: a signed-in account HAS a session that satisfies
+      # the media gate, so for them the md5 printed on the page was the lock.
+      assert_not_includes(api_attrs(create(:user), @deleted), :md5)
+      assert_not_includes(api_attrs(create(:user), @deleted), :file_url)
+    end
+
+    should "still be handed to the uploader, so they can appeal" do
+      assert_includes(api_attrs(@uploader, @deleted), :md5)
+      assert_includes(api_attrs(@uploader, @deleted), :file_url)
+    end
+
+    should "still be handed to an admin" do
+      assert_includes(api_attrs(create(:admin_user), @deleted), :md5)
+    end
+
+    should "be unaffected for a post that is not deleted" do
+      live = create(:post)
+
+      assert_includes(PostPolicy.new(create(:user), live).api_attributes, :md5)
+      assert_includes(PostPolicy.new(create(:user), live).api_attributes, :file_url)
     end
   end
 
