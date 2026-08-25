@@ -166,8 +166,8 @@ class PostQuery
     metatags.any? do |metatag|
       # XXX date: is user dependent because it depends on the current user's time zone
       metatag.name.in?(%w[date upvoter upvote downvoter downvote commenter comm search flagger fav ordfav favgroup ordfavgroup]) ||
-      metatag.name == "status" && metatag.value == "unmoderated" ||
-      metatag.name == "disapproved" && !metatag.value.downcase.in?(PostDisapproval::REASONS)
+        (metatag.name == "status" && metatag.value == "unmoderated") ||
+        (metatag.name == "disapproved" && !metatag.value.downcase.in?(PostDisapproval::REASONS))
     end
   end
 
@@ -240,7 +240,7 @@ class PostQuery
   # them: rating:g under safe mode, and the gated tags a signed-out visitor may
   # not know exist.
   def implicit_metatags
-    safe_mode_metatags + gated_metatags
+    safe_mode_metatags + gated_metatags + deleted_metatags
   end
 
   def safe_mode_metatags
@@ -260,6 +260,28 @@ class PostQuery
   #
   # Costs a negated term per gated tag on every anonymous query, which is the
   # same shape and the same cost safe mode has always had.
+  # A deleted post is not in anyone's results unless they are allowed to see
+  # deleted posts at all.
+  #
+  # Here rather than only in PostSets, because the operator's rule is that a
+  # surface must not change the answer: the gallery, the API, a pool's contents
+  # and a related-posts strip all run through this, and a filter applied only at
+  # the place that draws thumbnails would leave the other three answering
+  # honestly about something that is supposed to be gone.
+  #
+  # It also fixes the count, which the render-layer approach cannot: a page that
+  # says "12 results" and draws 11 has told you the twelfth exists.
+  #
+  # Note the uploader is NOT excepted here. They reach their own deleted posts
+  # by direct link, which is what an appeal needs; carving them out of the
+  # search filter would mean building a per-viewer OR into every query to buy
+  # something nobody asked for.
+  def deleted_metatags
+    return [] if current_user.blank? || current_user.can_see_deleted_posts?
+
+    [-AST.metatag("status", "deleted")]
+  end
+
   def gated_metatags
     return [] unless current_user.present? && current_user.is_anonymous?
 
@@ -346,9 +368,9 @@ class PostQuery
 
     def count_cache_key
       if is_user_dependent_search?
-        "post-count-for-user:#{current_user.id.to_i}:#{to_s}"
+        "post-count-for-user:#{current_user.id.to_i}:#{self}"
       else
-        "post-count:#{to_s}"
+        "post-count:#{self}"
       end
     end
   end
@@ -385,5 +407,5 @@ class PostQuery
     end
   end
 
-  memoize :tags, :replace_aliases, :with_implicit_metatags, :to_cnf, :aliases, :implicit_metatags, :safe_mode_metatags, :gated_metatags, :term_count
+  memoize :tags, :replace_aliases, :with_implicit_metatags, :to_cnf, :aliases, :implicit_metatags, :safe_mode_metatags, :gated_metatags, :deleted_metatags, :term_count
 end

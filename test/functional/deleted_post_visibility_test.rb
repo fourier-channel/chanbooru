@@ -119,6 +119,86 @@ class DeletedPostVisibilityTest < ActionDispatch::IntegrationTest
     end
   end
 
+  context "A deleted post, by direct link" do
+    setup do
+      Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
+      @uploader = create(:user)
+      @deleted = create(:post, uploader: @uploader, tag_string: "landscape")
+      @deleted.update!(is_deleted: true)
+    end
+
+    should "404 for a signed-out visitor" do
+      # Troll jail: not a 403. "There is something here you may not see" is
+      # itself the disclosure this exists to prevent.
+      get post_path(@deleted)
+
+      assert_response 404
+    end
+
+    should "404 for an ordinary member" do
+      get_auth post_path(@deleted), create(:user)
+
+      assert_response 404
+    end
+
+    should "404 for a moderator" do
+      get_auth post_path(@deleted), create(:moderator_user)
+
+      assert_response 404
+    end
+
+    should "404 by md5 lookup too" do
+      # The other door. An md5 lookup must not confirm a post exists when the
+      # post page will not.
+      get posts_path, params: { md5: @deleted.md5 }
+
+      assert_response 404
+    end
+
+    should "still answer for the uploader, so they can appeal" do
+      get_auth post_path(@deleted), @uploader
+
+      assert_response :success
+    end
+
+    should "still answer for an admin" do
+      get_auth post_path(@deleted), create(:admin_user)
+
+      assert_response :success
+    end
+
+    should "not leak its tags to anyone else" do
+      get post_path(@deleted)
+
+      assert_response 404
+      assert_no_match(/landscape/, response.body)
+    end
+  end
+
+  context "A deleted post, in results" do
+    setup do
+      Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
+      @live = create(:post, tag_string: "landscape")
+      @gone = create(:post, tag_string: "landscape")
+      @gone.update!(is_deleted: true)
+    end
+
+    should "not be counted, not merely undrawn" do
+      # The render-layer fix could not do this. A page reporting more results
+      # than it draws has told you the missing one exists.
+      set = PostSets::Post.new("landscape", 1, 20, user: create(:user))
+
+      assert_equal([@live.id], set.posts.map(&:id))
+      assert_equal(1, set.post_count)
+    end
+
+    should "be counted for an admin" do
+      set = PostSets::Post.new("landscape", 1, 20, user: create(:admin_user))
+
+      assert_equal(2, set.post_count)
+    end
+  end
+
   context "The settings page" do
     setup { Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN) }
 
