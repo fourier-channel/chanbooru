@@ -44,6 +44,19 @@ class ApplicationPolicy
     user.is_member? && !user.is_banned? && !user.is_restricted?
   end
 
+  # Whether the tier manifest permits an action at this user's level.
+  #
+  # :abstain counts as permission, because the manifest subtracts and never
+  # adds -- above the tier band it has no view, and "no view" must not read as
+  # "no". Only an explicit :deny stops anything here.
+  #
+  # This is a gate, never a grant. A policy calls it ALONGSIDE its own reason to
+  # say yes, so the manifest can take a capability away from a tier and can
+  # never hand one out.
+  def manifest_permits?(action)
+    PermissionManifest.instance.state(level: user.level, action: action) != :deny
+  end
+
   def policy(object)
     Pundit.policy!(user, object)
   end
@@ -109,7 +122,7 @@ class ApplicationPolicy
   #
   # @see ApplicationRecord#search
   # @see app/logical/concerns/searchable.rb
-  def visible_for_search(relation, attribute = nil)
+  def visible_for_search(relation, _attribute = nil)
     relation
   end
 

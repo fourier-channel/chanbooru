@@ -188,6 +188,42 @@ CREATE TABLE public.ar_internal_metadata (
 
 
 --
+-- Name: artist_claims; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.artist_claims (
+    id bigint NOT NULL,
+    artist_id bigint NOT NULL,
+    creator_gallery_id bigint NOT NULL,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    approver_id bigint,
+    decided_at timestamp(6) without time zone,
+    note text DEFAULT ''::text NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: artist_claims_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.artist_claims_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: artist_claims_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.artist_claims_id_seq OWNED BY public.artist_claims.id;
+
+
+--
 -- Name: artist_commentaries; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2884,6 +2920,13 @@ ALTER TABLE ONLY public.api_keys ALTER COLUMN id SET DEFAULT nextval('public.api
 
 
 --
+-- Name: artist_claims id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.artist_claims ALTER COLUMN id SET DEFAULT nextval('public.artist_claims_id_seq'::regclass);
+
+
+--
 -- Name: artist_commentaries id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3324,6 +3367,14 @@ ALTER TABLE ONLY public.api_keys
 
 ALTER TABLE ONLY public.ar_internal_metadata
     ADD CONSTRAINT ar_internal_metadata_pkey PRIMARY KEY (key);
+
+
+--
+-- Name: artist_claims artist_claims_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.artist_claims
+    ADD CONSTRAINT artist_claims_pkey PRIMARY KEY (id);
 
 
 --
@@ -3895,6 +3946,41 @@ CREATE UNIQUE INDEX index_api_keys_on_key ON public.api_keys USING btree (key);
 --
 
 CREATE INDEX index_api_keys_on_user_id ON public.api_keys USING btree (user_id);
+
+
+--
+-- Name: index_artist_claims_on_artist_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_artist_claims_on_artist_id ON public.artist_claims USING btree (artist_id);
+
+
+--
+-- Name: index_artist_claims_on_artist_id_and_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_artist_claims_on_artist_id_and_status ON public.artist_claims USING btree (artist_id, status);
+
+
+--
+-- Name: index_artist_claims_on_creator_gallery_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_artist_claims_on_creator_gallery_id ON public.artist_claims USING btree (creator_gallery_id);
+
+
+--
+-- Name: index_artist_claims_on_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_artist_claims_on_status ON public.artist_claims USING btree (status);
+
+
+--
+-- Name: index_artist_claims_one_approved_per_artist; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_artist_claims_one_approved_per_artist ON public.artist_claims USING btree (artist_id) WHERE ((status)::text = 'approved'::text);
 
 
 --
@@ -6745,6 +6831,14 @@ ALTER TABLE ONLY public.user_name_change_requests
 
 
 --
+-- Name: artist_claims fk_rails_20624561fd; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.artist_claims
+    ADD CONSTRAINT fk_rails_20624561fd FOREIGN KEY (creator_gallery_id) REFERENCES public.creator_galleries(id);
+
+
+--
 -- Name: bans fk_rails_2234692cb1; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7102,6 +7196,14 @@ ALTER TABLE ONLY public.note_versions
 
 ALTER TABLE ONLY public.moderation_reports
     ADD CONSTRAINT fk_rails_7221bfc52f FOREIGN KEY (creator_id) REFERENCES public.users(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: artist_claims fk_rails_727af8489b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.artist_claims
+    ADD CONSTRAINT fk_rails_727af8489b FOREIGN KEY (artist_id) REFERENCES public.artists(id);
 
 
 --
@@ -7463,6 +7565,7 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260825090000'),
 ('20260822010000'),
 ('20260806090000'),
 ('20260805014433'),
