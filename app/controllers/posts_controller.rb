@@ -13,6 +13,7 @@ class PostsController < ApplicationController
       # Same rule by the other door: an md5 lookup must not confirm a gated post
       # exists when the post page would not.
       raise ActiveRecord::RecordNotFound if @post.hidden_from_anonymous?(CurrentUser.user)
+      raise ActiveRecord::RecordNotFound if @post.hidden_as_deleted?(CurrentUser.user)
       respond_with(@post) do |format|
         format.html { redirect_to(@post) }
       end
@@ -47,6 +48,10 @@ class PostsController < ApplicationController
     # it is the one kind of disclosure most worth not making. A 404 says only
     # what a 404 says.
     raise ActiveRecord::RecordNotFound if @post.hidden_from_anonymous?(CurrentUser.user)
+    # A deleted post answers nothing, by any door. Same 404 rather than a 403,
+    # for the same reason: "there is something here you may not see" is itself
+    # the disclosure, and troll jail exists so that there is nothing to point at.
+    raise ActiveRecord::RecordNotFound if @post.hidden_as_deleted?(CurrentUser.user)
     raise PageRemovedError if request.format.html? && !request.variant.tooltip? && @post.banblocked?(CurrentUser.user)
 
     if request.format.html?

@@ -684,10 +684,8 @@ class Post < ApplicationRecord
 
     def typed_tags(name)
       @typed_tags ||= {}
-      @typed_tags[name] ||= begin
-        tag_array.select do |tag|
-          tag_categories[tag] == TagCategory.mapping[name]
-        end
+      @typed_tags[name] ||= tag_array.select do |tag|
+        tag_categories[tag] == TagCategory.mapping[name]
       end
     end
 
@@ -802,7 +800,7 @@ class Post < ApplicationRecord
     def update_parent_on_save
       return unless saved_change_to_parent_id? || saved_change_to_is_deleted?
 
-      parent.update_has_children_flag if parent.present?
+      parent.presence&.update_has_children_flag
       Post.find(parent_id_before_last_save).update_has_children_flag if parent_id_before_last_save.present?
     rescue StandardError
       # XXX Silently ignore errors so that the edit doesn't fail. We can't let
@@ -1967,9 +1965,7 @@ class Post < ApplicationRecord
   end
 
   # @param tags [String] The AI tag query.
-  def ai_tags_match?(tags)
-    media_asset.ai_tags_match?(tags)
-  end
+  delegate :ai_tags_match?, to: :media_asset
 
   def safeblocked?
     CurrentUser.safe_mode? && (rating != "g" || Danbooru.config.safe_mode_restricted_tags.any? { |tag| tag.in?(tag_array) })
@@ -2000,6 +1996,32 @@ class Post < ApplicationRecord
     # nil counts as anonymous. This is a rule about withholding content, and the
     # unknown-viewer case has to fail towards withholding, not towards serving.
     (user.nil? || user.is_anonymous?) && gated?
+  end
+
+  # A deleted post does not exist, for anyone but its uploader and the people
+  # who can undelete it.
+  #
+  # This is troll jail. A deletion here is not a moderation note on a post that
+  # stays reachable -- it is removal from the world's view in one click, and the
+  # test of that is whether anything at all still answers: not the page, not the
+  # tags, not the id, not an md5 lookup. Upstream's deletion is the softer kind,
+  # and the softer kind is not what this button is for.
+  #
+  # The row is deliberately kept. Holding what was removed is what lets it be
+  # used to defend against the next one, and that is a different purpose from
+  # the one this project has ruled out for scraped material.
+  #
+  # The uploader keeps access so an appeal is possible. On 4chan scrapes the
+  # uploader is the bot, which is the design working rather than an exception to
+  # it -- there, nobody outside admins sees a deleted post at all.
+  def hidden_as_deleted?(user = CurrentUser.user)
+    return false unless is_deleted?
+    # nil is treated as anonymous, the same way gating treats it: an unknown
+    # viewer has to fail towards withholding.
+    return true if user.nil?
+    return false if user.can_see_deleted_posts?
+
+    (!user.is_anonymous? && uploader_id == user.id) ? false : true
   end
 
   def levelblocked?(user = CurrentUser.user)
