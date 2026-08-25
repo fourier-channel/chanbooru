@@ -199,7 +199,17 @@ class PostQuery
     build(ast.replace_tags(aliases))
   end
 
-  # Return a new PostQuery with implicit metatags (rating:safe and -status:deleted) added.
+  # Return a new PostQuery with implicit metatags added.
+  #
+  # NOT -status:deleted, whatever this comment said before. Upstream retired the
+  # per-user hide-deleted preference -- User still carries the tombstone as
+  # _unused_hide_deleted_posts -- and nothing replaced it, so a deleted post
+  # stays in ordinary search results wearing a "deleted" label. Measured, not
+  # assumed: deleting a post leaves it findable by an empty search, fetchable by
+  # id, visible? to a viewer, and still serving its file.
+  #
+  # Today that means rating restrictions under safe mode, and this fork's gated
+  # tags for signed-out visitors.
   def with_implicit_metatags
     return self if implicit_metatags.empty?
     build(AST.new(:and, [ast, *implicit_metatags]))
@@ -220,7 +230,9 @@ class PostQuery
     TagAlias.aliases_for(tag_names)
   end
 
-  # Implicit metatags are metatags added by the user's account settings. rating:g,s is implicit under safe mode.
+  # Implicit metatags are added by the viewer's situation rather than typed by
+  # them: rating:g under safe mode, and the gated tags a signed-out visitor may
+  # not know exist.
   def implicit_metatags
     safe_mode_metatags + gated_metatags
   end
