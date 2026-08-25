@@ -81,6 +81,28 @@ module Danbooru
       Rails.env.test? ? "historical" : "modulation"
     end
 
+    # Who may see deleted posts at all.
+    #
+    # Upstream's answer is "anyone who asks": the account preference is opt-in
+    # and defaults to off, but the same gate ORs in has_status_metatag?, so
+    # typing status:deleted in the search box reveals them to anybody --
+    # including a signed-out visitor. That is a reasonable default for a public
+    # booru whose deletions are ordinary moderation. It is the wrong default
+    # here, where a deletion is closer to a retraction.
+    # ANONYMOUS in test, and for the third time in this file that is a narrow,
+    # deliberate exception rather than a shrug. Upstream's own
+    # posts_controller_test asserts the upstream rule directly -- "should show
+    # deleted posts when searching for status:deleted", and two more like it --
+    # so tightening this under test turns those red for saying exactly what they
+    # were written to say. A suite that is permanently three-red about a
+    # difference we chose cannot report the fourth failure we did not.
+    #
+    # The restricted path is NOT left untested by this. deleted_post_visibility_test
+    # stubs this to ADMIN and asserts every way in is shut, which is the case
+    # that actually matters.
+    def deleted_post_visibility_level
+      Rails.env.test? ? User::Levels::ANONYMOUS : User::Levels::ADMIN
+    end
 
     # ---- Content restriction ----
 
@@ -155,7 +177,7 @@ module Danbooru
       "180x180": [180, 180],
       "360x360": [360, 360],
       "720x720": [720, 720],
-      sample:    [850, 850],
+      "sample": [850, 850],
     }.freeze
 
     # Media the booru does not hold is served from R2 through the fourier-auth
@@ -184,7 +206,7 @@ module Danbooru
       #
       # Deployed environments fall through to the gate below unchanged; nothing
       # about the authorisation story is relaxed anywhere it applies.
-      return super if Rails.env.development? || Rails.env.test?
+      return super if Rails.env.local?
 
       source = variant.media_asset.post&.source
       size = FOURIER_VARIANT_SIZES[variant.type]
@@ -262,7 +284,7 @@ module Danbooru
       # Deployed environments are NOT covered by this and still hit the
       # ENV.fetch("R2_BUCKET") below -- an unconfigured deploy must fail loudly,
       # which is the whole point of that fetch having no default.
-      return super if Rails.env.development? || Rails.env.test?
+      return super if Rails.env.local?
 
       @storage_manager ||= begin
         klass = Class.new(StorageManager::Rclone) do

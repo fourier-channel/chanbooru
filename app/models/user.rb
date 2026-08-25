@@ -565,6 +565,15 @@ class User < ApplicationRecord
       level >= Levels::MEMBER
     end
 
+    # Whether deleted posts exist at all, as far as this account is concerned.
+    #
+    # Separate from show_deleted_posts?, which is a PREFERENCE -- "I would like
+    # to see them" -- and cannot be the thing that decides. A preference is set
+    # by the person it governs.
+    def can_see_deleted_posts?
+      level >= Danbooru.config.deleted_post_visibility_level
+    end
+
     def is_gold?
       level >= Levels::GOLD
     end
