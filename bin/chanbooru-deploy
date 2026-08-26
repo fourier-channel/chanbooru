@@ -61,12 +61,50 @@ if (( PULL )); then
   git fetch --quiet origin "$BRANCH" || die "fetch failed"
 
   BEFORE="$(git rev-parse HEAD)"
-  if [[ "$BEFORE" == "$(git rev-parse "origin/$BRANCH")" ]]; then
+  REMOTE="$(git rev-parse "origin/$BRANCH")"
+
+  if [[ "$BEFORE" == "$REMOTE" ]]; then
     echo "   already at $(git rev-parse --short HEAD)"
   else
-    git merge --ff-only "origin/$BRANCH" --quiet || die "not a fast-forward. The serving box does not merge; fix the branch first."
+    if git merge-base --is-ancestor "$BEFORE" "$REMOTE"; then
+      # The ordinary case: origin is ahead, we walk forward onto it.
+      git merge --ff-only "origin/$BRANCH" --quiet || die "fast-forward failed unexpectedly"
+    else
+      # The histories have diverged. On this fork that is EXPECTED rather than
+      # exceptional: the documented workflow rebases the working branch onto a
+      # refreshed master, which rewrites every commit, and the serving box's
+      # checkout is then descended from commits that no longer exist.
+      #
+      # Adopting the new history is safe only if nothing would be LOST, and the
+      # test for that is reachability, not commit counting.
+      #
+      # Counting was the obvious version and it is wrong: a rebase gives every
+      # commit a new hash, so a checkout sitting on pre-rebase history reports
+      # as 82 commits "ahead" of a branch that already contains all the same
+      # work. The check would have refused in precisely the case it exists to
+      # allow. Caught by running it, not by reading it.
+      #
+      # What actually matters is whether this HEAD survives somewhere the remote
+      # can hand it back -- another branch, or a pushed tag. If it does,
+      # discarding it locally costs nothing. If it does not, this box is the
+      # only place these commits exist, which is the one thing a serving box
+      # must never be.
+      KEPT="$(git for-each-ref --contains "$BEFORE" --format='%(refname:short)' refs/remotes/origin refs/tags 2>/dev/null | head -3 | tr '\n' ' ')"
+      if [[ -z "$KEPT" ]]; then
+        die "origin/$BRANCH has been rewritten, and this checkout's current commit
+$(git --no-pager log --oneline -1 "$BEFORE")
+is not reachable from any remote branch or tag. Resetting would destroy it.
+
+Push it somewhere first -- a branch or a tag -- then run this again."
+      fi
+      echo "   current commit is preserved as: $KEPT"
+      echo "   history was rewritten upstream (rebase); adopting it"
+      echo "   $(git rev-parse --short "$BEFORE") is not an ancestor of $(git rev-parse --short "$REMOTE")"
+      git reset --hard "origin/$BRANCH" --quiet || die "could not adopt origin/$BRANCH"
+    fi
+
     echo "   $(git rev-parse --short "$BEFORE") -> $(git rev-parse --short HEAD)"
-    git --no-pager log --oneline "$BEFORE..HEAD" | sed 's/^/   /'
+    git --no-pager log --oneline "$BEFORE..HEAD" 2>/dev/null | head -20 | sed 's/^/   /'
 
     # Bash reads a script incrementally, so a deploy script that just replaced
     # itself is being executed half-old and half-new from this line on. Start
