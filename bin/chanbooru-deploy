@@ -58,7 +58,13 @@ UNTRACKED="$(git status --porcelain --untracked-files=normal | grep -c '^??' || 
 # --- 1. fast-forward ----------------------------------------------------
 if (( PULL )); then
   step "fetching origin/$BRANCH"
-  git fetch --quiet origin "$BRANCH" || die "fetch failed"
+  # --tags is load-bearing, not tidiness. The reachability test below asks
+  # whether this checkout's commit survives on the remote, and it can only
+  # inspect refs this checkout HAS. Fetching the branch alone leaves every tag
+  # unknown locally, so a commit preserved by a tag looks unreachable and the
+  # deploy refuses to adopt a perfectly recoverable history. Which is exactly
+  # what happened on the serving box.
+  git fetch --quiet --tags origin "$BRANCH" || die "fetch failed"
 
   BEFORE="$(git rev-parse HEAD)"
   REMOTE="$(git rev-parse "origin/$BRANCH")"
@@ -93,7 +99,10 @@ if (( PULL )); then
       if [[ -z "$KEPT" ]]; then
         die "origin/$BRANCH has been rewritten, and this checkout's current commit
 $(git --no-pager log --oneline -1 "$BEFORE")
-is not reachable from any remote branch or tag. Resetting would destroy it.
+is not reachable from any remote branch or tag known to this checkout.
+Resetting would destroy it.
+
+Searched: $(git for-each-ref --format='%(refname:short)' refs/remotes/origin refs/tags | wc -l) local refs, after fetching origin/$BRANCH and its tags.
 
 Push it somewhere first -- a branch or a tag -- then run this again."
       fi
