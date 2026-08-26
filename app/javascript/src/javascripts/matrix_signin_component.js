@@ -8,9 +8,11 @@ function initPanel(root) {
 
   const cfg = JSON.parse(root.dataset.config || "{}");
   const region = (name) => root.querySelector(`[data-region="${name}"]`);
-  const started = Date.now();
   let timer = null;
   let popup = null;
+  // When the current attempt began. Null when nothing is in flight, which is
+  // also what stops the panel polling at a page it has no reason to poll.
+  let attemptStarted = null;
 
   // Captured from the server-rendered markup rather than written out again
   // here. The popup caveat is user-facing copy; keeping a second copy of it in
@@ -24,7 +26,7 @@ function initPanel(root) {
   }
 
   function markLinked(matrixId) {
-    if (timer) { clearInterval(timer); timer = null; }
+    rest();
     root.classList.add("is-linked");
     const stateText = region("state-text");
     if (stateText) stateText.textContent = "linked";
@@ -51,8 +53,10 @@ function initPanel(root) {
     const note = region("note");
     if (note) note.textContent = NOTE_DEFAULT;
 
-    // Watch again, so signing back in still updates in place.
-    if (!timer) timer = setInterval(poll, cfg.pollIntervalMs || 2000);
+    // Deliberately does NOT start watching. Signing out is not the start of
+    // signing in, and the panel has no reason to poll until someone asks it to.
+    // Coming back linked is caught by the focus handler below.
+    rest();
   }
 
   function logout() {
@@ -65,10 +69,32 @@ function initPanel(root) {
       .catch(() => {});
   }
 
+  function rest() {
+    if (timer) { clearInterval(timer); timer = null; }
+    attemptStarted = null;
+  }
+
+  /**
+   * Start watching for a sign-in that is actually in flight.
+   *
+   * The ceiling runs from HERE rather than from page load, and that distinction
+   * is the bug this replaces. The panel used to start a 2-second heartbeat the
+   * moment the login page rendered and stop it five minutes later, whether or
+   * not anybody had clicked anything -- so opening /login cost 150 requests to
+   * /fourier_identity.json on its own, and a reader who took longer than five
+   * minutes to sign in (creating an account, finding a password) came back to a
+   * panel that had stopped listening. The login had worked. Nothing was
+   * watching for it.
+   */
+  function watch() {
+    attemptStarted = Date.now();
+    if (!timer) timer = setInterval(poll, cfg.pollIntervalMs || 2000);
+    poll();
+  }
+
   function poll() {
-    if (Date.now() - started > cfg.pollCeilingMs) {
-      clearInterval(timer);
-      timer = null;
+    if (attemptStarted !== null && Date.now() - attemptStarted > cfg.pollCeilingMs) {
+      rest();
       return;
     }
 
@@ -98,10 +124,13 @@ function initPanel(root) {
     // target=_blank link -- would recognise itself as a login popup and close
     // on sight.
     if (popup) {
-      const watch = setInterval(() => {
+      const closeWatch = setInterval(() => {
         if (!popup || popup.closed) {
-          clearInterval(watch);
+          clearInterval(closeWatch);
           window.__fourierLoginPopupOpen = false;
+          // The popup closing is the likeliest moment for the answer to have
+          // changed, so ask immediately rather than waiting out a tick.
+          poll();
         }
       }, 500);
     }
@@ -122,7 +151,7 @@ function initPanel(root) {
   root.addEventListener("click", (e) => {
     const act = e.target.closest("[data-act]");
     if (!act) return;
-    if (act.dataset.act === "popup") openPopup();
+    if (act.dataset.act === "popup") { watch(); openPopup(); }
     else if (act.dataset.act === "logout") logout();
   });
 
@@ -155,7 +184,18 @@ function initPanel(root) {
   // provider's own pages this status IS readable.
   preflight().then((ok) => { if (!ok) markUnavailable(); });
 
-  timer = setInterval(poll, cfg.pollIntervalMs);
+  // Coming back to this tab is the strongest signal there is that something
+  // happened elsewhere -- a popup finished, or a sign-in was completed in
+  // another tab entirely. One request, on an event, instead of a heartbeat.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !root.classList.contains("is-linked")) poll();
+  });
+  window.addEventListener("focus", () => {
+    if (!root.classList.contains("is-linked")) poll();
+  });
+
+  // Exactly one request on load, to render the state the reader arrives with.
+  // Everything after this is driven by something happening.
   poll();
 }
 
