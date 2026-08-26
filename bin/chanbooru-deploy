@@ -118,10 +118,24 @@ Push it somewhere first -- a branch or a tag -- then run this again."
     # Bash reads a script incrementally, so a deploy script that just replaced
     # itself is being executed half-old and half-new from this line on. Start
     # again as the new one.
-    if ! git diff --quiet "$BEFORE" HEAD -- "$0"; then
-      step "this script changed in that merge -- restarting as the new version"
-      exec "$0" --reexec "$@"
-    fi
+    #
+    # Only meaningful when this script IS the one in the tree. Bootstrapping a
+    # rewritten history means running a copy from outside the repo, and asking
+    # git to diff a path it does not contain prints
+    #   fatal: '/tmp/...' is outside repository
+    # which is alarming, wrong, and was landing in the middle of a deploy that
+    # was working perfectly. An external copy has nothing to reload into, so
+    # the question does not apply.
+    SELF="$(cd "$(dirname "$0")" 2>/dev/null && pwd)/$(basename "$0")"
+    case "$SELF" in
+      "$ROOT"/*)
+        if ! git diff --quiet "$BEFORE" HEAD -- "$SELF"; then
+          step "this script changed in that merge -- restarting as the new version"
+          exec "$SELF" --reexec "$@"
+        fi
+        ;;
+      *) echo "   (running from $SELF, outside the tree -- no reload needed)" ;;
+    esac
   fi
 fi
 
