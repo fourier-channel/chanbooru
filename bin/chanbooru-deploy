@@ -21,6 +21,8 @@ set -uo pipefail
 
 BRANCH="chanbooru"
 LOG="/tmp/chanbooru-build.log"
+# How long the build may say nothing before the deploy says something.
+HEARTBEAT_SECS="${HEARTBEAT_SECS:-15}"
 PORT="${DANBOORU_PORT:-3000}"
 PULL=1; BUILD=1
 
@@ -148,10 +150,45 @@ if (( BUILD )); then
   # Everything else is compiler noise, and there are tens of thousands of lines
   # of it. PIPESTATUS because the build's exit code is the one that matters and
   # grep's is not -- a build that fails still has lines to print.
+  # A heartbeat, because a build that has gone quiet and a build that has hung
+  # look identical, and the quiet is not accidental: this Dockerfile points
+  # apt's logs at /dev/null, and BuildKit drops to state-change-only output the
+  # moment it is not writing to a terminal. Between them a single step can go
+  # sixty seconds without a character, which leaves the reader watching a
+  # resource monitor to find out whether anything is alive.
+  #
+  # What it reports is the honest pair: which step is open, and how long the log
+  # has been silent. Log mtime rather than a timer -- silence is measured from
+  # the last byte the build actually produced, so this cannot claim progress the
+  # build is not making.
+  : > "$LOG"
+  (
+    quiet_for=0
+    while sleep "$HEARTBEAT_SECS"; do
+      [[ -f "$LOG" ]] || continue
+      now=$(date +%s)
+      touched=$(stat -c %Y "$LOG" 2>/dev/null || echo "$now")
+      quiet_for=$(( now - touched ))
+      # Only speak when the build has not. Under a chatty step this stays out
+      # of the way entirely.
+      (( quiet_for < HEARTBEAT_SECS )) && continue
+      open_step=$(grep -aoE '^#[0-9]+ \[[^]]*\]( [^ ]{1,40})?' "$LOG" | tail -1)
+      printf '   ... still running%s -- no output for %ds\n' \
+        "${open_step:+ $open_step}" "$quiet_for"
+    done
+  ) &
+  HEARTBEAT_PID=$!
+  # Killed on any exit, including a failed build or a Ctrl-C, so a stray ticker
+  # never outlives the thing it was reporting on.
+  trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT INT TERM
+
   bin/build-docker-image danbooru 2>&1 \
     | tee "$LOG" \
     | grep -a --line-buffered -E '^#[0-9]+ (\[|DONE|CACHED|ERROR)|^ERROR:|^#[0-9]+ ERROR'
-  (( ${PIPESTATUS[0]} == 0 )) || die "build failed. Full log: $LOG"
+  BUILD_RC=${PIPESTATUS[0]}
+  kill "$HEARTBEAT_PID" 2>/dev/null || true
+  trap - EXIT INT TERM
+  (( BUILD_RC == 0 )) || die "build failed. Full log: $LOG"
 
   [[ -x bin/build-watch ]] && bin/build-watch --summary "$LOG"
 fi
