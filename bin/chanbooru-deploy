@@ -161,6 +161,10 @@ if (( BUILD )); then
   # has been silent. Log mtime rather than a timer -- silence is measured from
   # the last byte the build actually produced, so this cannot claim progress the
   # build is not making.
+  # Last build's log is kept, because it is the only honest source of an
+  # estimate. A step that took 209 seconds last time is the difference between
+  # "silent for 60s" reading as alarming and reading as halfway.
+  [[ -f "$LOG" ]] && mv -f "$LOG" "$LOG.prev"
   : > "$LOG"
   (
     quiet_for=0
@@ -172,9 +176,30 @@ if (( BUILD )); then
       # Only speak when the build has not. Under a chatty step this stays out
       # of the way entirely.
       (( quiet_for < HEARTBEAT_SECS )) && continue
-      open_step=$(grep -aoE '^#[0-9]+ \[[^]]*\]( [^ ]{1,40})?' "$LOG" | tail -1)
-      printf '   ... still running%s -- no output for %ds\n' \
-        "${open_step:+ $open_step}" "$quiet_for"
+
+      open_line=$(grep -aE '^#[0-9]+ \[' "$LOG" | tail -1)
+      open_step=$(printf '%s' "$open_line" | grep -oE '^#[0-9]+ \[[^]]*\]')
+      # The bracketed name, which is stable across builds. The #N is not:
+      # BuildKit renumbers, and this script runs two builds that each count
+      # from #1.
+      name=$(printf '%s' "$open_step" | grep -oE '\[[^]]*\]')
+
+      took=""
+      if [[ -f "$LOG.prev" && -n "$name" ]]; then
+        # Find that step's number in the previous log, then its DONE time.
+        prev_n=$(grep -aF "$name" "$LOG.prev" | grep -oE '^#[0-9]+' | tail -1)
+        if [[ -n "$prev_n" ]]; then
+          took=$(grep -aE "^${prev_n} DONE [0-9.]+s" "$LOG.prev" | grep -oE '[0-9.]+s' | tail -1)
+        fi
+      fi
+
+      if [[ -n "$took" ]]; then
+        printf '   ... still running %s -- silent %ds; took %s last build\n' "$open_step" "$quiet_for" "$took"
+      else
+        # No estimate rather than a made-up one. A number nobody measured is
+        # the progress bar that tracks nothing.
+        printf '   ... still running %s -- silent %ds (no previous timing)\n' "$open_step" "$quiet_for"
+      fi
     done
   ) &
   HEARTBEAT_PID=$!
