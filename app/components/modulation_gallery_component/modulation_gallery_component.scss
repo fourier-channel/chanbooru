@@ -182,6 +182,21 @@ body:has(.modgal) {
     &:hover { border-color: var(--cat-character); transform: translateY(-2px); }
   }
   .modgal-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
+  // A deleted post's thumbnail: desaturated and blurred, and it stays that way
+  // -- the card is a link, so the reveal belongs on the post view where the
+  // choice is about one image. The card already crops with overflow: hidden,
+  // which is what keeps the blur from showing a soft edge inside the frame.
+  .modgal-card--spoiler {
+    .modgal-thumb {
+      filter: grayscale(1) blur(14px);
+      transform: scale(1.12);
+    }
+
+    .modgal-card-id::after {
+      content: " deleted";
+      color: #ff6b7a;
+    }
+  }
   .modgal-thumb--gated {
     display: grid; place-items: center; width: 100%; height: 100%;
     color: var(--mod-ink-dim); font-family: ui-monospace, monospace; font-size: 0.72rem;

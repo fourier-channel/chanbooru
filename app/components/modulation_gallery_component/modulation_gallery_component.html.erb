@@ -90,7 +90,12 @@
   <% if posts.any? %>
     <div class="modgal-grid">
       <% posts.each do |post| %>
-        <a class="modgal-card" href="<%= post_link(post) %>" title="post #<%= post.id %>" <%= tag.attributes(card_data(post)) %>>
+        <%# A deleted post only reaches this grid when the viewer asked for one
+            (show_deleted). It is still veiled: asking to SEE THAT THEY EXIST is
+            not asking for a wall of the pictures. There is no reveal here --
+            the card is a link, and clicking it opens the post view, which
+            offers the reveal on the one image you chose. %>
+        <a class="modgal-card<%= " modgal-card--spoiler" if post.is_deleted? %>" href="<%= post_link(post) %>" title="post #<%= post.id %><%= " (deleted)" if post.is_deleted? %>" <%= tag.attributes(card_data(post)) %>>
           <% thumb = thumb_for(post) %>
           <% if thumb %>
             <img class="modgal-thumb" src="<%= thumb %>" alt="" loading="lazy">

@@ -76,10 +76,27 @@ class FourierTagSource < ApplicationRecord
 
   # Tag buckets visible to `viewer` (identity-gated read): public rows always,
   # private rows only if the viewer is the creator/mod.
+  #
+  # Tags with NO row here land in :unsourced rather than vanishing. This table
+  # is a sidecar, not the tag list -- rows are written by exactly one endpoint
+  # (POST /posts/:id/tag_sources.json) and nothing hooks Post's own tag changes,
+  # so every tag added by any other route had no row and was silently dropped
+  # from the only view that reads this: a moderator's hand edit, Danbooru's own
+  # upload-time tags, and troll_jail, which fourier-sampling applies with a
+  # plain tag_string PUT. The jail tag being invisible on 38 posts is what
+  # surfaced it. blacklist_tags_for already treats an absent row as "nothing to
+  # withhold"; this method disagreeing with it was the defect.
+  #
+  # `known` is plucked from ALL rows, BEFORE the visibility filter. Taking it
+  # from the filtered set instead would hand a private creator tag back to the
+  # very viewer the filter just took it from, through the fallback -- the tag
+  # would have no VISIBLE row and so would read as unsourced. The privacy gate
+  # is the reason this table exists; the fallback must not open a second door.
   def self.for_viewer(post, viewer)
     rows = where(post_id: post.id)
+    known = rows.pluck(:tag)
     rows = rows.publicly_visible unless private_visible_to?(post, viewer)
-    buckets_for(rows)
+    buckets_for(rows).merge(unsourced: post.tag_string.to_s.split - known)
   end
 
   # The tags that may be published into the DOM for `viewer`, per post, in one

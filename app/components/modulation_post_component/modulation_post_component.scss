@@ -268,7 +268,16 @@ body:has(.modulation) {
   // --- notice strip -------------------------------------------------------
   // Post status and post family. Colour carries the difference: a takedown and
   // "this post has children" must not look alike.
-  .mod-notices { display: flex; flex-direction: column; gap: 0.4rem; }
+  // &[hidden] is load-bearing: the UA's [hidden] { display: none } is an author
+  // -level default that ANY author display rule beats, so `display: flex` here
+  // silently un-hid the strip the renderer had just marked hidden.
+  .mod-notices {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+
+    &[hidden] { display: none; }
+  }
   .mod-notice {
     display: flex;
     align-items: center;
@@ -298,10 +307,60 @@ body:has(.modulation) {
     border-color: color-mix(in srgb, #ff6b7a 35%, transparent);
     .mod-notice-text { color: #ff6b7a; }
   }
+  // jailed: the same severity family as deleted, with a bar so the two are
+  // told apart at a glance -- they appear together, and they say different
+  // things (why it was removed, and that it was).
+  .mod-notice--jailed {
+    background: #2e1216;
+    border-color: color-mix(in srgb, #ff6b7a 35%, transparent);
+    border-left: 3px solid #ff6b7a;
+    .mod-notice-text { color: #ff6b7a; font-weight: 600; }
+  }
   .mod-notice--parent,
   .mod-notice--child {
     background: var(--mod-creator-bg);
     border-color: color-mix(in srgb, var(--mod-creator-fg) 30%, transparent);
+  }
+
+  // --- deleted-post spoiler -----------------------------------------------
+  // Desaturated AND blurred, because either alone still reads: grey keeps every
+  // shape, and a blur keeps every colour. Together they leave composition and
+  // nothing else.
+  .mod-spoiler {
+    position: relative;
+    display: inline-block;
+    cursor: pointer;
+    border-radius: var(--mod-radius);
+    overflow: hidden;
+
+    &:focus-visible {
+      outline: 2px solid var(--mod-auto-fg);
+      outline-offset: 2px;
+    }
+  }
+  // The veil is a wrapper so the blur has somewhere to bleed. `overflow: hidden`
+  // on the parent then crops the soft edge back to the frame, which a filter on
+  // the <img> could not do -- it would leave a sharp outline around a blurred
+  // interior.
+  .mod-spoiler-veil {
+    filter: grayscale(1) blur(28px);
+    transform: scale(1.06); // hides the transparent margin the blur pulls in
+    pointer-events: none;
+  }
+  .mod-spoiler-label {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0.9rem;
+    text-align: center;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    color: #ff6b7a;
+    text-shadow: 0 1px 3px rgb(0 0 0 / 80%);
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mod-spoiler-veil { transition: none; }
   }
 
   // --- tags block ---------------------------------------------------------
@@ -383,6 +442,16 @@ body:has(.modulation) {
     color: var(--mod-pending-fg);
     border: 1px dashed color-mix(in srgb, var(--mod-pending-fg) 55%, transparent);
     .mod-pill-dot { opacity: 0.5; }
+  }
+  // unsourced: a tag that is on the post with no provenance row -- a moderator's
+  // hand edit, an upload-time tag, troll_jail. Solid outline rather than
+  // pending's dashed one: the tag is really there, it is its ORIGIN that is
+  // unknown, and those are different claims.
+  .mod-pill--unsourced {
+    background: transparent;
+    color: var(--mod-meta-fg);
+    border-color: color-mix(in srgb, var(--mod-meta-fg) 45%, transparent);
+    .mod-pill-dot { opacity: 0.45; }
   }
   // meta: quietest of all
   .mod-pill--meta {

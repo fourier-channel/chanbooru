@@ -12,7 +12,9 @@
 class ModulationPostComponent < ApplicationComponent
   attr_reader :post, :viewer, :query
 
-  BUCKET_ORDER = %i[creator both auto pending].freeze
+  # unsourced last: it is the bucket for a tag whose origin was never
+  # recorded, so it says the least and should not lead the row.
+  BUCKET_ORDER = %i[creator both auto pending unsourced].freeze
 
   def initialize(post:, viewer:, query: nil)
     super
@@ -132,6 +134,18 @@ class ModulationPostComponent < ApplicationComponent
     { count: post.fav_count, faved: post.favorited_by?(viewer), can_fav: !anonymous? }
   end
 
+  def jailed?
+    post.has_tag?(Danbooru.config.troll_jail_tag)
+  end
+
+  # The reason recorded on the deletion flag, as a sentence, or nil.
+  def deletion_reason
+    reason = post.flags.succeeded.last&.reason.to_s.strip
+    return nil if reason.blank?
+
+    reason.end_with?(".") ? "Reason: #{reason}" : "Reason: #{reason}."
+  end
+
   # One word for the post's moderation state, shown in the metadata line.
   def status
     return "banned" if post.is_banned?
@@ -150,11 +164,21 @@ class ModulationPostComponent < ApplicationComponent
   def notices
     list = []
 
+    # First, above the deletion notice, because it is the REASON for it: an
+    # operator sent this image to troll jail from the curation surface, and the
+    # deletion is that decision arriving on the booru. Driven by the tag rather
+    # than by the deleted flag, so a jailing whose delete half failed still says
+    # so -- which is exactly the state 38 posts were in when this was written.
+    list << { kind: "jailed", text: "This post is in troll jail." } if jailed?
+
     case status
     when "banned"
       list << { kind: "banned", text: "This post was removed following a takedown request or rule violation." }
     when "deleted"
-      list << { kind: "deleted", text: "This post was deleted." }
+      # With the reason, when there is one. The deletion flag carries the
+      # operator's own words ("troll jail: shock"), and a deletion nobody can
+      # account for later is the thing the reason exists to prevent.
+      list << { kind: "deleted", text: ["This post was deleted.", deletion_reason].compact.join(" ") }
     when "pending"
       list << { kind: "pending", text: "This post is pending approval." }
     when "flagged"

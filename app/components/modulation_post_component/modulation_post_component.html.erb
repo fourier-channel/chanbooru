@@ -71,6 +71,9 @@
     let cur = JSON.parse(root.dataset.payload || "null");
     let activeKey = cur ? cur.active_key : "";
     let view = "unitag", metaOpen = false, busy = false, moreOpen = false;
+    // Reset on navigation, deliberately: revealing one deleted post is not
+    // consent to see the next one.
+    let revealed = false;
     const cache = new Map(); // `${id}|${search}` -> payload
 
     const presets = () => (cur && cur.presets) || [];
@@ -97,7 +100,26 @@
       if (m.kind === "other") return '<div class="mod-frame"><a href="' + esc(m.href || "#") + '"><img class="mod-image" src="' + esc(m.src) + '" alt=""></a></div>';
       return '<div class="mod-frame"><img class="mod-image" src="' + esc(m.src) + '" alt="" ' + (m.w ? 'width="' + m.w + '" height="' + m.h + '"' : "") + "></div>";
     }
-    function renderCenter() { region("center").innerHTML = mediaHTML(cur.media); }
+    // A deleted post's image is greyed and blurred until asked for. Reaching a
+    // deleted post is a moderation act -- checking what was removed, or why --
+    // and it should not put the picture on screen as a side effect of arriving.
+    // The bytes are already here: this is a viewing decision, not a gate, and
+    // it is deliberately one click to undo.
+    //
+    // The wrapper carries the blur, not the <img>: filtering the image itself
+    // leaves its own edges sharp against the frame, and a blur that stops at
+    // the subject's outline still shows you the subject.
+    function spoilerHTML(inner) {
+      return '<div class="mod-spoiler" data-act="reveal" role="button" tabindex="0"' +
+        ' aria-label="Reveal the image of this deleted post">' +
+        '<div class="mod-spoiler-veil">' + inner + "</div>" +
+        '<span class="mod-spoiler-label">deleted \u2014 click to reveal</span></div>';
+    }
+    function renderCenter() {
+      const html = mediaHTML(cur.media);
+      const spoil = cur.status === "deleted" && cur.media && cur.media.src && !revealed;
+      region("center").innerHTML = spoil ? spoilerHTML(html) : html;
+    }
 
     function flankRow(p, i, side) {
       const nb = p[side], empty = !nb;
@@ -122,7 +144,8 @@
 
     const pill = (t, b, dot) => '<a class="mod-pill mod-pill--' + b + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
     function renderTags() {
-      const t = cur.tags || {}, ORDER = ["creator", "both", "auto", "pending"], L = { creator: "creator", both: "creator + auto", auto: "auto", pending: "pending" };
+      const t = cur.tags || {}, ORDER = ["creator", "both", "auto", "pending", "unsourced"],
+        L = { creator: "creator", both: "creator + auto", auto: "auto", pending: "pending", unsourced: "no recorded source" };
       const uni = ORDER.flatMap(b => (t[b] || []).map(tag => pill(tag, b, true))).join("");
       const grouped = ORDER.filter(b => (t[b] || []).length).map(b =>
         '<div class="mod-group"><span class="mod-group-label">' + L[b] + '</span><div class="mod-group-pills">' + (t[b] || []).map(tag => pill(tag, b, false)).join("") + "</div></div>").join("");
@@ -282,6 +305,7 @@
         setTimeout(() => {
           cur = p;
           activeKey = p.active_key || activeKey;
+          revealed = false;
           root.classList.remove("is-nav-next", "is-nav-prev");
           const enter = side === "next" ? "is-enter-next" : "is-enter-prev";
           root.classList.add(enter);
@@ -307,6 +331,7 @@
       else if (a === "view") { view = act.dataset.view; renderTags(); }
       else if (a === "meta-toggle") { metaOpen = !metaOpen; renderTags(); }
       else if (a === "more") { moreOpen = !moreOpen; renderActions(); }
+      else if (a === "reveal") { revealed = true; renderCenter(); }
       else if (a === "vote") vote(act.dataset.dir);
       else if (a === "fav") toggleFav();
       else if (a === "signin") window.location.href = "/login?url=" + encodeURIComponent(location.pathname + location.search);
@@ -314,6 +339,10 @@
 
     window.addEventListener("keydown", e => {
       if (e.target.closest("input, textarea, select, [contenteditable]")) return;
+      if (e.key === "Enter" || e.key === " ") {
+        const sp = e.target.closest(".mod-spoiler");
+        if (sp) { e.preventDefault(); revealed = true; renderCenter(); return; }
+      }
       if (e.key === "ArrowLeft") navigate("prev");
       else if (e.key === "ArrowRight") navigate("next");
       else if (e.key === "ArrowUp") { e.preventDefault(); swapSort(-1); }
@@ -328,7 +357,7 @@
     window.addEventListener("popstate", () => {
       const m = location.pathname.match(/\/posts\/(\d+)/); if (!m) return;
       const search = new URLSearchParams(location.search).get("q") || "";
-      fetchPayload(+m[1], search).then(p => { cur = p; activeKey = p.active_key || activeKey; renderAll(); }).catch(() => {});
+      fetchPayload(+m[1], search).then(p => { cur = p; activeKey = p.active_key || activeKey; revealed = false; renderAll(); }).catch(() => {});
     });
 
     history.replaceState({ modId: cur.id }, "", cur.url);

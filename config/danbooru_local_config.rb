@@ -153,8 +153,18 @@ module Danbooru
         young
         aged_down
         age_regression
-        troll_jail
-      ]
+      ] + [troll_jail_tag]
+    end
+
+    # The tag fourier-sampling applies when an operator sends an image to troll
+    # jail. Named here rather than spelled out twice: it is gated (above) AND it
+    # drives a notice on the post view, and the two must not drift apart.
+    #
+    # Applied with a plain tag_string PUT from the curation surface, so it has
+    # no FourierTagSource row -- see the note on FourierTagSource.for_viewer for
+    # why that used to make it invisible.
+    def troll_jail_tag
+      "troll_jail"
     end
 
     # ---- Fourier media gating ----
