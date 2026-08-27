@@ -1,0 +1,90 @@
+/* fourier-formant: tokens -- CANON.
+ *
+ * The vocabulary of the Fourier interface: values, and the semantic names that
+ * map onto them. Nothing else -- no components, no selectors, no build step.
+ * Every stack can consume values; no two of these stacks can consume a
+ * component, because a server-rendered ViewComponent and a client-rendered
+ * React component are not one object and the attempt to unify them produces an
+ * abstraction that fits neither.
+ *
+ * THE RULE THIS FILE ENFORCES: names, not values, cross a boundary. Refer to
+ * --mod-creator-fg, never to the hex it happens to hold. A hex that crosses a
+ * repository boundary is a copy, and copies drift silently -- which is not a
+ * hypothetical; this file exists because a measured audit found two of them
+ * already drifted, in the one semantic that most needed to be stable.
+ *
+ * DO NOT EDIT A DELIVERED COPY. Canon lives in fourier-basis under
+ * docs/design/formant/, alongside a README explaining the scope and the audit.
+ * A consumer that edits its own copy is drift, the pointer sidecar in
+ * docs/.coherence/ makes that machine-checkable, and hydration deliberately
+ * refuses to overwrite an edited copy rather than destroying the only copy of
+ * somebody's work.
+ *
+ * CONSUMING IT: import ahead of your own stylesheet and delete any local
+ * definition of these names. A local copy that merely AGREES today is the
+ * problem in its dormant state.
+ *
+ * NOT IN HERE, and each omission is a decision:
+ *
+ *   Upstream Danbooru's ramp variables (--grey-9, --orange-3 and friends).
+ *   Those are upstream's, re-cut per theme, and copying them would make this
+ *   file a second opinion about somebody else's palette.
+ *
+ *   Tokens with exactly one consumer. A token designed for one caller is a
+ *   guess; a token extracted from two is a measurement. Extract on the second
+ *   use, never the first.
+ *
+ * Twenty-four tokens, which is what the surfaces actually share -- not what a
+ * complete-looking palette would contain.
+ */
+
+:root {
+  /* --- surfaces, back to front ------------------------------------------ */
+  --mod-surface:        #1b1a17;
+  --mod-surface-2:      #242320;
+  --mod-surface-3:      #2e2c27;
+
+  /* --- lines ------------------------------------------------------------ */
+  --mod-line:           #34322c;
+  --mod-line-strong:    #4a473f;
+
+  /* --- text, loudest to quietest ---------------------------------------- */
+  --mod-ink:            #e8e6e0;
+  --mod-ink-dim:        #9a968c;
+  --mod-ink-faint:      #6e6a61;
+
+  /* --- tag provenance --------------------------------------------------- */
+  /* Who put a tag there: a person, the autotagger, or both. Named for what
+   * they MEAN, because the palette differs between deployments and
+   * a name is the only thing that survives that. */
+  --mod-creator-fg:     #38e08a;
+  --mod-creator-bg:     #0f2c1d;
+  --mod-auto-fg:        #ff9d3c;
+  --mod-auto-bg:        #2c1c0c;
+  --mod-both-fg:        #ff9d3c;
+  --mod-both-outline:   #38e08a;
+  --mod-pending-fg:     #b7b3a8;
+  --mod-meta-fg:        #8f8b80;
+
+  /* --- accent ----------------------------------------------------------- */
+  --mod-accent:         #38e08a;
+
+  /* --- shape ------------------------------------------------------------ */
+  /* 10px is the PRESET-level value. A component may narrow it -- the creator
+   * gallery uses 12px under .modcreator -- and that is what a token is for. The
+   * first draft of this file published 12px because it took the first
+   * definition it found rather than the widest-scoped one. */
+  --mod-radius:         10px;
+  --mod-radius-sm:      6px;
+  --mod-pill-radius:    999px;
+
+  /* --- measure ---------------------------------------------------------- */
+  --mod-gap:            1rem;
+  --mod-col:            1080px;
+  --mod-page:           1180px;
+
+  /* --- type ------------------------------------------------------------- */
+  /* A system stack on purpose: these render at 11-13px in dense grids, and a
+   * webfont buys nothing there while costing a flash. */
+  --mod-mono:           ui-monospace, "SFMono-Regular", "Menlo", monospace;
+}
