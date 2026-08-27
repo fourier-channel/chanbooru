@@ -26,6 +26,33 @@ HEARTBEAT_SECS="${HEARTBEAT_SECS:-15}"
 PORT="${DANBOORU_PORT:-3000}"
 PULL=1; BUILD=1
 
+# Wall clock for the whole run, and separately for the build inside it.
+# A deploy is the longest thing anyone here waits on, and "how long did that
+# take" should not require scrolling back to find when you pressed return.
+STARTED_AT=$(date +%s)
+BUILD_STARTED_AT=""; BUILD_ENDED_AT=""
+
+# Seconds as a person reads them: 47s, 15m 38s, 1h 04m 12s. No decimals -- this
+# is for a human deciding whether to make coffee, not for a benchmark.
+human_duration() {
+  local s=$1 h m
+  h=$(( s / 3600 )); m=$(( (s % 3600) / 60 )); s=$(( s % 60 ))
+  if   (( h > 0 )); then printf '%dh %02dm %02ds' "$h" "$m" "$s"
+  elif (( m > 0 )); then printf '%dm %02ds' "$m" "$s"
+  else                   printf '%ds' "$s"
+  fi
+}
+
+# Clock time, with the date only when the run crossed midnight -- which a
+# fifteen-minute build genuinely can.
+human_clock() {
+  if [[ "$(date -d "@$1" +%F)" == "$(date -d "@$2" +%F)" ]]; then
+    date -d "@$2" '+%H:%M:%S'
+  else
+    date -d "@$2" '+%b %-d %H:%M:%S'
+  fi
+}
+
 for a in "$@"; do
   case "$a" in
     --no-pull)  PULL=0 ;;
@@ -207,10 +234,12 @@ if (( BUILD )); then
   # never outlives the thing it was reporting on.
   trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT INT TERM
 
+  BUILD_STARTED_AT=$(date +%s)
   bin/build-docker-image danbooru 2>&1 \
     | tee "$LOG" \
     | grep -a --line-buffered -E '^#[0-9]+ (\[|DONE|CACHED|ERROR)|^ERROR:|^#[0-9]+ ERROR'
   BUILD_RC=${PIPESTATUS[0]}
+  BUILD_ENDED_AT=$(date +%s)
   kill "$HEARTBEAT_PID" 2>/dev/null || true
   trap - EXIT INT TERM
   (( BUILD_RC == 0 )) || die "build failed. Full log: $LOG"
@@ -260,5 +289,17 @@ done
 [[ "$CODE" == "200" ]] || die "front page answered ${CODE:-nothing} after 90s. docker compose logs danbooru"
 echo "   front page 200"
 
+FINISHED_AT=$(date +%s)
+
 echo
 echo "deployed $(git rev-parse --short HEAD) -- $(git log -1 --format=%s)"
+
+BUILD_NOTE=""
+if [[ -n "$BUILD_STARTED_AT" && -n "$BUILD_ENDED_AT" ]]; then
+  BUILD_NOTE=" (build $(human_duration $(( BUILD_ENDED_AT - BUILD_STARTED_AT ))))"
+fi
+printf 'started %s, finished %s -- %s total%s\n' \
+  "$(human_clock "$STARTED_AT" "$STARTED_AT")" \
+  "$(human_clock "$STARTED_AT" "$FINISHED_AT")" \
+  "$(human_duration $(( FINISHED_AT - STARTED_AT )))" \
+  "$BUILD_NOTE"
