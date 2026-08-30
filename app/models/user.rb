@@ -64,7 +64,50 @@ class User < ApplicationRecord
   # Personal preferences that are editable by the user, rather than internal flags. These will be cleared when the user deactivates their account.
   USER_PREFERENCE_BOOLEAN_ATTRIBUTES = ACTIVE_BOOLEAN_ATTRIBUTES - %w[is_banned requires_verification is_verified]
 
-  DEFAULT_BLACKLIST = ["guro", "scat", "furry -rating:g"].join("\n")
+  # The blacklist a logged-out visitor gets, and the default for a new account.
+  # User.anonymous is User.new, so this attribute default IS the anonymous
+  # blacklist. Changing it does NOT touch existing accounts: those hold their own
+  # stored value and only ever change it themselves.
+  #
+  # Extended 2026-08-30 by operator ruling to view-filter the material
+  # fourier-sampling now auto-jails, so it is hidden by default while the jail is
+  # reviewed and before anything is purged. The two lists are kept deliberately
+  # in step: sampling blocks it from arriving, this hides what already arrived.
+  #
+  # A LINE IS AND-ED AND `-` EXCLUDES, which is what lets the arthropod rule be
+  # expressed here at all -- it is a conjunction with an exemption, and without
+  # the exemption it hides 38 Pokemon posts as collateral (measured).
+  #
+  # Tags below come from two taggers with different vocabularies. guro, death,
+  # corpse and gore are on posts of every age; feces, fart, arthropod and the
+  # rating words are hydra's and only reach posts tagged since 2026-08-22, so
+  # those lines filter new material and not the archive. Backfilling older posts
+  # is tools/backfill-tags.ts in fourier-sampling, and is a separate job.
+  DEFAULT_BLACKLIST = [
+    # upstream defaults, kept
+    "guro",
+    "scat",
+    "furry -rating:g",
+    # unambiguous, operator ruling 2026-08-30
+    "gore",
+    "ryona",
+    "death",
+    "corpse",
+    "snuff",
+    "dismemberment",
+    "decapitation",
+    "severed_head",
+    "torture",
+    "mutilation",
+    "feces",
+    "fart",
+    "pooping",
+    # arthropod subject with sexual or gross intent, Pokemon exempt
+    "arthropod rating:e -pokemon_(creature) -pokemon_(species)",
+    "insect rating:e -pokemon_(creature) -pokemon_(species)",
+    "arthropod_humanoid rating:e -pokemon_(creature) -pokemon_(species)",
+    "insect_humanoid rating:e -pokemon_(creature) -pokemon_(species)",
+  ].join("\n")
 
   # The number of backup codes to generate for a user.
   MAX_BACKUP_CODES = 3
