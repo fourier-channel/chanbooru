@@ -3,6 +3,9 @@
 Every rule that decides whether a viewer sees a post, an image, or a tag. Written
 2026-08-30, traced from the code and checked against the running site.
 
+CANON. Lives in `fourier-basis`; hydrated into chanbooru and into the public site
+by `coherence hydrate`. This file is the only copy anyone edits.
+
 There are six independent gates. They are not layers of one system and they do
 not share a switch: a post can pass five and be withheld by the sixth. When a
 user reports "this page doesn't work", the question is *which gate*, and this
@@ -117,10 +120,16 @@ The second exists because a 4chan image lives in no Matrix room, so the
 room-membership question is meaningless for it. It uses the same fourier login
 already used to view Synapse media.
 
-Synapse remains the single authority for both storage and authorisation. An
-exposed MXC URI is only a pointer and grants no access without a valid,
-permitted Matrix token, which never reaches the browser -- the browser holds an
-opaque session cookie and the token stays server-side.
+Synapse is the single authority for AUTHORISATION. It is not the store: no
+user-posted media lives on the homeserver, only site assets -- avatars, emojis,
+room icons. Everything else is in R2 and served from R2, so an image on the booru
+and the same image in Matrix are one object at one URL.
+
+If the check passes, the caller is redirected to a short-lived signed R2 URL and
+no media byte passes through the gate. An exposed MXC URI is only a pointer and
+grants nothing without a valid, permitted Matrix token, which never reaches the
+browser -- the browser holds an opaque session cookie and the token stays
+server-side.
 
 Thumbnail variants map to Synapse thumbnail sizes. `original` and `full` are
 deliberately absent from that map: they get the ungated-size download.
