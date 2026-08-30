@@ -22,8 +22,19 @@
 # `exec` rather than `run`, because the stack is long-lived here. If it is down,
 # docker says "is not running" and coherence reports that as unmeasured rather
 # than as a failing suite.
-gate: docker compose -f docker-compose.dev.yaml exec -T -e RAILS_ENV=test danbooru bin/rails test
-suite: docker compose -f docker-compose.dev.yaml exec -T -e RAILS_ENV=test danbooru bin/rails test
+#
+# PARALLEL_WORKERS leaves one core free. Rails defaults to one test worker per
+# processor, which on this 4-core box took all four: host idle measured 0.0%
+# while the suite ran, starving the interactive session and devbooru's own
+# services. A gate that has to seize the whole machine is a gate nobody runs
+# before a commit, which makes it worse than no gate.
+#
+# Computed from nproc rather than hard-coded, because this file travels with the
+# repo to every box and their core counts differ. `--ignore=1` floors at 1, and
+# unlike a shell ternary it contains no `?` or `: ` -- both are YAML indicators,
+# and the first draft of this line silently parsed to an empty gate.
+gate: docker compose -f docker-compose.dev.yaml exec -T -e RAILS_ENV=test -e PARALLEL_WORKERS=$(nproc --ignore=1) danbooru bin/rails test
+suite: docker compose -f docker-compose.dev.yaml exec -T -e RAILS_ENV=test -e PARALLEL_WORKERS=$(nproc --ignore=1) danbooru bin/rails test
 
 # Upstream Danbooru content: Japanese and Chinese test fixtures, a ZWJ inside
 # a flag emoji in a test asserting emoji normalization, and typographic
