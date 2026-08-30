@@ -11,12 +11,23 @@
 #           rule 6), quoted back in a derived-facts denial.
 #   exclude paths held out of the confusable check: vendored or upstream
 #           content that is not ours to normalize.
+
+# The toolchain is not on the host and never was: Ruby 4.0.6 and Rails 8.1.3.1
+# live in the devbooru stack (`docker-compose.dev.yaml`, project name devbooru,
+# `bin/dev` is the shortcut). The first version of this declared a bare
+# `bundle exec rails test`, which reported "toolchain absent" on a box that has
+# had it running for days -- the gate was wrong about the machine, not the
+# machine wrong about the gate.
+#
+# `exec` rather than `run`, because the stack is long-lived here. If it is down,
+# docker says "is not running" and coherence reports that as unmeasured rather
+# than as a failing suite.
+gate: docker compose -f docker-compose.dev.yaml exec -T -e RAILS_ENV=test danbooru bin/rails test
+suite: docker compose -f docker-compose.dev.yaml exec -T -e RAILS_ENV=test danbooru bin/rails test
+
 # Upstream Danbooru content: Japanese and Chinese test fixtures, a ZWJ inside
 # a flag emoji in a test asserting emoji normalization, and typographic
 # apostrophes in legal boilerplate. Not ours to normalize.
-
-gate: bundle exec rails test
-suite: bundle exec rails test
 exclude:
   - test/
   - app/views/static/

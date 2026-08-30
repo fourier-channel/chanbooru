@@ -78,7 +78,19 @@ x-base-template: &base-template
   #
   # If you set DANBOORU_IMAGE to something else, you have to use a development image because
   # production images don't contain the tools necessary to rebuild the JS/CSS files.
-  image: ${DANBOORU_IMAGE:-ghcr.io/danbooru/danbooru:development}
+  #
+  # FORK CHANGE: this reads DANBOORU_DEV_IMAGE, not DANBOORU_IMAGE. Compose reads
+  # .env for BOTH compose files, and our .env sets DANBOORU_IMAGE=danbooru:latest
+  # so the PRODUCTION stack runs the locally-built fork image. That override
+  # silently landed here too, against the warning directly above, and devbooru's
+  # webpack service crash-looped for days on `No such file or directory - npm`:
+  # the production image has no node toolchain. The dev asset pipeline was dead
+  # while the site still served pre-built packs, so nothing looked wrong.
+  #
+  # Separate variables because the two stacks want different images for the same
+  # code -- ${DANBOORU_DIR:-./} is mounted at /danbooru either way, so the image
+  # supplies only the runtime.
+  image: ${DANBOORU_DEV_IMAGE:-ghcr.io/danbooru/danbooru:development}
 
   restart: unless-stopped
   stdin_open: true
@@ -177,7 +189,7 @@ services:
       - "danbooru-data:/var/lib/postgresql/data"
 
   nginx:
-    image: ${DANBOORU_IMAGE:-ghcr.io/danbooru/danbooru:development}
+    image: ${DANBOORU_DEV_IMAGE:-ghcr.io/danbooru/danbooru:development}
     command: ["openresty", "-e", "/dev/stderr"]
     environment:
       # The external port to listen on. You can set this to 80 if you have nothing else listening on port 80.
