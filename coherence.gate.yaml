@@ -14,27 +14,23 @@
 
 # The toolchain is not on the host and never was: Ruby 4.0.6 and Rails 8.1.3.1
 # live in the devbooru stack (`docker-compose.dev.yaml`, project name devbooru,
-# `bin/dev` is the shortcut). The first version of this declared a bare
-# `bundle exec rails test`, which reported "toolchain absent" on a box that has
-# had it running for days -- the gate was wrong about the machine, not the
-# machine wrong about the gate.
+# `bin/dev` is the shortcut).
 #
-# `exec` rather than `run`, because the stack is long-lived here. If it is down,
-# docker says "is not running" and coherence reports that as unmeasured rather
-# than as a failing suite.
+# SCOPED TO THE TESTS THIS FORK OWNS. The full suite is 6,368 tests and 32
+# minutes and CANNOT be green here: measured 2026-08-30 it returned 115
+# failures, 20 errors and 475 skips, of which 127 were upstream source-extractor
+# tests fetching live third-party sites. Zero were in fork-owned tests. A gate
+# that is always red gets ignored, which costs the same as no gate plus half an
+# hour of the machine.
 #
-# PARALLEL_WORKERS leaves one core free. Rails defaults to one test worker per
-# processor, which on this 4-core box took all four: host idle measured 0.0%
-# while the suite ran, starving the interactive session and devbooru's own
-# services. A gate that has to seize the whole machine is a gate nobody runs
-# before a commit, which makes it worse than no gate.
+# script/fork-tests.sh DERIVES the list from upstream/master...HEAD rather than
+# maintaining one, refuses to report a pass on an empty list, and leaves a core
+# free. 284 tests, 0 failures, 2m36s.
 #
-# Computed from nproc rather than hard-coded, because this file travels with the
-# repo to every box and their core counts differ. `--ignore=1` floors at 1, and
-# unlike a shell ternary it contains no `?` or `: ` -- both are YAML indicators,
-# and the first draft of this line silently parsed to an empty gate.
-gate: docker compose -f docker-compose.dev.yaml exec -T -e RAILS_ENV=test -e PARALLEL_WORKERS=$(nproc --ignore=1) danbooru bin/rails test
-suite: docker compose -f docker-compose.dev.yaml exec -T -e RAILS_ENV=test -e PARALLEL_WORKERS=$(nproc --ignore=1) danbooru bin/rails test
+# The full suite still matters before a deploy or an upstream merge. It is not
+# the commit gate.
+gate: bash script/fork-tests.sh
+suite: bash script/fork-tests.sh
 
 # Upstream Danbooru content: Japanese and Chinese test fixtures, a ZWJ inside
 # a flag emoji in a test asserting emoji normalization, and typographic
