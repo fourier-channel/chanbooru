@@ -1,3 +1,7 @@
+<!-- coherence:hydrated -- canon is fourier-basis/docs/repos/chanbooru/FORK_DEVLOG.md
+     Edit canon and run `coherence hydrate`, never this delivered copy.
+     An edit here is drift: hydration will refuse to overwrite it and the
+     doc axis reports it edited-in-place until someone promotes or discards it. -->
 # Chanbooru — Fork Dev Log
 
 **Fork of:** danbooru/danbooru  ·  **Your repo:** sabertrtr/chanbooru
