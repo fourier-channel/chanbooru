@@ -40,3 +40,6 @@ lib/dtext_rb/ext/dtext/dtext.cpp
 # Nothing here is a credential, so rotation is not the remedy; if the history
 # itself matters that is a separate, deliberate decision.
 CLAUDE.md
+docs/VERIFICATION-DOCTRINE.md
+docs/WORKING-RULES.md
+docs/CLAUDE-HEADER.md
