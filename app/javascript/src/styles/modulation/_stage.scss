@@ -35,7 +35,28 @@
   }
 
   // Each column is the stacking context for its axis rows.
-  .mod-flank-col { position: relative; }
+  //
+  // The mask is how a column coexists with the rest of the page: rows are
+  // ranked outward from the centre, so on a short post the outer ranks extend
+  // past the stage and sit on top of the header and the tag panel. Clipping
+  // the column's paint to its own height with a soft fade makes an overflowing
+  // row dissolve at the edge instead of colliding with the interface. The mask
+  // image is 9x the column's width (no-repeat, centred) so only the vertical
+  // edges fade -- a row travelling horizontally during the shared-element swap
+  // stays inside coverage the whole way.
+  .mod-flank-col {
+    position: relative;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      #000 clamp(1.25rem, 9%, 3rem),
+      #000 calc(100% - clamp(1.25rem, 9%, 3rem)),
+      transparent
+    );
+    mask-repeat: no-repeat;
+    mask-size: 900% 100%;
+    mask-position: center;
+  }
 
   // One row per axis, centred then offset by rank and scaled. The active row
   // (rank 0) is large and level with the centre; up/down (or tapping another
@@ -68,6 +89,35 @@
       background: repeating-linear-gradient(45deg, var(--mod-surface) 0 6px, var(--mod-surface-2) 6px 12px);
       img { display: none; }
     }
+  }
+
+  // Trail terminus: the placeholder card at either cap of a run. The glyph is
+  // a transit-map terminus -- the line stops at a filled dot -- so an empty
+  // slot reads as "the trail ends here", not as a thumbnail that failed.
+  .mod-trailcap {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 0.25rem;
+    color: var(--mod-ink-dim);
+
+    svg {
+      width: 38%;
+      aspect-ratio: 1;
+      stroke: currentcolor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      fill: none;
+      opacity: 0.85;
+    }
+  }
+  .mod-trailcap-label {
+    font-family: ui-monospace, monospace;
+    font-size: 0.56rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
   .mod-sortrow-tag {

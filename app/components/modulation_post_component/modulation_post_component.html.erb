@@ -121,11 +121,22 @@
       region("center").innerHTML = spoil ? spoilerHTML(html) : html;
     }
 
+    // The terminus glyph for an empty cap: the trail's line stopping at a
+    // filled dot, pointing off the edge the trail came from.
+    function trailCapHTML(side) {
+      const glyph = side === "prev"
+        ? '<circle cx="12" cy="6" r="3" fill="currentColor" stroke="none"></circle><path d="M12 9.4 V21"></path>'
+        : '<path d="M12 3 V14.6"></path><circle cx="12" cy="18" r="3" fill="currentColor" stroke="none"></circle>';
+      const label = side === "prev" ? "start" : "end";
+      return '<span class="mod-trailcap"><svg viewBox="0 0 24 24" aria-hidden="true">' + glyph + "</svg>" +
+        '<span class="mod-trailcap-label">' + label + "</span></span>";
+    }
     function flankRow(p, i, side) {
       const nb = p[side], empty = !nb;
       const inner = (nb && nb.thumb) ? '<img src="' + esc(nb.thumb) + '" alt="" loading="lazy">'
-                                     : '<span class="fill">' + (side === "prev" ? "start" : "end") + "</span>";
-      return '<a class="mod-sortrow' + (empty ? " is-empty" : "") + '" data-i="' + i + '" data-side="' + side + '" href="' + esc((nb && nb.url) || "#") + '" title="' + esc(p.label) + '">' + inner + '<span class="mod-sortrow-tag">' + esc(p.label) + "</span></a>";
+                                     : trailCapHTML(side);
+      const title = empty ? p.label + " -- " + (side === "prev" ? "start of trail" : "end of trail") : p.label;
+      return '<a class="mod-sortrow' + (empty ? " is-empty" : "") + '" data-i="' + i + '" data-side="' + side + '" href="' + esc((nb && nb.url) || "#") + '" title="' + esc(title) + '">' + inner + '<span class="mod-sortrow-tag">' + esc(p.label) + "</span></a>";
     }
     function renderFlanks() {
       region("flank-prev").innerHTML = presets().map((p, i) => flankRow(p, i, "prev")).join("");
