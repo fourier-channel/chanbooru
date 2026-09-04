@@ -2,6 +2,28 @@
   display: none;
 }
 
+// Enforced rules are censored on screen: the words stay blurred until
+// deliberately clicked, so nobody reads them by accident. user-select off
+// while censored, or a copy-paste reads what the blur hides.
+.blacklist-censor {
+  filter: blur(5px);
+  cursor: pointer;
+  user-select: none;
+  transition: filter 0.15s ease;
+
+  &.is-revealed {
+    filter: none;
+    user-select: text;
+  }
+}
+
+.blacklist-enforced .blacklist-lock {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  opacity: 0.7;
+}
+
 .blacklisted-blurred {
   .post-preview-link, &.image-container, &.modgal-card, &.mod-blacklist-target, .mod-frame {
     overflow: hidden;

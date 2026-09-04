@@ -44,14 +44,18 @@ class Tag < ApplicationRecord
   # -- readable over a shoulder, screenshotted, broadcast -- without any of the
   # content having to load at all.
   #
-  # Signed-out only, matching Post#hidden_from_anonymous?: a signed-in viewer
-  # below the threshold still sees the names, because they already see the
-  # listings.
+  # The restricted list is signed-out only, matching Post#hidden_from_anonymous?:
+  # a signed-in viewer below the threshold still sees those names, because they
+  # already see the listings. The BANISHED list is universal -- see TagBanishment.
   scope :visible_to, ->(user) {
-    next all unless user.nil? || user.is_anonymous?
-    next all if Danbooru.config.restricted_tags.blank?
+    # Banished names are absent for EVERYONE -- admins included -- unless the
+    # admin has switched reveal_banished on. See TagBanishment.
+    scope = all
+    scope = scope.where.not(name: TagBanishment.list) if TagBanishment.list.present? && !TagBanishment.revealed_to?(user)
+    next scope unless user.nil? || user.is_anonymous?
+    next scope if Danbooru.config.restricted_tags.blank?
 
-    where.not(name: Danbooru.config.restricted_tags)
+    scope.where.not(name: Danbooru.config.restricted_tags)
   }
 
   scope :empty, -> { where("tags.post_count <= 0") }

@@ -44,8 +44,18 @@ class ModulationPostComponent < ApplicationComponent
   # ------------------------------------------------------------------------
 
   # { creator:, auto:, both:, meta:, pending: } -- creator already privacy-gated.
+  # Banished names are then withheld from DISPLAY for everyone without the
+  # admin reveal toggle; blacklist_data keeps them, because matching is not
+  # display and the enforced rules must still see them.
   def buckets
-    @buckets ||= FourierTagSource.for_viewer(post, viewer)
+    @buckets ||= begin
+      raw = FourierTagSource.for_viewer(post, viewer)
+      if TagBanishment.revealed_to?(viewer)
+        raw
+      else
+        raw.transform_values { |names| names.reject { |n| TagBanishment.banished?(n) } }
+      end
+    end
   end
 
   # Danbooru-category keys worth a bucket of their own at the head of the tag

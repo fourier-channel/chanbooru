@@ -11,7 +11,7 @@ class ModulationSettingsController < ApplicationController
   # or session, so there is no foreign resource to authorize against.
   def update
     skip_authorization
-    changes = { "image_cap" => params[:image_cap], "tags_expanded" => params[:tags_expanded] }.compact
+    changes = { "image_cap" => params[:image_cap], "tags_expanded" => params[:tags_expanded], "reveal_banished" => params[:reveal_banished] }.compact
     settings = ModulationSetting.record!(CurrentUser.user, session, changes)
     render json: settings, status: :ok
   end

@@ -296,6 +296,65 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
       end
     end
 
+    context "tag banishment" do
+      setup do
+        @admin = create(:admin_user)
+        @jailed = as(@admin) { create(:post, tag_string: "gore plaintag") }
+      end
+
+      should "withhold banished names from the modulation payload by default" do
+        get post_modulation_path(@jailed, format: :json)
+
+        tags = response.parsed_body["tags"].values.flatten
+        assert_not_includes(tags, "gore")
+        assert_includes(tags, "plaintag")
+      end
+
+      should "withhold them from an admin too, until the reveal toggle is on" do
+        login_as(@admin)
+        get post_modulation_path(@jailed, format: :json)
+        assert_not_includes(response.parsed_body["tags"].values.flatten, "gore")
+
+        ModulationSetting.record!(@admin, nil, { "reveal_banished" => "true" })
+        get post_modulation_path(@jailed, format: :json)
+        assert_includes(response.parsed_body["tags"].values.flatten, "gore")
+      end
+
+      should "not grant the reveal toggle to a non-admin" do
+        ModulationSetting.record!(@user, nil, { "reveal_banished" => "true" })
+
+        assert_nil(ModulationSetting.find_by(user_id: @user.id))
+      end
+
+      should "keep banished names out of the tag listing, even for a signed-in admin" do
+        login_as(@admin)
+        get tags_path(format: :json, search: { name_matches: "gore" })
+
+        assert_response :success
+        assert_equal([], response.parsed_body)
+      end
+
+      should "not autocomplete a banished name" do
+        get autocomplete_index_path(search: { query: "gor", type: "tag_query" })
+
+        assert_response :success
+        assert_not_includes(response.parsed_body.css("li").pluck("data-autocomplete-value"), "gore")
+      end
+
+      should "render the enforced rules censored, with no toggle" do
+        get posts_path(preset: "modulation")
+
+        assert_response :success
+        assert_select ".blacklist-enforced .blacklist-censor", Danbooru.config.enforced_blacklist.size
+        assert_select ".blacklist-enforced input[type=checkbox]", 0
+      end
+
+      should "start a new account's own blacklist empty" do
+        assert_equal("", User::DEFAULT_BLACKLIST)
+        assert_equal([], User.anonymous.blacklist_rules)
+      end
+    end
+
     context "the header" do
       should "render Modulation nav pills, with Creators in the artist category" do
         get posts_path(preset: "modulation")

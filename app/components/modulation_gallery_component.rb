@@ -54,9 +54,18 @@ class ModulationGalleryComponent < ApplicationComponent
     routes.post_path(post, preset: "modulation", q: query_string.presence)
   end
 
+  # The facet tags this viewer may be shown: banished names withheld unless
+  # the admin reveal toggle is on. See TagBanishment.
+  def visible_sidebar_tags
+    @visible_sidebar_tags ||= begin
+      tags = post_set.sidebar_tags
+      TagBanishment.revealed_to?(viewer) ? tags : tags.reject { |t| TagBanishment.banished?(t.name) }
+    end
+  end
+
   # Facet tags grouped by category, in display order: [[key, [tags]], ...].
   def tag_groups
-    grouped = post_set.sidebar_tags.group_by { |t| category_key(t) }
+    grouped = visible_sidebar_tags.group_by { |t| category_key(t) }
     CATEGORY_ORDER.filter_map { |k| [k, grouped[k]] if grouped[k].present? }
   end
 
@@ -66,7 +75,7 @@ class ModulationGalleryComponent < ApplicationComponent
   end
 
   def any_tags?
-    post_set.sidebar_tags.any?
+    visible_sidebar_tags.any?
   end
 
   # Blacklist rules are matched client-side against these attributes, so every

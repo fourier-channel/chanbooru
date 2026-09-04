@@ -69,45 +69,15 @@ class User < ApplicationRecord
   # blacklist. Changing it does NOT touch existing accounts: those hold their own
   # stored value and only ever change it themselves.
   #
-  # Extended 2026-08-30 by operator ruling to view-filter the material
-  # fourier-sampling now auto-jails, so it is hidden by default while the jail is
-  # reviewed and before anything is purged. The two lists are kept deliberately
-  # in step: sampling blocks it from arriving, this hides what already arrived.
-  #
-  # A LINE IS AND-ED AND `-` EXCLUDES, which is what lets the arthropod rule be
-  # expressed here at all -- it is a conjunction with an exemption, and without
-  # the exemption it hides 38 Pokemon posts as collateral (measured).
-  #
-  # Tags below come from two taggers with different vocabularies. guro, death,
-  # corpse and gore are on posts of every age; feces, fart, arthropod and the
-  # rating words are hydra's and only reach posts tagged since 2026-08-22, so
-  # those lines filter new material and not the archive. Backfilling older posts
-  # is tools/backfill-tags.ts in fourier-sampling, and is a separate job.
-  DEFAULT_BLACKLIST = [
-    # upstream defaults, kept -- minus "furry -rating:g", removed by operator
-    # ruling 2026-09-04: furry material is not default-hidden on this booru.
-    "guro",
-    "scat",
-    # unambiguous, operator ruling 2026-08-30
-    "gore",
-    "ryona",
-    "death",
-    "corpse",
-    "snuff",
-    "dismemberment",
-    "decapitation",
-    "severed_head",
-    "torture",
-    "mutilation",
-    "feces",
-    "fart",
-    "pooping",
-    # arthropod subject with sexual or gross intent, Pokemon exempt
-    "arthropod rating:e -pokemon_(creature) -pokemon_(species)",
-    "insect rating:e -pokemon_(creature) -pokemon_(species)",
-    "arthropod_humanoid rating:e -pokemon_(creature) -pokemon_(species)",
-    "insect_humanoid rating:e -pokemon_(creature) -pokemon_(species)",
-  ].join("\n")
+  # EMPTY since 2026-09-04 by operator ruling. Everything that used to seed it
+  # (the 2026-08-30 auto-jail vocabulary and upstream's guro/scat, minus the
+  # furry line dropped the same day) is now ENFORCED for every viewer via
+  # Danbooru.config.enforced_blacklist -- applied always, stored in no
+  # account, not disableable, rendered censored in the blacklist panel -- and
+  # the single-tag terms are additionally banished from every tag surface
+  # (see TagBanishment). A user's own blacklist starts empty and is entirely
+  # theirs.
+  DEFAULT_BLACKLIST = ""
 
   # The number of backup codes to generate for a user.
   MAX_BACKUP_CODES = 3

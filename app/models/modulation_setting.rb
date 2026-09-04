@@ -40,6 +40,11 @@ class ModulationSetting < ApplicationRecord
     cap = changes["image_cap"].presence
     clean["image_cap"] = cap if IMAGE_CAPS.include?(cap)
     clean["tags_expanded"] = changes["tags_expanded"].to_s.truthy? unless changes["tags_expanded"].nil?
+    # Admin-only, row-only: revealing the banished vocabulary is a deliberate
+    # act (see TagBanishment), and it means nothing in an anonymous session.
+    if !changes["reveal_banished"].nil? && user.respond_to?(:is_admin?) && user.is_admin?
+      clean["reveal_banished"] = changes["reveal_banished"].to_s.truthy?
+    end
     return for_viewer(user, session) if clean.empty?
 
     if user.present? && !user.is_anonymous?

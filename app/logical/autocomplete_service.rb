@@ -138,6 +138,7 @@ class AutocompleteService
   # led to it are checked -- an alias pointing at a gated tag discloses the gated
   # tag just as plainly as naming it.
   def withhold_gated_tags(results)
+    results = withhold_banished_tags(results)
     return results if current_user.present? && !current_user.is_anonymous?
 
     gated = Danbooru.config.restricted_tags
@@ -146,6 +147,16 @@ class AutocompleteService
     # Hashes at this stage; they only become Result structs later.
     results.reject do |result|
       result[:value].to_s.in?(gated) || result[:antecedent].to_s.in?(gated)
+    end
+  end
+
+  # Banished names never autocomplete for anyone -- signed in or not, admin
+  # or not -- unless the admin's reveal toggle is on. See TagBanishment.
+  def withhold_banished_tags(results)
+    return results if TagBanishment.list.empty? || TagBanishment.revealed_to?(current_user)
+
+    results.reject do |result|
+      TagBanishment.banished?(result[:value]) || TagBanishment.banished?(result[:antecedent])
     end
   end
 

@@ -167,6 +167,41 @@ module Danbooru
       "troll_jail"
     end
 
+    # Tags banished from the site's vocabulary entirely (operator ruling
+    # 2026-09-04): filtered from listings, autocomplete and tag panels for
+    # EVERYONE -- admins included -- unless the admin has switched
+    # reveal_banished on. See TagBanishment. The posts carrying these are
+    # deleted on arrival by fourier-sampling's auto-jail, so the names only
+    # exist on deleted posts; what this closes is their existence being
+    # readable off the tag surfaces.
+    #
+    # Single tag names only (the %w[] comment trap above applies here too). A
+    # conditional rule (the arthropod lines) belongs in enforced_blacklist
+    # below, because those TAGS legitimately exist on posts the exemption
+    # keeps.
+    def banished_tags
+      %w[
+        guro scat gore ryona death corpse snuff dismemberment decapitation
+        severed_head torture mutilation feces fart pooping
+      ]
+    end
+
+    # Blacklist rules applied to every viewer, stored in no account and not
+    # disableable (operator ruling 2026-09-04: "the pre-set blacklist is not
+    # something that a user can turn off at all"). Rendered censored in the
+    # blacklist panel so nobody stumbles onto the words -- reading them takes
+    # a deliberate click. A LINE IS AND-ED AND `-` EXCLUDES, which is what
+    # lets the arthropod rule carry its Pokemon exemption (without it, 38
+    # Pokemon posts hidden as collateral, measured 2026-08-30).
+    def enforced_blacklist
+      banished_tags + [
+        "arthropod rating:e -pokemon_(creature) -pokemon_(species)",
+        "insect rating:e -pokemon_(creature) -pokemon_(species)",
+        "arthropod_humanoid rating:e -pokemon_(creature) -pokemon_(species)",
+        "insect_humanoid rating:e -pokemon_(creature) -pokemon_(species)",
+      ]
+    end
+
     # ---- Fourier media gating ----
 
     # Same-origin base path that nginx will proxy to fourier-auth.

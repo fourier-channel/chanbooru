@@ -1379,7 +1379,8 @@ CREATE TABLE public.modulation_settings (
     image_cap character varying DEFAULT 'fit'::character varying NOT NULL,
     tags_expanded boolean DEFAULT false NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
-    updated_at timestamp(6) without time zone NOT NULL
+    updated_at timestamp(6) without time zone NOT NULL,
+    reveal_banished boolean DEFAULT false NOT NULL
 );
 
 
@@ -7635,6 +7636,7 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260904060000'),
 ('20260904050000'),
 ('20260825090000'),
 ('20260822010000'),

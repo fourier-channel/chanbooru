@@ -11,11 +11,16 @@ class Blacklist {
   }
 
   // @param {Array<String>} rules - The list of blacklist rules.
-  initialize(rules) {
+  // @param {Array<String>} enforced - Site-enforced rules: always on, never
+  //   toggleable, always hard-hide (operator ruling 2026-09-04).
+  initialize(rules, enforced = []) {
     // Attach the blacklist instance to the root DOM element for access with `$("#blacklist-box").get(0).blacklist`
     this.root.blacklist = this;
 
-    this.rules = rules.map(rule => new Rule(this, rule));
+    this.rules = [
+      ...rules.map(rule => new Rule(this, rule)),
+      ...enforced.map(rule => new Rule(this, rule, { enforced: true })),
+    ];
     // .modgal-card and .mod-blacklist-target are the Modulation gallery card and
     // the Modulation post view's media container -- the DEFAULT views of this
     // site, so a selector list that does not name them means the blacklist
@@ -186,9 +191,13 @@ class Post {
 class Rule {
   // @param {Blacklist} blacklist - The blacklist that this rule belongs to.
   // @param {String} string - The rule string.
-  constructor(blacklist, string) {
+  // @param {Boolean} enforced - True for a site-enforced rule: enabled is
+  //   pinned on and the hide method pinned to "hide", whatever the stored
+  //   preferences say.
+  constructor(blacklist, string, { enforced = false } = {}) {
     this.blacklist = blacklist;
     this.string = string;
+    this.enforced = enforced;
     this.tags = splitWords(string);
     this.require = [];
     this.exclude = [];
@@ -216,19 +225,25 @@ class Rule {
   }
 
   get enabled() {
+    if (this.enforced) return true;
     return JSON.parse(localStorage.getItem(`blacklist.enabled:${this.string}`)) ?? true;
   }
 
   set enabled(value) {
+    if (this.enforced) return;
     localStorage.setItem(`blacklist.enabled:${this.string}`, JSON.stringify(value));
     this.posts.forEach(post => post.update());
   }
 
   get hideMethod() {
+    // An enforced rule always hard-hides: "blur images" is a viewing comfort
+    // for one's own rules, not a keyhole into the enforced ones.
+    if (this.enforced) return "hide";
     return JSON.parse(localStorage.getItem(`blacklist.hideMethod:${this.string}`)) ?? "hide";
   }
 
   set hideMethod(value) {
+    if (this.enforced) return;
     localStorage.setItem(`blacklist.hideMethod:${this.string}`, JSON.stringify(value));
     this.posts.forEach(post => post.update());
   }

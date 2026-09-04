@@ -2,7 +2,7 @@
   id="blacklist-box"
   class="mb-4 card-outlined max-w-full <%= inline ? "inline-flex sm:flex-col sm:w-full thin-x-scrollbar inline-blacklist" : "sidebar-blacklist" %>"
   x-data="{ blacklist: new Danbooru.Blacklist($root) }"
-  x-init="blacklist.initialize(<%= rules.to_json %>)"
+  x-init="blacklist.initialize(<%= rules.to_json %>, <%= enforced_rules.to_json %>)"
   x-show="blacklist.visible"
   x-cloak>
   <%= tag.div class: "flex items-center gap-1 p-2", "x-bind:class": (inline ? "{ 'sm:border-b': !blacklist.collapsed }" : "{ 'border-b': !blacklist.collapsed }") do %>
@@ -40,6 +40,20 @@
           <% end %>
         <% end %>
 
+        <%# Admin-only escape hatch from tag banishment (TagBanishment): off by
+            default even for admins, by operator ruling. Reloads because the
+            withheld names were never rendered -- there is nothing client-side
+            to un-hide. %>
+        <% if show_reveal_toggle? %>
+          <% menu.with_item do %>
+            <label class="flex items-center link-color cursor-pointer select-none" x-on:click.stop title="Show banished tags everywhere they occur. Off by default, deliberately.">
+              <input type="checkbox" class="w-4 h-full mr-1" <%= "checked" if reveal_banished? %>
+                x-on:change="fetch('/modulation/settings', { method: 'PATCH', credentials: 'same-origin', headers: { 'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content, 'Content-Type': 'application/json' }, body: JSON.stringify({ reveal_banished: $el.checked }) }).then(() => location.reload())">
+              <span>Reveal banished</span>
+            </label>
+          <% end %>
+        <% end %>
+
         <% menu.with_item do %>
           <%= link_to wiki_page_path("help:blacklists"), class: "wiki-link flex items-center", target: "_blank" do %>
             <%= help_icon %><span>Help</span>
@@ -62,6 +76,23 @@
            x-show="rule.visible">
         <input type="checkbox" class="toggle-switch" x-model="rule.enabled">
         <%= link_to rule, posts_path(tags: rule), title: rule, class: "truncate", tabindex: "-1", "x-bind:class": "{ 'inactive-link': !rule.enabled }", "x-on:click.prevent": "rule.toggle()" %>
+        <span class="whitespace-nowrap post-count" x-text="Alpine.raw(rule.posts).map(post => post.post.dataset.id).size"></span>
+      </div>
+    <% end %>
+
+    <%# Enforced rules: applied to every viewer, no toggle, and censored --
+        the words are blurred until deliberately clicked, so nobody reads
+        them by accident (operator ruling 2026-09-04). No search link either:
+        the material is deleted on arrival, so the search is a dead end. %>
+    <% enforced_rules.each_with_index do |rule, i| %>
+      <div class="flex items-center gap-1 h-full overflow-hidden blacklist-enforced <%= "md:border-l md:p-2" if inline %>"
+           x-data="{ rule: blacklist.rules[<%= rules.size + i %>], revealed: false }"
+           x-bind:data-visible="rule.visible.toString()"
+           data-enabled="true"
+           x-show="rule.visible">
+        <%= lock_icon(class: "blacklist-lock", title: "Enforced site-wide; cannot be disabled") %>
+        <span class="truncate blacklist-censor" x-bind:class="revealed && 'is-revealed'" x-on:click="revealed = !revealed"
+              title="Enforced site-wide. Click to reveal the rule."><%= rule %></span>
         <span class="whitespace-nowrap post-count" x-text="Alpine.raw(rule.posts).map(post => post.post.dataset.id).size"></span>
       </div>
     <% end %>

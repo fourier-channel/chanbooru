@@ -169,6 +169,15 @@ body:has(.modgal) {
     grid-template-columns: repeat(auto-fill, minmax(clamp(110px, 15vw, 168px), 1fr));
     gap: 0.6rem;
   }
+  // The blacklist hides cards by class, and its selector
+  // (.blacklisted-hidden.blacklisted-hidden) TIES the display rule below on
+  // specificity -- bundle order decided the winner, and the card won: a
+  // blacklisted card was counted by the box and still painted. Never seen
+  // before 2026-09-04 because every matching rule only ever hit deleted
+  // posts, which the grid drops anyway. Owned here because this is the file
+  // whose display rule was doing the overriding.
+  .modgal-card.blacklisted-hidden { display: none; }
+
   .modgal-card {
     position: relative;
     display: block;
