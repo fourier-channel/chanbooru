@@ -43,6 +43,8 @@ Rails.application.routes.draw do
 
   namespace :admin do
     resources :users, only: [:edit, :update]
+    # fourier: per-user per-tag grants, managed from the user-edit console.
+    resources :tag_grants, only: [:create, :destroy]
   end
   namespace :moderator do
     namespace :post do

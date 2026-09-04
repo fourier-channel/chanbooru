@@ -2181,6 +2181,40 @@ ALTER SEQUENCE public.tag_aliases_id_seq OWNED BY public.tag_aliases.id;
 
 
 --
+-- Name: tag_grants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tag_grants (
+    id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    tag character varying NOT NULL,
+    ability character varying NOT NULL,
+    granted_by bigint,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: tag_grants_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.tag_grants_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: tag_grants_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.tag_grants_id_seq OWNED BY public.tag_grants.id;
+
+
+--
 -- Name: tag_implications; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3302,6 +3336,13 @@ ALTER TABLE ONLY public.tag_aliases ALTER COLUMN id SET DEFAULT nextval('public.
 
 
 --
+-- Name: tag_grants id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_grants ALTER COLUMN id SET DEFAULT nextval('public.tag_grants_id_seq'::regclass);
+
+
+--
 -- Name: tag_implications id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3853,6 +3894,14 @@ ALTER TABLE ONLY public.site_credentials
 
 ALTER TABLE ONLY public.tag_aliases
     ADD CONSTRAINT tag_aliases_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tag_grants tag_grants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_grants
+    ADD CONSTRAINT tag_grants_pkey PRIMARY KEY (id);
 
 
 --
@@ -6181,6 +6230,20 @@ CREATE INDEX index_tag_aliases_on_forum_post_id ON public.tag_aliases USING btre
 
 
 --
+-- Name: index_tag_grants_on_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_tag_grants_on_user_id ON public.tag_grants USING btree (user_id);
+
+
+--
+-- Name: index_tag_grants_on_user_id_and_tag_and_ability; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_tag_grants_on_user_id_and_tag_and_ability ON public.tag_grants USING btree (user_id, tag, ability);
+
+
+--
 -- Name: index_tag_implications_on_antecedent_name; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7339,6 +7402,14 @@ ALTER TABLE ONLY public.bulk_update_requests
 
 
 --
+-- Name: tag_grants fk_rails_87d7c660eb; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_grants
+    ADD CONSTRAINT fk_rails_87d7c660eb FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
 -- Name: user_events fk_rails_89475bdf6f; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7641,6 +7712,7 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260904090000'),
 ('20260904080000'),
 ('20260904070000'),
 ('20260904060000'),

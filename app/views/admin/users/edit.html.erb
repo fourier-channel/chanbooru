@@ -5,6 +5,26 @@
   <div id="a-edit" class="max-w-720px">
     <h1 class="mb-4">Edit User: <%= link_to_user @user %></h1>
 
+    <%# The condensed read of what this account can do RIGHT NOW: the level
+        plus its derived capabilities, so an admin reads the effect of a
+        promotion here rather than deriving it from the levels table. %>
+    <div class="card-outlined p-2 mb-4" id="user-capabilities">
+      <div class="font-bold mb-1">Capabilities</div>
+      <div class="flex flex-wrap gap-1">
+        <span class="chip-primary text-xs"><%= @user.level_string %></span>
+        <% {
+          "admin" => @user.is_admin?,
+          "moderator" => @user.is_moderator?,
+          "approver" => @user.is_approver?,
+          "browses freely" => @user.can_browse_freely?,
+          "verified" => @user.is_verified?,
+          "banned" => @user.is_banned?,
+        }.each do |label, held| %>
+          <span class="text-xs <%= held ? "chip-green" : "chip-grey" %>"><%= label %></span>
+        <% end %>
+      </div>
+    </div>
+
     <div class="space-y-2">
       <% if policy(@user).promote? %>
         <div class="card-outlined p-2 flex items-center justify-between gap-4">
@@ -80,6 +100,40 @@
         </div>
       <% end %>
     </div>
+
+    <%# Per-tag grants: the whitelist a creator's tag maintains, assigned
+        here. "view" opens the private creator tags on posts carrying the
+        tag; "edit" confers what an approved artist claim does over that one
+        artist. This is where "permissions only deny" and "access is only
+        granted" meet -- a grant row is the sole way access opens, and
+        revoking it closes it again. %>
+    <% if policy(@user).promote? %>
+      <h2 class="my-4">Tag grants</h2>
+
+      <div class="space-y-2" id="tag-grants">
+        <% grants = TagGrant.where(user_id: @user.id).order(:tag, :ability) %>
+        <% if grants.any? %>
+          <% grants.each do |grant| %>
+            <div class="card-outlined p-2 flex items-center justify-between gap-4">
+              <div class="space-y-1">
+                <div><span class="font-bold"><%= grant.ability %></span> on <%= link_to grant.tag, posts_path(tags: grant.tag) %></div>
+                <div class="fineprint">granted <%= time_ago_in_words_tagged(grant.created_at) %><% if grant.granter %> by <%= link_to_user grant.granter %><% end %></div>
+              </div>
+              <%= link_to "Revoke", admin_tag_grant_path(grant), "data-method": "delete", class: "button-outline-danger h-fit" %>
+            </div>
+          <% end %>
+        <% else %>
+          <p class="fineprint">No grants. This account sees and edits only what its level allows.</p>
+        <% end %>
+
+        <%= form_tag admin_tag_grants_path, method: :post, class: "card-outlined p-2 flex items-center gap-2" do %>
+          <%= hidden_field_tag :user_id, @user.id %>
+          <%= text_field_tag :tag, "", placeholder: "tag name", "data-autocomplete": "tag", class: "flex-grow-1" %>
+          <%= select_tag :ability, options_for_select(TagGrant::ABILITIES), class: "h-fit" %>
+          <%= submit_tag "Grant", class: "button-primary h-fit" %>
+        <% end %>
+      </div>
+    <% end %>
 
     <% if policy(@user).can_recover_account? %>
       <h2 class="my-4">Account recovery</h2>

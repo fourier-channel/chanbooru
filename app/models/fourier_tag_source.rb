@@ -66,10 +66,13 @@ class FourierTagSource < ApplicationRecord
   end
 
   # Can `viewer` see this post's PRIVATE (creator-only) tags? The creator (the
-  # user attributed on the private rows) or a moderator. Nil viewer => no.
+  # user attributed on the private rows), a moderator, or a holder of a view
+  # TagGrant on one of the post's tags -- the whitelist a creator's tag
+  # maintains. Nil viewer => no.
   def self.private_visible_to?(post, viewer)
     return false if viewer.nil?
     return true if viewer.respond_to?(:is_moderator?) && viewer.is_moderator?
+    return true if TagGrant.granted?(viewer, post.tag_string.to_s.split, "view")
 
     where(post_id: post.id, public: false).where.not(added_by: nil).pluck(:added_by).uniq.include?(viewer.id)
   end
@@ -130,11 +133,15 @@ class FourierTagSource < ApplicationRecord
     # the viewer who should never see one. private_visible_to? guards this with
     # `.where.not(added_by: nil)`; the same guard has to be here.
     viewer_id = viewer.respond_to?(:id) ? viewer.id : nil
+    # One query for the viewer's view grants, matched per post below -- the
+    # bulk twin of the grant check in private_visible_to?.
+    granted_tags = viewer_id.present? ? TagGrant.tags_for(viewer, "view") : []
 
     posts.index_with do |post|
       tags = post.tag_string.to_s.split
       rows = by_post[post.id]
       next tags if rows.blank? || moderator
+      next tags if granted_tags.any? && (tags & granted_tags).any?
       next tags if viewer_id.present? && rows.any? { |(_, _, added_by)| added_by.present? && added_by == viewer_id }
 
       tags - rows.map { |(_, tag, _)| tag }

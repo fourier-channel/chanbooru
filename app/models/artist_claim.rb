@@ -44,6 +44,12 @@ class ArtistClaim < ApplicationRecord
   def self.owner?(user, artist)
     return false if user.nil? || artist.nil? || user.is_anonymous?
 
+    # An edit TagGrant on the artist's tag confers exactly what an approved
+    # claim does -- the admin console's way of assigning "that exact set of
+    # permissions over that exact tag" (operator, 2026-09-04) without walking
+    # the claim flow.
+    return true if TagGrant.granted?(user, [artist.name], "edit")
+
     approved.joins(:creator_gallery)
             .exists?(artist_id: artist.id, creator_galleries: { user_id: user.id })
   end
