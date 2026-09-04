@@ -84,10 +84,10 @@ class User < ApplicationRecord
   # those lines filter new material and not the archive. Backfilling older posts
   # is tools/backfill-tags.ts in fourier-sampling, and is a separate job.
   DEFAULT_BLACKLIST = [
-    # upstream defaults, kept
+    # upstream defaults, kept -- minus "furry -rating:g", removed by operator
+    # ruling 2026-09-04: furry material is not default-hidden on this booru.
     "guro",
     "scat",
-    "furry -rating:g",
     # unambiguous, operator ruling 2026-08-30
     "gore",
     "ryona",
