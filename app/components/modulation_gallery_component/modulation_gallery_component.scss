@@ -149,6 +149,13 @@ body:has(.modgal) {
     font-size: 0.64rem; letter-spacing: 0.09em; text-transform: uppercase;
     color: var(--mod-ink-dim); margin-right: 0.2rem;
   }
+  // The deleted toggle wears its remembered state: is-active is the panel
+  // saying "this is still on", which is also where you turn it off.
+  .modgal-related-link.is-active {
+    color: var(--mod-creator-fg, #38e08a);
+    border-color: color-mix(in srgb, var(--mod-creator-fg, #38e08a) 45%, transparent);
+  }
+
   .modgal-related-link {
     font-family: inherit;
     font-size: 0.78rem;

@@ -262,7 +262,9 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         get post_modulation_path(@post, format: :json)
 
         assert_response :success
-        assert_equal({ "image_cap" => "fit", "tags_expanded" => false }, response.parsed_body["settings"])
+        assert_equal(ModulationSetting.defaults, response.parsed_body["settings"])
+        assert_equal("fit", response.parsed_body["settings"]["image_cap"])
+        assert_equal(false, response.parsed_body["settings"]["tags_expanded"])
       end
 
       should "persist in the sidecar row for a signed-in viewer" do
@@ -270,7 +272,8 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         patch modulation_settings_path(format: :json), params: { tags_expanded: "true", image_cap: "screen" }
 
         assert_response :success
-        assert_equal({ "image_cap" => "screen", "tags_expanded" => true }, response.parsed_body)
+        assert_equal("screen", response.parsed_body["image_cap"])
+        assert_equal(true, response.parsed_body["tags_expanded"])
         assert_equal("screen", ModulationSetting.find_by!(user_id: @user.id).image_cap)
 
         get post_modulation_path(@post, format: :json)
@@ -352,6 +355,56 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
       should "start a new account's own blacklist empty" do
         assert_equal("", User::DEFAULT_BLACKLIST)
         assert_equal([], User.anonymous.blacklist_rules)
+      end
+    end
+
+    context "the search panel memory" do
+      should "remember an explicit sort and reapply it to a bare search" do
+        get posts_path(preset: "modulation", tags: "aaaa order:score")
+        assert_response :success
+
+        get posts_path(preset: "modulation", tags: "aaaa")
+        assert_response :success
+        assert_select ".modgal-sort option[value=score][selected]", 1
+        # The input shows what actually ran: memory is visible, not sneaky.
+        assert_select "input.modgal-search-input[value=?]", "aaaa order:score"
+      end
+
+      should "clear the remembered sort on reset, and stay cleared" do
+        get posts_path(preset: "modulation", tags: "aaaa order:score")
+        get posts_path(preset: "modulation", tags: "aaaa", sort_reset: "1")
+        assert_response :success
+        assert_select ".modgal-sort option[selected]", 0
+
+        get posts_path(preset: "modulation", tags: "aaaa")
+        assert_select ".modgal-sort option[selected]", 0
+      end
+
+      should "remember the deleted toggle until turned off" do
+        @deleted = as(@user) { create(:post, tag_string: "aaaa") }
+        @deleted.update!(is_deleted: true)
+        login_as(@user)
+
+        get posts_path(preset: "modulation", tags: "aaaa")
+        assert_select ".modgal-card", 1
+
+        get posts_path(preset: "modulation", tags: "aaaa", show_deleted: "1")
+        assert_select ".modgal-card", 2
+        assert_select ".modgal-related-link.is-active", text: "deleted"
+
+        get posts_path(preset: "modulation", tags: "aaaa")
+        assert_select ".modgal-card", 2
+
+        get posts_path(preset: "modulation", tags: "aaaa", show_deleted: "0")
+        assert_select ".modgal-card", 1
+        assert_select ".modgal-related-link.is-active", 0
+      end
+
+      should "leave the API untouched by panel memory" do
+        get posts_path(preset: "modulation", tags: "aaaa order:score")
+
+        get posts_path(tags: "aaaa", format: :json)
+        assert_response :success
       end
     end
 

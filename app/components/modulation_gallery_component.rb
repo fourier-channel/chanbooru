@@ -15,10 +15,36 @@ class ModulationGalleryComponent < ApplicationComponent
   # Display order for the category buckets.
   CATEGORY_ORDER = %w[artist copyright character general meta].freeze
 
-  def initialize(post_set:, viewer:)
+  # `settings` is the viewer's Modulation view state (ModulationSetting.for_viewer);
+  # the panel renders its remembered sort, view and deleted toggle from it.
+  def initialize(post_set:, viewer:, settings: nil)
     super
     @post_set = post_set
     @viewer = viewer
+    @settings = settings || ModulationSetting.defaults
+  end
+
+  attr_reader :settings
+
+  # The sort the panel is set to: the query's own order (the panel memory has
+  # already been woven in by the controller), falling back to the remembered
+  # one so the select never shows blank while a memory is in force.
+  def active_sort
+    @active_sort ||= post_set.post_query.find_metatag(:order).presence&.downcase || settings["gallery_sort"]
+  end
+
+  def initial_view
+    ModulationSetting::GALLERY_VIEWS.include?(settings["gallery_view"]) ? settings["gallery_view"] : "unitag"
+  end
+
+  def show_deleted_remembered?
+    !!settings["gallery_show_deleted"]
+  end
+
+  # The current query with status: stripped, for the deleted toggle: the
+  # toggle must not carry the very metatag it is about to change back in.
+  def query_without_status
+    query_string.gsub(/(?:\A|\s)-?status:\S+/i, " ").squish
   end
 
   # The posts this gallery will actually draw.
@@ -129,9 +155,12 @@ class ModulationGalleryComponent < ApplicationComponent
   # act on the CURRENT query -- the upstream list mixes those with global
   # discovery links, and mixing them is why that section reads as a junk drawer.
   def related_links
+    # "deleted" is a remembered TOGGLE, not a one-off search: on, the panel
+    # keeps including deleted posts (status:any) in every search until it is
+    # clicked off (operator ruling 2026-09-04 -- the panel does not reset).
     links = [
       { label: "random", href: routes.random_posts_path(tags: query_string.presence, preset: "modulation") },
-      { label: "deleted", href: routes.posts_path(tags: [query_string.presence, "status:deleted"].compact.join(" "), preset: "modulation") },
+      { label: "deleted", href: routes.posts_path(tags: query_without_status.presence, preset: "modulation", show_deleted: (show_deleted_remembered? ? 0 : 1)), active: show_deleted_remembered? },
       { label: "count", href: routes.posts_counts_path(tags: query_string.presence) },
     ]
 

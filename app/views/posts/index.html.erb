@@ -2,7 +2,7 @@
     below is retained as the hidden "historical" preset. %>
 <% if modulation? %>
   <% content_for(:content) do %>
-    <%= render ModulationGalleryComponent.new(post_set: @post_set, viewer: CurrentUser.user) %>
+    <%= render ModulationGalleryComponent.new(post_set: @post_set, viewer: CurrentUser.user, settings: ModulationSetting.for_viewer(CurrentUser.user, session)) %>
   <% end %>
   <% content_for(:html_header) do %>
     <% page_title(@post_set.post_query.is_empty_search? ? Danbooru.config.app_name : @post_set.page_title) %>

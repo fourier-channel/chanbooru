@@ -163,9 +163,48 @@ class PostsController < ApplicationController
   def post_set
     @post_set ||= begin
       tag_query = params[:tags] || params.dig(:post, :tags)
+      tag_query = apply_modulation_panel_memory(tag_query)
       show_votes = (params[:show_votes].presence || cookies[:post_preview_show_votes].presence || "false").truthy?
       PostSets::Post.new(tag_query, params[:page], params[:limit], format: request.format.symbol, show_votes: show_votes)
     end
+  end
+
+  # fourier: the Modulation search panel retains its settings server-side and
+  # does not reset between searches (operator ruling 2026-09-04). An explicit
+  # order: in the query IS the panel being set, so it is recorded; a query
+  # without one gets the remembered sort re-applied. sort_reset clears the
+  # memory (the blank select option), show_deleted=1/0 sets the deleted
+  # toggle, and a remembered deleted toggle widens a status-less query to
+  # status:any. HTML + Modulation only: the API sees exactly what it asked.
+  def apply_modulation_panel_memory(tag_query)
+    return tag_query unless request.format.html? && modulation? && action_name == "index" && params[:random].blank?
+
+    if params[:show_deleted].present?
+      ModulationSetting.record!(CurrentUser.user, session, { "gallery_show_deleted" => params[:show_deleted] })
+    end
+    ModulationSetting.record!(CurrentUser.user, session, { "gallery_sort" => "" }) if params[:sort_reset].present?
+
+    query = tag_query.to_s
+    settings = ModulationSetting.for_viewer(CurrentUser.user, session)
+    explicit_order = query[/\border:(\S+)/i, 1]
+
+    if params[:sort_reset].blank?
+      if explicit_order.present?
+        ModulationSetting.record!(CurrentUser.user, session, { "gallery_sort" => explicit_order }) if explicit_order != settings["gallery_sort"]
+      elsif settings["gallery_sort"].present?
+        query = [query.presence, "order:#{settings['gallery_sort']}"].compact.join(" ")
+      end
+    end
+
+    if settings["gallery_show_deleted"] && !query.match?(/(?:\A|\s)-?status:\S+/i)
+      query = [query.presence, "status:any"].compact.join(" ")
+    end
+
+    query.presence
+  rescue StandardError
+    # The panel memory is a convenience; a failure here must degrade to the
+    # plain search, never take the index down.
+    tag_query
   end
 
   def log_search_query
