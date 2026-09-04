@@ -28,10 +28,13 @@ class ModulationPostComponent < ApplicationComponent
   end
 
   # --- gallery navigation -------------------------------------------------
-  # The sort presets offered for this post. "Defaults always travel with the
-  # user" (prime directive): #, date, and -- when the post has one -- a same-
-  # artist gallery. Each preset is a search string; PostNeighbors resolves its
-  # true prev/next. Custom saved sorts merge on top of these later.
+  # The navigation MODES offered for this post (operator ruling 2026-09-04:
+  # "post#/date is the only true axis, and everything else is just filters
+  # given names as modes"). Every mode walks the same chronological axis
+  # under a different filter -- the search you arrived with, the creator's
+  # gallery, the whole archive -- and every mode tracks your position, so
+  # switching modes is switching filters, not losing your place. The one
+  # exception that changes the AXIS rather than the filter is random.
   def nav_presets
     @nav_presets ||= build_nav_presets
   end
@@ -383,7 +386,7 @@ class ModulationPostComponent < ApplicationComponent
   end
 
   def build_nav_presets
-    # No neighbours for a restricted viewer: the sorts and the flank previews
+    # No neighbours for a restricted viewer: the modes and the flank previews
     # ARE the browsing this tier does not have. Withholding them here rather
     # than letting the links 410 means the restriction reads as a boundary
     # instead of as a broken page.
@@ -392,44 +395,63 @@ class ModulationPostComponent < ApplicationComponent
     incoming_order = PostQuery.new(query.to_s).find_metatag(:order).presence&.downcase
 
     defs = []
-    # "via tag search" -- the exact search the viewer arrived with (tags + its
-    # own order). This is the primary sort when you enter from a gallery search;
-    # it leads the preset list and is active by default.
-    if base_tags.present?
-      defs << { key: "search", label: "search", search: [base_tags, ("order:#{incoming_order}" if incoming_order)].compact.join(" ").squish }
-    end
-    defs += [
-      { key: "num",  label: "#",    search: with_order(base_tags, "id_desc") },
-      { key: "date", label: "date", search: with_order(base_tags, "created_at") },
-    ]
+    # The filter modes, every one on the chronological axis. "search" is the
+    # exact search the viewer arrived with, order stripped -- the grid's sort
+    # is the GRID's business; walking post-to-post is chronological.
+    defs << { key: "search", label: "search", search: with_order(base_tags, "id_desc") } if base_tags.present?
     if artist_names.any?
-      # Dedupe so navigating within the artist gallery (which carries the artist
-      # in q) doesn't double the tag and trip the search's tag limit.
-      artist_search = (base_tags.split + [artist_names.first]).uniq.join(" ")
-      defs << { key: "artist", label: "artist", search: with_order(artist_search, "id_desc") }
+      artist_search = (base_tags.split + [artist_names.first]).uniq.sort.join(" ")
+      # When the arriving search IS the creator's gallery, one row says so --
+      # two identical filters under different names is a lie about the axis.
+      defs << { key: "creator", label: "creator", search: with_order(artist_search, "id_desc") } unless artist_search == base_tags.split.uniq.sort.join(" ")
     end
+    defs << { key: "all", label: "all", search: with_order(nil, "id_desc") }
+    # The one mode that changes the AXIS instead of the filter.
+    defs << { key: "random", label: "random", search: with_order(base_tags, "random") }
 
-    current_order = incoming_order || "id_desc"
     resolved = defs.map do |d|
-      # A preset whose query can't run (e.g. exceeds the viewer's tag limit) must
-      # degrade to "no neighbours", never 500 the whole view.
-      nav = PostNeighbors.new(post: post, tags: d[:search], user: viewer)
-      d.merge(prev_id: nav.prev_id, next_id: nav.next_id, order: nav.order)
+      if d[:key] == "random"
+        d.merge(random_neighbours).merge(order: "random")
+      else
+        # A mode whose query can't run (e.g. exceeds the viewer's tag limit)
+        # must degrade to "no neighbours", never 500 the whole view.
+        nav = PostNeighbors.new(post: post, tags: d[:search], user: viewer)
+        d.merge(prev_id: nav.prev_id, next_id: nav.next_id, order: nav.order)
+      end
     rescue StandardError
-      d.merge(prev_id: nil, next_id: nil, order: (PostQuery.new(d[:search]).find_metatag(:order).presence || "id_desc").downcase)
+      d.merge(prev_id: nil, next_id: nil, order: "id_desc")
     end
 
     # One batched load for every neighbour thumbnail, not a query per preview.
     ids = resolved.flat_map { [_1[:prev_id], _1[:next_id]] }.compact.uniq
     posts_by_id = Post.where(id: ids).includes(:media_asset).index_by(&:id)
 
+    active_key = if incoming_order == "random"
+      "random"
+    elsif base_tags.present?
+      "search"
+    else
+      "all"
+    end
+
     resolved.map do |d|
       d.merge(
-        active: d[:order] == current_order,
+        active: d[:key] == active_key,
         prev: neighbour_preview(posts_by_id[d[:prev_id]], d[:search]),
         next: neighbour_preview(posts_by_id[d[:next_id]], d[:search]),
       )
     end
+  end
+
+  # Random's neighbours ARE random -- PostNeighbors' id-walk fallback would
+  # make "random" a deterministic stroll, which is the exact confidence trick
+  # the mode redesign exists to end. Two fresh picks from the filtered set,
+  # re-rolled on every payload, so each step scatters again.
+  def random_neighbours
+    ids = Post.user_tag_match(base_tags.to_s, viewer).where.not(id: post.id).reorder(Arel.sql("random()")).limit(2).pluck(:id)
+    { prev_id: ids[0], next_id: ids[1] }
+  rescue StandardError
+    { prev_id: nil, next_id: nil }
   end
 
   def neighbour_preview(neighbour, search)
