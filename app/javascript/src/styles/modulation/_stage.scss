@@ -172,7 +172,7 @@
 // flanks. The post view does not use this: switching sort there re-ranks the
 // flanks while the post stays put, because the post IS the thing being sorted.
 // A carousel's axes hold different images, so moving between them has to move
-// the centre too, and it should read as the same kind of motion turned 90°.
+// the centre too, and it should read as the same kind of motion turned 90 degrees.
 @mixin modulation-stage-vertical {
   &.is-axis-up .mod-stage-center { transform: translateY(-40%) scale(0.4); opacity: 0; }
   &.is-axis-down .mod-stage-center { transform: translateY(40%) scale(0.4); opacity: 0; }
