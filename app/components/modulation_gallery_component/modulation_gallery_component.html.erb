@@ -107,7 +107,12 @@
       <% end %>
     </div>
   <% else %>
-    <p class="modgal-empty">No posts match this search.</p>
+    <%# Operator ruling 2026-09-04: no joke page, no dead end. The board simply
+        clears, and the message says what is true and what to try next. %>
+    <p class="modgal-empty">
+      No tags exist with that exact combination of characters.
+      <span class="modgal-empty-hint">Try gradually shortening your search and checking the recommended tag options.</span>
+    </p>
   <% end %>
 
   <%# The cut-off, explained where it happens. %>
