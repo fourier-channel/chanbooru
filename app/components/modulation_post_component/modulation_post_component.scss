@@ -382,6 +382,77 @@ body:has(.modulation) {
     .mod-spoiler-veil { transition: none; }
   }
 
+  // --- fullscreen viewer --------------------------------------------------
+  // Opened by clicking the centre image. The image is positioned by transform
+  // alone (translate + scale about 0,0), so pan and zoom are one rule; the
+  // HUD floats over the bottom edge and is the only part that takes clicks
+  // for itself.
+  .mod-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgb(8 8 7 / 94%);
+    overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+
+    &.is-dragging { cursor: grabbing; }
+  }
+  .mod-lightbox-img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    max-width: none;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  .mod-lightbox-hud {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    padding: 0.6rem 1rem;
+    background: linear-gradient(to top, rgb(8 8 7 / 85%), transparent);
+    cursor: default;
+  }
+  .mod-lightbox-help {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.72rem;
+    color: var(--mod-ink-dim);
+    text-align: center;
+  }
+  .mod-lightbox-save {
+    flex: none;
+    padding: 0.3rem 0.9rem;
+    border-radius: var(--mod-pill-radius);
+    border: 1px solid color-mix(in srgb, var(--mod-creator-fg) 45%, transparent);
+    background: var(--mod-creator-bg);
+    color: var(--mod-creator-fg);
+    font-size: 0.8rem;
+    text-decoration: none;
+
+    &:hover { border-color: var(--mod-creator-fg); }
+  }
+  .mod-lightbox-close {
+    appearance: none;
+    border: 1px solid var(--mod-line);
+    background: var(--mod-surface);
+    color: var(--mod-ink);
+    border-radius: 50%;
+    width: 2rem;
+    height: 2rem;
+    cursor: pointer;
+    line-height: 1;
+
+    &:hover { border-color: var(--mod-ink-dim); }
+  }
+  // The centre image advertises the viewer.
+  .mod-stage-center .mod-frame img { cursor: zoom-in; }
+
   // --- tags block ---------------------------------------------------------
   .mod-tags {
     background: var(--mod-surface);

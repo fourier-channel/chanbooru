@@ -332,6 +332,75 @@
     let sizeTimer = null;
     window.addEventListener("resize", () => { clearTimeout(sizeTimer); sizeTimer = setTimeout(sizeStage, 120); });
 
+    // ---- fullscreen viewer ----
+    // Click the image -> a fullscreen popover: drag anywhere to pan, wheel to
+    // zoom (about the cursor), Esc to close. The instruction line is part of
+    // the surface by operator request -- the affordances are invisible
+    // otherwise. Save Image is a plain same-origin download anchor.
+    let lbOpen = false, lbS = 1, lbTx = 0, lbTy = 0, lbW = 0, lbH = 0;
+    function lbApply() {
+      const img = root.querySelector(".mod-lightbox-img");
+      if (img) img.style.transform = "translate(" + lbTx + "px," + lbTy + "px) scale(" + lbS + ")";
+    }
+    function lbFit() {
+      const vw = window.innerWidth, vh = window.innerHeight;
+      lbS = Math.min(vw / lbW, vh / lbH, 1);
+      lbTx = (vw - lbW * lbS) / 2;
+      lbTy = (vh - lbH * lbS) / 2;
+      lbApply();
+    }
+    function openLightbox() {
+      const m = cur.media || {};
+      if (lbOpen || m.kind !== "image" || !(m.full || m.src)) return;
+      lbOpen = true;
+      lbW = m.w || 1000; lbH = m.h || 1000;
+      const el = document.createElement("div");
+      el.className = "mod-lightbox";
+      el.innerHTML =
+        '<img class="mod-lightbox-img" src="' + esc(m.full || m.src) + '" alt="" draggable="false">' +
+        '<div class="mod-lightbox-hud">' +
+          '<span class="mod-lightbox-help">Press Esc to close this window. Click and drag anywhere to move the image. Mousewheel for zoom.</span>' +
+          '<a class="mod-lightbox-save" href="' + esc(m.full || m.src) + '" download>Save Image</a>' +
+          '<button type="button" class="mod-lightbox-close" data-act="lightbox-close" aria-label="Close">&#10005;</button>' +
+        "</div>";
+      root.appendChild(el);
+      document.body.style.overflow = "hidden";
+      lbFit();
+      let px = 0, py = 0, dragging = false;
+      el.addEventListener("pointerdown", (e) => {
+        if (e.target.closest(".mod-lightbox-hud")) return;
+        dragging = true; px = e.clientX; py = e.clientY;
+        el.setPointerCapture(e.pointerId);
+        el.classList.add("is-dragging");
+      });
+      el.addEventListener("pointermove", (e) => {
+        if (!dragging) return;
+        lbTx += e.clientX - px; lbTy += e.clientY - py;
+        px = e.clientX; py = e.clientY;
+        lbApply();
+      });
+      const drop = (e) => { dragging = false; el.classList.remove("is-dragging"); };
+      el.addEventListener("pointerup", drop);
+      el.addEventListener("pointercancel", drop);
+      el.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
+        const ns = Math.min(10, Math.max(0.15, lbS * factor));
+        // The point under the cursor stays under the cursor while the scale
+        // moves -- zoom reads as "into here", not "toward the middle".
+        lbTx = e.clientX - (e.clientX - lbTx) * (ns / lbS);
+        lbTy = e.clientY - (e.clientY - lbTy) * (ns / lbS);
+        lbS = ns;
+        lbApply();
+      }, { passive: false });
+    }
+    function closeLightbox() {
+      const el = root.querySelector(".mod-lightbox");
+      if (el) el.remove();
+      document.body.style.overflow = "";
+      lbOpen = false;
+    }
+
     // ---- view-state persistence (server-side; no browser storage) ----
     function persistSettings(changes) {
       fetch("/modulation/settings", {
@@ -422,6 +491,12 @@
     }
 
     root.addEventListener("click", e => {
+      if (e.target.closest("[data-act='lightbox-close']")) { closeLightbox(); return; }
+      // The centre image opens the fullscreen viewer. Spoilered and gated
+      // states never reach here: the spoiler intercepts its own clicks and a
+      // gated post renders no <img> in the frame.
+      const centerImg = e.target.closest('[data-region="center"] .mod-frame img');
+      if (centerImg && !e.target.closest(".mod-spoiler")) { e.preventDefault(); openLightbox(); return; }
       const rowEl = e.target.closest(".mod-sortrow");
       if (rowEl && root.contains(rowEl)) {
         e.preventDefault();
@@ -446,6 +521,12 @@
 
     window.addEventListener("keydown", e => {
       if (e.target.closest("input, textarea, select, [contenteditable]")) return;
+      // While the fullscreen viewer is up it owns the keyboard: Esc closes,
+      // everything else stays put rather than navigating under the overlay.
+      if (lbOpen) {
+        if (e.key === "Escape") { e.preventDefault(); closeLightbox(); }
+        return;
+      }
       if (e.key === "Enter" || e.key === " ") {
         const sp = e.target.closest(".mod-spoiler");
         if (sp) { e.preventDefault(); revealed = true; renderCenter(); return; }
