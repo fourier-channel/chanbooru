@@ -401,6 +401,61 @@ body:has(.modulation) {
   }
   .mod-empty { color: var(--mod-ink-dim); font-size: 0.85rem; margin: 0; }
 
+  // --- category bucket ----------------------------------------------------
+  // The Danbooru-category tags (artist; character / copyright) pulled out of
+  // the flow into their own bucket at the head of the list. Colour is the
+  // provenance language and stays untouched -- what sets these apart is
+  // weight, size and placement (operator: "visibly distinct from the general
+  // tags", "do not change the color yet").
+  .mod-cats {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: 0.6rem 1.25rem;
+    padding-bottom: 0.85rem;
+    margin-bottom: 0.85rem;
+    border-bottom: 1px solid var(--mod-line);
+
+    @media (width <= 560px) { grid-template-columns: minmax(0, 1fr); }
+  }
+  .mod-cats-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  // The right cell mirrors the left: labels and pills gravitate to the outer
+  // edge, so the bucket reads as one shelf with two ends rather than two
+  // stacked lists.
+  .mod-cats-cell--right {
+    align-items: flex-end;
+
+    .mod-cat-pills { justify-content: flex-end; }
+
+    @media (width <= 560px) {
+      align-items: flex-start;
+
+      .mod-cat-pills { justify-content: flex-start; }
+    }
+  }
+  .mod-cat-label {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mod-ink-dim);
+    margin-bottom: 0.3rem;
+  }
+  .mod-cat-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  // Same hue, more presence: the pill's provenance class still paints it.
+  .mod-pill--cat {
+    font-size: 0.92rem;
+    font-weight: 600;
+    padding: 0.3rem 0.85rem;
+  }
+
   // --- pills (the unitag colour language) --------------------------------
   .mod-unitag, .mod-group-pills, .mod-meta-tags {
     display: flex;

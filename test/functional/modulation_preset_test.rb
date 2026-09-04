@@ -220,6 +220,43 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
       end
     end
 
+    context "the category tag bucket" do
+      should "ship artist, character and copyright tags in the payload" do
+        as(@user) do
+          create(:tag, name: "kokuma", category: TagCategory::ARTIST)
+          create(:tag, name: "ren", category: TagCategory::CHARACTER)
+          create(:tag, name: "fourier_project", category: TagCategory::COPYRIGHT)
+          @tagged = create(:post, tag_string: "kokuma ren fourier_project plaintag")
+        end
+
+        get post_modulation_path(@tagged, format: :json)
+
+        assert_response :success
+        cats = response.parsed_body["cat_tags"]
+        assert_equal(["kokuma"], cats["artist"])
+        assert_equal(["ren"], cats["character"])
+        assert_equal(["fourier_project"], cats["copyright"])
+
+        # Every category tag is also in a provenance bucket -- that is what
+        # lets the client keep its colour and drop it from the general flow.
+        bucket_tags = response.parsed_body["tags"].values.flatten
+        %w[kokuma ren fourier_project].each { |t| assert_includes(bucket_tags, t) }
+      end
+
+      should "not leak a private creator tag through the category lookup" do
+        as(@user) do
+          create(:tag, name: "secret_artist", category: TagCategory::ARTIST)
+          @tagged = create(:post, tag_string: "plaintag")
+          FourierTagSource.record_partition!(@tagged, { creator: ["secret_artist"] }, @user)
+        end
+
+        get post_modulation_path(@tagged, format: :json)
+
+        assert_response :success
+        assert_not_includes(response.parsed_body["cat_tags"].fetch("artist", []), "secret_artist")
+      end
+    end
+
     context "the header" do
       should "render Modulation nav pills, with Creators in the artist category" do
         get posts_path(preset: "modulation")

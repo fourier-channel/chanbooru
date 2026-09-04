@@ -44,6 +44,33 @@ class ModulationPostComponent < ApplicationComponent
     @buckets ||= FourierTagSource.for_viewer(post, viewer)
   end
 
+  # Danbooru-category keys worth a bucket of their own at the head of the tag
+  # list. Species is not a category this booru has (the fork carries stock
+  # upstream categories); if one is ever added it joins this map and the
+  # client renders it with no further change.
+  CATEGORY_KEYS = {
+    TagCategory::ARTIST => :artist,
+    TagCategory::CHARACTER => :character,
+    TagCategory::COPYRIGHT => :copyright,
+  }.freeze
+
+  # { artist: [...], character: [...], copyright: [...] } -- only keys with
+  # tags present. Built from the VIEWER-VISIBLE tags (the buckets), never from
+  # tag_string: the denormalised string still holds private creator tags, and
+  # a category lookup must not become a second door past the privacy gate.
+  # Every name here also appears in `buckets`; the client uses that to keep
+  # provenance styling and to drop these from the general flow.
+  def category_tags
+    @category_tags ||= begin
+      visible = buckets.values.flatten.uniq
+      categories = Tag.categories_for(visible)
+      visible.each_with_object({}) do |name, out|
+        key = CATEGORY_KEYS[categories[name]]
+        (out[key] ||= []) << name if key
+      end
+    end
+  end
+
   # The colour-coded unitag row, in a deliberate order (creator, both, auto,
   # pending); meta lives in its own collapsible section, not here.
   def unitag_pills
@@ -269,6 +296,7 @@ class ModulationPostComponent < ApplicationComponent
       meta: meta_payload,
       gated: media_gated?,
       tags: buckets,
+      cat_tags: category_tags,
       presets: nav_presets.map { |p| p.slice(:key, :label, :search, :prev, :next) },
       active_key: active_preset_key,
       status: status,

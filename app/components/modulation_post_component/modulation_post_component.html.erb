@@ -153,15 +153,34 @@
       region("sort-label").textContent = active().label || "";
     }
 
-    const pill = (t, b, dot) => '<a class="mod-pill mod-pill--' + b + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
+    const pill = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
+    // The category bucket at the head of the list: artist on the left;
+    // character / copyright (/ species, should the booru ever grow one) on the
+    // right. Provenance colour is untouched -- each pill keeps the class of
+    // the bucket it came from; what sets these apart is weight and placement.
+    function catBucketHTML(t, cats) {
+      const bucketOf = {};
+      ["creator", "both", "auto", "pending", "unsourced", "meta"].forEach(b =>
+        (t[b] || []).forEach(tag => { if (!(tag in bucketOf)) bucketOf[tag] = b; }));
+      const cell = (keys) => keys.filter(k => (cats[k] || []).length).map(k =>
+        '<div class="mod-cat-group"><span class="mod-cat-label">' + esc(k) + '</span><div class="mod-cat-pills">' +
+          cats[k].map(tag => pill(tag, bucketOf[tag] || "unsourced", true, "mod-pill--cat")).join("") + "</div></div>").join("");
+      const left = cell(["artist"]), right = cell(["character", "copyright", "species"]);
+      if (!left && !right) return "";
+      return '<div class="mod-cats"><div class="mod-cats-cell mod-cats-cell--left">' + left + '</div><div class="mod-cats-cell mod-cats-cell--right">' + right + "</div></div>";
+    }
     function renderTags() {
       const t = cur.tags || {}, ORDER = ["creator", "both", "auto", "pending", "unsourced"],
         L = { creator: "creator", both: "creator + auto", auto: "auto", pending: "pending", unsourced: "no recorded source" };
-      const uni = ORDER.flatMap(b => (t[b] || []).map(tag => pill(tag, b, true))).join("");
-      const grouped = ORDER.filter(b => (t[b] || []).length).map(b =>
-        '<div class="mod-group"><span class="mod-group-label">' + L[b] + '</span><div class="mod-group-pills">' + (t[b] || []).map(tag => pill(tag, b, false)).join("") + "</div></div>").join("");
-      const meta = t.meta || [];
-      const any = uni.length || meta.length;
+      const cats = cur.cat_tags || {};
+      const catSet = new Set([].concat(...Object.values(cats)));
+      const catsHTML = catBucketHTML(t, cats);
+      const flow = (b) => (t[b] || []).filter(tag => !catSet.has(tag));
+      const uni = ORDER.flatMap(b => flow(b).map(tag => pill(tag, b, true))).join("");
+      const grouped = ORDER.filter(b => flow(b).length).map(b =>
+        '<div class="mod-group"><span class="mod-group-label">' + L[b] + '</span><div class="mod-group-pills">' + flow(b).map(tag => pill(tag, b, false)).join("") + "</div></div>").join("");
+      const meta = flow("meta");
+      const any = uni.length || meta.length || catsHTML.length;
       region("tags").innerHTML =
         '<div class="mod-tags-head"><h2 class="mod-tags-title">Tags</h2>' +
           '<div class="mod-view-toggle">' +
@@ -169,6 +188,7 @@
             '<button type="button" data-act="view" data-view="grouped" class="' + (view === "grouped" ? "is-active" : "") + '">Grouped</button>' +
           "</div></div>" +
         (any ? "" : '<p class="mod-empty">No tags yet.</p>') +
+        catsHTML +
         '<div class="mod-unitag"' + (view === "unitag" ? "" : " hidden") + ">" + uni + "</div>" +
         '<div class="mod-grouped"' + (view === "grouped" ? "" : " hidden") + ">" + grouped + "</div>" +
         (meta.length ?
