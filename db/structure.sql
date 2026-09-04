@@ -1370,6 +1370,39 @@ ALTER SEQUENCE public.moderation_reports_id_seq OWNED BY public.moderation_repor
 
 
 --
+-- Name: modulation_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.modulation_settings (
+    id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    image_cap character varying DEFAULT 'fit'::character varying NOT NULL,
+    tags_expanded boolean DEFAULT false NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: modulation_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.modulation_settings_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: modulation_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.modulation_settings_id_seq OWNED BY public.modulation_settings.id;
+
+
+--
 -- Name: news_updates; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1968,7 +2001,7 @@ WITH (fillfactor='50');
 -- Name: rate_limits_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.rate_limits_id_seq
+CREATE UNLOGGED SEQUENCE public.rate_limits_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -3130,6 +3163,13 @@ ALTER TABLE ONLY public.moderation_reports ALTER COLUMN id SET DEFAULT nextval('
 
 
 --
+-- Name: modulation_settings id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.modulation_settings ALTER COLUMN id SET DEFAULT nextval('public.modulation_settings_id_seq'::regclass);
+
+
+--
 -- Name: news_updates id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3647,6 +3687,14 @@ ALTER TABLE ONLY public.mod_actions
 
 ALTER TABLE ONLY public.moderation_reports
     ADD CONSTRAINT moderation_reports_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: modulation_settings modulation_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.modulation_settings
+    ADD CONSTRAINT modulation_settings_pkey PRIMARY KEY (id);
 
 
 --
@@ -5335,6 +5383,13 @@ CREATE INDEX index_moderation_reports_on_status ON public.moderation_reports USI
 
 
 --
+-- Name: index_modulation_settings_on_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_modulation_settings_on_user_id ON public.modulation_settings USING btree (user_id);
+
+
+--
 -- Name: index_news_updates_on_created_at; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5864,6 +5919,13 @@ CREATE INDEX index_posts_on_last_noted_at ON public.posts USING btree (last_note
 --
 
 CREATE UNIQUE INDEX index_posts_on_md5 ON public.posts USING btree (md5);
+
+
+--
+-- Name: index_posts_on_mpixels; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_posts_on_mpixels ON public.posts USING btree (((((image_width * image_height))::numeric / 1000000.0)));
 
 
 --
@@ -6887,6 +6949,14 @@ ALTER TABLE ONLY public.mod_actions
 
 
 --
+-- Name: modulation_settings fk_rails_290756e965; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.modulation_settings
+    ADD CONSTRAINT fk_rails_290756e965 FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
 -- Name: posts fk_rails_299f071108; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7565,6 +7635,7 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260904050000'),
 ('20260825090000'),
 ('20260822010000'),
 ('20260806090000'),

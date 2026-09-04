@@ -257,6 +257,45 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
       end
     end
 
+    context "view settings" do
+      should "default to fit with the tags panel collapsed" do
+        get post_modulation_path(@post, format: :json)
+
+        assert_response :success
+        assert_equal({ "image_cap" => "fit", "tags_expanded" => false }, response.parsed_body["settings"])
+      end
+
+      should "persist in the sidecar row for a signed-in viewer" do
+        login_as(@user)
+        patch modulation_settings_path(format: :json), params: { tags_expanded: "true", image_cap: "screen" }
+
+        assert_response :success
+        assert_equal({ "image_cap" => "screen", "tags_expanded" => true }, response.parsed_body)
+        assert_equal("screen", ModulationSetting.find_by!(user_id: @user.id).image_cap)
+
+        get post_modulation_path(@post, format: :json)
+        assert_equal(true, response.parsed_body["settings"]["tags_expanded"])
+      end
+
+      should "persist in the session for an anonymous viewer" do
+        patch modulation_settings_path(format: :json), params: { tags_expanded: "true" }
+
+        assert_response :success
+        get post_modulation_path(@post, format: :json)
+        assert_equal(true, response.parsed_body["settings"]["tags_expanded"])
+        assert_equal(0, ModulationSetting.count)
+      end
+
+      should "drop an unknown image cap rather than store it" do
+        login_as(@user)
+        patch modulation_settings_path(format: :json), params: { image_cap: "yuge" }
+
+        assert_response :success
+        assert_equal("fit", response.parsed_body["image_cap"])
+        assert_nil(ModulationSetting.find_by(user_id: @user.id))
+      end
+    end
+
     context "the header" do
       should "render Modulation nav pills, with Creators in the artist category" do
         get posts_path(preset: "modulation")

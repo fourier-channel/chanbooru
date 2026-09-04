@@ -106,6 +106,16 @@ body:has(.modulation) {
   // first glimpse of the site is the object they will actually use.
   @include modulation-stage;
 
+  // The image size cap. --mod-stage-max is written by the view controller
+  // (sizeStage) per the viewer's image_cap setting; absent, the image keeps
+  // its intrinsic size. width: auto lets the max-height bind without
+  // stretching -- both maxima apply and the aspect ratio arbitrates.
+  .mod-frame img,
+  .mod-frame video {
+    max-height: var(--mod-stage-max, none);
+    width: auto;
+  }
+
   // --- action row ---------------------------------------------------------
   .mod-actions {
     display: flex;
@@ -223,6 +233,15 @@ body:has(.modulation) {
     border: 1px solid var(--mod-line);
     background: var(--mod-surface);
     &:hover { border-color: var(--mod-creator-fg); color: var(--mod-creator-fg); }
+  }
+  // The image-size buttons borrow the link chrome; is-active marks the cap in
+  // force the same way the view toggle marks its side.
+  .mod-capbtn {
+    appearance: none;
+    cursor: pointer;
+    font-family: inherit;
+
+    &.is-active { border-color: var(--mod-creator-fg); color: var(--mod-creator-fg); }
   }
 
   // --- comments -----------------------------------------------------------
@@ -375,6 +394,37 @@ body:has(.modulation) {
     align-items: center;
     justify-content: space-between;
     margin-bottom: 0.85rem;
+  }
+  .mod-tags-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+  }
+  .mod-tags-toggle {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--mod-ink-dim);
+    font-size: 0.78rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    padding: 0;
+
+    &:hover { color: var(--mod-ink); }
+  }
+
+  // Collapsed: the head plus the category shelf, nothing else. The shelf
+  // drops its divider because there is no flow below to divide from.
+  .mod-tags.is-collapsed {
+    .mod-tags-head { margin-bottom: 0.6rem; }
+
+    .mod-cats {
+      border-bottom: 0;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
   }
   .mod-tags-title {
     margin: 0;

@@ -71,6 +71,11 @@
     let cur = JSON.parse(root.dataset.payload || "null");
     let activeKey = cur ? cur.active_key : "";
     let view = "unitag", metaOpen = false, busy = false, moreOpen = false;
+    // View state held server-side (ModulationSetting): seeded from the payload
+    // once, then this session's copy is authoritative -- navigation payloads
+    // carry settings too but must not clobber a toggle made mid-session.
+    let tagsExpanded = !!((cur && cur.settings) || {}).tags_expanded;
+    let imageCap = ((cur && cur.settings) || {}).image_cap || "fit";
     // Reset on navigation, deliberately: revealing one deleted post is not
     // consent to see the next one.
     let revealed = false;
@@ -175,18 +180,29 @@
       const cats = cur.cat_tags || {};
       const catSet = new Set([].concat(...Object.values(cats)));
       const catsHTML = catBucketHTML(t, cats);
+      const el = region("tags");
+      el.classList.toggle("is-collapsed", !tagsExpanded);
+      // The head renders in both states; the view toggle only means anything
+      // with the full list on screen. Collapsed, the category shelf IS the
+      // preview and everything else stays out of the panel entirely.
+      const toggle = '<button type="button" class="mod-tags-toggle" data-act="tags-toggle" aria-expanded="' + tagsExpanded + '">' +
+        '<span class="mod-meta-caret' + (tagsExpanded ? " is-open" : "") + '">&#9656;</span> ' + (tagsExpanded ? "collapse" : "expand") + "</button>";
+      const head = '<div class="mod-tags-head"><h2 class="mod-tags-title">Tags</h2><div class="mod-tags-controls">' +
+        (tagsExpanded ?
+          '<div class="mod-view-toggle">' +
+            '<button type="button" data-act="view" data-view="unitag" class="' + (view === "unitag" ? "is-active" : "") + '">Unitag</button>' +
+            '<button type="button" data-act="view" data-view="grouped" class="' + (view === "grouped" ? "is-active" : "") + '">Grouped</button>' +
+          "</div>" : "") +
+        toggle + "</div></div>";
+      if (!tagsExpanded) { el.innerHTML = head + catsHTML; return; }
       const flow = (b) => (t[b] || []).filter(tag => !catSet.has(tag));
       const uni = ORDER.flatMap(b => flow(b).map(tag => pill(tag, b, true))).join("");
       const grouped = ORDER.filter(b => flow(b).length).map(b =>
         '<div class="mod-group"><span class="mod-group-label">' + L[b] + '</span><div class="mod-group-pills">' + flow(b).map(tag => pill(tag, b, false)).join("") + "</div></div>").join("");
       const meta = flow("meta");
       const any = uni.length || meta.length || catsHTML.length;
-      region("tags").innerHTML =
-        '<div class="mod-tags-head"><h2 class="mod-tags-title">Tags</h2>' +
-          '<div class="mod-view-toggle">' +
-            '<button type="button" data-act="view" data-view="unitag" class="' + (view === "unitag" ? "is-active" : "") + '">Unitag</button>' +
-            '<button type="button" data-act="view" data-view="grouped" class="' + (view === "grouped" ? "is-active" : "") + '">Grouped</button>' +
-          "</div></div>" +
+      el.innerHTML =
+        head +
         (any ? "" : '<p class="mod-empty">No tags yet.</p>') +
         catsHTML +
         '<div class="mod-unitag"' + (view === "unitag" ? "" : " hidden") + ">" + uni + "</div>" +
@@ -209,13 +225,20 @@
       region("notices").hidden = ns.length === 0;
     }
 
+    // The image-size setting lives with the other long-tail controls. Client-
+    // built rather than server-sent because it writes client state first and
+    // persists second -- the buttons must reflect imageCap immediately.
+    function capBtn(cap, label) {
+      return '<button type="button" class="mod-more-link mod-capbtn' + (imageCap === cap ? " is-active" : "") + '" data-act="image-cap" data-cap="' + cap + '">' + label + "</button>";
+    }
     function moreHTML() {
       const groups = cur.more || [];
-      if (!groups.length) return "";
+      const viewGroup = '<div class="mod-more-group"><span class="mod-more-label">image size</span>' +
+        capBtn("fit", "fit page") + capBtn("screen", "fill screen") + capBtn("none", "natural") + "</div>";
       return '<div class="mod-more"' + (moreOpen ? "" : " hidden") + ">" + groups.map(g =>
         '<div class="mod-more-group"><span class="mod-more-label">' + esc(g.label) + "</span>" +
           (g.links || []).map(l => '<a class="mod-more-link" href="' + esc(l.href) + '">' + esc(l.label) + "</a>").join("") +
-        "</div>").join("") + "</div>";
+        "</div>").join("") + viewGroup + "</div>";
     }
 
     function voteHTML(dir, glyph) {
@@ -266,7 +289,58 @@
       Object.keys(bl).forEach(k => el.setAttribute(k, bl[k] == null ? "" : bl[k]));
       if (el.post) { el.post.applyRules(); el.post.update(); }
     }
-    function renderAll() { renderMeta(); renderNotices(); renderCenter(); renderFlanks(); renderTags(); renderActions(); renderComments(); renderBlacklist(); }
+    function renderAll() { renderMeta(); renderNotices(); renderCenter(); renderFlanks(); renderTags(); renderActions(); renderComments(); renderBlacklist(); sizeStage(); }
+
+    // ---- image sizing (the image_cap setting) ----
+    // "Fill the page to the exact point the collapsed Tags panel is visible."
+    // Measured, not guessed: the cap is the viewport minus everything that has
+    // to share it. The tags panel counts at its COLLAPSED height (head +
+    // category shelf -- both render in either state) whichever state it is
+    // actually in, so expanding the panel never resizes the image.
+    function sizeStage() {
+      root.style.removeProperty("--mod-stage-max");
+      if (imageCap === "none") return;
+      const stage = region("stage");
+      if (!stage) return;
+      const h = (el) => (el ? el.getBoundingClientRect().height : 0);
+      const gap = 16, breathing = 12;
+      let reserve = breathing;
+      if (imageCap === "fit") {
+        const tagsEl = region("tags");
+        const collapsedTags = h(tagsEl && tagsEl.querySelector(".mod-tags-head")) +
+          h(tagsEl && tagsEl.querySelector(".mod-cats")) + 34; // panel padding + border
+        reserve += h(region("actions")) + collapsedTags + gap * 2;
+      }
+      const top = stage.getBoundingClientRect().top + window.scrollY;
+      const max = window.innerHeight - top - reserve;
+      if (max > 160) root.style.setProperty("--mod-stage-max", Math.round(max) + "px");
+      // Second pass against the real layout: once the cap has applied, any
+      // residue between the collapsed panel's bottom edge and the viewport
+      // comes off the cap -- "the exact point" is measured, not summed. Only
+      // ever shrinks, so it cannot oscillate; skipped while expanded because
+      // the expanded bottom edge is not the edge the cap is defined against.
+      if (imageCap === "fit" && !tagsExpanded) {
+        const tagsEl = region("tags");
+        requestAnimationFrame(() => {
+          const current = parseInt(root.style.getPropertyValue("--mod-stage-max"), 10);
+          if (!current || !tagsEl) return;
+          const overflow = Math.ceil(tagsEl.getBoundingClientRect().bottom + window.scrollY + breathing - window.innerHeight);
+          if (overflow > 0 && current - overflow > 160) root.style.setProperty("--mod-stage-max", (current - overflow) + "px");
+        });
+      }
+    }
+    let sizeTimer = null;
+    window.addEventListener("resize", () => { clearTimeout(sizeTimer); sizeTimer = setTimeout(sizeStage, 120); });
+
+    // ---- view-state persistence (server-side; no browser storage) ----
+    function persistSettings(changes) {
+      fetch("/modulation/settings", {
+        method: "PATCH",
+        headers: { "X-CSRF-Token": csrfToken(), "Content-Type": "application/json", Accept: "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(changes),
+      }).catch(() => {});
+    }
 
     // ---- scoring and favouriting ----
     // Both were upstream-only. They write through the same endpoints the
@@ -360,6 +434,8 @@
       if (a === "sort-up") swapSort(-1);
       else if (a === "sort-down") swapSort(1);
       else if (a === "view") { view = act.dataset.view; renderTags(); }
+      else if (a === "tags-toggle") { tagsExpanded = !tagsExpanded; renderTags(); persistSettings({ tags_expanded: tagsExpanded }); }
+      else if (a === "image-cap") { imageCap = act.dataset.cap; renderActions(); sizeStage(); persistSettings({ image_cap: imageCap }); }
       else if (a === "meta-toggle") { metaOpen = !metaOpen; renderTags(); }
       else if (a === "more") { moreOpen = !moreOpen; renderActions(); }
       else if (a === "reveal") { revealed = true; renderCenter(); }

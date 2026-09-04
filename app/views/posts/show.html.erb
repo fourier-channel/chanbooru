@@ -9,7 +9,7 @@
     post page below is retained as the hidden "historical" preset; see
     ExperiencePreset for how a page picks between them. %>
 <% if modulation? %>
-  <%= render ModulationPostComponent.new(post: @post, viewer: CurrentUser.user, query: params[:q]) %>
+  <%= render ModulationPostComponent.new(post: @post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session)) %>
 <% else %>
 <%= render "posts/partials/common/secondary_links" %>
 

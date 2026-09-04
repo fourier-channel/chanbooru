@@ -10,17 +10,21 @@
 # the viewer is the creator or a moderator. The component renders whatever it is
 # handed -- the privacy decision lives in the model, not the view.
 class ModulationPostComponent < ApplicationComponent
-  attr_reader :post, :viewer, :query
+  attr_reader :post, :viewer, :query, :settings
 
   # unsourced last: it is the bucket for a tag whose origin was never
   # recorded, so it says the least and should not lead the row.
   BUCKET_ORDER = %i[creator both auto pending unsourced].freeze
 
-  def initialize(post:, viewer:, query: nil)
+  # `settings` is the viewer's Modulation view state (ModulationSetting.for_viewer);
+  # callers with no session context get the defaults so the component stays
+  # renderable anywhere.
+  def initialize(post:, viewer:, query: nil, settings: nil)
     super
     @post = post
     @viewer = viewer
     @query = query
+    @settings = settings || ModulationSetting.defaults
   end
 
   # --- gallery navigation -------------------------------------------------
@@ -297,6 +301,7 @@ class ModulationPostComponent < ApplicationComponent
       gated: media_gated?,
       tags: buckets,
       cat_tags: category_tags,
+      settings: settings,
       presets: nav_presets.map { |p| p.slice(:key, :label, :search, :prev, :next) },
       active_key: active_preset_key,
       status: status,

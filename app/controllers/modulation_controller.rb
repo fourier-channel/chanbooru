@@ -10,7 +10,7 @@ class ModulationController < ApplicationController
   def show
     skip_authorization
     post = Post.find(params[:post_id])
-    component = ModulationPostComponent.new(post: post, viewer: CurrentUser.user, query: params[:q])
+    component = ModulationPostComponent.new(post: post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session))
     render json: component.payload.merge(comments_html: comments_html(post)), status: :ok
   end
 
