@@ -133,6 +133,32 @@ class ModulationGalleryComponent < ApplicationComponent
     nil
   end
 
+  # name -> category key for every tag on this page's cards, one batched
+  # lookup (Tag.categories_for is a memcache multi-get -- never per-card).
+  # Built from the same gated projection as data-tags, then banished names
+  # are withheld: the map doubles as the hover panel's DISPLAY gate, so the
+  # client shows only tags it can find here and never learns the banished
+  # vocabulary at all.
+  def page_tag_categories
+    @page_tag_categories ||= begin
+      names = TagBanishment.filter(blacklist_tags.values.flatten.uniq, viewer)
+      ints = Tag.categories_for(names)
+      keys = {
+        TagCategory::ARTIST => "artist",
+        TagCategory::COPYRIGHT => "copyright",
+        TagCategory::CHARACTER => "character",
+        TagCategory::META => "meta",
+      }
+      names.index_with { |n| keys[ints[n]] || "general" }
+    end
+  end
+
+  # The card's bottom-right credit: the post's first artist tag, if the
+  # viewer may see one.
+  def artist_for(post)
+    blacklist_tags[post].to_a.find { |t| page_tag_categories[t] == "artist" }
+  end
+
   def current_page
     [post_set.current_page.to_i, 1].max
   end

@@ -408,6 +408,32 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
       end
     end
 
+    context "the gallery cards" do
+      should "credit the artist bottom-right and ship the hover category map" do
+        as(@user) do
+          create(:tag, name: "kokuma", category: TagCategory::ARTIST)
+          @arted = create(:post, tag_string: "kokuma plaintag")
+        end
+
+        get posts_path(preset: "modulation", tags: "plaintag")
+
+        assert_response :success
+        assert_select ".modgal-card[data-id=?] .modgal-card-artist", @arted.id.to_s, text: "kokuma"
+        assert_select ".modgal-grid[data-tag-categories]", 1
+      end
+
+      should "keep banished names out of the hover category map" do
+        as(@user) { create(:post, tag_string: "gore plaintag") }
+
+        get posts_path(preset: "modulation", tags: "plaintag")
+
+        assert_response :success
+        map = css_select(".modgal-grid").first["data-tag-categories"]
+        assert_not_includes(map, "gore")
+        assert_includes(map, "plaintag")
+      end
+    end
+
     context "the header" do
       should "render Modulation nav pills, with Creators in the artist category" do
         get posts_path(preset: "modulation")

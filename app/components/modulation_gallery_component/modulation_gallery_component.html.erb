@@ -93,9 +93,12 @@
     <% end %>
   </nav>
 
-  <%# The grid. Each thumbnail carries the search into the post view. %>
+  <%# The grid. Each thumbnail carries the search into the post view.
+      data-tag-categories feeds the hover tag panel: name -> category for
+      every tag on this page, and ONLY those -- a tag missing from the map is
+      one the client must not display. %>
   <% if posts.any? %>
-    <div class="modgal-grid">
+    <div class="modgal-grid" data-tag-categories="<%= page_tag_categories.to_json %>">
       <% posts.each do |post| %>
         <%# A deleted post only reaches this grid when the viewer asked for one
             (show_deleted). It is still veiled: asking to SEE THAT THEY EXIST is
@@ -110,6 +113,9 @@
             <span class="modgal-thumb modgal-thumb--gated">gated</span>
           <% end %>
           <span class="modgal-card-id">#<%= post.id %></span>
+          <% if (artist = artist_for(post)) %>
+            <span class="modgal-card-artist"><%= artist.tr("_", " ") %></span>
+          <% end %>
         </a>
       <% end %>
     </div>
