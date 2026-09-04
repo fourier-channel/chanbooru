@@ -28,7 +28,7 @@ class ModulationSetting < ApplicationRecord
 
   # The keys a viewer's settings hash carries; also what for_viewer reads off
   # a row, so a new column joins this list or it silently never persists.
-  PANEL_KEYS = %w[image_cap tags_expanded gallery_sort gallery_view gallery_show_deleted].freeze
+  PANEL_KEYS = %w[image_cap tags_expanded gallery_sort gallery_view gallery_show_deleted session_bar_open session_autorefresh].freeze
 
   SESSION_KEY = :modulation_settings
 
@@ -43,6 +43,8 @@ class ModulationSetting < ApplicationRecord
       "gallery_sort" => nil,
       "gallery_view" => "unitag",
       "gallery_show_deleted" => false,
+      "session_bar_open" => false,
+      "session_autorefresh" => true,
     }
   end
 
@@ -73,6 +75,8 @@ class ModulationSetting < ApplicationRecord
     end
     clean["gallery_view"] = changes["gallery_view"] if GALLERY_VIEWS.include?(changes["gallery_view"])
     clean["gallery_show_deleted"] = changes["gallery_show_deleted"].to_s.truthy? unless changes["gallery_show_deleted"].nil?
+    clean["session_bar_open"] = changes["session_bar_open"].to_s.truthy? unless changes["session_bar_open"].nil?
+    clean["session_autorefresh"] = changes["session_autorefresh"].to_s.truthy? unless changes["session_autorefresh"].nil?
     # Admin-only, row-only: revealing the banished vocabulary is a deliberate
     # act (see TagBanishment), and it means nothing in an anonymous session.
     if !changes["reveal_banished"].nil? && user.respond_to?(:is_admin?) && user.is_admin?

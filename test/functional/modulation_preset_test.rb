@@ -434,6 +434,59 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
       end
     end
 
+    context "the session bar" do
+      should "render the manage-session control and the bar, closed by default" do
+        get posts_path(preset: "modulation")
+
+        assert_response :success
+        assert_select "#modnav-session-toggle", 1
+        assert_select "#modnav-session[data-observation]", 1
+        assert_select "#modnav-session[hidden]", 1
+        # The bar is the ONE login/logout point; the old Login pill is gone.
+        assert_select "#modnav-login", 0
+      end
+
+      should "stay open when the remembered state says open" do
+        patch modulation_settings_path(format: :json), params: { session_bar_open: "true" }
+        get posts_path(preset: "modulation")
+
+        assert_select "#modnav-session", 1
+        assert_select "#modnav-session[hidden]", 0
+      end
+
+      should "report the signed-in session with digests, never raw cookies" do
+        login_as(@user)
+        get modulation_session_status_path(format: :json)
+
+        assert_response :success
+        booru = response.parsed_body["booru"]
+        assert_equal("cookie:#{Danbooru.config.session_cookie_name}", booru["expect"])
+        assert_equal(booru["expect"], booru["observed"])
+        assert_equal(true, booru["signed_in"])
+        assert_equal(@user.name, booru["name"])
+        assert_match(/\A\h{8}\z/, booru["digest"])
+      end
+
+      should "observe a held-but-unverified matrix cookie as stale, not signed out" do
+        cookies["fourier_session"] = "deadbeefcafe"
+        get modulation_session_status_path(format: :json)
+
+        matrix = response.parsed_body["matrix"]
+        assert_equal("cookie:fourier_session", matrix["observed"])
+        assert_equal("stale", matrix["gate"])
+        assert_equal(false, matrix["linked"])
+        assert_not_includes(response.body, "deadbeefcafe")
+      end
+
+      should "force-delete the fourier cookie on matrix logout" do
+        cookies["fourier_session"] = "deadbeefcafe"
+        post modulation_matrix_logout_path
+
+        assert_response :no_content
+        assert_includes(response.headers["Set-Cookie"].to_s, "fourier_session")
+      end
+    end
+
     context "the header" do
       should "render Modulation nav pills, with Creators in the artist category" do
         get posts_path(preset: "modulation")

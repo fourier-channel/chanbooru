@@ -13,6 +13,14 @@
 
   <nav class="modnav-nav desktop-only" x-bind:class="{ 'desktop-only': !menuOpen }">
     <div class="modnav-links">
+      <%# The ONE login/logout point (operator ruling 2026-09-04): a control,
+          not a link, opening the session bar below. Its dot doubles as the
+          summary lamp so session state is readable without opening the bar. %>
+      <button type="button" id="modnav-session-toggle" class="modnav-pill modnav-pill--session"
+              aria-expanded="<%= session_bar_open? %>" aria-controls="modnav-session">
+        <span class="modnav-pill-dot" data-region="summary-lamp" aria-hidden="true"></span>Manage Session
+      </button>
+
       <% entries.each do |entry| %>
         <%= link_to entry[:href],
               id: dom_id(entry),
@@ -33,4 +41,35 @@
       </div>
     <% end %>
   </nav>
+
+  <%# The Manage Session bar: a stationary row of the header, one monitor per
+      session. Content is rendered by modulation_session_bar.js from the
+      embedded observation -- the server's read of THIS request -- and
+      re-rendered from /modulation/session_status on focus and after auth
+      actions. No heartbeat: the state rides in on events. %>
+  <% if observation.present? %>
+    <div class="modnav-session" id="modnav-session" data-observation="<%= observation.to_json %>"
+         data-autorefresh="<%= autorefresh? ? 1 : 0 %>" <%= "hidden" unless session_bar_open? %>>
+      <div class="modnav-session-inner">
+        <div class="modnav-monitor" data-monitor="booru">
+          <span class="modnav-lamp" data-region="lamp" aria-hidden="true"></span>
+          <span class="modnav-monitor-label" data-region="label">booru</span>
+          <span class="modnav-monitor-status" data-region="status"></span>
+          <span class="modnav-monitor-actions" data-region="controls"></span>
+          <div class="modnav-monitor-tip" data-region="tip" role="tooltip"></div>
+        </div>
+        <div class="modnav-monitor" data-monitor="matrix">
+          <span class="modnav-lamp" data-region="lamp" aria-hidden="true"></span>
+          <span class="modnav-monitor-label" data-region="label">matrix</span>
+          <span class="modnav-monitor-status" data-region="status"></span>
+          <span class="modnav-monitor-actions" data-region="controls"></span>
+          <div class="modnav-monitor-tip" data-region="tip" role="tooltip"></div>
+        </div>
+        <label class="modnav-session-refresh" title="Reload the page after logging in or out, so what you see is exactly what the current account can see.">
+          <input type="checkbox" data-act="session-autorefresh" <%= "checked" if autorefresh? %>>
+          refresh page on change
+        </label>
+      </div>
+    </div>
+  <% end %>
 </header>

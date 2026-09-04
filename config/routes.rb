@@ -19,6 +19,8 @@ Rails.application.routes.draw do
   get  "posts/:post_id/tag_sources", to: "fourier_tag_sources#show"
   get  "posts/:post_id/modulation",  to: "modulation#show", as: :post_modulation # client-side nav payload
   patch "modulation/settings",       to: "modulation_settings#update", as: :modulation_settings # server-held view state
+  get  "modulation/session_status",  to: "modulation_session#status", as: :modulation_session_status # the session bar's monitors
+  post "modulation/matrix_logout",   to: "modulation_session#matrix_logout", as: :modulation_matrix_logout # cookie force-delete
   get  "fourier_identity",           to: "fourier_identity#show", as: :fourier_identity # "am I linked yet?" poll
   # Error cards, shown in place of an image that failed to load.
   get  "errors/:status",             to: "errors#show", as: :error_art, constraints: { status: /\d{3}/, format: /svg/ }

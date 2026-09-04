@@ -12,6 +12,27 @@
 # "current" is a map of controller names to URL prefixes with nothing
 # Modulation-specific about it, and copying it here would mean maintaining two.
 class ModulationNavbarComponent < NavbarComponent
+  # The session bar (Manage Session) is part of this header: a stationary,
+  # always-in-the-same-place surface whose open state persists server-side.
+  # `settings` is the viewer's ModulationSetting hash; `observation` is
+  # SessionObservation.for_request -- the monitors' first read, served with
+  # the page so the bar renders true without a fetch.
+  def initialize(current_user:, settings: nil, observation: nil)
+    super(current_user: current_user)
+    @settings = settings || ModulationSetting.defaults
+    @observation = observation
+  end
+
+  attr_reader :settings, :observation
+
+  def session_bar_open?
+    !!settings["session_bar_open"]
+  end
+
+  def autorefresh?
+    settings["session_autorefresh"] != false
+  end
+
   # Nav entries, in order, each with the TAG CATEGORY whose colour it borrows.
   #
   # Categories are named, never coloured, here: the palette differs between this
@@ -22,14 +43,11 @@ class ModulationNavbarComponent < NavbarComponent
   # "Creators" is the artist tag index under a name that fits this site. Only it
   # is category-coloured; a header where every item shouts has no emphasis left
   # to spend.
+  # No Login / My Account entry here any more: the ONE login/logout point is
+  # the Manage Session control (operator ruling 2026-09-04), rendered beside
+  # these entries in the template; account links live inside its bar.
   def entries
     list = []
-
-    list << if current_user.is_anonymous?
-      { label: "Login", href: main_app.login_path(url: helpers.request.fullpath), category: "general", rel: "nofollow" }
-    else
-      { label: "My Account", href: main_app.profile_path, category: "general", badge: unread_dmail_indicator(current_user) }
-    end
 
     list << { label: "Posts", href: main_app.posts_path, category: "general" }
     list << { label: "Comments", href: main_app.comments_path, category: "general" } if comments_enabled?

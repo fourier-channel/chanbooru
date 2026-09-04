@@ -163,4 +163,149 @@
       background: var(--mod-surface-3, transparent);
     }
   }
+
+  // --- Manage Session bar -------------------------------------------------
+  // A stationary row of the header, subnav geometry. Lamp colours follow the
+  // formant health grammar: green = current/verified, amber = NEAR (a held
+  // cookie the gate has not vouched for), red = the monitor is reading an
+  // object other than its programmed GO, unlit = nothing observed.
+  .modnav-session {
+    background: var(--mod-surface-2, transparent);
+    border-top: 1px solid var(--mod-line, var(--default-border-color));
+
+    &:not([hidden]) { animation: modnav-descend 0.22s ease; }
+    &[hidden] { display: none; }
+  }
+
+  @keyframes modnav-descend {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .modnav-session-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem 2.25rem;
+    max-width: var(--modnav-col);
+    margin: 0 auto;
+    padding: 0.45rem 1rem;
+  }
+
+  .modnav-monitor {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.2rem 0.3rem;
+
+    &:hover .modnav-monitor-tip { display: flex; }
+  }
+
+  .modnav-lamp {
+    flex: none;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #2b3441;
+  }
+  .modnav-monitor[data-state="go"] .modnav-lamp { background: #35e08d; box-shadow: 0 0 6px rgb(53 224 141 / 45%); }
+  .modnav-monitor[data-state="idle"] .modnav-lamp { background: #5a6472; }
+  .modnav-monitor[data-state="stale"] .modnav-lamp { background: #f0b429; box-shadow: 0 0 6px rgb(240 180 41 / 40%); }
+  .modnav-monitor[data-state="alarm"] .modnav-lamp { background: #ff5f56; box-shadow: 0 0 6px rgb(255 95 86 / 50%); }
+
+  .modnav-monitor-label {
+    font-family: var(--mod-mono, ui-monospace, monospace);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    color: var(--mod-ink-dim, var(--muted-text-color));
+    white-space: nowrap;
+  }
+
+  .modnav-monitor-status {
+    font-size: 0.78rem;
+    color: var(--mod-ink, var(--text-color));
+    white-space: nowrap;
+
+    b { font-weight: 600; }
+  }
+
+  .modnav-monitor-actions {
+    display: inline-flex;
+    gap: 0.35rem;
+  }
+
+  .modnav-session-btn {
+    appearance: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.72rem;
+    padding: 0.14rem 0.6rem;
+    border-radius: var(--mod-pill-radius, 999px);
+    border: 1px solid var(--mod-line, var(--default-border-color));
+    background: var(--mod-surface, transparent);
+    color: var(--mod-ink, var(--text-color));
+    text-decoration: none;
+
+    &:hover { border-color: var(--mod-ink-dim, var(--muted-text-color)); }
+  }
+
+  // The tooltip: the monitor's evidence, on demand. Rendered below the
+  // monitor so it descends out of the header rather than covering it.
+  .modnav-monitor-tip {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 90;
+    min-width: 300px;
+    max-width: 420px;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 10px;
+    border: 1px solid var(--mod-line, var(--default-border-color));
+    background: var(--mod-surface, #1b1a17);
+    box-shadow: 0 8px 26px rgb(0 0 0 / 45%);
+    font-size: 0.74rem;
+    color: var(--mod-ink-dim, var(--muted-text-color));
+    white-space: normal;
+
+    b { color: var(--mod-ink, var(--text-color)); }
+  }
+
+  .modnav-tip-line { display: block; }
+
+  .modnav-digest {
+    font-family: var(--mod-mono, ui-monospace, monospace);
+    font-size: 0.72rem;
+    padding: 0 0.25rem;
+    border-radius: 4px;
+    background: var(--mod-surface-3, rgb(255 255 255 / 6%));
+    color: var(--mod-ink, var(--text-color));
+  }
+
+  .modnav-session-refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    color: var(--mod-ink-dim, var(--muted-text-color));
+    cursor: pointer;
+    user-select: none;
+  }
+
+  // The Manage Session pill's dot doubles as the summary lamp: worst state
+  // of the two monitors, so the header answers at a glance even closed.
+  .modnav-pill--session {
+    appearance: none;
+    cursor: pointer;
+    font: inherit;
+
+    &[data-state="go"] .modnav-pill-dot { background: #35e08d; }
+    &[data-state="idle"] .modnav-pill-dot, &[data-state="unlit"] .modnav-pill-dot { background: #5a6472; }
+    &[data-state="stale"] .modnav-pill-dot { background: #f0b429; }
+    &[data-state="alarm"] .modnav-pill-dot { background: #ff5f56; }
+  }
 }
