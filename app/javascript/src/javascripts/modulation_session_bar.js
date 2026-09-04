@@ -123,10 +123,13 @@ function boot() {
       if (m.digest) {
         lines.push(`Your current ${m.linked ? "token" : "cookie"} is ${code(m.digest)}${m.verified_at ? `, verified by the gate ${tick(m.verified_at)} ago` : ""}.`);
       }
+      if (m.info?.expires_at) {
+        lines.push(`This session expires in ${tick(m.info.expires_at, "until")}.`);
+      }
       if (m.info?.refresh_at) {
         lines.push(`There are ${tick(m.info.refresh_at, "until")} until the next refresh.`);
-      } else if (m.digest) {
-        lines.push("The gate does not publish its refresh schedule to this host yet; the next-refresh countdown appears here when it does.");
+      } else if (m.digest && !m.info) {
+        lines.push("The gate does not publish its session evidence to this host yet; expiry and previous-token lines appear here when it does.");
       }
     }
     region(kind, "tip").innerHTML = lines.map((l) => `<span class="modnav-tip-line">${l}</span>`).join("");
