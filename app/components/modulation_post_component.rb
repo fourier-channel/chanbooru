@@ -88,7 +88,7 @@ class ModulationPostComponent < ApplicationComponent
   # One-line mono metadata sub-header pieces (label-less; order carries meaning).
   def metadata_fields
     [
-      "#{post.image_width}×#{post.image_height}",
+      "#{post.image_width}\u00d7#{post.image_height}",
       ActiveSupport::NumberHelper.number_to_human_size(post.file_size),
       ".#{post.file_ext}",
       post.created_at.strftime("%Y-%m-%d"),

@@ -67,7 +67,7 @@ body:has(.modulation) {
   }
   .mod-meta-field { white-space: nowrap; }
   .mod-meta-field + .mod-meta-field::before {
-    content: "·";
+    content: "\00b7";
     margin-right: 0.85rem;
     margin-left: -0.6rem;
     color: var(--mod-line);
