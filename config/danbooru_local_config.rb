@@ -8,6 +8,30 @@ module Danbooru
       "chanbooru"
     end
 
+    # ---- Contact ----
+    #
+    # One address for every surface (operator ruling 2026-09-05):
+    # admin@fourier.channel. Upstream derives these from the canonical host,
+    # which would advertise a webmaster@booru.41chan.net that nobody reads on
+    # the contact page and on the DMCA line.
+    def contact_email
+      "admin@fourier.channel"
+    end
+
+    def dmca_email
+      "admin@fourier.channel"
+    end
+
+    # What /static/contact shows. Upstream leaves it empty, which renders a
+    # page titled "Contact" with no way to make one.
+    def contact_page_html
+      <<~HTML
+        <p>Email <a href="mailto:admin@fourier.channel">admin@fourier.channel</a>.</p>
+        <p>This booru is one surface of 41chan; the same address reaches the
+        admin for every part of it.</p>
+      HTML
+    end
+
     # Whether anyone may create an account. False here: 41chan is not open, and
     # accounts are made deliberately rather than claimed.
     #
