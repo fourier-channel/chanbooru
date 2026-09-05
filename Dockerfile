@@ -422,6 +422,22 @@ RUN <<EOS
   apt-get update
   apt-get install -y --no-install-recommends g++ make ragel git sudo gpg socat libyaml-dev libpq-dev gh
 
+  # FORK CHANGE (operator ruling 2026-09-05): the Postgres CLIENT must match
+  # the PG16 servers this stack runs -- and that upstream itself pins. Ubuntu
+  # resolute ships client 18, whose structure.sql dumps open with
+  # `SET transaction_timeout` (17+-only syntax), which a 16 server refuses
+  # to load. Pinned HERE rather than in the base stage because the
+  # development image is where migrations run and dumps get written; a base
+  # -stage change would invalidate every build stage under it for a tool
+  # production never uses to write (prod backups run the postgres
+  # container's own 16 binaries).
+  install -d /usr/share/postgresql-common/pgdg
+  curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+  echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt resolute-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+  apt-get update
+  apt-get remove -y postgresql-client
+  apt-get install -y --no-install-recommends postgresql-client-16
+
   groupadd admin -U danbooru
   passwd -d danbooru
 
