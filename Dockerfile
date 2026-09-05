@@ -435,10 +435,11 @@ RUN <<EOS
   curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
   echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt resolute-pgdg main" > /etc/apt/sources.list.d/pgdg.list
   apt-get update
-  # Every client major, not the meta-package: base's install resolved to
-  # postgresql-client-18 and autoremoved the meta, and postgresql-common's
-  # pg_dump wrapper picks the NEWEST major present -- 16 must be the only one.
-  apt-get remove -y 'postgresql-client*' || true
+  # The base stage's slimming rm -rf /var/lib nukes the dpkg DATABASE, so the
+  # client-18 files it installed are orphans no apt remove can see -- and
+  # postgresql-common's pg_wrapper picks the newest /usr/lib/postgresql/*
+  # present. Evict the orphaned tree directly; 16 must be the only major.
+  rm -rf /usr/lib/postgresql/18
   apt-get install -y --no-install-recommends postgresql-client-16
 
   groupadd admin -U danbooru
