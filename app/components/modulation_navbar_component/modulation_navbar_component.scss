@@ -26,6 +26,7 @@
 
   // --- the single row ------------------------------------------------------
   .modnav-bar {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0.9rem;
@@ -183,12 +184,36 @@
   // header moves: the row's height never changes, which is what the
   // no-forced-reflow rule asks for. The old version dropped a whole new header
   // row and pushed the page down.
+  // The group FLOATS over the row rather than taking space in it.
+  //
+  // In flow, the unfurling panel had to take its width from somewhere, and it
+  // took it from the nav: at 1400px, opening the panel pushed Pools, Wiki and
+  // More out of the row. That is displacement, and the standing rule is that
+  // an element never pushes others out of place unless the displacement IS the
+  // point. Occlusion is not displacement -- the pills stay exactly where they
+  // are and come back uncovered when the panel closes.
+  //
+  // It still reads as the pill unfurling to its right: the group is anchored
+  // by its RIGHT edge, so growing wider slides the pill left and the panel
+  // occupies the space that opens up beside it.
   .modnav-session-group {
-    flex: none;
-    margin-left: auto;
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 40;
     display: flex;
     align-items: center;
     min-width: 0;
+    // Opaque, because there are nav pills underneath.
+    background: var(--mod-surface, var(--body-background-color));
+  }
+
+  // Reserve the pill's own width in the row so the nav never grows underneath
+  // the closed pill and hides items behind it.
+  .modnav-session-spacer {
+    flex: none;
+    width: var(--modnav-session-pill-w, 9.5rem);
   }
 
   .modnav-session {
@@ -344,10 +369,15 @@
     .modnav-bar { flex-wrap: wrap; }
 
     .modnav-session-group {
+      position: static;
+      transform: none;
       order: 3;
       width: 100%;
       margin-left: 0;
+      background: transparent;
     }
+
+    .modnav-session-spacer { display: none; }
 
     .modnav-session-group.is-open .modnav-session { max-width: 100%; }
 

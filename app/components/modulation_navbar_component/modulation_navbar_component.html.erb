@@ -38,6 +38,10 @@
         (operator ruling 2026-09-06), not a second row dropping down. The old
         behaviour added a header row and shoved the whole page down, which is
         the displacement the no-forced-reflow rule exists to stop. %>
+    <%# Holds open the space the floating group sits over, so the nav never
+        lays a pill underneath the closed Manage Session control. %>
+    <div class="modnav-session-spacer" aria-hidden="true"></div>
+
     <div class="modnav-session-group">
       <button type="button" id="modnav-session-toggle" class="modnav-pill modnav-pill--session"
               aria-expanded="<%= session_bar_open? %>" aria-controls="modnav-session">
