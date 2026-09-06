@@ -190,6 +190,39 @@ module Danbooru
       !Rails.env.test?
     end
 
+    # ---- Status page ----
+
+    # The minimum level that may read /status (operator ruling 2026-09-06).
+    #
+    # Upstream serves this to anyone, and does so deliberately:
+    # ServerStatusPolicy is empty, so it inherits ApplicationPolicy#show?, which
+    # returns true unconditionally. That is a defensible default for a large
+    # public booru, where "is the site down or is it just me" is a real question
+    # an ordinary visitor asks. It is the wrong default here.
+    #
+    # The response carries exact versions of Rails, Ruby, Puma, Postgres, Redis,
+    # libvips, ffmpeg and exiftool, the kernel build string, the load average,
+    # container names and a complete Redis INFO dump. On an invite-gated
+    # instance that is a version manifest for matching against CVEs, offered to
+    # anyone who asks, with no user-facing value to weigh against it.
+    #
+    # ANONYMOUS under test, for the same reason as the restrictions above:
+    # upstream's status_controller_test has six tests that GET this page
+    # signed-out and assert success, including one that asserts it answers while
+    # the database is down. Enforcing here would turn all six red for asserting
+    # exactly what they were written to assert.
+    # fourier_status_visibility_test stubs this to ADMIN and asserts the closure.
+    #
+    # Consequence accepted, and it is a real one: StatusController forces an
+    # anonymous request when Postgres is down ("Don't try to load current user
+    # if database is down"), so under that outage the page is shut to everyone
+    # rather than showing an admin the diagnosis. The operator reaches a sick
+    # box over SSH; serving the manifest to the internet is not worth buying
+    # back that one case.
+    def status_page_visibility_level
+      Rails.env.test? ? User::Levels::ANONYMOUS : User::Levels::ADMIN
+    end
+
     # ---- Content restriction ----
 
     # Tags visible only to Gold+ (level 30). A non-Gold viewer still sees the

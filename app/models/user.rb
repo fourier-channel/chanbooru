@@ -587,6 +587,13 @@ class User < ApplicationRecord
       level >= Danbooru.config.deleted_post_visibility_level
     end
 
+    # Whether this account may read the server status page. Upstream shows it to
+    # everyone; see Danbooru.config.status_page_visibility_level for why this
+    # fork does not.
+    def can_see_server_status?
+      level >= Danbooru.config.status_page_visibility_level
+    end
+
     def is_gold?
       level >= Levels::GOLD
     end
