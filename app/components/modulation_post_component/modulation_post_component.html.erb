@@ -336,7 +336,16 @@
     // Click the image -> a fullscreen popover: drag anywhere to pan, wheel to
     // zoom (about the cursor), Esc to close. The instruction line is part of
     // the surface by operator request -- the affordances are invisible
-    // otherwise. Save Image is a plain same-origin download anchor.
+    // otherwise. Save Image is a download anchor. The `download` attribute
+    // alone is not enough: the same-origin gate URL 302s to a cross-origin
+    // presigned R2 URL, and browsers drop `download` across origins, so the
+    // link opened the raw image in a tab instead of saving it. `dl=1` asks
+    // the gate to sign a Content-Disposition: attachment into the redirect,
+    // which every browser honours regardless of origin.
+    function saveHref(u) {
+      if (!u || u.indexOf("/booru/") < 0) return u;
+      return u + (u.indexOf("?") >= 0 ? "&" : "?") + "dl=1";
+    }
     let lbOpen = false, lbS = 1, lbTx = 0, lbTy = 0, lbW = 0, lbH = 0;
     function lbApply() {
       const img = root.querySelector(".mod-lightbox-img");
@@ -360,7 +369,7 @@
         '<img class="mod-lightbox-img" src="' + esc(m.full || m.src) + '" alt="" draggable="false">' +
         '<div class="mod-lightbox-hud">' +
           '<span class="mod-lightbox-help">Press Esc to close this window. Click and drag anywhere to move the image. Mousewheel for zoom.</span>' +
-          '<a class="mod-lightbox-save" href="' + esc(m.full || m.src) + '" download>Save Image</a>' +
+          '<a class="mod-lightbox-save" href="' + esc(saveHref(m.full || m.src)) + '" download>Save Image</a>' +
           '<button type="button" class="mod-lightbox-close" data-act="lightbox-close" aria-label="Close">&#10005;</button>' +
         "</div>";
       root.appendChild(el);

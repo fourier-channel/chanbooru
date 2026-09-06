@@ -289,9 +289,23 @@ function boot() {
     else if (a === "matrix-logout") matrixLogout();
   });
 
+  // The panel unfurls to the pill's right and must stop at the viewport, and
+  // where the pill sits is a layout fact CSS cannot read from inside the
+  // group, so it is measured here: room = viewport edge - pill's right edge,
+  // less a margin. Re-measured on resize while open; a closed panel has no
+  // width to clamp.
+  const measureRoom = () => {
+    if (!group || !toggle) return;
+    const room = Math.max(0, window.innerWidth - toggle.getBoundingClientRect().right - 16);
+    group.style.setProperty("--modnav-session-room", room + "px");
+  };
+  if (startOpen) measureRoom();
+  window.addEventListener("resize", () => { if (isOpen()) measureRoom(); });
+
   if (toggle && group) {
     toggle.addEventListener("click", () => {
       const open = !isOpen();
+      if (open) measureRoom();
       group.classList.toggle("is-open", open);
       toggle.setAttribute("aria-expanded", String(open));
       // Sequenced, not parallel: for an anonymous viewer both requests

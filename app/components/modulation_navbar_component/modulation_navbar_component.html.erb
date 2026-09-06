@@ -32,16 +32,18 @@
         a link. Its dot doubles as the summary lamp so session state is readable
         without opening the panel.
 
-        The group is right-aligned and the panel sits to the RIGHT of the pill
-        in source order, so opening unfurls the panel out of the pill's right
-        edge while the pill slides left -- a width animation along the row
-        (operator ruling 2026-09-06), not a second row dropping down. The old
-        behaviour added a header row and shoved the whole page down, which is
-        the displacement the no-forced-reflow rule exists to stop. %>
+        The pill is mounted at the LEFT edge of its reserved space and never
+        moves; the panel unfurls out of the pill's RIGHT edge, along the row,
+        past the bar's edge into the page margin (operator ruling 2026-09-06,
+        superseding the first cut, which anchored the group hard right so
+        opening slid the pill 260px left -- the control jumped out from under
+        the cursor). It is a width animation along the row, not a second row
+        dropping down: the cut before THAT added a header row and shoved the
+        whole page down, which is the displacement the no-forced-reflow rule
+        exists to stop. %>
     <%# Holds open the space the floating group sits over, so the nav never
         lays a pill underneath the closed Manage Session control. %>
-    <div class="modnav-session-spacer" aria-hidden="true"></div>
-
+    <div class="modnav-session-spacer">
     <div class="modnav-session-group">
       <button type="button" id="modnav-session-toggle" class="modnav-pill modnav-pill--session"
               aria-expanded="<%= session_bar_open? %>" aria-controls="modnav-session">
@@ -78,6 +80,7 @@
           </div>
         </div>
       <% end %>
+    </div>
     </div>
 
     <a class="modnav-burger mobile-only" x-on:click="menuOpen = !menuOpen" aria-label="Menu">

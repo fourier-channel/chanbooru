@@ -193,27 +193,38 @@
   // point. Occlusion is not displacement -- the pills stay exactly where they
   // are and come back uncovered when the panel closes.
   //
-  // It still reads as the pill unfurling to its right: the group is anchored
-  // by its RIGHT edge, so growing wider slides the pill left and the panel
-  // occupies the space that opens up beside it.
+  // The pill unfurls to its RIGHT and never moves (operator ruling
+  // 2026-09-06). The first cut anchored the group by its right edge, so
+  // opening slid the pill 260px left to make room for a panel on its right --
+  // the control jumped out from under the cursor, which is its own kind of
+  // displacement. Now the spacer, which sits in the row where the pill is,
+  // is the group's containing block: the group hangs off the spacer's LEFT
+  // edge and grows rightward, past the bar's edge into the page margin.
+  //
+  // How much room there is to the right depends on where the pill landed
+  // (nav width, viewport, the bar's 1180px cap) and CSS cannot see that from
+  // here, so modulation_session_bar.js measures it on open and on resize and
+  // hands it over as --modnav-session-room. The panel clamps to it and the
+  // inner row scrolls sideways if the panel is still short; nothing spills
+  // past the viewport.
+  .modnav-session-spacer {
+    position: relative;
+    flex: none;
+    width: var(--modnav-session-pill-w, 9.5rem);
+    align-self: stretch;
+  }
+
   .modnav-session-group {
     position: absolute;
-    right: 1rem;
+    left: 0;
     top: 50%;
     transform: translateY(-50%);
     z-index: 40;
     display: flex;
     align-items: center;
     min-width: 0;
-    // Opaque, because there are nav pills underneath.
+    // Opaque, because the panel unfurls over whatever is to the pill's right.
     background: var(--mod-surface, var(--body-background-color));
-  }
-
-  // Reserve the pill's own width in the row so the nav never grows underneath
-  // the closed pill and hides items behind it.
-  .modnav-session-spacer {
-    flex: none;
-    width: var(--modnav-session-pill-w, 9.5rem);
   }
 
   .modnav-session {
@@ -227,7 +238,7 @@
   }
 
   .modnav-session-group.is-open .modnav-session {
-    max-width: var(--modnav-session-w);
+    max-width: min(var(--modnav-session-w), var(--modnav-session-room, 100vw));
     opacity: 1;
     pointer-events: auto;
   }
@@ -242,8 +253,10 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0 0 0 0.6rem;
+    padding: 0 0.4rem 0 0.6rem;
     white-space: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
   }
 
   .modnav-monitor {
@@ -368,16 +381,19 @@
   @media (max-width: 900px) {
     .modnav-bar { flex-wrap: wrap; }
 
+    .modnav-session-spacer {
+      position: static;
+      order: 3;
+      width: 100%;
+    }
+
     .modnav-session-group {
       position: static;
       transform: none;
-      order: 3;
       width: 100%;
       margin-left: 0;
       background: transparent;
     }
-
-    .modnav-session-spacer { display: none; }
 
     .modnav-session-group.is-open .modnav-session { max-width: 100%; }
 
