@@ -13,11 +13,17 @@
 # the page. Slides also carry the blacklist attributes -- a showcase is the worst
 # possible place to be shown something the viewer asked never to see.
 class LandingShowcase
-  CATEGORIES = [
-    { key: "new", label: "Newest Posts", query: "order:id_desc" },
-    { key: "favorites", label: "Community Favorites", query: "order:favcount" },
-    { key: "creators", label: "Featured Creators", query: nil },
-  ].freeze
+  # A method rather than a frozen constant, because the "new" row's query is
+  # config now and an admin panel to edit it is the next piece of work. A
+  # constant would have baked the value in at class-load time and made that
+  # panel a deploy.
+  def self.categories
+    [
+      { key: "new", label: Danbooru.config.landing_new_label, query: Danbooru.config.landing_new_query },
+      { key: "favorites", label: "Community Favorites", query: "order:favcount" },
+      { key: "creators", label: "Featured Creators", query: nil },
+    ]
+  end
 
   PER_CATEGORY = 10
   QUERY_TIMEOUT_SECONDS = 3
@@ -32,7 +38,7 @@ class LandingShowcase
   #   Categories with nothing to show are dropped rather than rendered empty --
   #   a segment that switches to a blank panel is worse than one that is absent.
   def categories
-    @categories ||= CATEGORIES.filter_map do |category|
+    @categories ||= self.class.categories.filter_map do |category|
       posts = category_posts[category[:key]]
       next if posts.blank?
 
@@ -53,7 +59,7 @@ class LandingShowcase
   # building were what produced the posts, asking for the tags would re-enter
   # this method and recurse. Gather first, then render.
   def category_posts
-    @category_posts ||= CATEGORIES.to_h do |category|
+    @category_posts ||= self.class.categories.to_h do |category|
       posts = (category[:key] == "creators") ? featured_creator_posts : posts_for(category[:query])
       [category[:key], posts.uniq(&:id).first(PER_CATEGORY)]
     end

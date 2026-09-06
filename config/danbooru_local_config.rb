@@ -16,6 +16,35 @@ module Danbooru
       ["https://tc.41chan.net"]
     end
 
+    # ---- The landing carousel's "new" row ----
+    #
+    # What counts as "new" on the front page. Left alone the row is
+    # `order:id_desc`, which means the newest POST RECORD rather than the
+    # newest image: an archive backfill is new by that measure even when the
+    # picture is years old, and a backfill run drowns the live capture the row
+    # exists to show. Operator, 2026-09-06: the row is fresh DEGEN and nothing
+    # else.
+    #
+    # `/b/` IS the DEGEN generals -- that is what the sampler's board scope
+    # means -- and `-no_train` is the tag the poster puts on archive-sourced
+    # bytes, so its absence is the mark of a live capture.
+    #
+    # TWO TERMS AND NO MORE. An anonymous visitor may search two, and the
+    # landing page runs as whoever is looking at it. Newest-first is already
+    # the default order, so spending a term on `order:id_desc` would cost the
+    # filter instead of buying anything. A third term here empties the row for
+    # logged-out visitors, which is everyone the landing page is FOR.
+    #
+    # An admin panel to edit this is wanted next; this method is the seam it
+    # should write to.
+    def landing_new_query
+      "source:https://boards.4chan.org/b/* -no_train"
+    end
+
+    def landing_new_label
+      "Fresh from DEGEN"
+    end
+
     # ---- Contact ----
     #
     # One address for every surface (operator ruling 2026-09-05):

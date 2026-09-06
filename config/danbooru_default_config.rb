@@ -50,6 +50,17 @@ module Danbooru
       []
     end
 
+    # The landing carousel's "new" row. Upstream behaviour: the newest posts,
+    # whatever they are. A fork that scrapes gets to narrow it -- see the local
+    # config, and the two-term limit noted there.
+    def landing_new_query
+      "order:id_desc"
+    end
+
+    def landing_new_label
+      "Newest Posts"
+    end
+
     def app_name
       if CurrentUser.safe_mode?
         "Safebooru"
