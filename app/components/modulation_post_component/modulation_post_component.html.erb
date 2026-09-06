@@ -340,10 +340,11 @@
     // alone is not enough: the same-origin gate URL 302s to a cross-origin
     // presigned R2 URL, and browsers drop `download` across origins, so the
     // link opened the raw image in a tab instead of saving it. `dl=1` asks
-    // the gate to sign a Content-Disposition: attachment into the redirect,
-    // which every browser honours regardless of origin.
+    // the edge Worker (booru originals and Matrix downloads alike) to answer
+    // with Content-Disposition: attachment, which every browser honours
+    // regardless of origin.
     function saveHref(u) {
-      if (!u || u.indexOf("/booru/") < 0) return u;
+      if (!u || (u.indexOf("/booru/") < 0 && u.indexOf("/_matrix/client/v1/media/download/") < 0)) return u;
       return u + (u.indexOf("?") >= 0 ? "&" : "?") + "dl=1";
     }
     let lbOpen = false, lbS = 1, lbTx = 0, lbTy = 0, lbW = 0, lbH = 0;
