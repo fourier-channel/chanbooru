@@ -128,6 +128,60 @@ module Danbooru
       Rails.env.test? ? User::Levels::ANONYMOUS : User::Levels::ADMIN
     end
 
+    # ---- Retired sections ----
+
+    # Sections this fork does not run (operator ruling 2026-09-06). Matched
+    # against controller_name by FourierRetiredSections, which 404s them for
+    # everyone but the owner.
+    #
+    # EMPTY under test, for exactly the reason deleted_post_visibility_level is
+    # permissive under test, two methods below: the inherited suite asserts the
+    # upstream rule directly -- forum_posts_controller_test alone has 45 tests
+    # that sign in as an ordinary user and expect the forum to answer -- so
+    # enforcing this in the test environment turns them red for saying what
+    # they were written to say. A suite that is permanently 45-red about a
+    # difference we chose cannot report the 46th failure we did not.
+    #
+    # The restriction is NOT left untested by this. fourier_retired_sections_test
+    # stubs this method to the real list and asserts every way in is shut --
+    # page, API, member, moderator -- and that the owner still gets through.
+    def retired_sections
+      return [] if Rails.env.test?
+
+      %w[
+        comments
+        comment_votes
+        forum_topics
+        forum_posts
+        forum_post_votes
+        forum_topic_visits
+        notes
+        note_versions
+      ]
+    end
+
+    # Whether the standalone /logout PAGE is retired (operator ruling
+    # 2026-09-06). Logging out happens from the header now; that page is a
+    # tiny auto-submitting form nothing in the app links to any more.
+    #
+    # This retires the PAGE only. DELETE /session -- the actual logout, which
+    # the header calls -- stays open to everyone, or nobody could log out.
+    #
+    # /login is deliberately NOT retired alongside it. The ruling named "the
+    # login/logout page", but /login is the target of more than twenty
+    # redirects and links in this app: password reset, settings, profile,
+    # upload, redeeming an upgrade code, and the access-denied page all send an
+    # ordinary user there, and a controller redirect cannot open a popup. It
+    # would have to stop being the recovery path before it could 404, which is
+    # a bigger decision than a header change. Raised rather than assumed.
+    #
+    # False under test, for the same reason as the two restrictions above: the
+    # inherited suite asserts the upstream rule. fourier_retired_sections_test
+    # stubs it true and asserts the closure.
+    def logout_page_retired?
+      !Rails.env.test?
+    end
+
     # ---- Content restriction ----
 
     # Tags visible only to Gold+ (level 30). A non-Gold viewer still sees the

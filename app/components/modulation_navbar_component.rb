@@ -29,10 +29,6 @@ class ModulationNavbarComponent < NavbarComponent
     !!settings["session_bar_open"]
   end
 
-  def autorefresh?
-    settings["session_autorefresh"] != false
-  end
-
   # Nav entries, in order, each with the TAG CATEGORY whose colour it borrows.
   #
   # Categories are named, never coloured, here: the palette differs between this
@@ -49,14 +45,15 @@ class ModulationNavbarComponent < NavbarComponent
   def entries
     list = []
 
+    # No Comments, Notes or Forum. Those sections are retired (operator ruling
+    # 2026-09-06) and 404 for everyone but the owner -- see
+    # FourierRetiredSections. Dropping them from this list is the cosmetic half;
+    # the concern is the half that closes the door.
     list << { label: "Posts", href: main_app.posts_path, category: "general" }
-    list << { label: "Comments", href: main_app.comments_path, category: "general" } if comments_enabled?
-    list << { label: "Notes", href: main_app.notes_path, category: "general" }
     list << { label: "Creators", href: main_app.artists_path, category: "artist" }
     list << { label: "Tags", href: main_app.tags_path, category: "general" }
     list << { label: "Pools", href: main_app.gallery_pools_path, category: "general" }
     list << { label: "Wiki", href: main_app.wiki_page_path("help:home"), category: "general" }
-    list << { label: "Forum", href: main_app.forum_topics_path, category: "general" } if forum_enabled?
 
     if current_user.is_moderator?
       list << { label: "Reports", href: main_app.moderation_reports_path, category: "meta", count: pending_report_count }
@@ -89,14 +86,6 @@ class ModulationNavbarComponent < NavbarComponent
   end
 
   private
-
-  def comments_enabled?
-    Danbooru.config.comments_enabled?.to_s.truthy?
-  end
-
-  def forum_enabled?
-    Danbooru.config.forum_enabled?.to_s.truthy?
-  end
 
   # Counted once, and only for the moderators who can see the entry at all.
   def pending_report_count

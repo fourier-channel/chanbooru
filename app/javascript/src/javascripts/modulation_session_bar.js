@@ -1,6 +1,7 @@
-// The Manage Session bar: a stationary header row, one monitor per session.
+// The Manage Session panel: a right-aligned control in the header row, one
+// monitor per session.
 //
-// Monitor contract (operator design, 2026-09-04): each monitor's label is
+// Monitor contract (operator design, 2026-09-04): each monitor's state is
 // DERIVED from what the environment actually handed it -- its first read,
 // and every read after -- then checked against a programmed constant, the
 // one GO. Green is earned by that match plus a verified session; every
@@ -8,6 +9,14 @@
 // observation rides in with the page, re-reads on window focus, and after
 // auth actions ("the poll could be as infrequent as the normal token
 // refresh and ALSO respond instantly to user input").
+//
+// 2026-09-06, three operator rulings applied here:
+//   - the panel unfurls sideways out of the pill, so "open" is a class on the
+//     group rather than the `hidden` attribute (which cannot be animated);
+//   - the cookie NAME is tooltip-only, so the resting line is a fixed
+//     "Booru:" / "Matrix:" and the read still drives the lamp;
+//   - the page always reloads after an auth action. The opt-out checkbox is
+//     gone; a session change you can half-see is worse than a reload.
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -21,13 +30,32 @@ function fmtDur(seconds) {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
+// One popup geometry for both logins, centred on the opener.
+function openLoginPopup(url, name) {
+  const w = 480;
+  const h = 640;
+  const x = window.screenX + (window.outerWidth - w) / 2;
+  const y = window.screenY + (window.outerHeight - h) / 2;
+  return window.open(url, name, `width=${w},height=${h},left=${x},top=${y}`);
+}
+
 function boot() {
   const bar = document.getElementById("modnav-session");
   if (!bar || bar.dataset.booted) {
     return;
   }
   bar.dataset.booted = "1";
+  const group = bar.closest(".modnav-session-group");
   const toggle = document.getElementById("modnav-session-toggle");
+
+  // The panel starts closed unless the server said the viewer had left it
+  // open. `hidden` is only the server's way of saying so in the markup; the
+  // width animation needs the element to stay in flow, so the attribute is
+  // converted to the class once and never used again.
+  const startOpen = !bar.hasAttribute("hidden");
+  bar.removeAttribute("hidden");
+  if (group && startOpen) group.classList.add("is-open");
+  const isOpen = () => !!group && group.classList.contains("is-open");
 
   let obs = {};
   try {
@@ -40,7 +68,6 @@ function boot() {
   let baseNow = obs.now || Math.floor(Date.now() / 1000);
   let baseAt = Date.now();
   const nowEpoch = () => baseNow + (Date.now() - baseAt) / 1000;
-  let autorefresh = bar.dataset.autorefresh === "1";
 
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content || "";
   const persist = (changes) => fetch("/modulation/settings", {
@@ -65,6 +92,11 @@ function boot() {
     return m.linked ? "go" : (m.gate === "stale" ? "stale" : "idle");
   }
 
+  // Condensed to the operator's line (2026-09-06):
+  //   (lamp) Booru: [Log In]        |  (lamp) Matrix: [Log In]
+  //   (lamp) Booru: saber [Manage Account] [Log Out]
+  // Signed out is the ACTION alone -- "anonymous" was a word spent saying what
+  // an unlit lamp beside an empty name already says.
   function renderBooru(m, state) {
     const st = region("booru", "status");
     const act = region("booru", "controls");
@@ -72,12 +104,12 @@ function boot() {
       st.textContent = "reading the wrong object";
       act.innerHTML = "";
     } else if (m.signed_in) {
-      st.innerHTML = `signed in as <b>${esc(m.name)}</b>${m.level ? ` (${esc(m.level)})` : ""}`;
-      act.innerHTML = '<a class="modnav-session-btn" href="/profile">My Account</a>' +
-        '<button type="button" class="modnav-session-btn" data-act="booru-logout">Log out</button>';
+      st.innerHTML = `<b>${esc(m.name)}</b>`;
+      act.innerHTML = '<a class="modnav-session-btn" href="/profile">Manage Account</a>' +
+        '<button type="button" class="modnav-session-btn" data-act="booru-logout">Log Out</button>';
     } else {
-      st.textContent = "anonymous";
-      act.innerHTML = `<a class="modnav-session-btn" href="/login?url=${encodeURIComponent(location.pathname + location.search)}">Log in</a>`;
+      st.textContent = "";
+      act.innerHTML = '<button type="button" class="modnav-session-btn" data-act="booru-login">Log In</button>';
     }
   }
 
@@ -88,15 +120,15 @@ function boot() {
       st.textContent = "reading the wrong object";
       act.innerHTML = "";
     } else if (m.linked) {
-      st.innerHTML = `linked as <b>${esc(m.matrix_id)}</b>`;
-      act.innerHTML = '<button type="button" class="modnav-session-btn" data-act="matrix-logout">Log out</button>';
+      st.innerHTML = `<b>${esc(m.matrix_id)}</b>`;
+      act.innerHTML = '<button type="button" class="modnav-session-btn" data-act="matrix-logout">Log Out</button>';
     } else if (state === "stale") {
-      st.textContent = "cookie held; the gate has not verified this view";
+      st.textContent = "cookie held, unverified";
       act.innerHTML = '<button type="button" class="modnav-session-btn" data-act="matrix-login">Re-verify</button>' +
-        '<button type="button" class="modnav-session-btn" data-act="matrix-logout">Discard cookie</button>';
+        '<button type="button" class="modnav-session-btn" data-act="matrix-logout">Discard</button>';
     } else {
-      st.textContent = "not linked";
-      act.innerHTML = '<button type="button" class="modnav-session-btn" data-act="matrix-login">Log in with Matrix</button>';
+      st.textContent = "";
+      act.innerHTML = '<button type="button" class="modnav-session-btn" data-act="matrix-login">Log In</button>';
     }
   }
 
@@ -142,8 +174,6 @@ function boot() {
     }
     const state = lampState(m, kind);
     bar.querySelector(`[data-monitor="${kind}"]`).dataset.state = state;
-    // The label is what was READ, never an assertion.
-    region(kind, "label").textContent = m.observed ? m.observed.replace(":", " ") : `no ${m.expect.replace(":", " ")}`;
     if (kind === "booru") renderBooru(m, state); else renderMatrix(m, state);
     renderTip(kind, m, state);
   }
@@ -172,7 +202,7 @@ function boot() {
     tickNow();
   }
 
-  setInterval(() => { if (!bar.hidden) tickNow(); }, 1000);
+  setInterval(() => { if (isOpen()) tickNow(); }, 1000);
 
   let fetching = false;
   function refetch() {
@@ -186,14 +216,17 @@ function boot() {
       .catch(() => {})
       .finally(() => { fetching = false; });
   }
-  window.addEventListener("focus", () => { if (!bar.hidden) refetch(); });
-  document.addEventListener("visibilitychange", () => { if (!document.hidden && !bar.hidden) refetch(); });
+  window.addEventListener("focus", () => { if (isOpen()) refetch(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && isOpen()) refetch(); });
 
-  const maybeRefresh = () => (autorefresh ? location.reload() : refetch());
+  // Always. An auth action changes what the whole page is allowed to show, so
+  // re-rendering only the header would leave the body describing the previous
+  // account (operator ruling 2026-09-06, replacing the opt-out checkbox).
+  const refreshNow = () => location.reload();
 
   function booruLogout() {
     fetch("/session", { method: "DELETE", credentials: "same-origin", headers: { "X-CSRF-Token": csrf(), Accept: "text/html" } })
-      .then(maybeRefresh, maybeRefresh);
+      .then(refreshNow, refreshNow);
   }
 
   // The gate's own logout invalidates the server-side session; the second
@@ -204,27 +237,44 @@ function boot() {
       .catch(() => {})
       .finally(() => {
         fetch("/modulation/matrix_logout", { method: "POST", credentials: "same-origin", headers: { "X-CSRF-Token": csrf() } })
-          .then(maybeRefresh, maybeRefresh);
+          .then(refreshNow, refreshNow);
       });
   }
 
-  function matrixLogin() {
-    const w = 480;
-    const h = 640;
-    const x = window.screenX + (window.outerWidth - w) / 2;
-    const y = window.screenY + (window.outerHeight - h) / 2;
-    window.__fourierLoginPopupOpen = true;
-    window.open("/fourier/login", "fourier-login", `width=${w},height=${h},left=${x},top=${y}`);
-    // Event-driven, not polled: the popup closing hands focus back, and that
-    // one event triggers the re-read.
+  // Both logins are the same shape: open a popup, and when focus comes back
+  // ask the server what changed rather than assuming the popup succeeded.
+  // Event-driven, not polled -- the popup closing hands focus back, and that
+  // one event triggers the re-read.
+  function afterPopup(check) {
     const onFocus = () => {
       window.removeEventListener("focus", onFocus);
-      fetch("/fourier_identity.json", { credentials: "same-origin" })
-        .then((r) => r.json())
-        .then((d) => { if (d.linked && !(obs.matrix || {}).linked) maybeRefresh(); else refetch(); })
-        .catch(refetch);
+      check();
     };
     window.addEventListener("focus", onFocus);
+  }
+
+  function matrixLogin() {
+    window.__fourierLoginPopupOpen = true;
+    openLoginPopup("/fourier/login", "fourier-login");
+    afterPopup(() => {
+      fetch("/fourier_identity.json", { credentials: "same-origin" })
+        .then((r) => r.json())
+        .then((d) => { if (d.linked && !(obs.matrix || {}).linked) refreshNow(); else refetch(); })
+        .catch(refetch);
+    });
+  }
+
+  // The booru login is a popup too (operator ruling 2026-09-06). `popup=1`
+  // makes SessionsController render the blank layout and finish on a page that
+  // closes itself, so password AND the 2FA step both happen in the popup.
+  function booruLogin() {
+    openLoginPopup("/login?popup=1", "chanbooru-login");
+    afterPopup(() => {
+      fetch("/modulation/session_status", { headers: { Accept: "application/json" }, credentials: "same-origin" })
+        .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+        .then((next) => { if (next.booru?.signed_in && !(obs.booru || {}).signed_in) refreshNow(); else { obs = next; baseNow = next.now; baseAt = Date.now(); renderAll(); } })
+        .catch(refetch);
+    });
   }
 
   bar.addEventListener("click", (e) => {
@@ -234,20 +284,21 @@ function boot() {
     }
     const a = act.dataset.act;
     if (a === "booru-logout") booruLogout();
+    else if (a === "booru-login") { e.preventDefault(); booruLogin(); }
     else if (a === "matrix-login") { e.preventDefault(); matrixLogin(); }
     else if (a === "matrix-logout") matrixLogout();
-    else if (a === "session-autorefresh") { autorefresh = act.checked; persist({ session_autorefresh: autorefresh }); }
   });
 
-  if (toggle) {
+  if (toggle && group) {
     toggle.addEventListener("click", () => {
-      bar.hidden = !bar.hidden;
-      toggle.setAttribute("aria-expanded", String(!bar.hidden));
+      const open = !isOpen();
+      group.classList.toggle("is-open", open);
+      toggle.setAttribute("aria-expanded", String(open));
       // Sequenced, not parallel: for an anonymous viewer both requests
       // rewrite the cookie-store session, and a concurrent status GET can
       // land its Set-Cookie after the PATCH's -- silently undoing the write.
-      persist({ session_bar_open: !bar.hidden }).finally(() => {
-        if (!bar.hidden) {
+      persist({ session_bar_open: open }).finally(() => {
+        if (open) {
           refetch();
         }
       });

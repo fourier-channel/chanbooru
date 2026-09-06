@@ -751,5 +751,85 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
         assert_response :success
       end
     end
+
+    # The booru login moved into a popup (operator ruling 2026-09-06). The
+    # popup is identified by where the flow is GOING -- /login/done -- and not
+    # by a flag threaded through two separate forms, so these tests pin the
+    # thing that carries the state: the `url` field the forms already had.
+    context "popup login" do
+      should "render the login form with no site header" do
+        get new_session_path, params: { popup: "1" }
+
+        assert_response :success
+        assert_select "header#top", false
+      end
+
+      should "point the form at the completion page" do
+        get new_session_path, params: { popup: "1" }
+
+        assert_select "input#session_url[value=?]", login_done_path
+      end
+
+      should "leave the ordinary login page alone" do
+        get new_session_path
+
+        assert_response :success
+        assert_select "header#top"
+        assert_select "input#session_url[value=?]", login_done_path, false
+      end
+
+      should "finish at the completion page rather than the site" do
+        post session_path, params: { session: { name: @user.name, password: "password", url: login_done_path }}
+
+        assert_redirected_to login_done_path
+        assert_equal(@user.id, session[:user_id])
+      end
+
+      # The 2FA step is the half most likely to be forgotten, because it is a
+      # different action rendering a different view -- and a full-chrome page
+      # appearing inside a 480px popup is how you find out.
+      should "keep the popup layout for the 2FA step" do
+        user = create(:user_with_2fa, password: "password")
+
+        post session_path, params: { session: { name: user.name, password: "password", url: login_done_path }}
+
+        assert_response :success
+        assert_select "header#top", false
+        assert_select "form[action=?]", verify_totp_session_path
+      end
+
+      should "keep the popup layout through 2FA verification, and finish at the completion page" do
+        user = create(:user_with_2fa, password: "password")
+
+        post verify_totp_session_path, params: { totp: { user_id: user.signed_id(purpose: :verify_totp), code: user.totp.code, url: login_done_path }}
+
+        assert_redirected_to login_done_path
+        assert_equal(user.id, session[:user_id])
+      end
+
+      should "serve a completion page that closes its own window" do
+        get login_done_path
+
+        assert_response :success
+        assert_select "header#top", false
+        assert_match(/window\.close\(\)/, response.body)
+      end
+    end
+
+    # Logging out used to delete three keys and hand back the same session.
+    # Anything else in it survived, which is not what "log out" means.
+    context "logging out" do
+      should "empty the whole session, not only the login keys" do
+        get_auth new_session_path, @user
+        session[:some_other_thing] = "still here"
+
+        delete_auth session_path, @user
+
+        assert_nil(session[:user_id])
+        assert_nil(session[:login_id])
+        assert_nil(session[:last_authenticated_at])
+        assert_nil(session[:some_other_thing])
+      end
+    end
   end
 end

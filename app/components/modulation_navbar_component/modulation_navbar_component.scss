@@ -1,4 +1,5 @@
-// The Modulation site header. Centred wordmark, centred row of nav pills.
+// The Modulation site header: ONE row -- brand hard left, nav pills in the
+// middle, Manage Session hard right (operator ruling 2026-09-06).
 //
 // The pills are deliberately the SAME object as a tag pill -- same radius, same
 // tint recipe, same dot -- so the header reads as part of the same interface as
@@ -14,27 +15,36 @@
 // #top, and an id beats a class no matter what order they load in.
 #top.modnav {
   --modnav-col: 1180px;
+  // One number for the unfurl, because the panel's width and the duration the
+  // JS waits before it stops calling the panel "open" have to agree.
+  --modnav-session-w: 44rem;
 
   background: var(--mod-surface, var(--body-background-color));
   border-bottom: 1px solid var(--mod-line, var(--default-border-color));
   margin-top: 0;
-  padding: 0.75rem 0 0;
+  padding: 0;
 
-  // --- wordmark ----------------------------------------------------------
-  .modnav-brand {
-    position: relative;
+  // --- the single row ------------------------------------------------------
+  .modnav-bar {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 0.55rem;
+    gap: 0.9rem;
     max-width: var(--modnav-col);
     margin: 0 auto;
-    padding: 0 1rem;
+    padding: 0.5rem 1rem;
+  }
+
+  // --- wordmark ------------------------------------------------------------
+  .modnav-brand {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .modnav-logo img {
     display: block;
-    height: 1.7rem;
+    height: 1.5rem;
     width: auto;
     border-radius: var(--mod-radius-sm, 6px);
 
@@ -42,38 +52,40 @@
   }
 
   .modnav-wordmark {
-    font-size: 1.3rem;
+    font-size: 1.15rem;
     font-weight: 700;
     letter-spacing: 0.01em;
     line-height: 1;
     color: var(--mod-ink, var(--text-color));
     text-decoration: none;
+    white-space: nowrap;
 
     &:hover { color: var(--link-color); }
   }
 
-  // The menu button sits at the edge without pulling the wordmark off centre.
   .modnav-burger {
-    position: absolute;
-    right: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
+    flex: none;
+    margin-left: auto;
     cursor: pointer;
     color: var(--mod-ink-dim, var(--muted-text-color));
   }
 
-  // --- nav pills ---------------------------------------------------------
-  .modnav-nav { margin-top: 0.6rem; }
+  // --- nav pills -----------------------------------------------------------
+  // min-width: 0 so the row may shrink rather than shove the session group off
+  // the right edge when the panel unfurls.
+  .modnav-nav {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
 
   .modnav-links {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    justify-content: center;
     gap: 0.35rem;
-    max-width: var(--modnav-col);
-    margin: 0 auto;
-    padding: 0 1rem 0.7rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar { display: none; }
   }
 
   .modnav-pill {
@@ -127,7 +139,7 @@
     }
   }
 
-  // --- subnav ------------------------------------------------------------
+  // --- subnav --------------------------------------------------------------
   .modnav-subnav {
     background: var(--mod-surface-2, transparent);
     border-top: 1px solid var(--mod-line, var(--default-border-color));
@@ -164,43 +176,64 @@
     }
   }
 
-  // --- Manage Session bar -------------------------------------------------
-  // A stationary row of the header, subnav geometry. Lamp colours follow the
-  // formant health grammar: green = current/verified, amber = NEAR (a held
-  // cookie the gate has not vouched for), red = the monitor is reading an
-  // object other than its programmed GO, unlit = nothing observed.
-  .modnav-session {
-    background: var(--mod-surface-2, transparent);
-    border-top: 1px solid var(--mod-line, var(--default-border-color));
-
-    &:not([hidden]) { animation: modnav-descend 0.22s ease; }
-    &[hidden] { display: none; }
+  // --- Manage Session ------------------------------------------------------
+  // The pill and its panel are one right-aligned group. The panel follows the
+  // pill in source order and animates its WIDTH, so it unfurls out of the
+  // pill's right edge and the pill slides left to make room. Nothing below the
+  // header moves: the row's height never changes, which is what the
+  // no-forced-reflow rule asks for. The old version dropped a whole new header
+  // row and pushed the page down.
+  .modnav-session-group {
+    flex: none;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    min-width: 0;
   }
 
-  @keyframes modnav-descend {
-    from { opacity: 0; transform: translateY(-6px); }
-    to { opacity: 1; transform: none; }
+  .modnav-session {
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transition:
+      max-width 0.28s cubic-bezier(0.22, 0.61, 0.36, 1),
+      opacity 0.18s ease;
+  }
+
+  .modnav-session-group.is-open .modnav-session {
+    max-width: var(--modnav-session-w);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  // Someone who has asked for less motion gets the state change without the
+  // sweep -- the panel is still exactly as usable.
+  @media (prefers-reduced-motion: reduce) {
+    .modnav-session { transition: none; }
   }
 
   .modnav-session-inner {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    justify-content: center;
-    gap: 0.4rem 2.25rem;
-    max-width: var(--modnav-col);
-    margin: 0 auto;
-    padding: 0.45rem 1rem;
+    gap: 0.5rem;
+    padding: 0 0 0 0.6rem;
+    white-space: nowrap;
   }
 
   .modnav-monitor {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 0.55rem;
-    padding: 0.2rem 0.3rem;
+    gap: 0.4rem;
+    padding: 0.2rem 0.1rem;
 
     &:hover .modnav-monitor-tip { display: flex; }
+  }
+
+  .modnav-monitor-sep {
+    color: var(--mod-line, var(--default-border-color));
+    user-select: none;
   }
 
   .modnav-lamp {
@@ -216,9 +249,7 @@
   .modnav-monitor[data-state="alarm"] .modnav-lamp { background: #ff5f56; box-shadow: 0 0 6px rgb(255 95 86 / 50%); }
 
   .modnav-monitor-label {
-    font-family: var(--mod-mono, ui-monospace, monospace);
-    font-size: 0.68rem;
-    letter-spacing: 0.04em;
+    font-size: 0.78rem;
     color: var(--mod-ink-dim, var(--muted-text-color));
     white-space: nowrap;
   }
@@ -229,11 +260,13 @@
     white-space: nowrap;
 
     b { font-weight: 600; }
+
+    &:empty { display: none; }
   }
 
   .modnav-monitor-actions {
     display: inline-flex;
-    gap: 0.35rem;
+    gap: 0.3rem;
   }
 
   .modnav-session-btn {
@@ -247,17 +280,20 @@
     background: var(--mod-surface, transparent);
     color: var(--mod-ink, var(--text-color));
     text-decoration: none;
+    white-space: nowrap;
 
     &:hover { border-color: var(--mod-ink-dim, var(--muted-text-color)); }
   }
 
-  // The tooltip: the monitor's evidence, on demand. Rendered below the
-  // monitor so it descends out of the header rather than covering it.
+  // The tooltip: the monitor's evidence, on demand -- including the name of the
+  // cookie it read, which is no longer in the resting UI. Anchored to the RIGHT
+  // of its monitor, because the group lives at the right edge of the viewport
+  // and a left-anchored tooltip would hang off the page.
   .modnav-monitor-tip {
     display: none;
     position: absolute;
     top: calc(100% + 6px);
-    left: 0;
+    right: 0;
     z-index: 90;
     min-width: 300px;
     max-width: 420px;
@@ -286,19 +322,10 @@
     color: var(--mod-ink, var(--text-color));
   }
 
-  .modnav-session-refresh {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.72rem;
-    color: var(--mod-ink-dim, var(--muted-text-color));
-    cursor: pointer;
-    user-select: none;
-  }
-
   // The Manage Session pill's dot doubles as the summary lamp: worst state
   // of the two monitors, so the header answers at a glance even closed.
   .modnav-pill--session {
+    flex: none;
     appearance: none;
     cursor: pointer;
     font: inherit;
@@ -307,5 +334,27 @@
     &[data-state="idle"] .modnav-pill-dot, &[data-state="unlit"] .modnav-pill-dot { background: #5a6472; }
     &[data-state="stale"] .modnav-pill-dot { background: #f0b429; }
     &[data-state="alarm"] .modnav-pill-dot { background: #ff5f56; }
+  }
+
+  // --- narrow viewports ----------------------------------------------------
+  // Below the column width there is no room to unfurl along the row, so the
+  // group wraps to its own line and the panel opens to full width there. It is
+  // still a width animation and still never displaces the page body.
+  @media (max-width: 900px) {
+    .modnav-bar { flex-wrap: wrap; }
+
+    .modnav-session-group {
+      order: 3;
+      width: 100%;
+      margin-left: 0;
+    }
+
+    .modnav-session-group.is-open .modnav-session { max-width: 100%; }
+
+    .modnav-session-inner {
+      flex-wrap: wrap;
+      white-space: normal;
+      padding-left: 0.4rem;
+    }
   }
 }

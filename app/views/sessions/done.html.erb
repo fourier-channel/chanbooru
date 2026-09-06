@@ -1,0 +1,13 @@
+<% page_title "Signed in" %>
+
+<div id="c-sessions" class="p-4 text-center">
+  <p>Signed in. You can close this window.</p>
+  <p class="fineprint"><%= link_to "Back to #{Danbooru.config.app_name}", root_path %></p>
+</div>
+
+<script>
+  // Only a script-opened window may be closed by script. If this page was
+  // reached any other way the call does nothing and the link above is the way
+  // out -- which is why the text is here rather than a bare white page.
+  window.close();
+</script>

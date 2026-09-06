@@ -6,6 +6,7 @@ class ApplicationController < ActionController::Base
 
   include Pundit::Authorization
   include ExperiencePreset
+  include FourierRetiredSections
 
   helper_method :search_params, :permitted_attributes
 
@@ -15,6 +16,9 @@ class ApplicationController < ActionController::Base
   before_action :check_get_body
   before_action :reset_current_user
   before_action :set_current_user
+  # Retired sections 404 as early as possible, but AFTER set_current_user --
+  # the owner exemption is unanswerable before the user is loaded.
+  before_action :reject_retired_section
   before_action :normalize_search
   before_action :ip_ban_check
   before_action :set_variant

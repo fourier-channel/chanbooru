@@ -155,9 +155,17 @@ class SessionLoader
       LoginSession.where(login_id: session[:login_id]).update_all(status: :logged_out, last_seen_at: Time.now.utc.inspect) if session[:login_id].present?
       UserEvent.create_from_request!(user, :logout, request)
 
-      session.delete(:user_id)
-      session.delete(:login_id)
-      session.delete(:last_authenticated_at)
+      # The WHOLE session, not three keys out of it (operator ruling
+      # 2026-09-06). session.delete leaves every other key in place and hands
+      # back a re-signed cookie carrying the same session -- so anything else
+      # riding in there (panel state, flashes, a half-finished 2FA step)
+      # survived a logout, and the only thing that had really happened was that
+      # three ids were missing. reset_session issues a brand new empty session,
+      # which is what "log out" is supposed to mean.
+      #
+      # Read session[:login_id] BEFORE this line, not after: the LoginSession
+      # update above needs it, and after the reset it is gone.
+      request.reset_session
     end
   end
 
