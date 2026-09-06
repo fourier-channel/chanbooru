@@ -5809,10 +5809,10 @@ CREATE INDEX index_post_replacements_on_post_id ON public.post_replacements USIN
 
 
 --
--- Name: index_post_versions_on_added_tags; Type: INDEX; Schema: public; Owner: -
+-- Name: index_post_versions_on_added_tags_gin; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX index_post_versions_on_added_tags ON public.post_versions USING btree (added_tags);
+CREATE INDEX index_post_versions_on_added_tags_gin ON public.post_versions USING gin (added_tags);
 
 
 --
@@ -5837,10 +5837,10 @@ CREATE INDEX index_post_versions_on_rating_changed ON public.post_versions USING
 
 
 --
--- Name: index_post_versions_on_removed_tags; Type: INDEX; Schema: public; Owner: -
+-- Name: index_post_versions_on_removed_tags_gin; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX index_post_versions_on_removed_tags ON public.post_versions USING btree (removed_tags);
+CREATE INDEX index_post_versions_on_removed_tags_gin ON public.post_versions USING gin (removed_tags);
 
 
 --
@@ -7712,6 +7712,7 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260906000000'),
 ('20260904090000'),
 ('20260904080000'),
 ('20260904070000'),
