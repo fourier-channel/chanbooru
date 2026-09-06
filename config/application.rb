@@ -113,7 +113,16 @@ module Danbooru
     end
 
     # In development mode, allow the site to be embedded in an <iframe> so that it can be viewed inside things like VS Code or Github Codespaces.
-    config.action_dispatch.default_headers.delete("X-Frame-Options") if Rails.env.local?
+    # Who may frame this site. Technetium shows the booru in its main pane when
+    # no room is selected (operator, 2026-09-06), so the client's origin is
+    # allowed and every other origin is refused -- the same refusal
+    # X-Frame-Options: SAMEORIGIN gave, stated as the standard directive that
+    # can name a second origin. X-Frame-Options cannot, so it goes; browsers
+    # that honour both prefer the CSP anyway. Local environments already
+    # dropped the header so the dev client could frame the dev booru.
+    config.action_dispatch.default_headers.delete("X-Frame-Options")
+    config.action_dispatch.default_headers["Content-Security-Policy"] =
+      "frame-ancestors 'self' #{Danbooru.config.frame_ancestor_origins.join(' ')}"
 
     # Disable the origin check to fix `HTTP Origin header didn't match request.base_url` errors when running behind a reverse
     # proxy. This is necessary because some reverse proxies (such as Github Codespaces) set the Origin header incorrectly.
