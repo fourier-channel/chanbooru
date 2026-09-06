@@ -45,6 +45,11 @@ module Danbooru
     end
 
     # The name of this Danbooru.
+    # Origins allowed to frame this site besides itself (CSP frame-ancestors).
+    def frame_ancestor_origins
+      []
+    end
+
     def app_name
       if CurrentUser.safe_mode?
         "Safebooru"

@@ -8,6 +8,14 @@ module Danbooru
       "chanbooru"
     end
 
+    # ---- Framing ----
+    #
+    # Origins allowed to embed this site in a frame, besides itself. Technetium
+    # shows the booru in its main pane until a room is picked.
+    def frame_ancestor_origins
+      ["https://tc.41chan.net"]
+    end
+
     # ---- Contact ----
     #
     # One address for every surface (operator ruling 2026-09-05):
