@@ -193,13 +193,13 @@
   // point. Occlusion is not displacement -- the pills stay exactly where they
   // are and come back uncovered when the panel closes.
   //
-  // The pill unfurls to its RIGHT and never moves (operator ruling
-  // 2026-09-06). The first cut anchored the group by its right edge, so
-  // opening slid the pill 260px left to make room for a panel on its right --
-  // the control jumped out from under the cursor, which is its own kind of
-  // displacement. Now the spacer, which sits in the row where the pill is,
-  // is the group's containing block: the group hangs off the spacer's LEFT
-  // edge and grows rightward, past the bar's edge into the page margin.
+  // The pill is the LAST pill of the nav, directly after "More", and never
+  // moves; it unfurls to its RIGHT (operator ruling 2026-09-06, corrected
+  // twice the same day: first cut hung it hard right and slid it left on
+  // open, the control jumping out from under the cursor). The spacer sits in
+  // the pill row as one more flex item and is the group's containing block:
+  // the group hangs off the spacer's LEFT edge and grows rightward over the
+  // rest of the row and past the bar's edge into the page margin.
   //
   // How much room there is to the right depends on where the pill landed
   // (nav width, viewport, the bar's 1180px cap) and CSS cannot see that from
