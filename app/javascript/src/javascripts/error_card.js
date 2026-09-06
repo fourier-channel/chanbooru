@@ -57,10 +57,25 @@ function cardUrl(status, width) {
 // <img> failure -- so it has to be asked for separately. Works for same-origin
 // media and for cross-origin media that sends CORS headers; anything else
 // answers "unknown", which still gets a card.
+// The probe must carry what the image carried. Media on a sibling 41chan
+// host (the Matrix media Worker) is authorized by a cookie the <img> sent;
+// a "same-origin" probe drops it across origins and every refused picture
+// read 401 when the server had said 403. The Worker echoes credentialed
+// CORS for booru.41chan.net (2026-09-06), so "include" is answerable there;
+// a host that does not answer CORS at all fails the probe the same way it
+// always did, into UNKNOWN.
+function probeCredentials(src) {
+  try {
+    return new URL(src, location.href).origin === location.origin ? "same-origin" : "include";
+  } catch (e) {
+    return "same-origin";
+  }
+}
+
 function resolveStatus(src) {
   if (!src) return Promise.resolve(UNKNOWN);
 
-  return fetch(src, { method: "HEAD", credentials: "same-origin" })
+  return fetch(src, { method: "HEAD", credentials: probeCredentials(src) })
     .then((r) => (r.status >= 400 ? r.status : UNKNOWN))
     .catch(() => UNKNOWN);
 }
