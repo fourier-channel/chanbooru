@@ -264,12 +264,41 @@ module Danbooru
     # has not been revisited since; the only later touch, 95329f821 in May 2025,
     # added a `.present?` null-guard while fixing tests and left the set alone.
     #
-    # MEASURED 2026-09-07 rather than assumed. Playwright Firefox 128 was
-    # pointed at a real 10-bit VP9 file from our own archive, with an 8-bit
-    # transcode of the same source as a control: no MediaError, readyState 4,
-    # 20 frames decoded, and a frame painted to canvas with a pixel spread of
-    # 235 -- it decodes and renders, indistinguishably from the control. The
-    # claim expired somewhere in the intervening four years and nobody retested.
+    # MEASURED 2026-09-07 rather than assumed, in two passes.
+    #
+    # Pass 1 took a real 10-bit VP9 file from our own archive to Firefox 128.
+    # Pass 2 covered the whole banned axis with a synthetic source built for the
+    # purpose: 1px alternating saturated stripes, the pattern chroma subsampling
+    # is least able to hide from. Six formats were encoded from one PNG and
+    # played in Firefox 128 and Chromium 128:
+    #
+    #   yuv420p     profile 0  control   plays in both
+    #   yuv444p     profile 1            plays in both
+    #   yuv422p     profile 1            plays in both
+    #   yuv420p10le profile 2            plays in both
+    #   yuv444p10le profile 3            plays in both
+    #   yuv422p10le profile 3            plays in both
+    #
+    # The run carried two DELIBERATELY CORRUPTED files, and they earned their
+    # place: Chromium raised PIPELINE_ERROR_DECODE on both, but FIREFOX DID NOT
+    # ERROR AT ALL -- readyState 4, frames counted, no MediaError. Firefox
+    # conceals decode corruption, so "no MediaError in Firefox" does not mean a
+    # file decoded, and pass 1 leaned on that predicate. What separates them is
+    # the painted frame: real decodes of the stripe pattern land at 5-50 distinct
+    # colours, the corrupt ones at 1080 and 5000. That gap, not the error flag,
+    # is the evidence here.
+    #
+    # Second-order confirmation the chroma format is genuinely honoured and not
+    # silently converted: 4:2:0 blends the stripes to 24 distinct colours, 4:4:4
+    # preserves them at 11, 4:2:2 collapses them to 5 -- the exact signature each
+    # subsampling should produce.
+    #
+    # NOT TESTED: Safari. Playwright's Linux "webkit" is WebKitGTK, not Safari,
+    # so it would not settle the question. Note the narrowness of what is being
+    # widened: this line never gated VP9 -- the booru already accepts VP9 -- only
+    # chroma and bit depth WITHIN an already-accepted codec. Some hardware
+    # decoders handle only profile 0 and fall back to software, which is a
+    # performance question, not a support one.
     #
     # This is the distinction worth keeping: a restriction encoding a POLICY
     # (max file size) stays true by construction, while one encoding a FACT
@@ -283,12 +312,14 @@ module Danbooru
     # exactly what they were written to assert. fourier_pixel_formats_test stubs
     # this to the production value and proves the file is accepted.
     #
-    # 4:4:4 (yuv444p) is deliberately NOT here. The same upstream line bans it
-    # and it was NOT tested on 2026-09-07 -- relaxing it on the strength of a
-    # 10-bit result would be exactly the over-generalisation this comment exists
-    # to record. Test it before adding it.
+    # WHAT IS STILL NOT HERE, and why that matters more than what is: every
+    # format above was measured. yuv440p, the yuvj full-range chroma variants
+    # and anything else on the banned axis were not, and stay refused until they
+    # are. fourier_pixel_formats_test asserts that refusal directly, so widening
+    # one format on the strength of a neighbour's result fails a test rather
+    # than passing silently.
     def extra_video_pix_fmts
-      Rails.env.test? ? [] : %w[yuv420p10le]
+      Rails.env.test? ? [] : %w[yuv420p10le yuv444p yuv444p10le yuv422p yuv422p10le]
     end
 
     # ---- Content restriction ----

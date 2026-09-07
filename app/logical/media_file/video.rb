@@ -63,8 +63,10 @@ class MediaFile::Video < MediaFile
     # https://github.com/FFmpeg/FFmpeg/blob/master/libavutil/pixfmt.h
     # Fork: Danbooru.config.extra_video_pix_fmts widens this allowlist. See that
     # method for the measurement behind each addition -- the upstream comment
-    # above is four years old and its 10-bit claim no longer holds. Empty under
-    # test, so upstream's suite still measures upstream's behaviour.
+    # above is four years old and BOTH of its claims have expired: Firefox 128
+    # plays 10-bit and it plays 4:4:4, measured 2026-09-07 across six formats in
+    # two engines. Empty under test, so upstream's suite still measures
+    # upstream's behaviour.
     allowed = %w[yuv420p yuvj420p gbrp] + Danbooru.config.extra_video_pix_fmts
     return false if pix_fmt.present? && !pix_fmt.in?(allowed)
 
