@@ -33,6 +33,59 @@ function boot() {
 
   let timer = null;
   let current = null;
+  let raf = null;
+
+  // How long the pointer must REST on one card before its tags appear
+  // (operator ruling 2026-09-07). Long enough that sweeping across the grid
+  // shows nothing at all, which is the point: the panel used to flash open
+  // after 180ms on every card the cursor crossed.
+  const DWELL_MS = 2000;
+
+  // The bar that fills while you wait. It is driven by the CLOCK, from
+  // requestAnimationFrame, not by a CSS animation -- so it shows the real
+  // progress of the real wait. If the tab is throttled and the wait actually
+  // takes longer, the bar is slower too, because it is reading the same
+  // elapsed time the decision reads. A bar that always takes two seconds to
+  // fill regardless would be a picture of a wait rather than the wait.
+  const meter = document.createElement("div");
+  meter.className = "modgal-tagpop-meter";
+  meter.hidden = true;
+  meter.innerHTML = '<i></i>';
+  (grid.closest(".modgal") || document.body).appendChild(meter);
+
+  function stopMeter() {
+    if (raf) {
+      cancelAnimationFrame(raf);
+      raf = null;
+    }
+    meter.hidden = true;
+  }
+
+  // Sit the meter along the bottom edge of the card being waited on, so the
+  // progress belongs visibly to THAT card rather than floating near the
+  // cursor.
+  function startMeter(card) {
+    const r = card.getBoundingClientRect();
+    meter.style.left = `${Math.round(r.left)}px`;
+    meter.style.top = `${Math.round(r.bottom - 3)}px`;
+    meter.style.width = `${Math.round(r.width)}px`;
+    meter.hidden = false;
+    const fill = meter.firstElementChild;
+    fill.style.width = "0%";
+    const started = performance.now();
+    const step = (now) => {
+      const p = Math.min(1, (now - started) / DWELL_MS);
+      fill.style.width = `${(p * 100).toFixed(1)}%`;
+      if (p < 1) {
+        raf = requestAnimationFrame(step);
+        return;
+      }
+      raf = null;
+      stopMeter();
+      show(card);
+    };
+    raf = requestAnimationFrame(step);
+  }
 
   function show(card) {
     const groups = {};
@@ -72,6 +125,7 @@ function boot() {
 
   function hide() {
     clearTimeout(timer);
+    stopMeter();
     current = null;
     pop.hidden = true;
   }
@@ -81,9 +135,13 @@ function boot() {
     if (!card || card === current) {
       return;
     }
+    // Moving to a different card abandons the previous wait entirely: the
+    // dwell has to be spent on ONE card, not accumulated across the grid.
     current = card;
     clearTimeout(timer);
-    timer = setTimeout(() => show(card), 180);
+    stopMeter();
+    pop.hidden = true;
+    startMeter(card);
   });
 
   grid.addEventListener("mouseout", (e) => {

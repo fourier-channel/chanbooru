@@ -173,15 +173,12 @@ class PostsController < ApplicationController
   # does not reset between searches (operator ruling 2026-09-04). An explicit
   # order: in the query IS the panel being set, so it is recorded; a query
   # without one gets the remembered sort re-applied. sort_reset clears the
-  # memory (the blank select option), show_deleted=1/0 sets the deleted
-  # toggle, and a remembered deleted toggle widens a status-less query to
-  # status:any. HTML + Modulation only: the API sees exactly what it asked.
+  # memory (the blank select option). Deleted posts are NOT remembered here --
+  # they are asked for in the search. HTML + Modulation only: the API sees
+  # exactly what it asked.
   def apply_modulation_panel_memory(tag_query)
     return tag_query unless request.format.html? && modulation? && action_name == "index" && params[:random].blank?
 
-    if params[:show_deleted].present?
-      ModulationSetting.record!(CurrentUser.user, session, { "gallery_show_deleted" => params[:show_deleted] })
-    end
     ModulationSetting.record!(CurrentUser.user, session, { "gallery_sort" => "" }) if params[:sort_reset].present?
 
     query = tag_query.to_s
@@ -196,9 +193,12 @@ class PostsController < ApplicationController
       end
     end
 
-    if settings["gallery_show_deleted"] && !query.match?(/(?:\A|\s)-?status:\S+/i)
-      query = [query.presence, "status:any"].compact.join(" ")
-    end
+    # Deleted posts are A SEARCH now, not remembered state (operator ruling
+    # 2026-09-07): you ask for them with `status:deleted` or `status:any` like
+    # any other term. The panel used to remember a toggle and widen a
+    # status-less query on your behalf, which meant a search could quietly
+    # return something other than what it said. The stored column is left
+    # alone and simply no longer read.
 
     query.presence
   rescue StandardError

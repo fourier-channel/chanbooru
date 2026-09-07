@@ -79,7 +79,7 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
 
         assert_response :success
         assert_select ".modgal-card", 1
-        assert_select ".modgal-related-link"
+        assert_select ".modgal-related-link", 0
       end
 
       # The blacklist is applied client-side, so these attributes ARE the
@@ -380,7 +380,12 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         assert_select ".modgal-sort option[selected]", 0
       end
 
-      should "remember the deleted toggle until turned off" do
+      # SUPERSEDED 2026-09-07. The panel used to remember a deleted TOGGLE and
+      # widen a status-less query to status:any on the viewer's behalf, so a
+      # search could quietly return something other than what it said. The
+      # operator ruled that viewing deleted posts is its own SEARCH. What this
+      # proves now is that the memory is really gone, not merely hidden.
+      should "not remember deleted posts: they are asked for in the search" do
         @deleted = as(@user) { create(:post, tag_string: "aaaa") }
         @deleted.update!(is_deleted: true)
         login_as(@user)
@@ -388,16 +393,28 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         get posts_path(preset: "modulation", tags: "aaaa")
         assert_select ".modgal-card", 1
 
+        # The old lever, pulled: it must no longer do anything at all.
         get posts_path(preset: "modulation", tags: "aaaa", show_deleted: "1")
-        assert_select ".modgal-card", 2
-        assert_select ".modgal-related-link.is-active", text: "deleted"
-
-        get posts_path(preset: "modulation", tags: "aaaa")
-        assert_select ".modgal-card", 2
-
-        get posts_path(preset: "modulation", tags: "aaaa", show_deleted: "0")
         assert_select ".modgal-card", 1
-        assert_select ".modgal-related-link.is-active", 0
+
+        # And it must not have been remembered for the next search either.
+        get posts_path(preset: "modulation", tags: "aaaa")
+        assert_select ".modgal-card", 1
+
+        # Asking in the SEARCH is how you see them.
+        get posts_path(preset: "modulation", tags: "aaaa status:any")
+        assert_select ".modgal-card", 2
+
+        # And that stays a property of the search, not of the panel.
+        get posts_path(preset: "modulation", tags: "aaaa")
+        assert_select ".modgal-card", 1
+      end
+
+      should "have no this-search row at all" do
+        login_as(@user)
+        get posts_path(preset: "modulation", tags: "aaaa")
+        assert_select ".modgal-related", 0
+        assert_select ".modgal-related-link", 0
       end
 
       should "leave the API untouched by panel memory" do

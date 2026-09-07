@@ -171,10 +171,33 @@ body:has(.modgal) {
   .modgal-save { margin-left: auto; }
 
   // --- post grid ---------------------------------------------------------
+  // Exactly 2, 4 or 5 columns, and nothing else (operator ruling 2026-09-07).
+  //
+  // It was `auto-fill` with a minimum cell width, which answers a DIFFERENT
+  // question: "how many cells of at least this size fit?" -- and its answer
+  // grows without bound as the window does, which is where rows of seven came
+  // from. A fixed count per band answers "how many should there be".
+  //
+  // Media queries rather than container queries on purpose: this page fills
+  // its frame, so inside Technetium the iframe's own viewport IS the panel and
+  // these track the panel as it is resized, with no containment side effects
+  // on the grid.
+  //
+  // Two is the floor and five the ceiling, as ruled; three is deliberately
+  // skipped. 20 posts a page divides evenly by all three (10, 5 and 4 rows),
+  // so no band ends in a ragged row.
   .modgal-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(clamp(110px, 15vw, 168px), 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.6rem;
+  }
+
+  @media (min-width: 640px) {
+    .modgal-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+
+  @media (min-width: 1024px) {
+    .modgal-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   }
   // The blacklist hides cards by class, and its selector
   // (.blacklisted-hidden.blacklisted-hidden) TIES the display rule below on
@@ -220,6 +243,26 @@ body:has(.modgal) {
 
   // The hover tag panel. pointer-events: none is load-bearing -- the popup
   // must never catch the hover that summoned it, or it flickers.
+  // The dwell meter: the two seconds you must rest on a card before its tags
+  // appear, drawn as it actually elapses (the script fills it from the clock,
+  // not from a CSS animation, so it cannot show a wait that is not happening).
+  .modgal-tagpop-meter {
+    position: fixed;
+    z-index: 61;
+    height: 3px;
+    pointer-events: none;
+    background: var(--mod-line, rgba(255, 255, 255, 0.14));
+    border-radius: 2px;
+    overflow: hidden;
+
+    > i {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: var(--mod-ink-dim, #8ab4f8);
+    }
+  }
+
   .modgal-tagpop {
     position: fixed;
     z-index: 60;

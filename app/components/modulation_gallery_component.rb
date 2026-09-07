@@ -37,16 +37,6 @@ class ModulationGalleryComponent < ApplicationComponent
     ModulationSetting::GALLERY_VIEWS.include?(settings["gallery_view"]) ? settings["gallery_view"] : "unitag"
   end
 
-  def show_deleted_remembered?
-    !!settings["gallery_show_deleted"]
-  end
-
-  # The current query with status: stripped, for the deleted toggle: the
-  # toggle must not carry the very metatag it is about to change back in.
-  def query_without_status
-    query_string.gsub(/(?:\A|\s)-?status:\S+/i, " ").squish
-  end
-
   # The posts this gallery will actually draw.
   #
   # Deleted posts are dropped unless the viewer has asked for them, which is
@@ -180,23 +170,11 @@ class ModulationGalleryComponent < ApplicationComponent
   # "Related": the same search seen another way. Deliberately only the ones that
   # act on the CURRENT query -- the upstream list mixes those with global
   # discovery links, and mixing them is why that section reads as a junk drawer.
-  def related_links
-    # "deleted" is a remembered TOGGLE, not a one-off search: on, the panel
-    # keeps including deleted posts (status:any) in every search until it is
-    # clicked off (operator ruling 2026-09-04 -- the panel does not reset).
-    links = [
-      { label: "random", href: routes.random_posts_path(tags: query_string.presence, preset: "modulation") },
-      { label: "deleted", href: routes.posts_path(tags: query_without_status.presence, preset: "modulation", show_deleted: (show_deleted_remembered? ? 0 : 1)), active: show_deleted_remembered? },
-      { label: "count", href: routes.posts_counts_path(tags: query_string.presence) },
-    ]
-
-    if single_tag.present?
-      links << { label: "history", href: routes.post_versions_path(search: { changed_tags: single_tag }) }
-      links << { label: "discussions", href: routes.forum_posts_path(search: { linked_to: single_tag }) } if forum_enabled?
-    end
-
-    links
-  end
+  # There is no deleted TOGGLE any more (operator ruling 2026-09-07): viewing
+  # deleted posts is its own search, asked for with `status:deleted` the way
+  # anything else is asked for. What the gallery draws still follows
+  # post_set.show_deleted?, which upstream derives from that search -- so the
+  # rule is now in one place instead of two disagreeing ones.
 
   def forum_enabled?
     Danbooru.config.forum_enabled?.to_s.truthy?
