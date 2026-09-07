@@ -19,11 +19,24 @@ function boot() {
   grid.dataset.tagpopBooted = "1";
 
   let cats = {};
+  let counts = {};
   try {
     cats = JSON.parse(grid.dataset.tagCategories || "{}");
+    // Counts are OPTIONAL: an older cached page has no data-tag-counts, and a
+    // pill with no number is better than no panel at all.
+    counts = JSON.parse(grid.dataset.tagCounts || "{}");
   } catch {
     return;
   }
+
+  // " 1234" -- a space then the number, inside the pill, to the right of the
+  // name (operator ruling 2026-09-07). Rendered as its own span so it can be
+  // dimmed without touching the name, and omitted entirely when the count is
+  // unknown rather than printed as a zero that would read as "no posts".
+  const countOf = (tag) => {
+    const n = counts[tag];
+    return typeof n === "number" && n > 0 ? ` <span class="mod-pill-count">${n.toLocaleString()}</span>` : "";
+  };
 
   const pop = document.createElement("div");
   pop.className = "modgal-tagpop";
@@ -98,7 +111,7 @@ function boot() {
     });
     const html = ORDER.filter((key) => groups[key]).map((key) =>
       `<div class="modgal-tagpop-group"><span class="modgal-tagpop-label">${key}</span><div class="modgal-tagpop-pills">` +
-      groups[key].map((tag) => `<span class="mod-pill mod-pill--cat-${key}"><span class="mod-pill-dot"></span>${esc(tag.replace(/_/g, " "))}</span>`).join("") +
+      groups[key].map((tag) => `<span class="mod-pill mod-pill--cat-${key}"><span class="mod-pill-dot"></span>${esc(tag.replace(/_/g, " "))}${countOf(tag)}</span>`).join("") +
       "</div></div>").join("");
     if (!html) {
       return;

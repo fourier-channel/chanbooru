@@ -25,6 +25,11 @@
   // a 900px-tall window, which reads as the strip simply not appearing.
   position: relative;
 
+  // The room the strip descends into, reserved on EVERY page whether or not it
+  // is open. Without it the strip would land on whatever the page put there,
+  // and "does not displace" would have been bought with "covers something".
+  margin-bottom: var(--modnav-session-h);
+
   background: var(--mod-surface, var(--body-background-color));
   border-bottom: 1px solid var(--mod-line, var(--default-border-color));
   margin-top: 0;
@@ -211,6 +216,15 @@
   // Height, not max-height-with-a-guess: the strip is ONE LINE, so its open
   // height is a known quantity rather than something to over-estimate and hope
   // the transition looks right.
+  // OVER the page, and over nothing that matters: the header reserves a strip
+  // of empty room beneath itself (see margin-bottom above), and this descends
+  // into exactly that. Operator ruling 2026-09-07, clarified: "make sure
+  // there's always room at the top of every page so bringing the bar down
+  // doesn't have anything TO obscure."
+  //
+  // That satisfies both halves at once. Nothing below moves, because the strip
+  // is out of flow -- and nothing is hidden, because the space it lands on was
+  // never anyone else's.
   .modnav-session {
     position: absolute;
     left: 0;
@@ -218,6 +232,10 @@
     top: 100%;
     z-index: 39;
     height: 0;
+    // Clipped WHILE MOVING so the line does not spill out of a half-open
+    // strip, then released once it settles -- see .is-settled below, which is
+    // what lets the lamps' tooltips escape the strip instead of being cut off
+    // by it.
     overflow: hidden;
     background: var(--mod-surface, var(--body-background-color));
     border-bottom: 0 solid var(--mod-line, var(--default-border-color));
@@ -230,6 +248,12 @@
     height: var(--modnav-session-h, 2.2rem);
     border-bottom-width: 1px;
   }
+
+  // Once the strip has finished opening it stops clipping, so a lamp's tooltip
+  // can hang below it. The tooltips were lost the moment the strip gained
+  // `overflow: hidden` for its animation, which is a good argument for
+  // clipping only while something is actually moving.
+  .modnav-session.is-settled { overflow: visible; }
 
   // Someone who has asked for less motion gets the state change without the
   // sweep -- the strip is just as usable.

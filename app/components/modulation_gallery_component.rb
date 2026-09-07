@@ -143,6 +143,18 @@ class ModulationGalleryComponent < ApplicationComponent
     end
   end
 
+  # name -> post count, for the same names the category map admits (operator
+  # ruling 2026-09-07: the hover panel shows each tag's count after it). One
+  # query for the page, never one per tag, and keyed off page_tag_categories so
+  # a banished name cannot reappear here after being withheld there.
+  def page_tag_counts
+    @page_tag_counts ||= begin
+      names = page_tag_categories.keys
+      counts = names.any? ? Tag.where(name: names).pluck(:name, :post_count).to_h : {}
+      names.index_with { |n| counts[n].to_i }
+    end
+  end
+
   # The card's bottom-right credit: the post's first artist tag, if the
   # viewer may see one.
   def artist_for(post)

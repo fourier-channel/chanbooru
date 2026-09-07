@@ -85,7 +85,8 @@
       every tag on this page, and ONLY those -- a tag missing from the map is
       one the client must not display. %>
   <% if posts.any? %>
-    <div class="modgal-grid" data-tag-categories="<%= page_tag_categories.to_json %>">
+    <div class="modgal-grid" data-tag-categories="<%= page_tag_categories.to_json %>"
+         data-tag-counts="<%= page_tag_counts.to_json %>">
       <% posts.each do |post| %>
         <%# A deleted post only reaches this grid when the viewer asked for one
             (show_deleted). It is still veiled: asking to SEE THAT THEY EXIST is

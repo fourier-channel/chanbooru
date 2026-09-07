@@ -58,7 +58,7 @@ function boot() {
   // converted to the class once and never used again.
   const startOpen = !bar.hasAttribute("hidden");
   bar.removeAttribute("hidden");
-  if (group && startOpen) group.classList.add("is-open");
+  if (group && startOpen) { group.classList.add("is-open"); bar.classList.add("is-settled"); }
   const isOpen = () => !!group && group.classList.contains("is-open");
 
   let obs = {};
@@ -297,6 +297,14 @@ function boot() {
     toggle.addEventListener("click", () => {
       const open = !isOpen();
       group.classList.toggle("is-open", open);
+      // Clip while it moves, release when it lands: a tooltip inside the strip
+      // has to be able to hang below it, and `overflow: hidden` was silently
+      // cutting the lamps' tooltips off.
+      bar.classList.remove("is-settled");
+      if (open) {
+        const settle = () => { bar.classList.add("is-settled"); bar.removeEventListener("transitionend", settle); };
+        bar.addEventListener("transitionend", settle);
+      }
       toggle.setAttribute("aria-expanded", String(open));
       // Sequenced, not parallel: for an anonymous viewer both requests
       // rewrite the cookie-store session, and a concurrent status GET can
