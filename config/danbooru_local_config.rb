@@ -252,6 +252,45 @@ module Danbooru
       Rails.env.test? ? User::Levels::ANONYMOUS : User::Levels::ADMIN
     end
 
+    # ---- Video pixel formats ----
+
+    # Extra pixel formats this instance accepts beyond upstream's allowlist.
+    #
+    # Upstream refuses anything outside yuv420p / yuvj420p / gbrp, and says why
+    # at media_file/video.rb: "Only allow pixel formats supported by most
+    # browsers. Don't allow 10-bit video or 4:4:4 subsampling (neither are
+    # supported by Firefox)." That was true when evazion wrote it -- commit
+    # 6e685cdd4, 2022-10-28, against a population of eight files. The allowlist
+    # has not been revisited since; the only later touch, 95329f821 in May 2025,
+    # added a `.present?` null-guard while fixing tests and left the set alone.
+    #
+    # MEASURED 2026-09-07 rather than assumed. Playwright Firefox 128 was
+    # pointed at a real 10-bit VP9 file from our own archive, with an 8-bit
+    # transcode of the same source as a control: no MediaError, readyState 4,
+    # 20 frames decoded, and a frame painted to canvas with a pixel spread of
+    # 235 -- it decodes and renders, indistinguishably from the control. The
+    # claim expired somewhere in the intervening four years and nobody retested.
+    #
+    # This is the distinction worth keeping: a restriction encoding a POLICY
+    # (max file size) stays true by construction, while one encoding a FACT
+    # ABOUT THE WORLD (a browser cannot do X) has a shelf life. Only this line
+    # in the whole media-validation path was in the second category.
+    #
+    # EMPTY UNDER TEST, for the same reason every other fork rule here is:
+    # upstream's media_file_webm_test asserts is_supported? == false for
+    # test-yuv420p10le-vp9.webm, and the mp4 suite asserts the same for 10-bit
+    # av1 and h264. Relaxing unconditionally would turn those red for asserting
+    # exactly what they were written to assert. fourier_pixel_formats_test stubs
+    # this to the production value and proves the file is accepted.
+    #
+    # 4:4:4 (yuv444p) is deliberately NOT here. The same upstream line bans it
+    # and it was NOT tested on 2026-09-07 -- relaxing it on the strength of a
+    # 10-bit result would be exactly the over-generalisation this comment exists
+    # to record. Test it before adding it.
+    def extra_video_pix_fmts
+      Rails.env.test? ? [] : %w[yuv420p10le]
+    end
+
     # ---- Content restriction ----
 
     # Tags visible only to Gold+ (level 30). A non-Gold viewer still sees the

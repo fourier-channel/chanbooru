@@ -61,7 +61,12 @@ class MediaFile::Video < MediaFile
     # gbrp: 8-bit RGB (used by VP9). Uncommon, but widely supported.
     #
     # https://github.com/FFmpeg/FFmpeg/blob/master/libavutil/pixfmt.h
-    return false if pix_fmt.present? && !pix_fmt.in?(%w[yuv420p yuvj420p gbrp])
+    # Fork: Danbooru.config.extra_video_pix_fmts widens this allowlist. See that
+    # method for the measurement behind each addition -- the upstream comment
+    # above is four years old and its 10-bit claim no longer holds. Empty under
+    # test, so upstream's suite still measures upstream's behaviour.
+    allowed = %w[yuv420p yuvj420p gbrp] + Danbooru.config.extra_video_pix_fmts
+    return false if pix_fmt.present? && !pix_fmt.in?(allowed)
 
     true
   end
