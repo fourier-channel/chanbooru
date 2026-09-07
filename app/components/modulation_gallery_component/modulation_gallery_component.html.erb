@@ -43,8 +43,13 @@
       </div>
 
       <div class="mod-unitag" x-show="view === 'unitag'">
+        <%# view-transition-name keyed on the tag's ID, not its name: the ID is
+            what makes "the same tag" the same thing across two pages, so a tag
+            on both morphs into its new position while one that is only on one
+            of them pops. A sanitised name would collide; the ID cannot. %>
         <% unitag_list.each do |tag, key| %>
-          <%= link_to posts_path(preset: "modulation", tags: tag.name), class: "mod-pill mod-pill--cat-#{key}", rel: "nofollow" do %>
+          <%= link_to posts_path(preset: "modulation", tags: tag.name), class: "mod-pill mod-pill--cat-#{key}", rel: "nofollow",
+                      style: "view-transition-name: tag-#{tag.id}; view-transition-class: modgal-tagpill" do %>
             <span class="mod-pill-dot" aria-hidden="true"></span><%= tag.name.tr("_", " ") %>
           <% end %>
         <% end %>
@@ -56,7 +61,7 @@
             <span class="mod-group-label"><%= key %></span>
             <div class="mod-group-pills">
               <% tags.each do |tag| %>
-                <%= link_to tag.name.tr("_", " "), posts_path(preset: "modulation", tags: tag.name), class: "mod-pill mod-pill--cat-#{key}", rel: "nofollow" %>
+                <%= link_to tag.name.tr("_", " "), posts_path(preset: "modulation", tags: tag.name), class: "mod-pill mod-pill--cat-#{key}", style: "view-transition-name: gtag-#{tag.id}; view-transition-class: modgal-tagpill", rel: "nofollow" %>
               <% end %>
             </div>
           </div>

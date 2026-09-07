@@ -1,3 +1,43 @@
+// Paging and searching are full document loads on this site, so the tag list
+// used to be replaced outright: one frame it was the old set, the next it was
+// the new one (operator, 2026-09-07 -- "remove the sudden state change").
+//
+// Cross-document view transitions animate ACROSS that navigation, which is why
+// this is a few lines of CSS rather than a client-side router. Each pill
+// carries a view-transition-name keyed on its tag's ID, so the browser can
+// tell which pills are the same tag on both pages: those MORPH to their new
+// position, and the rest pop out or in.
+//
+// A browser without view transitions ignores all of this and navigates exactly
+// as before, which is the behaviour being improved on rather than depended on.
+@view-transition {
+  navigation: auto;
+}
+
+// A tag on only one of the two pages: pop, rather than the default cross-fade.
+@keyframes modgal-tag-pop-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes modgal-tag-pop-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.6); }
+}
+
+::view-transition-new(.modgal-tagpill):only-child {
+  animation: modgal-tag-pop-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+::view-transition-old(.modgal-tagpill):only-child {
+  animation: modgal-tag-pop-out 180ms cubic-bezier(0.55, 0.06, 0.68, 0.19);
+}
+
+// Someone who asked for less motion gets the navigation without the choreography.
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+}
+
 // "Modulation" gallery -- the post index in the Modulation theme. Shares the
 // post view's tokens and pill language; here the pills are coloured by tag
 // category rather than provenance.
