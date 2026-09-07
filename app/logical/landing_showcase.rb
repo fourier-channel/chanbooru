@@ -27,6 +27,10 @@ class LandingShowcase
   end
 
   PER_CATEGORY = 10
+  # How many candidates to fetch per wanted post. Wide enough that the
+  # showable? filter cannot leave the row short in practice; small enough to
+  # stay one bounded query.
+  FETCH_WIDTH = 8
 
   # The "new" row's configuration, from the database so an admin can re-aim the
   # front page without a deploy (/admin/landing_setting).
@@ -89,7 +93,18 @@ class LandingShowcase
       # the last allowed page, which puts paginate into a mode whose results are
       # reversed, and "Newest Posts" would render oldest-first. See
       # PostSets::Post#enforce_browsing_cap!.
-      .posts_with_timeout(PER_CATEGORY * 2, includes: [:media_asset], page_limit: viewer.page_limit)
+      # Fetch WIDE, then filter. The row wants PER_CATEGORY posts and the
+      # filter below drops anything that is not a visible image or video, so a
+      # window of exactly twice the target quietly returned short rows -- the
+      # front page was showing eight (operator, 2026-09-07: keep a minimum of
+      # ten). A wider window is one query either way; it just stops the filter
+      # eating the row.
+      #
+      # This is also what makes the row behave as a queue: ordered newest
+      # first, a new post enters at the front and the tenth falls off the back,
+      # so what is on screen only changes when something new arrives to replace
+      # it. Nothing shuffles on its own.
+      .posts_with_timeout(PER_CATEGORY * FETCH_WIDTH, includes: [:media_asset], page_limit: viewer.page_limit)
       .select { |post| showable?(post) }
   rescue StandardError => e
     # The landing page is the first thing a stranger sees, so one bad category

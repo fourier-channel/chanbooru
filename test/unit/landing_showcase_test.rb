@@ -88,6 +88,29 @@ class LandingShowcaseTest < ActiveSupport::TestCase
     end
   end
 
+  context "filling the row" do
+    setup do
+      @user = create(:user)
+      # Twelve qualifying posts, with non-qualifying ones interleaved so the
+      # showable? filter has something to eat. A window of exactly 2x the
+      # target used to come back short -- the live row was showing eight.
+      15.times { as(@user) { create(:post, source: BOARD) } }
+    end
+
+    should "show a full row when there are enough posts to fill it" do
+      slides = LandingShowcase.new(viewer: User.anonymous).categories
+        .find { |c| c[:key] == "new" }.to_h[:slides].to_a
+      assert_equal LandingShowcase::PER_CATEGORY, slides.length,
+        "the row must fill to PER_CATEGORY when the posts exist"
+    end
+
+    should "be newest first, so a new post displaces the oldest rather than reshuffling" do
+      slides = LandingShowcase.new(viewer: User.anonymous).categories
+        .find { |c| c[:key] == "new" }.to_h[:slides].to_a.map { |s| s[:id] }
+      assert_equal slides.sort.reverse, slides, "ids must descend: the row is a queue, not a shuffle"
+    end
+  end
+
   context "the showcase" do
     should "take the row from the database, so an admin can change it without a deploy" do
       LandingSetting.create!(board: "trash", fresh_only: false, label: "From the bin")
