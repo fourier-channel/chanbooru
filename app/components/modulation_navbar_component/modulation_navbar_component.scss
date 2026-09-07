@@ -15,9 +15,15 @@
 // #top, and an id beats a class no matter what order they load in.
 #top.modnav {
   --modnav-col: 1180px;
-  // One number for the unfurl, because the panel's width and the duration the
-  // JS waits before it stops calling the panel "open" have to agree.
-  --modnav-session-w: 44rem;
+  // The strip's open height, in one place: the strip animates to it and its
+  // inner row is laid out at it, so the two must agree.
+  --modnav-session-h: 2.2rem;
+
+  // The descending strip is absolutely positioned against THIS element. Without
+  // it the strip resolved against the initial containing block and `top: 100%`
+  // put it at the bottom of the viewport -- measured on production, at y=900 on
+  // a 900px-tall window, which reads as the strip simply not appearing.
+  position: relative;
 
   background: var(--mod-surface, var(--body-background-color));
   border-bottom: 1px solid var(--mod-line, var(--default-border-color));
