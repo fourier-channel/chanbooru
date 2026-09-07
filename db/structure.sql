@@ -1192,6 +1192,40 @@ ALTER SEQUENCE public.ip_geolocations_id_seq OWNED BY public.ip_geolocations.id;
 
 
 --
+-- Name: landing_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.landing_settings (
+    id bigint NOT NULL,
+    board character varying DEFAULT 'b'::character varying NOT NULL,
+    fresh_only boolean DEFAULT true NOT NULL,
+    label character varying DEFAULT 'Fresh from DEGEN'::character varying NOT NULL,
+    updated_by_id integer,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: landing_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.landing_settings_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: landing_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.landing_settings_id_seq OWNED BY public.landing_settings.id;
+
+
+--
 -- Name: login_sessions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3168,6 +3202,13 @@ ALTER TABLE ONLY public.ip_geolocations ALTER COLUMN id SET DEFAULT nextval('pub
 
 
 --
+-- Name: landing_settings id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.landing_settings ALTER COLUMN id SET DEFAULT nextval('public.landing_settings_id_seq'::regclass);
+
+
+--
 -- Name: login_sessions id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3694,6 +3735,14 @@ ALTER TABLE ONLY public.ip_bans
 
 ALTER TABLE ONLY public.ip_geolocations
     ADD CONSTRAINT ip_geolocations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: landing_settings landing_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.landing_settings
+    ADD CONSTRAINT landing_settings_pkey PRIMARY KEY (id);
 
 
 --
@@ -7712,6 +7761,7 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260907000000'),
 ('20260906000000'),
 ('20260904090000'),
 ('20260904080000'),

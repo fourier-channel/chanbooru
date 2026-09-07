@@ -45,7 +45,11 @@ function boot() {
     return;
   }
   bar.dataset.booted = "1";
-  const group = bar.closest(".modnav-session-group");
+  // The strip is a child of the HEADER now, not of a wrapper around the pill:
+  // it descends full width under the bar rather than unfurling along the pill
+  // row (operator ruling 2026-09-07). The open state therefore lives on the
+  // header, which is the common ancestor of the button and the strip.
+  const group = bar.closest(".modnav");
   const toggle = document.getElementById("modnav-session-toggle");
 
   // The panel starts closed unless the server said the viewer had left it
@@ -289,23 +293,9 @@ function boot() {
     else if (a === "matrix-logout") matrixLogout();
   });
 
-  // The panel unfurls to the pill's right and must stop at the viewport, and
-  // where the pill sits is a layout fact CSS cannot read from inside the
-  // group, so it is measured here: room = viewport edge - pill's right edge,
-  // less a margin. Re-measured on resize while open; a closed panel has no
-  // width to clamp.
-  const measureRoom = () => {
-    if (!group || !toggle) return;
-    const room = Math.max(0, window.innerWidth - toggle.getBoundingClientRect().right - 16);
-    group.style.setProperty("--modnav-session-room", room + "px");
-  };
-  if (startOpen) measureRoom();
-  window.addEventListener("resize", () => { if (isOpen()) measureRoom(); });
-
   if (toggle && group) {
     toggle.addEventListener("click", () => {
       const open = !isOpen();
-      if (open) measureRoom();
       group.classList.toggle("is-open", open);
       toggle.setAttribute("aria-expanded", String(open));
       // Sequenced, not parallel: for an anonymous viewer both requests

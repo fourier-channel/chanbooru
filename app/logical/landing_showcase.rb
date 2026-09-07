@@ -18,14 +18,30 @@ class LandingShowcase
   # constant would have baked the value in at class-load time and made that
   # panel a deploy.
   def self.categories
+    row = new_row
     [
-      { key: "new", label: Danbooru.config.landing_new_label, query: Danbooru.config.landing_new_query },
+      { key: "new", label: row[:label], query: row[:query] },
       { key: "favorites", label: "Community Favorites", query: "order:favcount" },
       { key: "creators", label: "Featured Creators", query: nil },
     ]
   end
 
   PER_CATEGORY = 10
+
+  # The "new" row's configuration, from the database so an admin can re-aim the
+  # front page without a deploy (/admin/landing_setting).
+  #
+  # Falls back to config if that cannot be read. The front page staying UP
+  # matters more than the row being current, and a boot that reaches traffic
+  # before the migration has run should not serve a blank site. The failure is
+  # logged rather than swallowed.
+  def self.new_row
+    setting = LandingSetting.current
+    { label: setting.label, query: setting.query }
+  rescue StandardError => e
+    DanbooruLogger.log(e, context: "landing_setting")
+    { label: Danbooru.config.landing_new_label, query: Danbooru.config.landing_new_query }
+  end
   QUERY_TIMEOUT_SECONDS = 3
 
   attr_reader :viewer

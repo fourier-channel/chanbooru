@@ -193,58 +193,40 @@
   // point. Occlusion is not displacement -- the pills stay exactly where they
   // are and come back uncovered when the panel closes.
   //
-  // The pill is the LAST pill of the nav, directly after "More", and never
-  // moves; it unfurls to its RIGHT (operator ruling 2026-09-06, corrected
-  // twice the same day: first cut hung it hard right and slid it left on
-  // open, the control jumping out from under the cursor). The spacer sits in
-  // the pill row as one more flex item and is the group's containing block:
-  // the group hangs off the spacer's LEFT edge and grows rightward over the
-  // rest of the row and past the bar's edge into the page margin.
+  // THE STRIP DESCENDS (operator ruling 2026-09-07). It is a full-width line
+  // under the header, so everything in it is legible at once. Unfurling it
+  // sideways out of the pill gave it only the room left over beside "More",
+  // which is why the monitors arrived jammed together and cut off.
   //
-  // How much room there is to the right depends on where the pill landed
-  // (nav width, viewport, the bar's 1180px cap) and CSS cannot see that from
-  // here, so modulation_session_bar.js measures it on open and on resize and
-  // hands it over as --modnav-session-room. The panel clamps to it and the
-  // inner row scrolls sideways if the panel is still short; nothing spills
-  // past the viewport.
-  .modnav-session-spacer {
-    position: relative;
-    flex: none;
-    width: var(--modnav-session-pill-w, 9.5rem);
-    align-self: stretch;
-  }
-
-  .modnav-session-group {
+  // Absolute, over the page, never in it: opening must not move a single thing
+  // below the header. That is the no-forced-reflow rule, and the reason an
+  // earlier cut that added a real second ROW was wrong.
+  //
+  // Height, not max-height-with-a-guess: the strip is ONE LINE, so its open
+  // height is a known quantity rather than something to over-estimate and hope
+  // the transition looks right.
+  .modnav-session {
     position: absolute;
     left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 40;
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    // Opaque, because the panel unfurls over whatever is to the pill's right.
-    background: var(--mod-surface, var(--body-background-color));
-  }
-
-  .modnav-session {
-    max-width: 0;
-    opacity: 0;
+    right: 0;
+    top: 100%;
+    z-index: 39;
+    height: 0;
     overflow: hidden;
-    pointer-events: none;
+    background: var(--mod-surface, var(--body-background-color));
+    border-bottom: 0 solid var(--mod-line, var(--default-border-color));
     transition:
-      max-width 0.28s cubic-bezier(0.22, 0.61, 0.36, 1),
-      opacity 0.18s ease;
+      height 0.22s cubic-bezier(0.22, 0.61, 0.36, 1),
+      border-bottom-width 0.22s linear;
   }
 
-  .modnav-session-group.is-open .modnav-session {
-    max-width: min(var(--modnav-session-w), var(--modnav-session-room, 100vw));
-    opacity: 1;
-    pointer-events: auto;
+  &.is-open .modnav-session {
+    height: var(--modnav-session-h, 2.2rem);
+    border-bottom-width: 1px;
   }
 
   // Someone who has asked for less motion gets the state change without the
-  // sweep -- the panel is still exactly as usable.
+  // sweep -- the strip is just as usable.
   @media (prefers-reduced-motion: reduce) {
     .modnav-session { transition: none; }
   }
@@ -252,9 +234,14 @@
   .modnav-session-inner {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0 0.4rem 0 0.6rem;
+    gap: 0.75rem;
+    height: var(--modnav-session-h, 2.2rem);
+    max-width: var(--modnav-col);
+    margin: 0 auto;
+    padding: 0 1rem;
     white-space: nowrap;
+    // A last resort only. At full width the monitors fit; if a future one does
+    // not, it scrolls here rather than being clipped invisibly.
     overflow-x: auto;
     scrollbar-width: thin;
   }
@@ -381,26 +368,15 @@
   @media (max-width: 900px) {
     .modnav-bar { flex-wrap: wrap; }
 
-    .modnav-session-spacer {
-      position: static;
-      order: 3;
-      width: 100%;
-    }
-
-    .modnav-session-group {
-      position: static;
-      transform: none;
-      width: 100%;
-      margin-left: 0;
-      background: transparent;
-    }
-
-    .modnav-session-group.is-open .modnav-session { max-width: 100%; }
-
+    // The strip is full width at every size, so it needs no narrow-screen
+    // special case; only its inner row has to stop pretending to be one line.
     .modnav-session-inner {
       flex-wrap: wrap;
       white-space: normal;
-      padding-left: 0.4rem;
+      height: auto;
+      padding: 0.3rem 0.6rem;
     }
+
+    .modnav.is-open .modnav-session, &.is-open .modnav-session { height: auto; }
   }
 }

@@ -1,0 +1,32 @@
+<% page_title "Landing carousel" %>
+
+<div id="c-admin-landing-settings">
+  <div id="a-show">
+    <h1>Landing carousel</h1>
+
+    <p class="hint">
+      The front page's first row. It draws from ONE board, newest first, and
+      normally hides archive backfill -- an imported picture is new by post id
+      even when it is years old, which is how a backfill run comes to drown the
+      live captures the row exists to show.
+    </p>
+
+    <%= edit_form_for(@landing_setting, url: admin_landing_setting_path, method: :patch) do |f| %>
+      <%= f.input :label, label: "Row heading", hint: "What visitors see above the row." %>
+      <%= f.input :board, label: "Board", hint: "The bare slug, so 'b' for /b/ -- which is the DEGEN generals." %>
+      <%= f.input :fresh_only, as: :boolean, label: "Freshly scraped only",
+                  hint: "Hides anything the sampler tagged as archive-sourced." %>
+      <%= f.submit "Save" %>
+    <% end %>
+
+    <h2>What that searches</h2>
+    <p><code><%= @landing_setting.query %></code></p>
+    <p class="hint">
+      Two terms, which is the limit. A logged-out visitor may search two tags
+      and the landing page runs as whoever is looking at it, so a third term
+      would not narrow this row, it would empty it -- and an empty row is
+      dropped from the page silently. That is why this is a set of choices
+      rather than a box you type a search into.
+    </p>
+  </div>
+</div>

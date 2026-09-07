@@ -25,59 +25,28 @@
             <%= entry[:badge] %>
           <% end %>
         <% end %>
-        <%# The ONE login/logout point (operator ruling 2026-09-04): a control, not
-            a link. Its dot doubles as the summary lamp so session state is readable
-            without opening the panel.
+        <%# The ONE login/logout point (operator ruling 2026-09-04): a control,
+            not a link. Its dot doubles as the summary lamp, so session state is
+            readable without opening anything.
 
-            The pill is one of the header pills (operator ruling 2026-09-06,
-        second correction the same day): it sits in the pill row directly
-        after the last entry, and never moves; the panel unfurls out of its
-        RIGHT edge along the row, over whatever is there. Earlier cuts hung it
-        hard right (opening slid the pill 260px left -- the control jumped
-        out from under the cursor) and before that dropped a second row
-        (which shoved the page down). It is a width animation along the
-        row, and the no-forced-reflow rule holds either way. %>
-        <%# Holds open the space the floating group sits over, so the nav never
-            lays a pill underneath the closed Manage Session control. %>
-        <div class="modnav-session-spacer">
-        <div class="modnav-session-group">
+            THE STRIP DESCENDS (operator ruling 2026-09-07): a full-width line
+            attached under the header, not a panel unfurling along the pill row.
+            Three earlier cuts failed, and each failure is why the next one
+            looked the way it did. A second header ROW shoved the page down.
+            Anchoring the group hard right slid the pill out from under the
+            cursor as it opened. Unfurling sideways from the pill gave the
+            monitors only the room left over beside "More", so they came out
+            jammed together and cut off by the window edge.
+
+            Full width is what fixes that: one line, everything legible at once.
+            It is laid OVER the page rather than inserted into it, so nothing
+            below moves -- occlusion is not displacement, which is the
+            distinction the no-forced-reflow rule turns on. %>
           <button type="button" id="modnav-session-toggle" class="modnav-pill modnav-pill--session"
                   aria-expanded="<%= session_bar_open? %>" aria-controls="modnav-session">
             <span class="modnav-pill-dot" data-region="summary-lamp" aria-hidden="true"></span>Manage Session
           </button>
 
-          <% if observation.present? %>
-            <div class="modnav-session" id="modnav-session" data-observation="<%= observation.to_json %>"
-                 <%= "hidden" unless session_bar_open? %>>
-              <div class="modnav-session-inner">
-                <div class="modnav-monitor" data-monitor="booru">
-                  <span class="modnav-lamp" data-region="lamp" aria-hidden="true"></span>
-                  <%# A FIXED label. It used to print the cookie name it had read,
-                      which put "danbooru2 session" in the chrome of every page to
-                      say something a visitor cannot act on. The read is still the
-                      monitor's evidence and still shown -- in the tooltip, where
-                      asking for it is a deliberate act (operator ruling
-                      2026-09-06). The lamp still turns red when the observed
-                      object is not the expected one, so the check did not become
-                      an assertion; only its resting display got quieter. %>
-                  <span class="modnav-monitor-label">Booru:</span>
-                  <span class="modnav-monitor-status" data-region="status"></span>
-                  <span class="modnav-monitor-actions" data-region="controls"></span>
-                  <div class="modnav-monitor-tip" data-region="tip" role="tooltip"></div>
-                </div>
-                <span class="modnav-monitor-sep" aria-hidden="true">|</span>
-                <div class="modnav-monitor" data-monitor="matrix">
-                  <span class="modnav-lamp" data-region="lamp" aria-hidden="true"></span>
-                  <span class="modnav-monitor-label">Matrix:</span>
-                  <span class="modnav-monitor-status" data-region="status"></span>
-                  <span class="modnav-monitor-actions" data-region="controls"></span>
-                  <div class="modnav-monitor-tip" data-region="tip" role="tooltip"></div>
-                </div>
-              </div>
-            </div>
-          <% end %>
-        </div>
-        </div>
       </div>
     </nav>
 
@@ -87,6 +56,37 @@
       <%= close_icon(class: "block w-6", "x-show": "menuOpen", "x-cloak": true) %>
     </a>
   </div>
+
+  <% if observation.present? %>
+    <div class="modnav-session" id="modnav-session" data-observation="<%= observation.to_json %>"
+         <%= "hidden" unless session_bar_open? %>>
+      <div class="modnav-session-inner">
+        <div class="modnav-monitor" data-monitor="booru">
+          <span class="modnav-lamp" data-region="lamp" aria-hidden="true"></span>
+          <%# A FIXED label. It used to print the cookie name it had read,
+              which put "danbooru2 session" in the chrome of every page to
+              say something a visitor cannot act on. The read is still the
+              monitor's evidence and still shown -- in the tooltip, where
+              asking for it is a deliberate act (operator ruling
+              2026-09-06). The lamp still turns red when the observed
+              object is not the expected one, so the check did not become
+              an assertion; only its resting display got quieter. %>
+          <span class="modnav-monitor-label">Booru:</span>
+          <span class="modnav-monitor-status" data-region="status"></span>
+          <span class="modnav-monitor-actions" data-region="controls"></span>
+          <div class="modnav-monitor-tip" data-region="tip" role="tooltip"></div>
+        </div>
+        <span class="modnav-monitor-sep" aria-hidden="true">|</span>
+        <div class="modnav-monitor" data-monitor="matrix">
+          <span class="modnav-lamp" data-region="lamp" aria-hidden="true"></span>
+          <span class="modnav-monitor-label">Matrix:</span>
+          <span class="modnav-monitor-status" data-region="status"></span>
+          <span class="modnav-monitor-actions" data-region="controls"></span>
+          <div class="modnav-monitor-tip" data-region="tip" role="tooltip"></div>
+        </div>
+      </div>
+    </div>
+  <% end %>
 
   <% if content_for?(:secondary_links) %>
     <div class="modnav-subnav">
