@@ -37,6 +37,10 @@ if ENV["COVERAGE"].present?
 end
 
 require_relative "../config/environment"
+# Fork addition, kept to one line here so this inherited file barely diverges.
+# Refuses to run against a production database; see the file for what happened.
+require_relative "fourier_database_guard"
+FourierDatabaseGuard.check!
 require "rails/test_help"
 
 Rails.root.glob("test/factories/*.rb").each { |file| require file }
