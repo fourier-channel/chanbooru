@@ -9,6 +9,14 @@ class LandingShowcaseTest < ActiveSupport::TestCase
   BOARD = "https://boards.4chan.org/b/thread/953493575#p953493576".freeze
   OTHER_BOARD = "https://boards.4chan.org/d/thread/11389948#p11445593".freeze
 
+  # Class level, not inside a context: shoulda runs each `should` block through
+  # instance_exec, so a `def` written inside a context is not on the object the
+  # block runs against and raises NoMethodError.
+  def new_ids(viewer)
+    LandingShowcase.new(viewer: viewer).categories
+      .find { |c| c[:key] == "new" }.to_h[:slides].to_a.map { |s| s[:id] }
+  end
+
   context "the setting that drives the row" do
     should "assemble a search of two terms whatever is configured" do
       # The panel offers structured choices precisely so this cannot be broken
@@ -85,6 +93,47 @@ class LandingShowcaseTest < ActiveSupport::TestCase
       ids = LandingShowcase.new(viewer: User.anonymous).categories
         .find { |c| c[:key] == "new" }.to_h[:slides].to_a.map { |s| s[:id] }
       refute_includes ids, @elsewhere.id
+    end
+  end
+
+  # A jailed or deleted picture must leave the showcase, for EVERY viewer.
+  #
+  # It did not. showable? asked Post#visible?, which asks about safe mode,
+  # level and bans and never about is_deleted; and the query path here skips
+  # with_implicit_metatags, so the implicit -status:deleted never applied
+  # either. The only thing keeping jailed posts out was levelblocked? tripping
+  # on troll_jail being in restricted_tags -- which holds for an anonymous
+  # viewer and fails for anyone who can see deleted posts. The operator is
+  # level 60: they jailed an image and it stayed in their carousel.
+  #
+  # Both viewers are asserted deliberately. Testing only the anonymous one
+  # would have passed against the broken code.
+  context "a post that has been removed" do
+    setup do
+      @user = create(:user)
+      @ok = as(@user) { create(:post, source: BOARD) }
+      @deleted = as(@user) { create(:post, source: BOARD) }
+      @deleted.update!(is_deleted: true)
+      @jailed = as(@user) { create(:post, source: BOARD, tag_string: Danbooru.config.troll_jail_tag) }
+    end
+
+    should "keep an ordinary post" do
+      assert_includes new_ids(User.anonymous), @ok.id
+    end
+
+    should "drop a deleted post for an anonymous viewer" do
+      refute_includes new_ids(User.anonymous), @deleted.id
+    end
+
+    should "drop a deleted post for a viewer who is allowed to see deleted posts" do
+      # The case that was actually broken in production.
+      refute_includes new_ids(create(:admin_user)), @deleted.id
+    end
+
+    should "drop a jailed post even if the delete half never landed" do
+      # ModulationPostComponent#jailed? reads the tag rather than the flag for
+      # this reason; the showcase now agrees with it.
+      refute_includes new_ids(create(:admin_user)), @jailed.id
     end
   end
 

@@ -28,6 +28,30 @@ class DeletedPostVisibilityTest < ActionDispatch::IntegrationTest
       @deleted.update!(is_deleted: true)
     end
 
+    # The Modulation JSON endpoint is a DOOR, and it was open. It skipped
+    # authorization entirely and answered 200 with status "deleted", the
+    # deletion reason, the tag buckets, the meta -- and the real media src for
+    # any deleted post not carrying a gated tag, because Post#visible? never
+    # consults is_deleted. Verified against production 2026-09-08, anonymously,
+    # while /posts/<id> for the same id correctly 404'd.
+    should "not be reachable through the modulation JSON endpoint, signed out" do
+      get post_modulation_path(@deleted), as: :json
+
+      assert_response :not_found
+    end
+
+    should "not be reachable through the modulation JSON endpoint by a member" do
+      get_auth post_modulation_path(@deleted), create(:user), as: :json
+
+      assert_response :not_found
+    end
+
+    should "still be reachable through the modulation JSON endpoint by an admin" do
+      get_auth post_modulation_path(@deleted), create(:admin_user), as: :json
+
+      assert_response :success
+    end
+
     should "not appear for a signed-out visitor searching status:deleted" do
       # The hole the settings toggle never covered, and the reason removing it
       # would not have been enough.

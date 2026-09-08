@@ -138,6 +138,23 @@ class LandingShowcase
   # set, which is every context except the one it was tried in.
   def showable?(post)
     return false unless post.is_image? || post.is_video?
+    # Deleted posts never belong in a showcase, whoever is looking.
+    #
+    # Post#visible? asks about safe mode, level and bans; it does NOT ask about
+    # is_deleted. Nor does the query compensate: this class builds a PostQuery
+    # and calls posts_with_timeout directly, which skips with_implicit_metatags
+    # and therefore the implicit -status:deleted (the trap ArchivePulse
+    # documents at length). So a deleted post was excluded only when a gated
+    # tag happened to trip levelblocked? -- true for troll_jail and an
+    # anonymous viewer, false for an ordinary deletion, and false for anyone
+    # who can see deleted posts. The operator, at level 60, saw exactly that:
+    # jail an image and it stays in the carousel for them.
+    #
+    # Checked against the tag as well as the flag, matching
+    # ModulationPostComponent#jailed?, so a jailing whose delete half failed is
+    # still kept out.
+    return false if post.is_deleted?
+    return false if post.has_tag?(Danbooru.config.troll_jail_tag)
 
     post.visible?(viewer)
   end

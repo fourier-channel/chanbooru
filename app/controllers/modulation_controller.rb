@@ -10,6 +10,19 @@ class ModulationController < ApplicationController
   def show
     skip_authorization
     post = Post.find(params[:post_id])
+    # The same two doors PostsController#show shuts, shut here for the same
+    # reason it gives: "a deleted post answers nothing, by ANY door." This is a
+    # door. It was open, and it answered 200 with status "deleted", the
+    # deletion reason ("troll jail: troll"), the tag buckets and the meta --
+    # and, for a deleted post carrying no gated tag, the real media src, since
+    # Post#visible? never consults is_deleted. Measured against production
+    # 2026-09-08 while the HTML page for the same id correctly 404'd.
+    #
+    # RecordNotFound rather than 403, again for the controller's own reason:
+    # "there is something here you may not see" is itself the disclosure, and
+    # troll jail exists so that there is nothing to point at.
+    raise ActiveRecord::RecordNotFound if post.hidden_from_anonymous?(CurrentUser.user)
+    raise ActiveRecord::RecordNotFound if post.hidden_as_deleted?(CurrentUser.user)
     component = ModulationPostComponent.new(post: post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session))
     render json: component.payload.merge(comments_html: comments_html(post)), status: :ok
   end
