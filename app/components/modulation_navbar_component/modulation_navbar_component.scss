@@ -284,6 +284,27 @@
     padding: 0.2rem 0.1rem;
   }
 
+  // What opens the tip: the lamp and the service name, and nothing else. The
+  // status text and the sign-in control sit in the same row but are not a
+  // question about the monitor -- hovering a button asked for the evidence and
+  // got it, which is what the operator reported on 2026-09-09.
+  //
+  // It carries the lamp/label gap itself, because those two used to be direct
+  // children of the row and inherited its gap; wrapping them would otherwise
+  // close the space between the lamp and the word.
+  .modnav-monitor-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: help;
+
+    &:focus-visible {
+      outline: 2px solid var(--mod-ink-dim, var(--muted-text-color));
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+  }
+
   .modnav-monitor-sep {
     color: var(--mod-line, var(--default-border-color));
     user-select: none;

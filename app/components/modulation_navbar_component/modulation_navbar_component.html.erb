@@ -62,27 +62,41 @@
          <%= "hidden" unless session_bar_open? %>>
       <div class="modnav-session-inner">
         <div class="modnav-monitor" data-monitor="booru">
-          <span class="modnav-lamp" data-region="lamp" aria-hidden="true"></span>
-          <%# A FIXED label. It used to print the cookie name it had read,
-              which put "danbooru2 session" in the chrome of every page to
-              say something a visitor cannot act on. The read is still the
-              monitor's evidence and still shown -- in the tooltip, where
-              asking for it is a deliberate act (operator ruling
-              2026-09-06). The lamp still turns red when the observed
-              object is not the expected one, so the check did not become
-              an assertion; only its resting display got quieter. %>
-          <span class="modnav-monitor-label">Booru:</span>
+          <%# The tip's trigger is the lamp and the service name ONLY. Hovering the
+              status text or the sign-in control beside it is not asking what the
+              monitor observed (operator, 2026-09-09). tabindex makes the same
+              evidence reachable by keyboard, which a hover-only affordance is not. %>
+          <span class="modnav-monitor-trigger" data-region="trigger"
+                tabindex="0" aria-describedby="modnav-tip-booru">
+            <span class="modnav-lamp" data-region="lamp" aria-hidden="true"></span>
+            <%# A FIXED label. It used to print the cookie name it had read,
+                which put "danbooru2 session" in the chrome of every page to
+                say something a visitor cannot act on. The read is still the
+                monitor's evidence and still shown -- in the tooltip, where
+                asking for it is a deliberate act (operator ruling
+                2026-09-06). The lamp still turns red when the observed
+                object is not the expected one, so the check did not become
+                an assertion; only its resting display got quieter. %>
+            <span class="modnav-monitor-label">Booru:</span>
+          </span>
           <span class="modnav-monitor-status" data-region="status"></span>
           <span class="modnav-monitor-actions" data-region="controls"></span>
-          <div class="modnav-monitor-tip" data-region="tip" role="tooltip"></div>
+          <div class="modnav-monitor-tip" id="modnav-tip-booru" data-region="tip" role="tooltip"></div>
         </div>
         <span class="modnav-monitor-sep" aria-hidden="true">|</span>
         <div class="modnav-monitor" data-monitor="matrix">
-          <span class="modnav-lamp" data-region="lamp" aria-hidden="true"></span>
-          <span class="modnav-monitor-label">Matrix:</span>
+          <%# The tip's trigger is the lamp and the service name ONLY. Hovering the
+              status text or the sign-in control beside it is not asking what the
+              monitor observed (operator, 2026-09-09). tabindex makes the same
+              evidence reachable by keyboard, which a hover-only affordance is not. %>
+          <span class="modnav-monitor-trigger" data-region="trigger"
+                tabindex="0" aria-describedby="modnav-tip-matrix">
+            <span class="modnav-lamp" data-region="lamp" aria-hidden="true"></span>
+            <span class="modnav-monitor-label">Matrix:</span>
+          </span>
           <span class="modnav-monitor-status" data-region="status"></span>
           <span class="modnav-monitor-actions" data-region="controls"></span>
-          <div class="modnav-monitor-tip" data-region="tip" role="tooltip"></div>
+          <div class="modnav-monitor-tip" id="modnav-tip-matrix" data-region="tip" role="tooltip"></div>
         </div>
       </div>
     </div>

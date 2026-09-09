@@ -327,9 +327,9 @@ function boot() {
   // placement.
   const TIP_GAP = 6;
 
-  function placeTip(monitor, tip) {
-    const r = monitor.getBoundingClientRect();
-    // LEFT-anchored to its monitor, then pulled back inside the viewport if it
+  function placeTip(anchor, tip) {
+    const r = anchor.getBoundingClientRect();
+    // LEFT-anchored to its trigger, then pulled back inside the viewport if it
     // would overflow the right edge.
     //
     // It was right-anchored first, on the standing comment that "the group
@@ -345,17 +345,20 @@ function boot() {
 
   bar.querySelectorAll(".modnav-monitor").forEach((monitor) => {
     const tip = monitor.querySelector('[data-region="tip"]');
-    if (!tip) return;
+    // The lamp and the service name, not the whole row: the status text and the
+    // sign-in control are not a question about the monitor.
+    const trigger = monitor.querySelector('[data-region="trigger"]');
+    if (!tip || !trigger) return;
     let follow = null;
     const show = () => {
       // Class first, THEN measure: offsetWidth of a display:none element is 0,
       // which would anchor every tip to the right edge of the window.
       tip.classList.add("is-open");
-      placeTip(monitor, tip);
+      placeTip(trigger, tip);
       if (follow) return;
       // #top.modnav is in normal flow, so the header moves when the page
       // scrolls and a fixed tip has to be told about it.
-      follow = () => placeTip(monitor, tip);
+      follow = () => placeTip(trigger, tip);
       window.addEventListener("scroll", follow, { passive: true });
       window.addEventListener("resize", follow);
     };
@@ -366,12 +369,12 @@ function boot() {
       window.removeEventListener("resize", follow);
       follow = null;
     };
-    monitor.addEventListener("mouseenter", show);
-    monitor.addEventListener("mouseleave", hide);
-    // focusin/focusout rather than focus/blur: they bubble, so tabbing to the
-    // sign-in control inside a monitor opens its evidence too.
-    monitor.addEventListener("focusin", show);
-    monitor.addEventListener("focusout", hide);
+    trigger.addEventListener("mouseenter", show);
+    trigger.addEventListener("mouseleave", hide);
+    // The trigger carries tabindex, so the same evidence is reachable by
+    // keyboard. focusin/focusout rather than focus/blur: they bubble.
+    trigger.addEventListener("focusin", show);
+    trigger.addEventListener("focusout", hide);
   });
 
   renderAll();
