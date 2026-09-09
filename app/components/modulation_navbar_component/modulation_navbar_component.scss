@@ -282,8 +282,6 @@
     align-items: center;
     gap: 0.4rem;
     padding: 0.2rem 0.1rem;
-
-    &:hover .modnav-monitor-tip { display: flex; }
   }
 
   .modnav-monitor-sep {
@@ -341,14 +339,26 @@
   }
 
   // The tooltip: the monitor's evidence, on demand -- including the name of the
-  // cookie it read, which is no longer in the resting UI. Anchored to the RIGHT
-  // of its monitor, because the group lives at the right edge of the viewport
-  // and a left-anchored tooltip would hang off the page.
+  // cookie it read, which is no longer in the resting UI.
+  //
+  // FIXED, and placed by JS, because it has to overlay the PAGE rather than
+  // live inside the header. As `position: absolute` it hung below its monitor
+  // -- inside .modnav-session-inner, which carries `overflow-x: auto` as a
+  // last-resort scroll. CSS resolves the OTHER axis to `auto` whenever one
+  // axis is not `visible`, so the tip was never hidden: it was scrolled out of
+  // a 2.2rem-tall box, reachable only by scrolling inside the header. That is
+  // the bug reported 2026-09-09.
+  //
+  // Releasing the strip's own overflow (.is-settled, above) was necessary and
+  // not sufficient -- it freed the OUTER strip while the inner scroller went
+  // on clipping. Fixed positioning answers the whole ancestor chain at once,
+  // including any scroller a future row introduces, and it keeps the
+  // last-resort horizontal scroll rather than trading one bug for another.
+  // Placement lives in modulation_session_bar.js: right-anchored to its
+  // monitor, then pulled back inside the viewport.
   .modnav-monitor-tip {
     display: none;
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
+    position: fixed;
     z-index: 90;
     min-width: 300px;
     max-width: 420px;
@@ -365,6 +375,10 @@
 
     b { color: var(--mod-ink, var(--text-color)); }
   }
+
+  // Shown by JS rather than by :hover, so the tip is never painted before its
+  // coordinates are computed. It is also what lets focus open it.
+  .modnav-monitor-tip.is-open { display: flex; }
 
   .modnav-tip-line { display: block; }
 

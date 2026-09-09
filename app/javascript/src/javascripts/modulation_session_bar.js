@@ -317,6 +317,57 @@ function boot() {
     });
   }
 
+  // --- tooltip placement ----------------------------------------------------
+  // The tips overlay the PAGE, not the header. They cannot do that with
+  // `position: absolute`: .modnav-session-inner carries `overflow-x: auto` as a
+  // last-resort scroll, and CSS resolves the other axis to `auto` whenever one
+  // axis is not `visible` -- so a tip hanging below its monitor was not hidden,
+  // it was scrolled out of a 2.2rem-tall box and only reachable by scrolling
+  // inside the header. They are `position: fixed` now, which costs us the
+  // placement.
+  const TIP_GAP = 6;
+
+  function placeTip(monitor, tip) {
+    const r = monitor.getBoundingClientRect();
+    // Right-anchored to its monitor -- the group sits at the right edge, so a
+    // left-anchored tip would hang off the page -- then pulled back inside the
+    // viewport if it is wider than the room to its left.
+    const w = tip.offsetWidth;
+    tip.style.top = `${r.bottom + TIP_GAP}px`;
+    tip.style.left = `${Math.max(TIP_GAP, Math.min(r.right - w, window.innerWidth - w - TIP_GAP))}px`;
+  }
+
+  bar.querySelectorAll(".modnav-monitor").forEach((monitor) => {
+    const tip = monitor.querySelector('[data-region="tip"]');
+    if (!tip) return;
+    let follow = null;
+    const show = () => {
+      // Class first, THEN measure: offsetWidth of a display:none element is 0,
+      // which would anchor every tip to the right edge of the window.
+      tip.classList.add("is-open");
+      placeTip(monitor, tip);
+      if (follow) return;
+      // #top.modnav is in normal flow, so the header moves when the page
+      // scrolls and a fixed tip has to be told about it.
+      follow = () => placeTip(monitor, tip);
+      window.addEventListener("scroll", follow, { passive: true });
+      window.addEventListener("resize", follow);
+    };
+    const hide = () => {
+      tip.classList.remove("is-open");
+      if (!follow) return;
+      window.removeEventListener("scroll", follow);
+      window.removeEventListener("resize", follow);
+      follow = null;
+    };
+    monitor.addEventListener("mouseenter", show);
+    monitor.addEventListener("mouseleave", hide);
+    // focusin/focusout rather than focus/blur: they bubble, so tabbing to the
+    // sign-in control inside a monitor opens its evidence too.
+    monitor.addEventListener("focusin", show);
+    monitor.addEventListener("focusout", hide);
+  });
+
   renderAll();
 }
 
