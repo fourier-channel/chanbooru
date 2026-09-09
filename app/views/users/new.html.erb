@@ -1,7 +1,7 @@
 <%# The tab and the search-result blurb are read by people who never scroll to
     the page, so they carry the same fact the page does. "Create a new account
     for free" was being served to search engines for a site that accepts none. %>
-<% if Danbooru.config.enable_signup? %>
+<% if Danbooru.config.enable_signup? || Danbooru.config.signup_requires_token? %>
   <% page_title "Sign up" %>
   <% meta_description "Create a new account for free on #{Danbooru.config.app_name}." %>
 <% else %>
@@ -15,7 +15,10 @@
     said "you cannot do this here" while the endpoint behind it happily accepted
     a POST -- and told a visitor nothing about why or for how long. When signups
     are off, the page is the explanation instead. %>
-<% if !Danbooru.config.enable_signup? %>
+<%# Three states, not two. Open (test only), token-gated (production), and
+    genuinely closed -- which is now what "no usable token exists" means, since
+    revoking every token is how the site is shut. %>
+<% if !Danbooru.config.enable_signup? && !Danbooru.config.signup_requires_token? %>
   <div id="c-users">
     <div id="a-new">
       <%= render SignupClosedComponent.new(viewer: CurrentUser.user, url: @url) %>
@@ -29,6 +32,15 @@
 
       <%= edit_form_for(@user, validate: true, formatted_errors: true, html: { id: "signup-form", class: "w-full stacked-form stacked-hints", "data-validate-form": "true" }) do |f| %>
         <%= f.input :url, as: :hidden, input_html: { value: @url } %>
+        <%# The gate. Rendered only when a token is what permits the account, so
+            the open path (test) is unchanged. `required` is a courtesy to the
+            browser; the decision is UserPolicy#create?, server side, and a POST
+            without this field is refused whatever the form says. %>
+        <% if !Danbooru.config.enable_signup? && Danbooru.config.signup_requires_token? %>
+          <%= f.input :signup_token, as: :string, label: "Invite code", required: true,
+                input_html: { value: @user.signup_token, autocapitalize: "none", autocomplete: "off" },
+                hint: "41chan is invite-only. Ask whoever sent you here for a code." %>
+        <% end %>
         <%= f.input :name, as: :string, label: "Username", input_html: { autocapitalize: "none", minlength: UserNameValidator::MIN_LENGTH, maxlength: UserNameValidator::MAX_LENGTH }, required: true %>
         <%= f.simple_fields_for(@user.email_address || @user.build_email_address) do |fa| %>
           <%= fa.input :address, label: "Email", required: false, as: :email, input_html: { value: fa.object.address, pattern: Danbooru::EmailAddress::EMAIL_REGEX, placeholder: "your.name@example.com" }, hint: "Optional" %>

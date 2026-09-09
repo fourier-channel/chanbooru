@@ -11,8 +11,23 @@ class UserPolicy < ApplicationPolicy
   # mechanism holding the site closed could be stepped around with curl.
   #
   # Danbooru.config.enable_signup? existed for this and was read by nothing.
+  # Two ways in, and neither is the absence of a decision.
+  #
+  # `enable_signup?` is open signup, and on this fork it is TRUE ONLY UNDER
+  # TEST, where thirty-nine of upstream's own tests POST to /users and expect
+  # an account out the other end. In production it is false, so the second
+  # clause is the real gate: an account requires a registration token that
+  # exists, has not been revoked, has not expired and has uses left.
+  #
+  # Written so that every unknown answers NO. An absent token, a blank one, a
+  # typo, a token from a deleted row: SignupToken.for returns nil, `&.` short
+  # circuits, and the policy refuses. There is no branch here that says yes
+  # because something was missing.
   def create?
-    user.is_anonymous? && Danbooru.config.enable_signup?
+    return false unless user.is_anonymous?
+    return true if Danbooru.config.enable_signup?
+
+    record.respond_to?(:signup_token_record) && record.signup_token_record&.usable? ? true : false
   end
 
   # Deliberately NOT gated on the config: the page still renders when signups

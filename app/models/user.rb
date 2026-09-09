@@ -1,6 +1,18 @@
 # frozen_string_literal: true
 
 class User < ApplicationRecord
+  # The registration token presented at signup. Virtual: never stored on the
+  # user, because it is a fact about how the account was permitted rather than
+  # a property of the person. UserPolicy#create? reads it.
+  attr_accessor :signup_token
+
+  # The SignupToken this signup presented, if it names a real one. nil for an
+  # absent, blank or unknown token -- so a caller asking "may this signup
+  # proceed" gets a falsey answer by default rather than by accident.
+  def signup_token_record
+    @signup_token_record ||= SignupToken.for(signup_token)
+  end
+
   extend Memoist
 
   class PrivilegeError < StandardError; end

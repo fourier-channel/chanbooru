@@ -48,6 +48,10 @@ Rails.application.routes.draw do
     resources :users, only: [:edit, :update]
     # fourier: per-user per-tag grants, managed from the user-edit console.
     resources :tag_grants, only: [:create, :destroy]
+    # fourier: invite codes. 41chan is invite-only; these are the invites.
+    resources :signup_tokens, only: [:index, :create] do
+      post :revoke, on: :member
+    end
     # fourier: the landing carousel's "new" row, so the front page can be
     # re-aimed without a deploy.
     resource :landing_setting, only: [:show, :update]

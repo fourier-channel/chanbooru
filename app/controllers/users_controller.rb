@@ -68,11 +68,38 @@ class UsersController < ApplicationController
     @user = authorize(user_signup.user)
     @url = params.dig(:user, :url).presence || params[:url].presence
 
-    if @user.save(context: [:create, :deliverable])
+    if save_with_token(@user)
       set_current_user
     end
 
     respond_with(@user, location: @url)
+  end
+
+  # Create the account and spend the registration token together, or neither.
+  #
+  # One transaction on purpose. Spending first and saving after would burn a use
+  # on a signup that then failed validation; saving first and spending after
+  # would hand out an account on a token that had run out in between. Rolling
+  # the pair back together is the only version with no window.
+  #
+  # A nil token means open signup, which on this fork is the test environment
+  # only -- in production the policy has already refused a tokenless POST with
+  # a 403, so this branch is not a way in.
+  def save_with_token(user)
+    token = user.respond_to?(:signup_token_record) ? user.signup_token_record : nil
+    return user.save(context: [:create, :deliverable]) if token.nil?
+
+    saved = false
+    ActiveRecord::Base.transaction do
+      token.redeem!
+      saved = user.save(context: [:create, :deliverable])
+      raise ActiveRecord::Rollback unless saved
+    end
+    saved
+  rescue SignupToken::InvalidTokenError => e
+    # Lost the race for the last use, between the policy check and here.
+    user.errors.add(:base, "Registration token: #{e.message}")
+    false
   end
 
   def update

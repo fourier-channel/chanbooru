@@ -86,6 +86,25 @@ module Danbooru
       Rails.env.test?
     end
 
+    # Accounts require a REGISTRATION TOKEN, mirroring MAS on the Matrix side,
+    # where a single unlimited token is handed to people the operator trusts.
+    #
+    # This is the middle setting between "open" and "closed", and it is what
+    # 41chan actually wants: strangers cannot make accounts, trusted people can
+    # make their own without an admin doing it by hand.
+    #
+    # No test-environment exception is needed here, unlike the settings above.
+    # UserPolicy#create? checks enable_signup? FIRST and returns early, so
+    # upstream's thirty-nine signup tests keep passing on the open path and
+    # never reach this one. The token path has its own test file.
+    #
+    # There is no separate "closed" switch because there does not need to be
+    # one: with no usable token in the table, nobody can register. Revoking
+    # every token closes the site, and the list says so plainly.
+    def signup_requires_token?
+      true
+    end
+
     # ---- Browsing tier -------------------------------------------------
     #
     # Full browsing is a privilege this site grants, not the default state of

@@ -25,6 +25,9 @@ class UserSignup
       password: params[:user][:password],
       password_confirmation: params[:user][:password_confirmation],
       email_address_attributes: { address: params.dig(:user, :email_address, :address) },
+      # Not persisted. The policy reads it to decide whether this signup is
+      # permitted at all; see User#signup_token_record.
+      signup_token: params.dig(:user, :signup_token),
     )
   end
 

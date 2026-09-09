@@ -1,0 +1,59 @@
+<% page_title "Invite codes" %>
+
+<div id="c-admin-signup-tokens">
+  <div id="a-index" class="fixed-width-container mx-auto">
+    <h1 class="mb-2">Invite codes</h1>
+    <p class="fineprint mb-6">
+      41chan is invite-only. An account can be created only by someone holding a
+      usable code. Revoking every code closes the site to new accounts.
+    </p>
+
+    <%= form_with url: admin_signup_tokens_path, method: :post, class: "card p-4 mb-8 stacked-form" do |f| %>
+      <label>Code
+        <%= f.text_field "signup_token[token]", placeholder: "leave blank to generate one",
+              autocapitalize: "none", autocomplete: "off" %>
+      </label>
+      <label>What it is for
+        <%= f.text_field "signup_token[note]", placeholder: "e.g. for the DEGEN regulars" %>
+      </label>
+      <label>Uses
+        <%= f.number_field "signup_token[usage_limit]", min: 1, placeholder: "blank = unlimited" %>
+      </label>
+      <label>Expires
+        <%= f.datetime_field "signup_token[expires_at]" %>
+        <span class="fineprint">Blank never expires.</span>
+      </label>
+      <%= f.submit "Create code", class: "button-primary mt-2" %>
+    <% end %>
+
+    <table class="striped w-full">
+      <thead>
+        <tr><th>Code</th><th>For</th><th>Status</th><th>Used</th><th>Expires</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% @signup_tokens.each do |t| %>
+          <tr class="<%= "opacity-50" unless t.usable? %>">
+            <td><code><%= t.token %></code></td>
+            <td><%= t.note.presence || "-" %></td>
+            <td><%= t.status %></td>
+            <td>
+              <%= t.times_used %><%= " / #{t.usage_limit}" if t.usage_limit %>
+              <%= "(unlimited)" if t.usage_limit.nil? %>
+            </td>
+            <td><%= t.expires_at ? time_ago_in_words_tagged(t.expires_at) : "never" %></td>
+            <td>
+              <% if !t.revoked? %>
+                <%= link_to "Revoke", revoke_admin_signup_token_path(t), method: :post,
+                      data: { confirm: "Revoke #{t.token}? Anyone still holding it is locked out." },
+                      class: "text-sm" %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+        <% if @signup_tokens.empty? %>
+          <tr><td colspan="6" class="fineprint">No codes yet, so nobody can register.</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>
