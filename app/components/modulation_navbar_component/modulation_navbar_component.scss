@@ -354,7 +354,7 @@
   // on clipping. Fixed positioning answers the whole ancestor chain at once,
   // including any scroller a future row introduces, and it keeps the
   // last-resort horizontal scroll rather than trading one bug for another.
-  // Placement lives in modulation_session_bar.js: right-anchored to its
+  // Placement lives in modulation_session_bar.js: left-anchored to its
   // monitor, then pulled back inside the viewport.
   .modnav-monitor-tip {
     display: none;

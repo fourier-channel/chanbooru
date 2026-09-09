@@ -329,12 +329,18 @@ function boot() {
 
   function placeTip(monitor, tip) {
     const r = monitor.getBoundingClientRect();
-    // Right-anchored to its monitor -- the group sits at the right edge, so a
-    // left-anchored tip would hang off the page -- then pulled back inside the
-    // viewport if it is wider than the room to its left.
+    // LEFT-anchored to its monitor, then pulled back inside the viewport if it
+    // would overflow the right edge.
+    //
+    // It was right-anchored first, on the standing comment that "the group
+    // lives at the right edge of the viewport". That stopped being true: the
+    // monitors sit at the LEFT of a centred 1180px column. Measured on
+    // production, right-anchoring put both tips at x=6 -- clamped off the left
+    // edge -- so hovering Booru and hovering Matrix looked identical and
+    // neither pointed at the lamp it described.
     const w = tip.offsetWidth;
     tip.style.top = `${r.bottom + TIP_GAP}px`;
-    tip.style.left = `${Math.max(TIP_GAP, Math.min(r.right - w, window.innerWidth - w - TIP_GAP))}px`;
+    tip.style.left = `${Math.max(TIP_GAP, Math.min(r.left, window.innerWidth - w - TIP_GAP))}px`;
   }
 
   bar.querySelectorAll(".modnav-monitor").forEach((monitor) => {
