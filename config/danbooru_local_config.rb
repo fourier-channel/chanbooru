@@ -8,6 +8,26 @@ module Danbooru
       "chanbooru"
     end
 
+    # ---- Database connections ----
+    #
+    # Upstream derives this from the processor count, which is 12 on this KVM
+    # guest, and feeds it to THREE things: Rails' async-query executor
+    # (config/application.rb), the Concurrent global pools
+    # (config/initializers/concurrency.rb), and ugoira encoding threads. The
+    # first one is the problem. Every Rails process owns a second connection
+    # pool of this size for load_async, on top of its thread pool -- so with
+    # 5 puma threads each worker could hold 5 + 12 = 17 connections, six
+    # workers 102, before good_job and cron take 17 each. Postgres allows 100.
+    #
+    # 2026-09-10 the pool=100 half of this took the site down (see the compose
+    # file); with pool fixed, puma still settled at 60 idle = 6 x (5 + 5 in
+    # use of the 12). Four bounds a worker at 9 and the web tier at 54, jobs
+    # and cron at 9 each: ~75 worst case, with room. Puma measured 0.3 cores
+    # in total, so twelve-way concurrency inside it was never being used.
+    def max_concurrency
+      4
+    end
+
     # ---- Framing ----
     #
     # Origins allowed to embed this site in a frame, besides itself. Technetium
