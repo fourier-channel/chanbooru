@@ -120,7 +120,25 @@ x-base-template: &base-template
 
     # Don't change the options below.
     RAILS_ENV: production
-    DATABASE_URL: postgresql://danbooru@postgres/danbooru?pool=100
+    # pool IS PER PROCESS, and it must equal the process's thread count.
+    #
+    # Upstream ships ?pool=100 here. On 2026-09-10 at 21:10Z that took the site
+    # down: puma runs `workers :auto` (14 on this box) x 5 threads, so the web
+    # tier could hold 1,400 connections against Postgres's max_connections of
+    # 100 -- and pools only ever grow. 99 of the 100 backends were puma's, all
+    # idle; good_job, cron, the archives service and every upload got "sorry,
+    # too many clients already", including the superuser reserved slots.
+    # Recycling the container cleared it and puma was back to 95 within three
+    # minutes. RAILS_MAX_THREADS is 5, so 5 is the honest pool; good_job runs 5
+    # threads and cron one, so the same URL is right for them too.
+    DATABASE_URL: postgresql://danbooru@postgres/danbooru?pool=5
+    # Six workers, not :auto. :auto forked 14 on a 12-vCPU guest whose puma
+    # measured 0.3 cores in total; 6 x 5 = 30 web connections and headroom for
+    # everything else. Only puma reads this; cron and jobs share the template
+    # and ignore it. It lives HERE rather than under the danbooru service
+    # because YAML merge keys are shallow -- an `environment:` under the
+    # service would replace this whole block and drop DATABASE_URL.
+    PUMA_WORKERS: "6"
     DANBOORU_REDIS_URL: redis://redis:6379
     DANBOORU_IQDB_URL: http://iqdb:5588
     DANBOORU_AUTOTAGGER_URL: http://autotagger:5000
