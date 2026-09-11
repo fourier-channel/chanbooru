@@ -28,18 +28,17 @@ lib/dtext_rb/ext/dtext/dtext.cpp
 .devcontainer/devcontainer-lock.json
 /.testimg/
 
-# Guard: brain/ops docs belong in fourier-basis (private), never in this public
-# repo. Added 2026-08-25 -- this file was tracked here at 7,043 bytes on the
-# public `chanbooru` branch, naming booru.41chan.net, Hetzner and /opt/danbooru.
-# Canon is fourier-basis docs/claude/CLAUDE-chanbooru.md, which is where it
-# should have lived all along; technetium has guarded the same class of file
-# this way since July.
+# Guard: brain/ops docs and deployment config belong in fourier-basis
+# (private), never in this public repo. CLAUDE.md was tracked here until
+# 2026-08-25; the deployment's local config, its .env and the fork devlog
+# until 2026-09-11. Canon for the docs is fourier-basis docs/claude and
+# docs/repos/chanbooru (hydrated in); the two runtime files live on the
+# serving box and in fourier-basis ops, observed by coherence filedrift.
 #
-# NOTE: this stops the NEXT commit, not the last one. The content remains in
-# this repo's history and on GitHub's, and untracking does not unpublish it.
-# Nothing here is a credential, so rotation is not the remedy; if the history
-# itself matters that is a separate, deliberate decision.
+# NOTE: untracking stops the NEXT commit, not the last one. The content
+# remains in this repo's history and on GitHub's. Nothing in it was a
+# credential, so rotation is not the remedy.
 CLAUDE.md
-docs/VERIFICATION-DOCTRINE.md
-docs/WORKING-RULES.md
-docs/CLAUDE-HEADER.md
+FORK_DEVLOG.md
+config/danbooru_local_config.rb
+.env
