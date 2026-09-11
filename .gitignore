@@ -41,4 +41,6 @@ lib/dtext_rb/ext/dtext/dtext.cpp
 CLAUDE.md
 FORK_DEVLOG.md
 config/danbooru_local_config.rb
-.env
+.envdocs/WORKING-RULES.md
+docs/VERIFICATION-DOCTRINE.md
+docs/CLAUDE-HEADER.md
