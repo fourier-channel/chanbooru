@@ -2135,6 +2135,43 @@ CREATE TABLE public.schema_migrations (
 
 
 --
+-- Name: signup_tokens; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.signup_tokens (
+    id bigint NOT NULL,
+    token character varying NOT NULL,
+    note character varying DEFAULT ''::character varying NOT NULL,
+    usage_limit integer,
+    times_used integer DEFAULT 0 NOT NULL,
+    expires_at timestamp(6) without time zone,
+    revoked_at timestamp(6) without time zone,
+    creator_id integer NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: signup_tokens_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.signup_tokens_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: signup_tokens_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.signup_tokens_id_seq OWNED BY public.signup_tokens.id;
+
+
+--
 -- Name: site_credentials; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3363,6 +3400,13 @@ ALTER TABLE ONLY public.saved_searches ALTER COLUMN id SET DEFAULT nextval('publ
 
 
 --
+-- Name: signup_tokens id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.signup_tokens ALTER COLUMN id SET DEFAULT nextval('public.signup_tokens_id_seq'::regclass);
+
+
+--
 -- Name: site_credentials id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3927,6 +3971,14 @@ ALTER TABLE ONLY public.saved_searches
 
 ALTER TABLE ONLY public.schema_migrations
     ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (version);
+
+
+--
+-- Name: signup_tokens signup_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.signup_tokens
+    ADD CONSTRAINT signup_tokens_pkey PRIMARY KEY (id);
 
 
 --
@@ -6160,6 +6212,13 @@ CREATE INDEX index_sent_dmails_on_owner_id_and_created_at ON public.dmails USING
 
 
 --
+-- Name: index_signup_tokens_on_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_signup_tokens_on_token ON public.signup_tokens USING btree (token);
+
+
+--
 -- Name: index_site_credentials_on_creator_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7761,6 +7820,7 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260909000000'),
 ('20260907000000'),
 ('20260906000000'),
 ('20260904090000'),
