@@ -1,3 +1,17 @@
+# meta-webindexer is Meta's crawler and it is NOT the same token as
+# meta-externalagent, which Cloudflare's managed block already refuses. It
+# arrives declaring itself at the END of an otherwise ordinary Chrome user
+# agent string, from Meta's own address space, and on 2026-09-12 it was the
+# single largest declared crawler on this site.
+#
+# A NAMED group is used rather than another rule under `*` on purpose.
+# Cloudflare prepends a managed block that opens with `User-agent: *` and
+# `Allow: /`, which sits above this file's own `Disallow: /` and merges with
+# it in every parser that follows Google's grouping rules. A named group is
+# not subject to that merge and cannot be argued with.
+User-agent: meta-webindexer
+Disallow: /
+
 User-agent: *
 Disallow: /
 
