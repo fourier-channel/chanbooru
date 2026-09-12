@@ -129,6 +129,24 @@ body:has(.modgal) {
       &.is-active { background: var(--mod-surface-2); color: var(--mod-ink); }
     }
   }
+  // Board filter: one segmented control in the same language as the tag-view
+  // toggle above it, so the panel reads as one set of controls rather than two
+  // unrelated widgets. Borders live on the segments, not between them, so the
+  // four parts share one outline and read as a single pill.
+  .modgal-boards {
+    display: inline-flex; margin: 0.55rem 0 0.1rem;
+    border: 1px solid var(--mod-line); border-radius: var(--mod-pill-radius);
+    overflow: hidden;
+  }
+  .modgal-board {
+    font-size: 0.75rem; line-height: 1.2; padding: 0.28rem 0.85rem;
+    text-decoration: none; white-space: nowrap;
+    color: var(--mod-ink-dim); background: transparent;
+    border-right: 1px solid var(--mod-line);
+    &:last-child { border-right: 0; }
+    &:hover { color: var(--mod-ink); background: color-mix(in srgb, var(--mod-surface-2) 60%, transparent); }
+    &.is-active { background: var(--mod-surface-2); color: var(--mod-ink); }
+  }
   .mod-unitag, .mod-group-pills { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .mod-group { margin-bottom: 0.7rem; &:last-child { margin-bottom: 0; } }
   .mod-group-label {

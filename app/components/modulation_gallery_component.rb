@@ -15,6 +15,59 @@ class ModulationGalleryComponent < ApplicationComponent
   # Display order for the category buckets.
   CATEGORY_ORDER = %w[artist copyright character general meta].freeze
 
+  # ---- Board filter ---------------------------------------------------
+  #
+  # A post's provenance lives in its SOURCE, not in any tag. 4chan posts carry
+  # `https://boards.4chan.org/<board>/thread/...` and Matrix posts carry
+  # `mxc://41chan.net/<id>`, so the filter is a `source:` metatag with a
+  # trailing wildcard. `source` is a real metatag in PostQueryBuilder, and the
+  # wildcard form was run against live rows before this was written rather than
+  # assumed -- it returns the right posts for all four.
+  #
+  # Four entries because four sources have content: b, d and trash are the
+  # boards the sampler actually walks, and matrix is everything posted in the
+  # community rooms. A fifth board is one line here.
+  BOARDS = [
+    { key: "b",      label: "/b/",     source: "source:https://boards.4chan.org/b/*" },
+    { key: "d",      label: "/d/",     source: "source:https://boards.4chan.org/d/*" },
+    { key: "trash",  label: "/trash/", source: "source:https://boards.4chan.org/trash/*" },
+    { key: "matrix", label: "matrix",  source: "source:mxc://*" },
+  ].freeze
+
+  def boards
+    BOARDS
+  end
+
+  # The search as WHOLE terms. Whole terms matter: someone searching the
+  # ordinary tag `matrix` must not have the matrix board light up as though
+  # they had filtered by it, and a substring test would say exactly that.
+  def query_terms
+    @query_terms ||= query_string.split(/\s+/).reject(&:blank?)
+  end
+
+  def active_board
+    return @active_board if defined?(@active_board)
+    lowered = query_terms.map(&:downcase)
+    @active_board = BOARDS.find { |b| lowered.include?(b[:source]) }
+  end
+
+  def board_active?(board)
+    active_board.present? && active_board[:key] == board[:key]
+  end
+
+  # Each segment is a TOGGLE: clicking the board already in force clears it.
+  # That is how a four-part pill reaches "everything" without a fifth segment,
+  # and it means the control can always be put back to its resting state --
+  # a filter you cannot turn off is a trap, not a filter.
+  #
+  # Every other term survives, `order:` included, so the filter composes with
+  # the search rather than replacing it.
+  def board_href(board)
+    rest = query_terms.reject { |t| BOARDS.any? { |b| b[:source] == t.downcase } }
+    rest << board[:source] unless board_active?(board)
+    routes.posts_path(preset: "modulation", tags: rest.join(" ").presence)
+  end
+
   # `settings` is the viewer's Modulation view state (ModulationSetting.for_viewer);
   # the panel renders its remembered sort, view and deleted toggle from it.
   def initialize(post_set:, viewer:, settings: nil)

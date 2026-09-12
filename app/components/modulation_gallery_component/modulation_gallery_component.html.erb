@@ -29,6 +29,18 @@
     <button class="modgal-search-go" type="submit">Search</button>
   </form>
 
+  <%# Board filter: where a post came from, which on this site lives in the
+      source rather than in any tag. Four segments, each a toggle -- clicking
+      the one already in force clears it, so "everything" is reachable without
+      a fifth segment and the control can always be put back. %>
+  <nav class="modgal-boards" aria-label="Filter by board">
+    <% boards.each do |board| %>
+      <%= link_to board[:label], board_href(board), rel: "nofollow",
+                  class: "modgal-board#{board_active?(board) ? ' is-active' : ''}",
+                  "aria-current": (board_active?(board) ? "true" : nil) %>
+    <% end %>
+  </nav>
+
   <%# Facet tags for this search, in the post view's colour language -- here the
       grouping dimension is tag category. Unitag = one colour-coded frame;
       Grouped = labelled category sections. %>
