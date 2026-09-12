@@ -6078,13 +6078,6 @@ CREATE UNIQUE INDEX index_posts_on_md5 ON public.posts USING btree (md5);
 
 
 --
--- Name: index_posts_on_mpixels; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX index_posts_on_mpixels ON public.posts USING btree (((((image_width * image_height))::numeric / 1000000.0)));
-
-
---
 -- Name: index_posts_on_parent_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7834,6 +7827,7 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260912200000'),
 ('20260912130000'),
 ('20260912120000'),
 ('20260909000000'),
