@@ -6106,6 +6106,20 @@ CREATE INDEX index_posts_on_rating ON public.posts USING btree (rating) WHERE (r
 
 
 --
+-- Name: index_posts_on_fav_count_and_id_desc; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_posts_on_fav_count_and_id_desc ON public.posts USING btree (fav_count DESC, id DESC);
+
+
+--
+-- Name: index_posts_on_score_and_id_desc; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_posts_on_score_and_id_desc ON public.posts USING btree (score DESC, id DESC);
+
+
+--
 -- Name: index_posts_on_source_trgm; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7820,6 +7834,8 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260912130000'),
+('20260912120000'),
 ('20260909000000'),
 ('20260907000000'),
 ('20260906000000'),
