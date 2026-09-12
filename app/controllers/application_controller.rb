@@ -90,10 +90,33 @@ class ApplicationController < ActionController::Base
 
   # Used to redirect a search directly to the result page when a search returns only one result.
   # Example: /wiki_pages?search[title]=touhou&redirect=true.
+  #
+  # FORK FIX 2026-09-12, and an upstream bug worth reporting. Upstream asks the
+  # relation the same question twice and gets two different answers:
+  #
+  #   items.one?  -> `limited_count == 1`, which HONOURS the relation's LIMIT
+  #   items.sole  -> `take(2)`, which on an unloaded relation is `limit(2).to_a`
+  #                  and REPLACES that LIMIT with 2
+  #
+  # So on `?limit=1&redirect=true` -- the shape of every next/prev navigation
+  # link the media_assets pages emit -- `one?` answers "exactly one" and `sole`
+  # then finds the second row and raises SoleRecordExceeded. A 500 on a link
+  # the site itself produced: 1,310 of them in six hours on 2026-09-11, every
+  # one from a crawler walking those links.
+  #
+  # Loading ONCE settles it: `take` reads from the loaded records when the
+  # relation is loaded, so both questions see the same set. Nothing else
+  # changes -- with no limit and two matches the array holds two, there is no
+  # redirect, exactly as before -- and the load is skipped entirely unless a
+  # redirect was actually asked for.
   def redirect_to_show(items)
-    if params[:redirect].to_s.truthy? && items.one? && item_matches_params(items.sole)
+    return false unless params[:redirect].to_s.truthy?
+
+    records = items.to_a
+
+    if records.one? && item_matches_params(records.first)
       format = request.format.symbol unless request.format.html?
-      redirect_to send("#{controller_path.singularize}_path", items.sole, variant: params[:variant], format: format)
+      redirect_to send("#{controller_path.singularize}_path", records.first, variant: params[:variant], format: format)
       true
     else
       false
