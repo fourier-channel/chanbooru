@@ -55,6 +55,17 @@ class ModulationNavbarComponent < NavbarComponent
     list << { label: "Pools", href: main_app.gallery_pools_path, category: "general" }
     list << { label: "Wiki", href: main_app.wiki_page_path("help:home"), category: "general" }
 
+    # The sampling curation surface, published inside this site at /sample
+    # (operator ruling 2026-09-13) so it inherits the booru's authentication.
+    #
+    # Signed-in only, because the surface refuses anonymous outright -- showing
+    # the pill to a visitor would be a link to a 403. Everyone signed in sees
+    # the SAME pill; what differs is the view they are served when they follow
+    # it, and that is decided server-side by SampleController#authorize, not
+    # here. A nav that hid the entry from non-admins would be hiding a door
+    # that is open, which is the weaker half of a boundary.
+    list << { label: "Sample", href: "/sample", category: "meta" } unless current_user.is_anonymous?
+
     if current_user.is_moderator?
       list << { label: "Reports", href: main_app.moderation_reports_path, category: "meta", count: pending_report_count }
       list << { label: "Dashboard", href: main_app.moderator_dashboard_path, category: "meta" }
