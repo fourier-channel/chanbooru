@@ -114,6 +114,27 @@
     transition: border-color 0.12s ease, background-color 0.12s ease, color 0.12s ease;
   }
 
+  // Built, not yet linked. Deliberately legible rather than nearly invisible:
+  // the point is to show that the surface EXISTS and is coming, not to hide a
+  // control. `not-allowed` and the tooltip say why on hover, and the category
+  // colour is dropped so it cannot be mistaken for an active entry.
+  //
+  // The markup for this is a <span> with no href, not an <a> -- an anchor made
+  // to look inert is still focusable, still in the tab order and still
+  // followable. Styling is the appearance of the state; the element is the
+  // state.
+  .modnav-pill.is-disabled {
+    color: var(--mod-ink-dim, #8a8a94);
+    background: transparent;
+    border-color: var(--mod-line, #2e2e34);
+    cursor: not-allowed;
+    opacity: 0.55;
+
+    .modnav-pill-dot {
+      opacity: 0.5;
+    }
+  }
+
   .modnav-pill-dot {
     width: 6px;
     height: 6px;
