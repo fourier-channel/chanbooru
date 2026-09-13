@@ -98,14 +98,29 @@ class PostPolicy < ApplicationPolicy
     if imminent_get?
       { action: "posts:create", rate: 1.0 / 1.minute, burst: 1 }
     elsif user.is_contributor?
-      # Raised from 6/min for the first-party importers (operator, 2026-08-12).
-      # The old figure is tuned for a human uploading by hand; fourier-sampling
-      # and the bridge are trusted, rate-limited upstream already, and their
-      # bytes are fetched from our own R2 rather than a third party. The real
-      # constraint is this box, which also serves Matrix: each create costs an
-      # R2 fetch plus variant rendering plus rclone writes, so this is set to a
-      # level measured against actual load rather than raised to "unlimited".
-      { action: "posts:create", rate: 30.0 / 1.minute, burst: 60 } # 1800 per hour
+      # 6/min -> 30/min for the first-party importers (operator, 2026-08-12),
+      # superseded 2026-09-13 by 30 -> 60. Both rulings kept, because the second
+      # one only makes sense against the first.
+      #
+      # 2026-08-12 reasoning, which was correct at the time: 6/min is tuned for
+      # a human uploading by hand; fourier-sampling and the bridge are trusted
+      # and rate-limited upstream. The real constraint is this box, which also
+      # serves Matrix, and "each create costs an R2 fetch plus variant rendering
+      # plus rclone writes".
+      #
+      # WHY THAT NO LONGER DESCRIBES THIS BUCKET. Those three costs belong to
+      # uploads:create, not to posts:create. They were attributed here because
+      # sampling did both back-to-back per object, so the pair was
+      # indistinguishable from one operation. Sampling now hands the booru the
+      # BYTES at ingest (upload[files][0]) instead of a URL to fetch back out of
+      # R2, which separates them: uploads:create does the decode, the variant
+      # render and the rclone writes, and keeps its own 24/min ceiling in
+      # UploadPolicy. What is left here is a row insert plus tag processing.
+      #
+      # So this is not a relaxation of the measured constraint -- the constraint
+      # stayed where the work stayed. 24/min on uploads:create remains the real
+      # ingest ceiling and is deliberately NOT touched by this change.
+      { action: "posts:create", rate: 60.0 / 1.minute, burst: 60 } # 3600 per hour
     elsif user.posts.active.exists?(created_at: ..1.hour.ago)
       { action: "posts:create", rate: 2.0 / 1.minute, burst: 30 } # 120 per hour, 150 in first hour
     elsif user.posts.exists?(created_at: ..1.hour.ago)
