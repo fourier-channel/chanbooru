@@ -64,7 +64,13 @@ class ModulationNavbarComponent < NavbarComponent
     # it, and that is decided server-side by SampleController#authorize, not
     # here. A nav that hid the entry from non-admins would be hiding a door
     # that is open, which is the weaker half of a boundary.
-    list << { label: "Sample", href: "/sample", category: "meta" } unless current_user.is_anonymous?
+    # DISABLED until the page is integrated (operator, 2026-09-13). The surface
+    # is reachable and gated, but its assets are still addressed from the site
+    # root, so loading it under /sample would render unstyled markup with no
+    # data. The pill goes in now, inert, and is lit when that is fixed --
+    # shipping a live link to a broken page is the thing being avoided.
+    list << { label: "Sample", category: "meta", disabled: true,
+              disabled_reason: "Not yet linked -- the surface is still being integrated" } unless current_user.is_anonymous?
 
     if current_user.is_moderator?
       list << { label: "Reports", href: main_app.moderation_reports_path, category: "meta", count: pending_report_count }
