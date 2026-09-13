@@ -7,11 +7,16 @@ re-traced 2026-09-11 against both, with the corpus re-measured.
 CANON. Lives in `fourier-basis`; hydrated into chanbooru and rendered into the
 public site by `coherence hydrate`. This file is the only copy anyone edits.
 
-There are seven independent gates. They are not layers of one system and they
-do not share a switch: a post can pass six and be withheld by the seventh.
+There are eight independent gates. They are not layers of one system and they
+do not share a switch: a post can pass seven and be withheld by the eighth.
 When a user reports "this page doesn't work", the question is *which gate*,
 and this document exists so that question has an answer that does not require
 reading Ruby.
+
+Seven of the eight are Rails, and this document numbers those 0 to 6 in the
+order they were built. The eighth, gate 7, is different in kind: it lives at
+Cloudflare and at the reverse proxy, and it runs BEFORE the application sees
+the request at all. It is listed last and it acts first.
 
 ## The distinction this site is built on
 
@@ -253,10 +258,79 @@ tag string.
 
 ---
 
+## 7. Reaching the site at all -- the edge challenge
+
+Added 2026-09-12, in response to a scrape. This is the only gate that is not
+Rails, and the only one a viewer meets before the application is involved.
+
+**Every anonymous request to `booru.41chan.net` is given a Cloudflare Managed
+Challenge.** A browser solves it invisibly and receives a `cf_clearance`
+cookie; a signed-in reader carrying `_danbooru2_session` or `fourier_session`
+is exempt and never sees it.
+
+    http.host eq "booru.41chan.net"
+    and http.request.method ne "POST"
+    and not starts_with(http.request.uri.path, "/fourier/")
+    and not http.request.uri.path in {"/robots.txt" "/favicon.ico"}
+    and not http.cookie contains "_danbooru2_session="
+    and not http.cookie contains "fourier_session="
+
+Behind it, Caddy refuses anything that holds none of the three cookies
+(`@no_clearance` in the booru block), with the same exemptions plus `/login`
+and `/users/new`. The edge decides who may pass; the origin rule makes that
+decision hold everywhere while it is still spreading, because a Cloudflare
+rule does NOT reach every datacentre at once -- twice on the day it went in,
+one datacentre kept delivering 100 to 400 requests per minute for several
+minutes after the others had stopped.
+
+### Why each exemption exists
+
+**POST is never challenged.** `POST /users` creates an account and
+`POST /login` signs in, and challenging a POST can lose its body. A person is
+challenged on the form PAGE, gets clearance, and the submit that follows is
+untouched. **`/login` and `/users/new` are additionally exempt from the Caddy
+rule** -- they are the only pages a person must reach before they can hold any
+of the three cookies, so a propagation gap must never be able to break
+registration. The edge still challenges them. An earlier rule that caught
+`POST /users` broke signup for sixteen hours on 2026-09-11; that is the
+mistake these exemptions exist to prevent.
+
+**`/fourier/`** carries the zero-click sign-in exchange and the media route,
+enforces its own authorisation (gate 3), and answers 401 without a session. An
+observed `/fourier/exchange` call legitimately arrives with no cookie at all.
+
+**`robots.txt`** stays readable so the refusal it declares can actually be read.
+
+### What this gate costs and what it bought
+
+It closes anonymous browsing to anyone who will not run a browser. That is
+acceptable HERE and would not be on an open site: 41chan is invite-only, and
+in the hour before the rule went in, 3,831 requests reached the booru through
+Cloudflare and NOT ONE of them carried a session cookie.
+
+Traffic reaching the origin fell from about 400 requests per minute to zero.
+The rotating proxy pool that had been scraping never solved a single
+challenge: of 1,705 requests measured, none carried any cookie at all.
+
+### Consequence for a user report
+
+**A 403 on any booru page is this gate, not an outage.** Tell it apart by the
+headers, never by the status code: a challenge carries `cf-mitigated` and
+`server: cloudflare`, while a real refusal from the application carries
+`x-request-id` and `x-runtime`, which are Rails headers.
+
+**No command-line tool can pass it.** curl, scripts and monitoring all receive
+403 by design. A health check against the booru must either read the origin
+directly or treat a `cf-mitigated` 403 as healthy.
+
+---
+
 ## Diagnosing a report
 
 | symptom | gate |
 |---|---|
+| a 403 with a `cf-mitigated` header, on any page | 7 -- the edge challenge, working |
+| curl or a script gets 403 where a browser works | 7 -- no command-line tool can pass it |
 | cannot register | 0 -- no token, or a spent one |
 | page loads, images broken | 3 -- fourier-auth / the fourier session |
 | search returns exactly 20 and no more | 2 -- browsing tier |
