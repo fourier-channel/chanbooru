@@ -28,6 +28,16 @@
       <%= nav_link_to("Wiki", main_app.wiki_page_path("help:home")) %>
       <%= nav_link_to("Forum", main_app.forum_topics_path, class: ("forum-updated font-italic" if current_user.has_forum_been_updated?)) if Danbooru.config.forum_enabled?.to_s.truthy? %>
 
+      <%# The curation surface, published inside this site at /sample so it
+          inherits this site's authentication. SampleController#authorize
+          refuses an anonymous viewer outright, so the link is shown on exactly
+          the same condition -- a nav entry that 403s is worse than no entry.
+          Linked WITH the trailing slash: the page's assets and API calls are
+          relative, so /sample without it resolves them against the site root
+          and the surface comes up blank. The edge redirects the bare path, and
+          this avoids the extra round trip. %>
+      <%= nav_link_to("Sample", "/sample/") unless CurrentUser.user.is_anonymous? %>
+
       <% if current_user.is_moderator? %>
         <% if ModerationReport.pending.count > 0 %>
           <%= nav_link_to("Reports #{tag.span(ModerationReport.pending.count, class: "badge-blue")}".html_safe, main_app.moderation_reports_path(search: { status: "pending" }), id: "reports") %>
