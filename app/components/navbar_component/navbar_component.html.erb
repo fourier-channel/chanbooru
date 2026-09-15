@@ -38,11 +38,17 @@
           controller, which is what the proxy asks before serving the prefix.
           Hiding a link changes what is offered, not what is reachable.
 
+          `current_user` and NOT CurrentUser.user: the component is given its
+          user explicitly and every other line here uses that. CurrentUser is a
+          thread-local whose value in a component render is not the component's
+          to assume, and asking the wrong object is how a link disappears for
+          the one person entitled to it.
+
           Linked WITH the trailing slash: the page's assets and API calls are
           relative, so /sample without it resolves them against the site root
           and the surface comes up blank. The edge redirects the bare path, and
           this avoids the extra round trip. %>
-      <%= nav_link_to("Sample", "/sample/") if CurrentUser.user.is_owner? %>
+      <%= nav_link_to("Sample", "/sample/") if current_user.is_owner? %>
 
       <% if current_user.is_moderator? %>
         <% if ModerationReport.pending.count > 0 %>
