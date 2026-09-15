@@ -58,19 +58,24 @@ class ModulationNavbarComponent < NavbarComponent
     # The sampling curation surface, published inside this site at /sample
     # (operator ruling 2026-09-13) so it inherits the booru's authentication.
     #
-    # Signed-in only, because the surface refuses anonymous outright -- showing
-    # the pill to a visitor would be a link to a 403. Everyone signed in sees
-    # the SAME pill; what differs is the view they are served when they follow
-    # it, and that is decided server-side by SampleController#authorize, not
-    # here. A nav that hid the entry from non-admins would be hiding a door
-    # that is open, which is the weaker half of a boundary.
-    # DISABLED until the page is integrated (operator, 2026-09-13). The surface
-    # is reachable and gated, but its assets are still addressed from the site
-    # root, so loading it under /sample would render unstyled markup with no
-    # data. The pill goes in now, inert, and is lit when that is fixed --
-    # shipping a live link to a broken page is the thing being avoided.
-    list << { label: "Sample", category: "meta", disabled: true,
-              disabled_reason: "Not yet linked -- the surface is still being integrated" } unless current_user.is_anonymous?
+    # LIT 2026-09-15. It was inert because "its assets are still addressed from
+    # the site root, so loading it under /sample would render unstyled markup
+    # with no data" -- which was true, and is the trailing-slash defect fixed
+    # at the edge on 2026-09-14: the page's assets and API calls are relative,
+    # so /sample without the slash resolved them against the site root. The
+    # bare path now redirects to /sample/ and the surface renders. The stated
+    # condition for lighting this is met, so it is lit.
+    #
+    # OWNER ONLY (operator ruling 2026-09-14), and the earlier note here --
+    # that hiding the entry from non-admins would be "hiding a door that is
+    # open" -- no longer applies, because the door is now shut:
+    # SampleController#authorize refuses everything below owner outright
+    # instead of serving them the external view. The nav matches the boundary
+    # rather than contradicting it.
+    #
+    # Linked WITH the trailing slash so the browser does not pay a redirect on
+    # the way to a page whose every asset is relative.
+    list << { label: "Sample", href: "/sample/", category: "meta" } if current_user.is_owner?
 
     if current_user.is_moderator?
       list << { label: "Reports", href: main_app.moderation_reports_path, category: "meta", count: pending_report_count }

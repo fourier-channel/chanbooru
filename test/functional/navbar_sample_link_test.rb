@@ -6,10 +6,14 @@ require "test_helper"
 # entitled to it -- so this renders a REAL page in a REAL request and looks at
 # the HTML, rather than testing the predicate in isolation.
 #
-# It was written after the link failed to appear for the owner in production.
-# The template asked `CurrentUser.user`, a thread-local, while the component is
-# handed its user explicitly as `current_user`; every other line in that
-# template uses the latter.
+# BOTH PRESETS, and that is the point of this file. chanbooru renders one of
+# two navbars -- ModulationNavbarComponent is the live one, NavbarComponent is
+# upstream's, kept for side-by-side testing -- and the TEST environment
+# defaults to the historical preset while production defaults to modulation.
+# An earlier version of this test asserted only the default and passed against
+# the navbar nobody sees, while the live one showed an inert, greyed-out pill.
+# A test that renders a different skin than production is not a test of
+# production.
 class NavbarSampleLinkTest < ActionDispatch::IntegrationTest
   context "the Sample nav link" do
     setup do
@@ -18,33 +22,46 @@ class NavbarSampleLinkTest < ActionDispatch::IntegrationTest
       @member = travel_to(1.month.ago) { create(:user) }
     end
 
-    should "render for the owner" do
-      get_auth root_path, @owner
-
+    # ?preset= is explicit and sticky for the session, which is how a test
+    # reaches the skin it means to check rather than the one it inherits.
+    def nav_for(user, preset)
+      if user
+        get_auth root_path(preset: preset), user
+      else
+        get root_path(preset: preset)
+      end
       assert_response :success
-      assert_match(%r{href="/sample/"}, response.body,
-                   "the owner must have a way into the curation surface")
+      response.body
     end
 
-    should "not render for an admin while the surface is owner-only" do
-      get_auth root_path, @admin
+    %w[modulation historical].each do |preset|
+      should "render for the owner in the #{preset} navbar" do
+        assert_match(%r{href="/sample/"}, nav_for(@owner, preset),
+                     "the owner must have a way into the curation surface in #{preset}")
+      end
 
-      assert_response :success
-      assert_no_match(%r{href="/sample/"}, response.body)
+      should "not render for an admin in the #{preset} navbar" do
+        assert_no_match(%r{href="/sample/"}, nav_for(@admin, preset))
+      end
+
+      should "not render for an ordinary member in the #{preset} navbar" do
+        assert_no_match(%r{href="/sample/"}, nav_for(@member, preset))
+      end
+
+      should "not render for an anonymous visitor in the #{preset} navbar" do
+        assert_no_match(%r{href="/sample/"}, nav_for(nil, preset))
+      end
     end
 
-    should "not render for an ordinary member" do
-      get_auth root_path, @member
+    should "not ship an inert Sample pill any more" do
+      # It was deliberately disabled until the surface was integrated. That
+      # condition was met when the trailing-slash redirect landed, and a pill
+      # that stays greyed after its stated blocker is gone is worse than no
+      # pill: it reads as "broken" rather than "not yet".
+      body = nav_for(@owner, "modulation")
 
-      assert_response :success
-      assert_no_match(%r{href="/sample/"}, response.body)
+      assert_no_match(/Not yet linked/, body)
     end
 
-    should "not render for an anonymous visitor" do
-      get root_path
-
-      assert_response :success
-      assert_no_match(%r{href="/sample/"}, response.body)
-    end
   end
 end
