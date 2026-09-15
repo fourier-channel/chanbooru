@@ -15,23 +15,27 @@ require "test_helper"
 # A test that renders a different skin than production is not a test of
 # production.
 class NavbarSampleLinkTest < ActionDispatch::IntegrationTest
+  # ?preset= is explicit and sticky for the session, which is how a test reaches
+  # the skin it means to check rather than the one it inherits.
+  #
+  # Defined at CLASS level on purpose: shoulda-context instance_execs its
+  # `should` blocks, so a `def` written inside `context` is not an instance
+  # method and every test errors with NoMethodError.
+  def nav_for(user, preset)
+    if user
+      get_auth root_path(preset: preset), user
+    else
+      get root_path(preset: preset)
+    end
+    assert_response :success
+    response.body
+  end
+
   context "the Sample nav link" do
     setup do
       @owner = travel_to(1.month.ago) { create(:owner_user) }
       @admin = travel_to(1.month.ago) { create(:admin_user) }
       @member = travel_to(1.month.ago) { create(:user) }
-    end
-
-    # ?preset= is explicit and sticky for the session, which is how a test
-    # reaches the skin it means to check rather than the one it inherits.
-    def nav_for(user, preset)
-      if user
-        get_auth root_path(preset: preset), user
-      else
-        get root_path(preset: preset)
-      end
-      assert_response :success
-      response.body
     end
 
     %w[modulation historical].each do |preset|
