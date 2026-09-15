@@ -35,6 +35,53 @@
   margin-top: 0;
   padding: 0;
 
+  // --- reload this panel ---------------------------------------------------
+  // Pinned hard right by an auto margin rather than by ordering, so it stays in
+  // the corner whatever the nav in the middle grows to. Read inside
+  // Technetium's frame this site has no reload of its own: the browser's
+  // belongs to the parent document.
+  .modnav-refresh {
+    margin-left: auto;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius-sm);
+    background: var(--mod-surface-2);
+    color: var(--mod-ink-dim);
+    cursor: pointer;
+
+    &:hover { color: var(--mod-ink); border-color: var(--mod-line-strong); }
+    &:focus-visible { outline: 2px solid var(--mod-accent); outline-offset: 2px; }
+
+    svg {
+      width: 15px;
+      height: 15px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  }
+
+  // The icon alone is not a name. Visible to a screen reader, not to the eye.
+  .modnav-refresh-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   // --- the single row ------------------------------------------------------
   .modnav-bar {
     position: relative;

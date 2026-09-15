@@ -65,6 +65,26 @@
     </nav>
 
 
+    <%# RELOAD THIS PANEL, on its own.
+
+        This site is normally read inside Technetium's frame, where the
+        browser's own reload belongs to the parent document -- there was no way
+        to refresh just this panel without leaving the client.
+
+        A plain reload is enough HERE, unlike on the sampling surface: Rails
+        fingerprints its assets, so a changed stylesheet arrives under a new
+        URL on its own and the page itself is never cached. No stamp is added,
+        because a query parameter this app does not expect would ride along
+        into pagination and search links. %>
+    <button type="button" class="modnav-refresh" x-on:click="location.reload()"
+            title="Reload this panel">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M20 12a8 8 0 1 1-2.34-5.66"/>
+        <path d="M20 4v4.5h-4.5"/>
+      </svg>
+      <span class="modnav-refresh-label">Reload this panel</span>
+    </button>
+
     <a class="modnav-burger mobile-only" x-on:click="menuOpen = !menuOpen" aria-label="Menu">
       <%= menu_icon(class: "block w-6", "x-show": "!menuOpen") %>
       <%= close_icon(class: "block w-6", "x-show": "menuOpen", "x-cloak": true) %>
