@@ -17,7 +17,6 @@ const MEDIA_SELECTOR = [
   // The class sits on the wrapping link here, not the image, so the element
   // form of this never matched and the Creator of the Month thumbnail was the
   // one picture on the front page still showing a browser's broken-file icon.
-  ".modland-feature-thumb img",
   ".modcreator-thumb",
   "[data-error-card]",
 ].join(", ");

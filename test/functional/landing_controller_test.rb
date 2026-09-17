@@ -100,11 +100,26 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
         get root_path
 
         assert_select ".modland-feature", 0
+        # BOTH appear now. The row used to exclude whichever gallery was the
+        # current feature, so this fixture rendered ONE card; the exclusion is
+        # gone with the section that justified it, and LandingShowcase never
+        # applied it anyway -- which is how the carousel row and this row could
+        # draw from different sets of six. See CreatorGallery.landing_promoted.
+        assert_select ".modland-promoted-card", 2
         assert_select ".modland-promoted-name", text: "Promo"
+        assert_select ".modland-promoted-name", text: "Feature"
       end
 
-      # Only the latest feature is current; setting a new one must not erase the
-      # previous, and the previous must not still be shown.
+      # featured_at is PARKED, not live: the section it fed is gone and nothing
+      # on the landing page reads this column. The ordering rule is still
+      # asserted, because the column is kept for pinning a gallery to the
+      # Featured Creators row later, and an ordering nobody checks is one that
+      # will be wrong the day it is finally used.
+      #
+      # The RENDERING half of this asserted ".modland-feature-title" and was
+      # MISSED when that section was removed one commit ago. The suite cannot
+      # be run on this box -- DATABASE_URL points at production -- so reading
+      # the tests is the only check there is, and one read was not enough.
       should "treat the most recently featured gallery as the current one" do
         create(:creator_gallery, slug: "old", matrix_id: "@old:example.com", title: "Old", featured_at: 2.months.ago)
         create(:creator_gallery, slug: "now", matrix_id: "@now:example.com", title: "Now", featured_at: 1.day.ago)
@@ -112,7 +127,7 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
         assert_equal("now", CreatorGallery.current_feature.slug)
 
         get root_path
-        assert_select ".modland-feature-title", text: "Now"
+        assert_select ".modland-feature", 0
       end
     end
 

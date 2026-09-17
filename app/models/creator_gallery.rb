@@ -21,7 +21,31 @@ class CreatorGallery < ApplicationRecord
   # Landing-page promotion. Timestamps, not flags: promoted wants an order, and
   # "creator of the month" wants history -- setting this month's feature must
   # not erase who it was last month.
-  scope :promoted, -> { where.not(promoted_at: nil).order(promoted_at: :desc) }
+  # `id: :desc` is a TIE-BREAK, not decoration. Two galleries promoted in the
+  # same request share a promoted_at to the microsecond, and an unstable sort
+  # then reorders the front page between one render and the next for no reason
+  # a reader could name.
+  scope :promoted, -> { where.not(promoted_at: nil).order(promoted_at: :desc, id: :desc) }
+
+  # HOW MANY THE LANDING PAGE TAKES, stated once.
+  #
+  # It used to be stated twice and the two disagreed. LandingShowcase took
+  # `promoted.limit(6)` flat; LandingController took `promoted`, removed the
+  # current feature, THEN limited to 6. So the carousel row and the card row
+  # beneath it could draw from different sets of galleries -- off by one
+  # whenever a gallery was both featured and promoted, which is a state the
+  # admin console will make ordinary.
+  #
+  # The exclusion is gone rather than copied to the other caller. Its stated
+  # reason was that the feature "is shown in its own section, so it does not
+  # also appear in the row underneath it", and that section no longer exists --
+  # the operator superseded it on 2026-09-17. Nothing writes featured_at
+  # either, so the exclusion has never once removed a gallery in production.
+  LANDING_LIMIT = 6
+
+  def self.landing_promoted(limit = LANDING_LIMIT)
+    promoted.limit(limit)
+  end
 
   # The current feature is simply the most recently featured one. No cron job,
   # no month arithmetic, nothing to expire: setting a new feature is the whole

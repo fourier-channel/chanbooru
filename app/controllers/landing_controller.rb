@@ -12,7 +12,6 @@ class LandingController < ApplicationController
   PREFERENCE_COOKIE = :landing_preference
   GALLERY = "gallery"
   LANDING = "landing"
-  PROMOTED_LIMIT = 6
 
   def show
     skip_authorization
@@ -25,8 +24,7 @@ class LandingController < ApplicationController
     end
 
     @categories = showcase.categories
-    @feature = CreatorGallery.current_feature
-    @promoted = promoted_galleries
+    @promoted = CreatorGallery.landing_promoted.to_a
     @preference = cookies[PREFERENCE_COOKIE].to_s
   end
 
@@ -50,13 +48,5 @@ class LandingController < ApplicationController
 
   def showcase
     @showcase ||= LandingShowcase.new(viewer: CurrentUser.user)
-  end
-
-  # The current feature is shown in its own section, so it does not also appear
-  # in the row underneath it.
-  def promoted_galleries
-    scope = CreatorGallery.promoted
-    scope = scope.where.not(id: @feature.id) if @feature.present?
-    scope.limit(PROMOTED_LIMIT).to_a
   end
 end

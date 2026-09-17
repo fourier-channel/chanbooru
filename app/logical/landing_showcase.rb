@@ -117,7 +117,10 @@ class LandingShowcase
 
   # The work promoted creators chose to put forward, in their own curated order.
   def featured_creator_posts
-    CreatorGallery.promoted.limit(6).flat_map do |gallery|
+    # ONE rule, on the model. This said `promoted.limit(6)` while the
+    # controller excluded the current feature before limiting, so the two rows
+    # could show different galleries. See CreatorGallery.landing_promoted.
+    CreatorGallery.landing_promoted.flat_map do |gallery|
       gallery.creator_gallery_posts.includes(post: :media_asset).filter_map do |cgp|
         cgp.post if cgp.post && showable?(cgp.post)
       end.first(3)
