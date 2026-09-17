@@ -87,7 +87,7 @@ class ModulationLandingComponent < ApplicationComponent
   # than a placeholder. Nil when they have not curated anything the viewer may
   # see -- the row copes.
   def gallery_thumb(gallery)
-    post = gallery.creator_gallery_posts.includes(post: :media_asset).lazy.filter_map { |cgp| cgp.post }.find { |p| p.visible?(viewer) }
+    post = gallery.creator_gallery_posts.includes(post: :media_asset).lazy.filter_map(&:post).find { |p| p.visible?(viewer) }
     post&.preview_file_url
   rescue StandardError
     nil

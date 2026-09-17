@@ -31,7 +31,7 @@ class LandingController < ApplicationController
   # A fresh set, for the page to swap in on its timer without a reload.
   def slides
     skip_authorization
-    render json: { categories: showcase.categories }, status: :ok
+    render json: { categories: showcase.categories }, status: 200
   end
 
   # POST rather than a link: it writes state, and a preference that a link
@@ -41,7 +41,7 @@ class LandingController < ApplicationController
     choice = (params[:landing].to_s == GALLERY) ? GALLERY : LANDING
     cookies.permanent[PREFERENCE_COOKIE] = { value: choice, same_site: :lax }
 
-    redirect_to(choice == GALLERY ? posts_path : root_path(show: 1))
+    redirect_to((choice == GALLERY) ? posts_path : root_path(show: 1))
   end
 
   private

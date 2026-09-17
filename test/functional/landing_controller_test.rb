@@ -38,10 +38,10 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
         get root_path
 
         config = JSON.parse(css_select(".modland").first["data-config"])
-        slides = config["categories"].flat_map { _1["slides"] }
+        slides = config["categories"].flat_map { it["slides"] }
 
         assert_operator(slides.size, :>, 0)
-        assert(slides.any? { _1.dig("creator", "name").present? }, "no slide named a creator")
+        assert(slides.any? { it.dig("creator", "name").present? }, "no slide named a creator")
       end
 
       # The blacklist matches on ELEMENTS. The carousel draws from the payload,
@@ -51,7 +51,7 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
         get root_path
 
         config = JSON.parse(css_select(".modland").first["data-config"])
-        expected = config["categories"].sum { _1["slides"].size }
+        expected = config["categories"].sum { it["slides"].size }
 
         assert_select ".modland-poolitem[data-tags][data-rating]", expected
       end
@@ -149,10 +149,10 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
 
       should "name a creator and a platform where it can" do
         categories = LandingShowcase.new(viewer: User.anonymous).categories
-        slides = categories.flat_map { _1[:slides] }
+        slides = categories.flat_map { it[:slides] }
 
-        assert(slides.any? { _1[:creator].present? }, "no slide named a creator")
-        assert(slides.all? { _1.key?(:platform) }, "platform must always be present, even when nil")
+        assert(slides.any? { it[:creator].present? }, "no slide named a creator")
+        assert(slides.all? { it.key?(:platform) }, "platform must always be present, even when nil")
       end
     end
 
