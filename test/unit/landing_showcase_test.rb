@@ -45,26 +45,40 @@ class LandingShowcaseTest < ActiveSupport::TestCase
     end
   end
 
+  # These moved from LandingShowcase.new_row, which is gone: the row's config
+  # lives on LandingCategory now, and so does the rule it has to obey.
   context "the new row's query" do
+    def new_row = LandingCategory.new(LandingCategory::DEFAULTS.find { |d| d[:key] == "new" })
+
     should "stay within the two tags an anonymous visitor may search" do
       # The landing page runs as whoever is looking at it, and a logged-out
       # visitor is exactly who it is for. A third term does not narrow the
       # row, it EMPTIES it, and `categories` drops an empty row silently --
       # so the page would simply lose its main feature with no error anywhere.
-      terms = LandingShowcase.new_row[:query].split
-      assert_operator terms.length, :<=, 2,
-        "landing_new_query has #{terms.length} terms; anonymous search allows 2"
+      assert_operator new_row.max_terms, :<=, LandingCategory::MAX_TERMS,
+        "the new row asks for #{new_row.max_terms} terms; anonymous search allows #{LandingCategory::MAX_TERMS}"
     end
 
     should "ask for the DEGEN board and exclude archive-sourced posts" do
-      q = LandingShowcase.new_row[:query]
+      q = new_row.queries.sole
       assert_includes q, "boards.4chan.org/b/", "the row is /b/, which is the DEGEN generals"
       assert_includes q, "-no_train", "archive-sourced bytes carry no_train; fresh captures do not"
     end
 
     should "not spend a term on ordering, which is already the default" do
-      refute_includes LandingShowcase.new_row[:query], "order:",
+      refute_includes new_row.queries.sole, "order:",
         "newest-first is the default; an order: term costs a filter for nothing"
+    end
+
+    should "search each tag SEPARATELY, however many there are" do
+      # The whole reason the table exists. Twenty featured artists is twenty
+      # one-term searches; one twenty-term search returns nothing for a
+      # logged-out visitor and the row vanishes with no error anywhere.
+      row = LandingCategory.new(key: "featured", label: "Featured Creators", kind: "tags",
+                                ordering: "new", tags: %w[alpha beta gamma delta])
+      assert_equal(4, row.queries.length)
+      assert_equal(1, row.max_terms)
+      assert(row.valid?)
     end
   end
 

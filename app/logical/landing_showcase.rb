@@ -8,44 +8,21 @@
 # highest-scoring is the same twelve images forever. The categories are named
 # for what they are, so a visitor can tell which they are looking at.
 #
-# Everything is viewer-scoped: PostQuery applies the viewer's safe mode, the
-# browsing tier and the gating rules, so anything they may not see never reaches
-# the page. Slides also carry the blacklist attributes -- a showcase is the worst
-# possible place to be shown something the viewer asked never to see.
+# Everything is viewer-scoped, and #showable? IS THE GATE -- not PostQuery.
+# This comment used to say PostQuery applied the viewer's safe mode, browsing
+# tier and gating rules, and that is not true on this path: posts_with_timeout
+# never calls with_implicit_metatags, which is also why deleted posts are
+# excluded by hand below. Every rule that decides whether a viewer may see a
+# post is in #showable?, and anything added to the gate elsewhere has to be
+# added there too. Slides also carry the blacklist attributes -- a showcase is
+# the worst possible place to be shown something the viewer asked never to see.
 class LandingShowcase
-  # A method rather than a frozen constant, because the "new" row's query is
-  # config now and an admin panel to edit it is the next piece of work. A
-  # constant would have baked the value in at class-load time and made that
-  # panel a deploy.
-  def self.categories
-    row = new_row
-    [
-      { key: "new", label: row[:label], query: row[:query] },
-      { key: "favorites", label: "Community Favorites", query: "order:favcount" },
-      { key: "creators", label: "Featured Creators", query: nil },
-    ]
-  end
-
   PER_CATEGORY = 10
   # How many candidates to fetch per wanted post. Wide enough that the
   # showable? filter cannot leave the row short in practice; small enough to
   # stay one bounded query.
   FETCH_WIDTH = 8
 
-  # The "new" row's configuration, from the database so an admin can re-aim the
-  # front page without a deploy (/admin/landing_setting).
-  #
-  # Falls back to config if that cannot be read. The front page staying UP
-  # matters more than the row being current, and a boot that reaches traffic
-  # before the migration has run should not serve a blank site. The failure is
-  # logged rather than swallowed.
-  def self.new_row
-    setting = LandingSetting.current
-    { label: setting.label, query: setting.query }
-  rescue StandardError => e
-    DanbooruLogger.log(e, context: "landing_setting")
-    { label: Danbooru.config.landing_new_label, query: Danbooru.config.landing_new_query }
-  end
   QUERY_TIMEOUT_SECONDS = 3
 
   attr_reader :viewer
@@ -58,19 +35,40 @@ class LandingShowcase
   #   Categories with nothing to show are dropped rather than rendered empty --
   #   a segment that switches to a blank panel is worse than one that is absent.
   def categories
-    @categories ||= self.class.categories.filter_map do |category|
-      posts = category_posts[category[:key]]
+    @categories ||= specs.filter_map do |spec|
+      posts = category_posts[spec.key]
       next if posts.blank?
 
-      { key: category[:key], label: category[:label], slides: posts.map { |post| slide_for(post) } }
+      { key: spec.key, label: spec.label, slides: posts.map { |post| slide_for(post) }}
     end
   end
 
-  def any?
-    categories.any?
-  end
+  delegate :any?, to: :categories
 
   private
+
+  # THE CATEGORIES, FROM THE DATABASE, ONCE.
+  #
+  # Memoized because this is read twice per render -- here and in
+  # #category_posts -- and each read used to reach LandingSetting.current for
+  # a fresh SELECT. Reading four configurable rows is a query FEWER than
+  # reading one configurable row twice.
+  #
+  # The fallback is the same bargain the "new" row's used to strike: the front
+  # page staying UP matters more than it being current, and a boot that reaches
+  # traffic before the migration has run must not serve a blank site. The
+  # failure is logged rather than swallowed. LandingCategory::DEFAULTS is what
+  # a database with no rows yields, so the fallback and the empty case are the
+  # same code path.
+  def specs
+    @specs ||= begin
+      rows = LandingCategory.visible.to_a
+      rows.presence || LandingCategory::DEFAULTS.map { |d| LandingCategory.new(d) }.select(&:enabled)
+    end
+  rescue StandardError => e
+    DanbooruLogger.log(e, context: "landing_categories")
+    LandingCategory::DEFAULTS.map { |d| LandingCategory.new(d) }.select(&:enabled)
+  end
 
   # Posts per category, fetched once.
   #
@@ -79,36 +77,68 @@ class LandingShowcase
   # building were what produced the posts, asking for the tags would re-enter
   # this method and recurse. Gather first, then render.
   def category_posts
-    @category_posts ||= self.class.categories.to_h do |category|
-      posts = (category[:key] == "creators") ? featured_creator_posts : posts_for(category[:query])
-      [category[:key], posts.uniq(&:id).first(PER_CATEGORY)]
+    @category_posts ||= specs.to_h do |spec|
+      [spec.key, posts_for_spec(spec).uniq(&:id).first(PER_CATEGORY)]
     end
+  end
+
+  # Dispatch on KIND, not on a key. A key is an identifier an admin picked; the
+  # kind is what the row actually is, and the four keys that exist today are
+  # not the only ones that ever will.
+  def posts_for_spec(spec)
+    return promoted_creator_posts if spec.kind == "galleries"
+
+    queries = spec.queries
+    return [] if queries.empty?
+    return posts_for(queries.first) if queries.length == 1
+
+    # MORE THAN ONE QUERY IS NOT A REQUEST-PATH JOB. Twenty artist tags is
+    # twenty searches, each with its own timeout, on the page the bare domain
+    # serves to everyone -- it belongs in a background refresh, and until that
+    # exists this row is absent rather than slow. Dropped the same way an empty
+    # row is dropped, and LOGGED, because a row silently missing from the front
+    # page is exactly the failure this class keeps warning about.
+    # .info, NOT .log. DanbooruLogger.log cleans exception.backtrace, and a
+    # manufactured StandardError has none -- so logging one here raised
+    # NoMethodError INSIDE the backtrace cleaner and took down the front page
+    # while reporting that a row was missing. This is a designed state, not an
+    # exception, and the logger has a call for that.
+    DanbooruLogger.info(
+      "landing category #{spec.key} needs #{queries.length} queries and has no refresh job yet; row omitted",
+      context: "landing_categories", category: spec.key,
+    )
+    []
   end
 
   def posts_for(query)
     PostQuery.new(query, current_user: viewer)
-      # The viewer's ORDINARY page limit, passed explicitly so paginate does not
-      # read CurrentUser -- this class is handed a viewer precisely so it need
-      # not touch the thread-global. Deliberately not 1: that would make page 1
-      # the last allowed page, which puts paginate into a mode whose results are
-      # reversed, and "Newest Posts" would render oldest-first. See
-      # PostSets::Post#enforce_browsing_cap!.
-      # Fetch WIDE, then filter. The row wants PER_CATEGORY posts and the
-      # filter below drops anything that is not a visible image or video, so a
-      # window of exactly twice the target quietly returned short rows -- the
-      # front page was showing eight (operator, 2026-09-07: keep a minimum of
-      # ten). A wider window is one query either way; it just stops the filter
-      # eating the row.
-      #
-      # This is also what makes the row behave as a queue: ordered newest
-      # first, a new post enters at the front and the tenth falls off the back,
-      # so what is on screen only changes when something new arrives to replace
-      # it. Nothing shuffles on its own.
-      # :uploader as well as :media_asset -- creator_for falls back to the
-      # uploader's name for any post with no artist tag, which was a second
-      # query per post behind the first.
-      .posts_with_timeout(PER_CATEGORY * FETCH_WIDTH, includes: [:media_asset, :uploader], page_limit: viewer.page_limit)
-      .select { |post| showable?(post) }
+             # The viewer's ORDINARY page limit, passed explicitly so paginate does not
+             # read CurrentUser -- this class is handed a viewer precisely so it need
+             # not touch the thread-global. Deliberately not 1: that would make page 1
+             # the last allowed page, which puts paginate into a mode whose results are
+             # reversed, and "Newest Posts" would render oldest-first. See
+             # PostSets::Post#enforce_browsing_cap!.
+             # Fetch WIDE, then filter. The row wants PER_CATEGORY posts and the
+             # filter below drops anything that is not a visible image or video, so a
+             # window of exactly twice the target quietly returned short rows -- the
+             # front page was showing eight (operator, 2026-09-07: keep a minimum of
+             # ten). A wider window is one query either way; it just stops the filter
+             # eating the row.
+             #
+             # This is also what makes the row behave as a queue: ordered newest
+             # first, a new post enters at the front and the tenth falls off the back,
+             # so what is on screen only changes when something new arrives to replace
+             # it. Nothing shuffles on its own.
+             # :uploader as well as :media_asset -- creator_for falls back to the
+             # uploader's name for any post with no artist tag, which was a second
+             # query per post behind the first.
+             # QUERY_TIMEOUT_SECONDS is WIRED now. It was declared and read nowhere,
+             # so the timeout actually in force was current_user.statement_timeout --
+             # 3s for an anonymous visitor but 9s for platinum and 60s in development,
+             # which is not a cap on the front page, it is a cap on most of it.
+             .posts_with_timeout(PER_CATEGORY * FETCH_WIDTH, timeout: QUERY_TIMEOUT_SECONDS * 1_000,
+                                                             includes: [:media_asset, :uploader], page_limit: viewer.page_limit)
+             .select { |post| showable?(post) }
   rescue StandardError => e
     # The landing page is the first thing a stranger sees, so one bad category
     # must not be the difference between a showcase and an error page. But it is
@@ -118,19 +148,46 @@ class LandingShowcase
     []
   end
 
-  # The work promoted creators chose to put forward, in their own curated order.
-  def featured_creator_posts
+  # The work PROMOTED creators chose to put forward, in their own curated order.
+  #
+  # THE FLAG IS promoted_at, not featured_at. They are different columns for
+  # different things and the names point the wrong way round: promoted_at is
+  # this row, and featured_at is parked for pinning a gallery to the artist-tag
+  # row later. See CreatorGallery.
+  def promoted_creator_posts
     # ONE rule, on the model. This said `promoted.limit(6)` while the
     # controller excluded the current feature before limiting, so the two rows
     # could show different galleries. See CreatorGallery.landing_promoted.
-    CreatorGallery.landing_promoted.flat_map do |gallery|
+    groups = CreatorGallery.landing_promoted.map do |gallery|
       gallery.creator_gallery_posts.includes(post: [:media_asset, :uploader]).filter_map do |cgp|
         cgp.post if cgp.post && showable?(cgp.post)
       end.first(3)
     end
+    interleave(groups)
   rescue StandardError => e
-    DanbooruLogger.log(e, category: "creators")
+    DanbooruLogger.log(e, category: "promoted")
     []
+  end
+
+  # ROUND-ROBIN, not concatenate.
+  #
+  # This took three posts from each gallery and joined them end to end, then
+  # the caller cut the result to ten. Six promoted galleries therefore gave
+  # 3 + 3 + 3 + 1 + 0 + 0: the last two contributed NOTHING, however good their
+  # work, purely for being promoted least recently. Taking one from each in
+  # turn gives every promoted creator a slide before anyone gets a second.
+  def interleave(groups)
+    out = []
+    index = 0
+    while out.length < PER_CATEGORY && groups.any? { |g| g.length > index }
+      groups.each do |g|
+        break if out.length >= PER_CATEGORY
+
+        out << g[index] if g[index]
+      end
+      index += 1
+    end
+    out
   end
 
   # Visible to THIS viewer.
