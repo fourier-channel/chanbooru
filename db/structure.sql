@@ -1192,6 +1192,47 @@ ALTER SEQUENCE public.ip_geolocations_id_seq OWNED BY public.ip_geolocations.id;
 
 
 --
+-- Name: landing_categories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.landing_categories (
+    id bigint NOT NULL,
+    key character varying NOT NULL,
+    label character varying NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
+    "position" integer DEFAULT 0 NOT NULL,
+    kind character varying NOT NULL,
+    board character varying,
+    fresh_only boolean DEFAULT true NOT NULL,
+    tags text[] DEFAULT '{}'::text[] NOT NULL,
+    ordering character varying DEFAULT 'new'::character varying NOT NULL,
+    creator_gallery_id bigint,
+    updated_by_id integer,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: landing_categories_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.landing_categories_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: landing_categories_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.landing_categories_id_seq OWNED BY public.landing_categories.id;
+
+
+--
 -- Name: landing_settings; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1202,7 +1243,8 @@ CREATE TABLE public.landing_settings (
     label character varying DEFAULT 'Fresh from DEGEN'::character varying NOT NULL,
     updated_by_id integer,
     created_at timestamp(6) without time zone NOT NULL,
-    updated_at timestamp(6) without time zone NOT NULL
+    updated_at timestamp(6) without time zone NOT NULL,
+    advance_ms integer DEFAULT 6000 NOT NULL
 );
 
 
@@ -3239,6 +3281,13 @@ ALTER TABLE ONLY public.ip_geolocations ALTER COLUMN id SET DEFAULT nextval('pub
 
 
 --
+-- Name: landing_categories id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.landing_categories ALTER COLUMN id SET DEFAULT nextval('public.landing_categories_id_seq'::regclass);
+
+
+--
 -- Name: landing_settings id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3779,6 +3828,14 @@ ALTER TABLE ONLY public.ip_bans
 
 ALTER TABLE ONLY public.ip_geolocations
     ADD CONSTRAINT ip_geolocations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: landing_categories landing_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.landing_categories
+    ADD CONSTRAINT landing_categories_pkey PRIMARY KEY (id);
 
 
 --
@@ -5294,6 +5351,20 @@ CREATE INDEX index_ip_geolocations_on_updated_at ON public.ip_geolocations USING
 
 
 --
+-- Name: index_landing_categories_on_creator_gallery_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_landing_categories_on_creator_gallery_id ON public.landing_categories USING btree (creator_gallery_id);
+
+
+--
+-- Name: index_landing_categories_on_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_landing_categories_on_key ON public.landing_categories USING btree (key);
+
+
+--
 -- Name: index_login_sessions_on_created_at_and_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6036,6 +6107,13 @@ CREATE INDEX index_posts_on_created_at ON public.posts USING btree (created_at);
 
 
 --
+-- Name: index_posts_on_fav_count_and_id_desc; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_posts_on_fav_count_and_id_desc ON public.posts USING btree (fav_count DESC, id DESC);
+
+
+--
 -- Name: index_posts_on_is_deleted; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6096,13 +6174,6 @@ CREATE INDEX index_posts_on_pixiv_id ON public.posts USING btree (pixiv_id) WHER
 --
 
 CREATE INDEX index_posts_on_rating ON public.posts USING btree (rating) WHERE (rating <> 's'::bpchar);
-
-
---
--- Name: index_posts_on_fav_count_and_id_desc; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX index_posts_on_fav_count_and_id_desc ON public.posts USING btree (fav_count DESC, id DESC);
 
 
 --
@@ -7077,6 +7148,14 @@ ALTER TABLE ONLY public.user_name_change_requests
 
 
 --
+-- Name: landing_categories fk_rails_1925e193b9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.landing_categories
+    ADD CONSTRAINT fk_rails_1925e193b9 FOREIGN KEY (creator_gallery_id) REFERENCES public.creator_galleries(id) ON DELETE SET NULL;
+
+
+--
 -- Name: artist_claims fk_rails_20624561fd; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7827,6 +7906,8 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260917000001'),
+('20260917000000'),
 ('20260912200000'),
 ('20260912130000'),
 ('20260912120000'),
