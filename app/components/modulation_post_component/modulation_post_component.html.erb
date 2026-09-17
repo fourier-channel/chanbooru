@@ -169,7 +169,13 @@
       region("sort-label").textContent = active().label || "";
     }
 
-    const pill = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
+    // Tags worth being pleased about. The MOTION is canon (formant
+    // mod-hype-*), so this list is the only local decision -- which names wear
+    // it -- and it is the same list Technetium keeps, so a tag behaves
+    // identically wherever it is read.
+    const HYPE = new Set(["butthole"]);
+    const hypeOf = (t) => (HYPE.has(String(t).trim().toLowerCase()) ? " mod-pill--hype" : "");
+    const pill = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + hypeOf(t) + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
     // The category bucket at the head of the list: artist on the left;
     // character / copyright (/ species, should the booru ever grow one) on the
     // right. Provenance colour is untouched -- each pill keeps the class of

@@ -679,3 +679,38 @@ body:has(.modulation) {
   .modulation .mod-sortrow,
   .modulation .mod-meta-caret { transition: none; }
 }
+
+// --- hype: the shared behaviour, worn --------------------------------------
+// The motion is CANON (formant tokens: mod-hype-move, mod-hype-sparkle), so a
+// hype tag moves identically here and in Technetium. This file only decides
+// which element wears it.
+//
+// Both tracks obey the standing infinite-animation rule -- transform and
+// opacity only. The sparkle is a STATIC gradient on a pseudo-element whose
+// opacity animates, which is the shape that took the lamp incident from 45% of
+// a core to 5%. No box-shadow, no filter.
+.mod-pill--hype {
+  position: relative;
+  animation: mod-hype-move var(--mod-hype-period) ease-in-out infinite;
+  will-change: transform;
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: -2px;
+    right: 1px;
+    width: var(--mod-hype-sparkle-size);
+    height: var(--mod-hype-sparkle-size);
+    pointer-events: none;
+    background:
+      linear-gradient(to bottom, transparent 42%, currentColor 42%, currentColor 58%, transparent 58%),
+      linear-gradient(to right, transparent 42%, currentColor 42%, currentColor 58%, transparent 58%);
+    animation: mod-hype-sparkle var(--mod-hype-period) ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mod-pill--hype,
+  .mod-pill--hype::after { animation: none; }
+  .mod-pill--hype::after { opacity: 0.6; }
+}
