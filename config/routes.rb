@@ -67,7 +67,17 @@ Rails.application.routes.draw do
     end
     # fourier: the landing carousel's "new" row, so the front page can be
     # re-aimed without a deploy.
-    resource :landing_setting, only: [:show, :update]
+    resource :landing_setting, only: [:show, :update] do
+      # The carousel's categories, saved together. One PATCH for every row,
+      # because they are one configuration: a half-applied carousel -- two rows
+      # enabled and the third silently not -- is a state nobody asked for and
+      # nobody could see.
+      # `action:` named explicitly. `patch :categories` alone routes to an
+      # action called `categories`, which reads like a GET of a list and is not
+      # what the method is called -- so the route resolved to an action that
+      # does not exist and would have raised UnknownAction on the first save.
+      patch :categories, action: :update_categories, on: :member
+    end
   end
   namespace :moderator do
     namespace :post do

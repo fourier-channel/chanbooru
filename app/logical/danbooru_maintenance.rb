@@ -10,6 +10,11 @@ module DanbooruMaintenance
     queue PruneUploadsJob
     queue PruneJobsJob
     queue PruneBansJob
+    # Keeps the multi-tag carousel rows warm on a quiet site. The read path
+    # already re-enqueues this when it finds a stale list, so this is the
+    # belt-and-braces half: without it, a front page nobody visits for a day
+    # comes back with a cold cache and an absent row for the first visitor.
+    queue LandingShowcaseRefreshJob
     # queue AmcheckDatabaseJob
   end
 

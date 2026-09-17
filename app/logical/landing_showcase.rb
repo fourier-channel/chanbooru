@@ -94,19 +94,30 @@ class LandingShowcase
 
     # MORE THAN ONE QUERY IS NOT A REQUEST-PATH JOB. Twenty artist tags is
     # twenty searches, each with its own timeout, on the page the bare domain
-    # serves to everyone -- it belongs in a background refresh, and until that
-    # exists this row is absent rather than slow. Dropped the same way an empty
-    # row is dropped, and LOGGED, because a row silently missing from the front
-    # page is exactly the failure this class keeps warning about.
-    # .info, NOT .log. DanbooruLogger.log cleans exception.backtrace, and a
-    # manufactured StandardError has none -- so logging one here raised
-    # NoMethodError INSIDE the backtrace cleaner and took down the front page
-    # while reporting that a row was missing. This is a designed state, not an
-    # exception, and the logger has a call for that.
-    DanbooruLogger.info(
-      "landing category #{spec.key} needs #{queries.length} queries and has no refresh job yet; row omitted",
-      context: "landing_categories", category: spec.key,
-    )
+    # serves to everyone -- that is not a slow page, it is an outage with a
+    # spinner on it. The searches live in LandingShowcaseRefreshJob and this
+    # reads what they left: a list of ids, loaded in ONE bounded query with no
+    # text search in it.
+    #
+    # A cold cache yields an empty row, dropped the way any empty row is, and a
+    # job. It fills itself in on the next render rather than making this one
+    # pay for it.
+    posts_by_id(LandingShowcaseCache.candidate_ids(spec))
+  end
+
+  # Load cached candidates, IN THE ORDER THE JOB CHOSE.
+  #
+  # `where(id: ids)` returns database order, which would throw away the
+  # round-robin the job did -- the property that gives every featured creator a
+  # slide before anyone gets a second. Rebuilt by index here rather than sorted
+  # in SQL, because the order is a list the job produced and not a column.
+  def posts_by_id(ids)
+    return [] if ids.empty?
+
+    by_id = Post.where(id: ids).includes(:media_asset, :uploader).index_by(&:id)
+    ids.filter_map { |id| by_id[id] }.select { |post| showable?(post) }
+  rescue StandardError => e
+    DanbooruLogger.log(e, context: "landing_showcase_candidates")
     []
   end
 

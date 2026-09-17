@@ -11,6 +11,6 @@ class LandingSettingPolicy < ApplicationPolicy
   end
 
   def permitted_attributes
-    %i[board fresh_only label]
+    %i[board fresh_only label advance_ms]
   end
 end

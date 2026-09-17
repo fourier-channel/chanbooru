@@ -56,8 +56,14 @@ class ModulationLandingComponent < ApplicationComponent
       # any position, including the ones not on screen, because that is what
       # "up from image X lands on image X" means.
       categories: categories,
-      # How long a slide holds before the next one.
-      advanceMs: 6_000,
+      # How long a slide holds before the next one, FROM THE SETTING.
+      #
+      # This was the literal 6_000 while a landing_settings.advance_ms column
+      # sat in the schema that nothing read -- the migration landed and the
+      # surface never did, which is the same shape of gap the operator has
+      # already had to point out once on this feature. A setting nothing reads
+      # is worse than no setting: it is a control that looks like it works.
+      advanceMs: landing_setting.advance_ms,
       # How long the resume control takes to fill before it restarts the ride.
       resumeMs: 10_000,
       # No periodic re-fetch. The carousel cycling three categories is what keeps
@@ -65,6 +71,12 @@ class ModulationLandingComponent < ApplicationComponent
       # would either yank the slide out from under a reader or silently undo the
       # pause they asked for.
     }
+  end
+
+  # One row, read once per render. Memoized because #config is not the only
+  # thing that may want it, and `first || new` is a query either way.
+  def landing_setting
+    @landing_setting ||= LandingSetting.current
   end
 
   def gallery_path

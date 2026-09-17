@@ -4,11 +4,9 @@
   <div id="a-show">
     <h1>Landing carousel</h1>
 
+    <h2>The whole carousel</h2>
     <p class="hint">
-      The front page's first row. It draws from ONE board, newest first, and
-      normally hides archive backfill -- an imported picture is new by post id
-      even when it is years old, which is how a backfill run comes to drown the
-      live captures the row exists to show.
+      The "new" row's target, and how fast every row moves.
     </p>
 
     <%= edit_form_for(@landing_setting, url: admin_landing_setting_path, method: :patch) do |f| %>
@@ -16,6 +14,11 @@
       <%= f.input :board, label: "Board", hint: "The bare slug, so 'b' for /b/ -- which is the DEGEN generals." %>
       <%= f.input :fresh_only, as: :boolean, label: "Freshly scraped only",
                   hint: "Hides anything the sampler tagged as archive-sourced." %>
+      <%= f.input :advance_ms, label: "Slide speed (ms)",
+                  hint: "How long a slide holds before the next one. #{LandingSetting::ADVANCE_MS_RANGE.min} to " \
+                        "#{LandingSetting::ADVANCE_MS_RANGE.max}; 6000 is six seconds. Below about a second a slide " \
+                        "cannot be read before it leaves, and the carousel becomes a permanent animation on the page " \
+                        "the bare domain serves to everyone." %>
       <%= f.submit "Save" %>
     <% end %>
 
@@ -28,5 +31,103 @@
       dropped from the page silently. That is why this is a set of choices
       rather than a box you type a search into.
     </p>
+
+    <h2>Categories</h2>
+    <p class="hint">
+      The rows the carousel switches between, in order. A row with nothing to
+      show is dropped rather than rendered blank, so turning one off and
+      emptying one look the same to a visitor and only one of them is on
+      purpose.
+    </p>
+
+    <%= form_with url: categories_admin_landing_setting_path, method: :patch, class: "landing-categories" do %>
+      <% @landing_categories.each do |category| %>
+        <% name = ->(attr) { "landing_categories[#{category.key}][#{attr}]" } %>
+        <fieldset class="landing-category" data-kind="<%= category.kind %>" data-key="<%= category.key %>">
+          <legend><%= category.label %> <span class="hint">(<%= category.kind %>)</span></legend>
+
+          <div class="input">
+            <%= hidden_field_tag name.call(:enabled), "0", id: nil %>
+            <%= check_box_tag name.call(:enabled), "1", category.enabled?, id: "landing-#{category.key}-enabled" %>
+            <%= label_tag "landing-#{category.key}-enabled", "Show this row" %>
+          </div>
+
+          <div class="input">
+            <%= label_tag "landing-#{category.key}-label", "Heading" %>
+            <%= text_field_tag name.call(:label), category.label, id: "landing-#{category.key}-label", maxlength: 40 %>
+          </div>
+
+          <% if category.kind == "board" %>
+            <div class="input">
+              <%= label_tag "landing-#{category.key}-board", "Board" %>
+              <%= text_field_tag name.call(:board), category.board, id: "landing-#{category.key}-board", size: 6 %>
+              <span class="hint">The bare slug, so 'b' for /b/.</span>
+            </div>
+            <div class="input">
+              <%= hidden_field_tag name.call(:fresh_only), "0", id: nil %>
+              <%= check_box_tag name.call(:fresh_only), "1", category.fresh_only?, id: "landing-#{category.key}-fresh" %>
+              <%= label_tag "landing-#{category.key}-fresh", "Freshly scraped only" %>
+            </div>
+          <% elsif category.kind == "tags" %>
+            <div class="input">
+              <%= label_tag "landing-#{category.key}-tags", "Tags" %>
+              <%# data-autocomplete="tag-edit" is the site's multi-tag completer, so
+                  the featured creators are PICKED rather than spelled from memory.
+                  A mistyped artist tag does not error -- it finds nothing, and the
+                  row silently loses that creator. %>
+              <%= text_field_tag name.call(:tags_string), category.tags_string,
+                                 id: "landing-#{category.key}-tags", size: 60,
+                                 data: { autocomplete: "tag-edit" } %>
+              <span class="hint">
+                Space separated, up to <%= LandingCategory::MAX_TAGS %>.
+                <strong>Each tag is searched on its own</strong>, not all together:
+                twenty creators is twenty one-term searches, run in the background
+                and cached, because an anonymous visitor may search only
+                <%= LandingCategory::MAX_TERMS %> tags and this page runs as
+                whoever is looking at it. Leave empty to show everything in the
+                chosen order.
+              </span>
+            </div>
+          <% else %>
+            <p class="hint">
+              This row shows the galleries of PROMOTED creators, newest promotion
+              first, one slide each before anyone gets a second. It is set by
+              promoting a gallery, not from here -- the flag is
+              <code>promoted_at</code> on the gallery.
+            </p>
+          <% end %>
+
+          <% if category.kind != "galleries" %>
+            <div class="input">
+              <%= label_tag "landing-#{category.key}-ordering", "Order" %>
+              <%= select_tag name.call(:ordering),
+                             options_for_select(LandingCategory::ORDERINGS.keys, category.ordering),
+                             id: "landing-#{category.key}-ordering" %>
+              <span class="hint">
+                "new" spends no term and keeps the row behaving as a queue: a new
+                post enters at the front and the last falls off the back, so
+                nothing shuffles on its own.
+              </span>
+            </div>
+          <% end %>
+
+          <p class="hint">
+            <%# safe_join with a tag per query, NOT a joined string marked html_safe.
+                The queries are assembled from a validated board slug and validated
+                tag names, so nothing dangerous can reach here today -- and that is
+                an argument about the validators, not about this line. Escaping each
+                one keeps it true if a validator is ever loosened. %>
+            Searches:
+            <% if category.queries.any? %>
+              <%= safe_join(category.queries.map { |q| tag.code(q) }, " ") %>
+            <% else %>
+              (none)
+            <% end %>
+          </p>
+        </fieldset>
+      <% end %>
+
+      <%= submit_tag "Save carousel" %>
+    <% end %>
   </div>
 </div>

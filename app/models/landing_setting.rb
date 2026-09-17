@@ -19,9 +19,27 @@ class LandingSetting < ApplicationRecord
   # nothing extra, so this is excluded rather than required.
   ARCHIVE_TAG = "no_train"
 
+  # HOW FAST THE SLIDES MOVE, in milliseconds, bounded at both ends.
+  #
+  # The floor is not taste. Below about a second a slide cannot be read before
+  # it leaves, and the carousel's auto-advance drives a transition on every
+  # step -- a value of 0 or 50 would not be a fast carousel, it would be a
+  # permanent animation on the page the bare domain serves to everyone, which
+  # this project has already paid for once (one infinite box-shadow animation
+  # idled a surface at 45% of a core).
+  # The ceiling stops a typo turning the carousel into a still image: 120000 is
+  # two minutes, past which nobody would see it move at all.
+  ADVANCE_MS_RANGE = (1_500..120_000)
+
   validates :board, format: { with: /\A[a-z0-9]{1,10}\z/,
                               message: "is a board slug like 'b', without slashes" }
   validates :label, presence: true, length: { maximum: 40 }
+  validates :advance_ms, numericality: {
+    only_integer: true,
+    greater_than_or_equal_to: ADVANCE_MS_RANGE.min,
+    less_than_or_equal_to: ADVANCE_MS_RANGE.max,
+    message: "must be between #{ADVANCE_MS_RANGE.min} and #{ADVANCE_MS_RANGE.max} milliseconds",
+  }
 
   def self.current
     first || new
