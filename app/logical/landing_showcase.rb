@@ -104,7 +104,10 @@ class LandingShowcase
       # first, a new post enters at the front and the tenth falls off the back,
       # so what is on screen only changes when something new arrives to replace
       # it. Nothing shuffles on its own.
-      .posts_with_timeout(PER_CATEGORY * FETCH_WIDTH, includes: [:media_asset], page_limit: viewer.page_limit)
+      # :uploader as well as :media_asset -- creator_for falls back to the
+      # uploader's name for any post with no artist tag, which was a second
+      # query per post behind the first.
+      .posts_with_timeout(PER_CATEGORY * FETCH_WIDTH, includes: [:media_asset, :uploader], page_limit: viewer.page_limit)
       .select { |post| showable?(post) }
   rescue StandardError => e
     # The landing page is the first thing a stranger sees, so one bad category
@@ -121,7 +124,7 @@ class LandingShowcase
     # controller excluded the current feature before limiting, so the two rows
     # could show different galleries. See CreatorGallery.landing_promoted.
     CreatorGallery.landing_promoted.flat_map do |gallery|
-      gallery.creator_gallery_posts.includes(post: :media_asset).filter_map do |cgp|
+      gallery.creator_gallery_posts.includes(post: [:media_asset, :uploader]).filter_map do |cgp|
         cgp.post if cgp.post && showable?(cgp.post)
       end.first(3)
     end
@@ -189,10 +192,34 @@ class LandingShowcase
   # answer when there is one; the uploader is the fallback, because "created by
   # nobody" is not a sentence worth rendering.
   def creator_for(post)
-    artist = post.tags.detect(&:artist?)
-    return { name: artist.name.tr("_", " "), url: routes.posts_path(tags: artist.name, preset: "modulation") } if artist
+    artist = post.tag_array.find { |name| artist_names.include?(name) }
+    return { name: artist.tr("_", " "), url: routes.posts_path(tags: artist, preset: "modulation") } if artist
 
     { name: post.uploader.name, url: routes.user_path(post.uploader_id) }
+  end
+
+  # WHICH TAG NAMES ON THIS PAGE ARE ARTISTS, IN ONE QUERY FOR THE WHOLE PAGE.
+  #
+  # creator_for used to ask `post.tags`, which is `Tag.where(name: tag_array)`
+  # (post.rb:353-355) -- a fresh round trip PER POST, up to forty of them on
+  # the page the bare domain serves to everyone. That is the shape of query
+  # load this site has already been hurt by: the booru exhausted Postgres
+  # max_connections once, and the media gate's unindexed scans through a small
+  # pool once left every thumbnail sitting for four seconds.
+  #
+  # One IN query over the union of every tag name on the page, returning names
+  # only. Memoized beside blacklist_tags, which gathers over the same set for
+  # the same reason.
+  #
+  # IT ALSO MAKES THE ANSWER DETERMINISTIC, which the old one was not: a post
+  # with two artist tags got whichever `Tag.where` happened to return first,
+  # and that is database order, not tag order. This takes the first in the
+  # post's own tag_array, so the same post names the same creator every time.
+  def artist_names
+    @artist_names ||= begin
+      names = all_posts.flat_map(&:tag_array).uniq
+      names.empty? ? Set.new : Tag.where(name: names, category: Tag.categories.artist).pluck(:name).to_set
+    end
   end
 
   # Where it was posted. `key` is a stable slug so a per-platform logo can be
