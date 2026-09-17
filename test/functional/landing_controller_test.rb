@@ -85,17 +85,22 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
         assert_select ".modland-enter", 1
       end
 
-      should "show the current feature and the promoted row" do
-        feature = create(:creator_gallery, slug: "feat", matrix_id: "@feat:example.com", title: "Feature", featured_at: 1.hour.ago, promoted_at: 1.hour.ago)
+      should "show the promoted row" do
+        # CREATOR OF THE MONTH IS GONE FROM THIS PAGE, 2026-09-17, by operator
+        # ruling -- the idea moved into the carousel as the plural "Featured
+        # Creators" row, configured by artist tags. This used to assert
+        # ".modland-feature-title" and that the featured gallery was not
+        # repeated in the row beneath itself; there is no row above it now.
+        # featured_at is still SET here on purpose: it must no longer change
+        # what the page renders, and a fixture that never sets it could not
+        # show that.
+        create(:creator_gallery, slug: "feat", matrix_id: "@feat:example.com", title: "Feature", featured_at: 1.hour.ago, promoted_at: 1.hour.ago)
         create(:creator_gallery, slug: "promo", matrix_id: "@promo:example.com", title: "Promo", promoted_at: 2.hours.ago)
 
         get root_path
 
-        assert_select ".modland-feature-title", text: "Feature"
-        # The feature is not repeated in the row beneath itself.
-        assert_select ".modland-promoted-card", 1
+        assert_select ".modland-feature", 0
         assert_select ".modland-promoted-name", text: "Promo"
-        assert_not_nil(feature)
       end
 
       # Only the latest feature is current; setting a new one must not erase the

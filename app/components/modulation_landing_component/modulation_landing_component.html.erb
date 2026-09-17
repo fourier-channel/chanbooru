@@ -73,28 +73,6 @@
     </section>
   <% end %>
 
-  <%# --- creator of the month ----------------------------------------- %>
-  <% if feature? %>
-    <section class="modland-feature">
-      <span class="modland-label">Creator of the month</span>
-      <div class="modland-feature-body">
-        <% thumb = gallery_thumb(feature) %>
-        <% if thumb %>
-          <%= link_to gallery_link(feature), class: "modland-feature-thumb" do %>
-            <img src="<%= thumb %>" alt="" loading="lazy">
-          <% end %>
-        <% end %>
-        <div class="modland-feature-text">
-          <%= link_to gallery_title(feature), gallery_link(feature), class: "modland-feature-title" %>
-          <p class="modland-feature-handle"><%= feature.contact %></p>
-          <% if feature.bio.present? %>
-            <p class="modland-feature-bio"><%= truncate(feature.bio, length: 280, separator: " ") %></p>
-          <% end %>
-        </div>
-      </div>
-    </section>
-  <% end %>
-
   <%# --- promoted creators -------------------------------------------- %>
   <% if promoted? %>
     <section class="modland-promoted">

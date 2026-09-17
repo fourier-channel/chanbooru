@@ -27,6 +27,19 @@ class CreatorGallery < ApplicationRecord
   # no month arithmetic, nothing to expire: setting a new feature is the whole
   # act, and until someone does, last month's stands rather than the page
   # showing an empty slot.
+  # PARKED, 2026-09-17, and deliberately not deleted.
+  #
+  # featured_at backed "Creator of the month", a single gallery in its own
+  # section on the landing page. That section is gone: the idea became the
+  # plural "Featured Creators" carousel row, which is configured by ARTIST TAGS
+  # on the landing console and does not read this column.
+  #
+  # It is kept for the expansion the operator named -- pinning a GALLERY to
+  # that row rather than a tag -- which is what this column already models.
+  # NOTHING READS IT TODAY and nothing ever wrote it; if that expansion is
+  # dropped, drop the column with it rather than leaving a plausible name
+  # attached to nothing, which is exactly what made it cost an afternoon to
+  # work out the difference between this and promoted_at.
   def self.current_feature
     where.not(featured_at: nil).order(featured_at: :desc).first
   end

@@ -1,19 +1,25 @@
 # frozen_string_literal: true
 
-# The landing page: a shuffled slideshow of what the site holds, the current
-# featured creator, and the promoted ones.
+# The landing page: a shuffled slideshow of what the site holds, and the
+# promoted creators beneath it.
+#
+# CREATOR OF THE MONTH HAS LEFT THIS COMPONENT, 2026-09-17, by operator ruling.
+# It was a single gallery in its own section; the idea is now the plural
+# "Featured Creators" row of the carousel, configured by artist tags on the
+# landing console. The IDEA MOVED, it was not retired -- and CreatorGallery
+# .featured_at is parked rather than dropped, for pinning a gallery to that row
+# later. See the note on that column.
 #
 # Written to be worth looking at with NOTHING in it. A new site has no promoted
-# creators and no feature, and a landing page that renders empty boxes in that
-# state is worse than one that renders nothing -- so every section here asks
-# whether it has anything to say before it takes up space.
+# creators, and a landing page that renders empty boxes in that state is worse
+# than one that renders nothing -- so every section here asks whether it has
+# anything to say before it takes up space.
 class ModulationLandingComponent < ApplicationComponent
-  attr_reader :categories, :feature, :promoted, :preference, :viewer
+  attr_reader :categories, :promoted, :preference, :viewer
 
-  def initialize(categories:, feature: nil, promoted: [], preference: nil, viewer: nil)
+  def initialize(categories:, promoted: [], preference: nil, viewer: nil)
     super
     @categories = categories.to_a
-    @feature = feature
     @promoted = promoted.to_a
     @preference = preference.to_s
     @viewer = viewer
@@ -29,10 +35,6 @@ class ModulationLandingComponent < ApplicationComponent
   # saw is an element it never filtered.
   def all_slides
     categories.flat_map { |category| category[:slides].map { |slide| slide.merge(category: category[:key]) } }
-  end
-
-  def feature?
-    feature.present?
   end
 
   def promoted?
