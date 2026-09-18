@@ -24,6 +24,10 @@ class CreatorGalleriesController < ApplicationController
     @gallery = CreatorGallery.new
   end
 
+  def edit
+    skip_authorization
+  end
+
   # Claim your page. A non-admin may only create the gallery for their own
   # verified identity; an admin may pass an explicit matrix_id.
   def create
@@ -39,12 +43,8 @@ class CreatorGalleriesController < ApplicationController
     if @gallery.save
       redirect_to creator_gallery_path(@gallery)
     else
-      render :new, status: :unprocessable_entity
+      render :new, status: 422
     end
-  end
-
-  def edit
-    skip_authorization
   end
 
   def update
@@ -52,7 +52,7 @@ class CreatorGalleriesController < ApplicationController
     if @gallery.update(gallery_params)
       redirect_to creator_gallery_path(@gallery)
     else
-      render :edit, status: :unprocessable_entity
+      render :edit, status: 422
     end
   end
 

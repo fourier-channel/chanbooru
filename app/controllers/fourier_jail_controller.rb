@@ -51,7 +51,7 @@ class FourierJailController < ApplicationController
     # tell an undeployed fork from a bad request without guessing.
     md5 = params[:md5].to_s
     unless md5.match?(/\A[0-9a-f]{32}\z/)
-      return render json: { released: false, reason: "md5 must be 32 hex characters" }, status: :unprocessable_entity
+      return render json: { released: false, reason: "md5 must be 32 hex characters" }, status: 422
     end
 
     # Post.find_by, NOT a tag search: the model has no opinion about
@@ -62,21 +62,21 @@ class FourierJailController < ApplicationController
     # have the release endpoint yet", and both would be a bare 404.
     post = Post.find_by(md5: md5)
     if post.nil?
-      return render json: { released: false, reason: "no such post" }, status: :ok
+      return render json: { released: false, reason: "no such post" }, status: 200
     end
 
     unless post.tag_array.include?(JAIL_TAG)
-      return render json: { post_id: post.id, released: false, reason: "not jailed" }, status: :unprocessable_entity
+      return render json: { post_id: post.id, released: false, reason: "not jailed" }, status: 422
     end
 
     unless post.is_deleted?
       # Idempotent on purpose. A retry after a half-finished release must not
       # look like a failure, or the caller will keep retrying forever.
-      return render json: { post_id: post.id, released: false, reason: "already active" }, status: :ok
+      return render json: { post_id: post.id, released: false, reason: "already active" }, status: 200
     end
 
     undelete!(post)
-    render json: { post_id: post.id, released: true }, status: :ok
+    render json: { post_id: post.id, released: true }, status: 200
   end
 
   private
