@@ -152,7 +152,40 @@
   --mod-active-bg:      #241a0e;
 
   /* --- accent ----------------------------------------------------------- */
-  --mod-accent:         #38e08a;
+  /* THE BRAND GREEN, AT TEXT WEIGHT. Operator ruling 2026-09-18, after this
+   * token was found to be the wrong green on the first surface that used it
+   * for headings and links at size:
+   *
+   *   "The ultra-light mint green would serve well as a glow or a stroke but
+   *   way too light for the site's intended green. Compare it to the actual
+   *   site logo on the front page."
+   *
+   * So it was compared, by sampling the mark's own pixels rather than by
+   * eye. 41chan.png is hue 120 at 95.6% saturation: a third of the opaque
+   * mark is #038403, and the extrusion faces run hue 112-118 at 100%. The
+   * previous value, #38e08a, sits at hue 149 -- twenty-nine degrees toward
+   * cyan from the mark it is supposed to belong to, at 73% saturation.
+   *
+   * Nobody chose that. It was extracted from Modulation's palette, which is
+   * where the vocabulary was established, and the logo was never one of the
+   * surfaces measured. That is the gap: an accent extracted from surfaces is
+   * an accent nobody checked against the mark.
+   *
+   * WHY NOT THE MARK'S VALUE ITSELF. #038403 is lightness 26.5% -- a solid
+   * fill on white-ish paper, not ink on a dark ground. As text on
+   * --mod-surface it measures 3.6:1 -- under the 4.5:1 that body copy needs,
+   * and the old page green #00b200 was only 6.1:1. The hue and the
+   * saturation are the brand; the lightness is the medium. So this is the
+   * mark's character carried to text weight: hue 128, 90% saturation,
+   * lightness 48%, which measures 10.5:1 on --mod-surface.
+   *
+   * WHAT DID NOT MOVE, and this is why the names were kept separate:
+   * --mod-creator-fg, --mod-tag-character-fg and --mod-ok-fg still hold the
+   * mint. "Who put this tag here", "what kind of thing this tag names" and
+   * "this service is healthy" are not the brand, and one token serving both
+   * would have made the other wrong the day either moved. That day was
+   * today. */
+  --mod-accent:         #0ce92a;
 
   /* --- shape ------------------------------------------------------------ */
   /* 10px is the PRESET-level value. A component may narrow it -- the creator
@@ -251,5 +284,54 @@
     --mod-hype-rise: 0px;
     --mod-hype-jitter: 0px;
     --mod-hype-tilt: 0deg;
+  }
+}
+
+/* ===========================================================================
+ * TAG POP -- a tag arriving, and a tag leaving.
+ *
+ * Tags are live: a person retags on the booru and every surface showing that
+ * image should say so without a reload. A silent swap is indistinguishable
+ * from having missed it, so the CHANGE is what gets drawn, not the new state.
+ *
+ * Operator, 2026-09-17: "then for animations you would just diff the tags to
+ * pop them in and out as they get added or removed." The diff belongs to the
+ * consumer -- it knows what it drew last -- and only the motion is here.
+ *
+ * FINITE, unlike mod-hype-*. These run once per change, so they are free to
+ * touch what they like; they stay on transform and opacity anyway because a
+ * pill popping in beside thirty others should not relayout the column.
+ *
+ * SCALE FROM THE CENTRE and never from zero WIDTH: animating width or height
+ * reflows every sibling on every frame, which is the standing no-forced-reflow
+ * rule, and at these sizes the difference is visible as a shudder.
+ * ======================================================================== */
+
+:root {
+  --mod-tag-pop-in-dur:   220ms;
+  --mod-tag-pop-out-dur:  160ms;
+  --mod-tag-pop-ease:     cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+@keyframes mod-tag-pop-in {
+  /* Slight overshoot, so an arriving tag reads as arriving rather than as
+     having always been there. */
+  0%   { opacity: 0; transform: scale(0.72); }
+  60%  { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes mod-tag-pop-out {
+  /* Leaves smaller and faster than it arrived: a removal should not hold the
+     eye as long as an addition. The consumer keeps the element mounted for
+     --mod-tag-pop-out-dur and then drops it. */
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.6); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --mod-tag-pop-in-dur:  1ms;
+    --mod-tag-pop-out-dur: 1ms;
   }
 }
