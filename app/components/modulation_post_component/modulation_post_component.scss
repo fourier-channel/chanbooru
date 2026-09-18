@@ -578,10 +578,25 @@ body:has(.modulation) {
   // on specificity order without !important -- .mod-pill--auto and friends are
   // single classes too, and these rules come later in the same file.
   //
-  // The values are formant's tag-category names, NOT this component's local
-  // copies: --mod-tag-artist-fg is the same token the header's "Creators"
-  // entry resolves to through --artist-tag-color, which is exactly what
-  // "closer to the red used in the header" asks for. Nothing here is a hex.
+  // IT NAMES THE FORK'S OWN TAG VARIABLES, not formant's --mod-tag-*-fg, and
+  // that is not a compromise -- it is the only version that works AND the
+  // closer reading of the request.
+  //
+  // formant/_tokens.scss is IMPORTED BY NOTHING in this repo. It is delivered
+  // as the reference that test/unit/formant_tokens_test.rb asserts against,
+  // because chanbooru holds itself to canon by assertion rather than import:
+  // canon declares at :root and these tokens live in a preset mixin, so
+  // importing it would hand Modulation's palette to the historical preset.
+  // A --mod-tag-artist-fg here would therefore resolve to nothing at runtime
+  // and the pill would inherit -- silently, with no error and a stylesheet
+  // that compiles clean. The first cut of this block did exactly that, and a
+  // browser check missed it because the harness had loaded the token file the
+  // application never serves.
+  //
+  // --artist-tag-color is also literally the variable the header's "Creators"
+  // pill resolves through, so "closer to the red used in the header" is
+  // satisfied by naming the header's own variable rather than a parallel one
+  // that happens to hold the same hex today.
   //
   // THE SELECTOR IS COMPOUND ON PURPOSE. `.mod-pill--cat-artist` alone ties
   // with `.mod-pill--auto` on specificity -- one class each under
@@ -592,10 +607,10 @@ body:has(.modulation) {
   // while reading as correct. Matching .mod-pill--cat too makes it three
   // classes and wins on specificity, which does not depend on what order a
   // future edit leaves these blocks in.
-  @each $cat, $token in (artist: --mod-tag-artist-fg,
-                         character: --mod-tag-character-fg,
-                         copyright: --mod-tag-copyright-fg,
-                         species: --mod-tag-general-fg) {
+  @each $cat, $token in (artist: --artist-tag-color,
+                         character: --character-tag-color,
+                         copyright: --copyright-tag-color,
+                         species: --general-tag-color) {
     .mod-pill--cat.mod-pill--cat-#{$cat} {
       color: var(#{$token});
       border-color: color-mix(in srgb, var(#{$token}) 40%, transparent);
