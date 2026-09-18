@@ -582,11 +582,21 @@ body:has(.modulation) {
   // copies: --mod-tag-artist-fg is the same token the header's "Creators"
   // entry resolves to through --artist-tag-color, which is exactly what
   // "closer to the red used in the header" asks for. Nothing here is a hex.
+  //
+  // THE SELECTOR IS COMPOUND ON PURPOSE. `.mod-pill--cat-artist` alone ties
+  // with `.mod-pill--auto` on specificity -- one class each under
+  // `.modulation` -- and the provenance pills are declared further down this
+  // same file, so the tie breaks toward provenance and the pill stays orange.
+  // Compiled and checked: the category rule landed at line 718 and
+  // .mod-pill--auto at 815, so the first cut of this fix did exactly nothing
+  // while reading as correct. Matching .mod-pill--cat too makes it three
+  // classes and wins on specificity, which does not depend on what order a
+  // future edit leaves these blocks in.
   @each $cat, $token in (artist: --mod-tag-artist-fg,
                          character: --mod-tag-character-fg,
                          copyright: --mod-tag-copyright-fg,
                          species: --mod-tag-general-fg) {
-    .mod-pill--cat-#{$cat} {
+    .mod-pill--cat.mod-pill--cat-#{$cat} {
       color: var(#{$token});
       border-color: color-mix(in srgb, var(#{$token}) 40%, transparent);
       background: color-mix(in srgb, var(#{$token}) 12%, var(--mod-surface));
