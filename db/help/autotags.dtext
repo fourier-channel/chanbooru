@@ -1,0 +1,23 @@
+h4. Where the tags come from
+
+Nearly every tag on this site was written by software, and each tag says so.
+
+Two models look at every image:
+
+* [b]wd-vit-tagger-v3[/b] -- the primary. A Danbooru-vocabulary tagger (about 10,800 tags across general, character and rating) that runs on the upload as it arrives.
+* [b]hydra-3.5[/b] -- the secondary. A different vocabulary entirely, with species, copyright, lore and meta categories the primary lacks. It sees things the primary has no words for, which is why some of the site's content rules are written in its vocabulary.
+
+The primary is the required route: no post is ever made on the secondary's tags alone.
+
+h4. Reading the pills
+
+On a post page, tags are grouped by who put them there:
+
+* [b]creator[/b] -- a person added it.
+* [b]auto[/b] -- a tagger added it.
+* [b]creator + auto[/b] -- both agree.
+* [b]pending[/b] -- a tagger has suggested it and no one has confirmed it yet.
+
+That grouping is separate from the tag's category (artist, character, copyright, general, meta), which is shown by colour. A tag can be an artist tag [i]and[/i] auto-sourced; the two axes never borrow each other's colours.
+
+The taggers are usually right and sometimes wrong. Remove what is wrong and add what is missing; your change is recorded as yours.

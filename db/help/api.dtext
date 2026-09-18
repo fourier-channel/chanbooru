@@ -1,0 +1,15 @@
+h4. API
+
+The site answers the same routes as JSON or XML when asked: add ".json" or ".xml" to a URL, or send an Accept header. Searches take the same parameters as the pages do.
+
+h4. Authentication
+
+Generate an API key from your account page. Send it with your user name using HTTP Basic auth, or as login and api_key parameters. Each key can be limited to specific permissions and IP addresses.
+
+h4. What is different here, and it matters
+
+[b]Anonymous requests from outside a browser do not reach the site.[/b] Every signed-out request is given a Cloudflare challenge that only a browser can solve, and a request that fails it receives a 403 from the edge -- with a cf-mitigated header, and without the x-request-id header the application would send. curl, scripts and monitoring all get this by design.
+
+A script that needs the API must therefore carry a session: sign in with a browser, take the _danbooru2_session cookie, and send it with each request. An API key alone is not a session and will be challenged.
+
+Comments, notes and the forum are not part of this site; their API routes return 404.

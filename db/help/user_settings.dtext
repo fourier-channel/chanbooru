@@ -1,0 +1,12 @@
+h4. Settings
+
+Your settings page controls how the site looks and what it shows you.
+
+* [b]Blacklist[/b] -- tags and combinations you do not want to see. See [[help:blacklists]].
+* [b]Safe mode[/b] -- hides everything not rated g. See [[help:safe_mode]].
+* [b]Posts per page[/b] -- below Member this is capped at 20 regardless. See [[help:users]].
+* [b]Default image size[/b] -- whether a post page shows the sample or the original.
+* [b]Experience preset[/b] -- "Modulation" is this site's own interface and the default. "Historical" is the unchanged upstream Danbooru interface, kept for comparison; it is not maintained as a place to use the site.
+* [b]Time zone and language[/b] for dates and the interface.
+
+Settings apply only to your own account. The site-wide rules that hide or remove content are not settings and cannot be switched off here.

@@ -1,0 +1,28 @@
+h4. DText
+
+DText is the markup used in wiki pages, pool descriptions, artist commentary and messages.
+
+h4. Inline
+
+* [code][b]bold[/b][/code], [code][i]italics[/i][/code], [code][u]underline[/u][/code], [code][s]strikethrough[/s][/code]
+* [code][tn]small note[/tn][/code]
+* [code][spoilers]hidden until clicked[/spoilers][/code]
+* [nodtext][code]literal text[/code][/nodtext]
+
+h4. Links
+
+* [code][[tag_name]][/code] links to a wiki page. [code][[tag_name|shown text]][/code] changes the text. [code][[Fate (series)|]][/code] drops the qualifier.
+* [code]{{tag1 tag2}}[/code] links to a search.
+* [code]"text":https://example.com[/code] links out.
+* [code]post #123[/code], [code]pool #12[/code], [code]user #5[/code], [code]wiki #7[/code], [code]artist #3[/code] and similar make links to those records.
+* [code]@name[/code] mentions a user.
+
+h4. Structure
+
+* Lines starting with [code]*[/code] make a list; [code]**[/code] nests.
+* [code]h1.[/code] to [code]h6.[/code] at the start of a line make a heading.
+* [code][quote]...[/quote][/code] for a quotation.
+* [code][expand=Title]...[/expand][/code] for a collapsed section.
+* A blank line starts a new paragraph.
+
+Comments, forum posts and notes do not exist on this site, so the shortlinks for them lead nowhere.

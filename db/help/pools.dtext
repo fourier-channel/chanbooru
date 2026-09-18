@@ -1,0 +1,8 @@
+h4. Pools
+
+A pool is an ordered set of posts: a comic, a sequence, a set that belongs together in a particular order. A post can be in many pools.
+
+* Create a pool from Pools > New, then add posts from each post's page or with the pool's edit page.
+* Pools are ordered. Drag to reorder on the pool's edit page.
+* A pool marked as a [b]series[/b] is a sequence meant to be read in order; a [b]collection[/b] is just a set.
+* Pool changes are versioned and can be reverted.

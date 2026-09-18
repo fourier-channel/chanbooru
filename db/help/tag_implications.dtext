@@ -1,0 +1,5 @@
+h4. Tag implications
+
+An implication says one tag always brings another: adding [code]cat_ears[/code] adds [code]animal_ears[/code]; adding a character adds their copyright. The implied tag is added automatically and cannot be removed without removing the implying one.
+
+Implications are proposed as [[help:bulk_update_requests|bulk update requests]] and approved by Builders and above. They keep specific tags searchable through general ones without anyone having to remember to add both.

@@ -1,0 +1,12 @@
+h4. Gated content
+
+Certain tags mark material this site will not show casually. Gating is a property of the post, not of the viewer: a post carrying any gated tag is gated for everyone, and what differs is what each viewer gets.
+
+* [b]Signed out:[/b] the post does not exist. It is absent from results, from counts, from the paginator and from previous/next navigation. There is nothing to click.
+* [b]Signed in below Gold:[/b] the post is listed with its tags, and the image is withheld with a notice. You can see that it is there and ask for a level.
+* [b]Gold and above:[/b] shown.
+* [b]The uploader[/b] always sees their own post.
+
+A count of "posts on this page require a Gold account" is this rule. Levels are granted by staff -- see [[help:users]].
+
+This is different from your blacklist, which hides what you have chosen not to see and can be undone by clicking. See [[help:blacklists]]. It is also different from banished tags, which remove a word from the site entirely.

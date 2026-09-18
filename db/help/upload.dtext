@@ -1,0 +1,21 @@
+h4. Uploading
+
+You can upload from a file on your computer or from a URL. The upload page shows the image, runs the taggers on it, and lets you adjust tags, rating, source and parent before you post.
+
+h4. What happens to an upload
+
+* If your account is below Contributor, your post is [b]pending[/b] and waits in the approval queue. It is visible while pending. An Approver approves it or it is deleted. See [[help:mod_queue]].
+* Contributor and above post directly.
+* Every account has an upload limit -- a number of posts that can be pending at once. See [[help:upload_limits]].
+
+h4. Before you upload
+
+Read [[help:upload_rules]]. Duplicates of existing posts are found automatically by image similarity and shown to you before you post; do not post a duplicate.
+
+h4. Tags
+
+The taggers will have written most of the tags by the time you see the form. Check them; they are usually right and sometimes not. Add what they missed. See [[help:tags]] and [[help:autotags]].
+
+h4. Rating
+
+Every post has a rating. See the rating notes on the upload form. Rating a post incorrectly is the fastest way to get an upload deleted.

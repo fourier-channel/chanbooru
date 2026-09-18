@@ -1,0 +1,7 @@
+h4. Tag aliases
+
+An alias says two spellings are one tag: searching or adding either gets the other. The site keeps one canonical spelling, and every post carrying the old one is moved to it.
+
+Aliases are made by proposing a [[help:bulk_update_requests|bulk update request]], or directly by Builders and above. Some aliases are declared by the site itself and reapplied after any rebuild.
+
+An alias is a real edit to real posts, not a display trick, which is why it is reviewed.

@@ -1,0 +1,31 @@
+h4. Posts
+
+A post is one image or video plus its tags, rating, source and relationships. Search by typing tags into the search box; a post matches when it carries every tag you typed. Prefix a tag with "-" to exclude it, and use "~" for "any of these".
+
+h4. What you can see depends on who you are
+
+Three things decide whether a post appears for you, and they are separate rules:
+
+* [b]Your account level.[/b] Below Member, a search shows at most 20 posts per page. See [[help:users]].
+* [b]Gated content.[/b] Posts carrying certain tags do not exist for signed-out visitors at all -- not in results, not in counts, not in navigation -- and are listed but withheld for signed-in accounts below Gold. See [[help:censored_tags]].
+* [b]Deleted posts[/b] are removed from every search for everyone below Admin.
+
+Your blacklist hides things on top of that. Hidden is not gone: a blacklisted post still loads by direct link. See [[help:blacklists]].
+
+h4. When the page loads but the image does not
+
+The booru holds no image bytes. Every image is served from separate storage through an authorisation service, and your browser is allowed to fetch it only while you hold a valid session. If a page renders and its image does not, it is almost always your session, not the post: sign in again, or sign in to the chat client, which signs you in here with no extra clicks.
+
+h4. Where posts come from
+
+Most posts arrive through the pipeline -- images posted in the community's chat rooms, and images collected from elsewhere -- already tagged by the taggers. You can upload directly too. See [[help:upload]].
+
+h4. On a post page
+
+* [b]Tags[/b], grouped by who put them there. See [[help:autotags]].
+* [b]Rating[/b]: g (general), s (sensitive), q (questionable), e (explicit).
+* [b]Parent and children[/b], if the post is a variant of another. See [[help:post_relationships]].
+* [b]Pools[/b] the post belongs to. See [[help:pools]].
+* [b]Source[/b]: where the image came from, when known.
+
+Comments and notes are not part of this site.

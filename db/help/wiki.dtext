@@ -1,0 +1,10 @@
+h4. Wiki
+
+Every tag can have a wiki page describing what it means and how to use it. Wiki pages are also where this help lives, and where lists and guides go.
+
+* A page's title is the tag it describes. Create one from the tag's page, or from Wiki > New.
+* Pages are written in [[help:dtext]].
+* Every edit is kept; the history link on a page shows who changed what, and a page can be reverted.
+* A wiki page for a character or copyright can list other names, which autocomplete will match.
+
+Pages prefixed with "help:" are this site's help and are maintained from the site's own repository rather than edited here: an edit made in the wiki editor to a help page will be overwritten the next time the help is seeded. If a help page is wrong, say so on Matrix.

@@ -1,0 +1,7 @@
+h4. Parents and children
+
+A post can be a [b]child[/b] of another when it is a variant of it: a different crop, a version with or without text, a colour and a lineart, a higher-resolution copy. Set the parent on the child's edit page.
+
+* A post page shows its parent, and its children, with a notice.
+* Searching [code]parent:123[/code] finds a post's children; [code]child:any[/code] finds every post that has children.
+* When a duplicate is uploaded, the lower-quality one is usually deleted and the survivor kept; relationships are for variants worth keeping, not for duplicates.

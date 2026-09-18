@@ -1,0 +1,29 @@
+h4. Help
+
+41chan's booru is a "Danbooru":https://github.com/danbooru/danbooru fork run by and for a small, invite-only community. Most of Danbooru works the way it does upstream; what is different is written down here, and the differences are the point.
+
+h4. Start here
+
+* [[help:posts]] -- browsing, searching, and what a post page shows.
+* [[help:tags]] -- how tags work, and where most of them come from here.
+* [[help:upload]] -- uploading, the approval queue, and your upload limit.
+* [[help:users]] -- account levels and what each one can do.
+* [[help:blacklists]] -- hiding what you do not want to see.
+* [[help:dtext]] -- the markup used in wiki pages and descriptions.
+
+h4. What is different here
+
+* The site is invite-only. Accounts are created with a signup token from an admin; there is no open registration.
+* New accounts start at the Restricted level and are raised by staff, not by time or activity. See [[help:users]].
+* Comments, notes and the forum are not part of this site. Their pages do not exist.
+* Nearly every tag on a post was written by a tagger, not a person. See [[help:autotags]].
+* Images are stored and served outside the booru. See [[help:posts]] for what that means when a page loads and an image does not.
+* Some material is gated and some tags are removed from the vocabulary entirely. See [[help:censored_tags]] and [[help:blacklists]].
+
+h4. Everything else
+
+[[help:pools]], [[help:favorite_groups]], [[help:saved_searches]], [[help:post_relationships]], [[help:tag_aliases]], [[help:tag_implications]], [[help:bulk_update_requests]], [[help:artist_commentary]], [[help:translated_tags]], [[help:wiki]], [[help:mod_queue]], [[help:api]], [[help:user_settings]], [[help:privacy_mode]], [[help:safe_mode]], [[help:community]], [[help:dmail]].
+
+h4. Getting help
+
+Message [nodtext]@saber:41chan.net[/nodtext] on Matrix, or email admin@fourier.channel.

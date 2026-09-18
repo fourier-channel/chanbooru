@@ -1,0 +1,26 @@
+h4. Blacklists
+
+Three different things hide posts here, and only one of them is yours to change.
+
+h4. Your blacklist
+
+A list of tags, one rule per line, in your settings. A post matching a rule is hidden from listings; click it to see it anyway. Tags on one line are ANDed, and "-" excludes:
+
+[code]
+rating:e
+arthropod rating:e -pokemon_(creature)
+[/code]
+
+A new account starts with the site's default blacklist and can change it freely.
+
+[b]One limit:[/b] your blacklist cannot match a tag you are not allowed to see. Some creators keep their tags private; those tags are not in the page at all for you, so no rule can catch them. The alternative would be telling you what they were.
+
+h4. The enforced blacklist
+
+Applied to every viewer, stored in no account, and editable by nobody from the site. It hides certain combinations the same way your blacklist does -- hidden, not removed, and still reachable by direct link.
+
+h4. Banished tags
+
+Some tags have been removed from the site's vocabulary outright. They do not appear in listings, in autocomplete, or on posts, for anyone. This is about the words; posts that carried them are dealt with separately. Admins can reveal them for themselves with a setting, and only for themselves.
+
+These are separate from gated content, which is about what a post [i]is[/i] rather than what you have chosen to hide. See [[help:censored_tags]].

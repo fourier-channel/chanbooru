@@ -1,0 +1,18 @@
+h4. Account levels
+
+Levels decide what an account can see and do. On this site they are granted and raised by staff -- there is nothing to buy and nothing that happens automatically with time or activity. If you need a higher level, ask on Matrix.
+
+* [b]Restricted[/b] -- where every new account starts. Searches show at most 20 posts per page, and gated content is withheld.
+* [b]Member[/b] -- full browsing. No per-page cap.
+* [b]Gold[/b] -- may view gated content. See [[help:censored_tags]]. Private favourite groups. See [[help:privacy_mode]].
+* [b]Platinum[/b] -- as Gold, with higher limits.
+* [b]Builder[/b] -- may edit tag relationships and wiki pages without approval.
+* [b]Contributor[/b] -- uploads are not held for approval. See [[help:mod_queue]].
+* [b]Approver[/b] -- may approve pending uploads.
+* [b]Moderator[/b] -- may handle reports, flags and appeals, and act on accounts.
+* [b]Admin[/b] -- everything above, plus site configuration and the ability to see deleted posts.
+* [b]Owner[/b] -- the person running the site.
+
+h4. Getting an account
+
+Registration needs a signup token from an admin. Each token allows one, several, or unlimited registrations, and a spent token is refused before any account is created. There is no open signup.

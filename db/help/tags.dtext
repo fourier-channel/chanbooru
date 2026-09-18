@@ -1,0 +1,28 @@
+h4. Tags
+
+A tag is a single word or a phrase joined with underscores that says something true about the post. Tags are what search matches, so a post is only as findable as its tags are complete.
+
+h4. Categories
+
+* [b]General[/b] -- what is in the image: 1girl, sword, outdoors.
+* [b]Character[/b] -- who is in it.
+* [b]Copyright[/b] -- what it is from.
+* [b]Artist[/b] -- who made it. On this site the artist tag is usually the poster's own name or the board it came from.
+* [b]Meta[/b] -- facts about the file rather than the picture: highres, animated, translated.
+
+Each category has its own colour wherever tags are shown, and that colour never changes to mean anything else.
+
+h4. Where the tags come from
+
+Nearly every tag here was written by a tagger, not a person. Two models run on every image and each pill on a post says which -- see [[help:autotags]]. You can add and remove tags on any post you can see; a tag you add is marked as yours.
+
+h4. Tags that are not there
+
+Some tags have been removed from the vocabulary of this site: they do not appear in listings, in autocomplete, or on posts, for anyone. Posts that carried them are handled separately. See [[help:blacklists]].
+
+h4. Keeping the vocabulary tidy
+
+* [[help:tag_aliases]] -- one spelling wins.
+* [[help:tag_implications]] -- one tag brings another with it.
+* [[help:bulk_update_requests]] -- proposing either.
+* [[help:deprecation_notice]] -- tags that can no longer be added.

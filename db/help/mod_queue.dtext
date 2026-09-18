@@ -1,0 +1,10 @@
+h4. The approval queue
+
+Uploads from accounts below Contributor are [b]pending[/b] until an Approver looks at them. A pending post is visible in the meantime, marked with a notice.
+
+* [b]Approved[/b] -- the post stays and the uploader earns toward a higher upload limit.
+* [b]Deleted[/b] -- the post is removed from search for everyone below Admin. The uploader's upload limit goes down.
+* [b]Flagged[/b] -- a post already on the site that someone believes should not be. It goes back into the queue for a decision.
+* [b]Appealed[/b] -- a deleted post that someone believes should come back. It goes into the queue too, and takes three upload slots while it waits.
+
+The pipeline's own uploads are approved by its bot, which is an Approver. Deleted posts here are removed at the query level, not just hidden, so a deleted post is not in any count and does not appear as a neighbour.

@@ -1,0 +1,3 @@
+h4. Saved searches
+
+A saved search remembers a query under a label, so you can come back to it, and so you can search all your saved queries at once with [code]search:all[/code] or one label with [code]search:label[/code]. Manage them from your account page.

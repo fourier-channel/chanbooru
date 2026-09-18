@@ -1,0 +1,13 @@
+h4. Bulk update requests
+
+A bulk update request (BUR) proposes changes to the tag vocabulary: aliases, implications, renames, mass edits. Write the request as a script, one change per line:
+
+[code]
+alias old_spelling -> new_spelling
+imply cat_ears -> animal_ears
+mass update old_tag -> new_tag
+[/code]
+
+A Builder or above reviews it. When approved, every line is applied and every affected post is edited. Requests are the record of why the vocabulary is the way it is.
+
+The forum, where upstream discusses these, is not part of this site. Discuss a request on Matrix.
