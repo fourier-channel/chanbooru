@@ -578,25 +578,28 @@ body:has(.modulation) {
   // on specificity order without !important -- .mod-pill--auto and friends are
   // single classes too, and these rules come later in the same file.
   //
-  // IT NAMES THE FORK'S OWN TAG VARIABLES, not formant's --mod-tag-*-fg, and
-  // that is not a compromise -- it is the only version that works AND the
-  // closer reading of the request.
+  // IT NAMES THE HEADER'S OWN VARIABLE. --artist-tag-color is what the
+  // "Creators" pill in the navbar resolves through, so "closer to the red used
+  // in the header" is answered by naming that exact variable rather than a
+  // parallel token holding the same hex today. formant's --mod-tag-artist-fg
+  // would work equally well -- see the correction below -- but it would be a
+  // second name for the thing the request pointed at.
   //
-  // formant/_tokens.scss is IMPORTED BY NOTHING in this repo. It is delivered
-  // as the reference that test/unit/formant_tokens_test.rb asserts against,
-  // because chanbooru holds itself to canon by assertion rather than import:
-  // canon declares at :root and these tokens live in a preset mixin, so
-  // importing it would hand Modulation's palette to the historical preset.
-  // A --mod-tag-artist-fg here would therefore resolve to nothing at runtime
-  // and the pill would inherit -- silently, with no error and a stylesheet
-  // that compiles clean. The first cut of this block did exactly that, and a
-  // browser check missed it because the harness had loaded the token file the
-  // application never serves.
+  // A CORRECTION WORTH KEEPING, because it will otherwise be re-derived.
+  // An earlier version of this comment claimed formant/_tokens.scss is
+  // "imported by nothing" and that --mod-* names therefore do not resolve at
+  // runtime. That is FALSE. Nothing @imports or @uses it, which is all a grep
+  // for those keywords can see, but app/javascript/packs/application.js does
+  //     importAll(require.context('../src/styles', true, /\.s?css(?:\.erb)?$/))
+  // which pulls in every stylesheet under src/styles, the formant partial
+  // included. Proof that does not depend on reading the bundler: --mod-lamp-unlit
+  // and --mod-alarm-ink are declared in that file and nowhere else in this
+  // repo, and both appear in the built bundle.
   //
-  // --artist-tag-color is also literally the variable the header's "Creators"
-  // pill resolves through, so "closer to the red used in the header" is
-  // satisfied by naming the header's own variable rather than a parallel one
-  // that happens to hold the same hex today.
+  // The lesson is the one this estate keeps paying for: a grep for @import
+  // measures import STATEMENTS, not what reaches the browser. The question was
+  // "is this token file served", and the only thing that answers it is the
+  // build output.
   //
   // THE SELECTOR IS COMPOUND ON PURPOSE. `.mod-pill--cat-artist` alone ties
   // with `.mod-pill--auto` on specificity -- one class each under
