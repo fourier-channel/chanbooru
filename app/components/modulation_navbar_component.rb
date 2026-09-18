@@ -53,7 +53,10 @@ class ModulationNavbarComponent < NavbarComponent
     list << { label: "Creators", href: main_app.artists_path, category: "artist" }
     list << { label: "Tags", href: main_app.tags_path, category: "general" }
     list << { label: "Pools", href: main_app.gallery_pools_path, category: "general" }
-    list << { label: "Wiki", href: main_app.wiki_page_path("help:home"), category: "general" }
+    # The wiki INDEX, not help:home. That page does not exist in this database
+    # and the pill 404d in production -- a top-level nav item leading nowhere.
+    # The help corpus was never written; the wiki itself works.
+    list << { label: "Wiki", href: main_app.wiki_pages_path, category: "general" }
 
     # The sampling curation surface, published inside this site at /sample
     # (operator ruling 2026-09-13) so it inherits the booru's authentication.
