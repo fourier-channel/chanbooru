@@ -19,21 +19,46 @@
   // inner row is laid out at it, so the two must agree.
   --modnav-session-h: 2.2rem;
 
-  // The descending strip is absolutely positioned against THIS element. Without
-  // it the strip resolved against the initial containing block and `top: 100%`
+  // Nav's own two roles (2026-09-18). Navigation needs a vocabulary of its
+  // own; see the @each below for why it may not keep borrowing the tag one.
+  // Privileged is QUIETER than structural, not louder: a tool only some
+  // accounts can see is rarer, not more urgent, and yellow said urgent.
+  --modnav-structural: var(--mod-ink-dim, #9a968c);
+  --modnav-privileged: var(--mod-meta-fg, #8f8b80);
+
+  // The descending strip is absolutely positioned against .modnav-head. Without
+  // a positioned ancestor the strip resolved against the initial containing
+  // block and `top: 100%`
   // put it at the bottom of the viewport -- measured on production, at y=900 on
   // a 900px-tall window, which reads as the strip simply not appearing.
-  position: relative;
+  // NOT position:relative and NOT the reserved room -- both moved to
+  // .modnav-head below on 2026-09-18. While they lived here, the strip's
+  // top:100% resolved against a box that contains the subnav, so a page with a
+  // search row pushed session state underneath it.
 
-  // The room the strip descends into, reserved on EVERY page whether or not it
-  // is open. Without it the strip would land on whatever the page put there,
-  // and "does not displace" would have been bought with "covers something".
-  margin-bottom: var(--modnav-session-h);
-
-  background: var(--mod-surface, var(--body-background-color));
-  border-bottom: 1px solid var(--mod-line, var(--default-border-color));
+  // The chrome shade is formant's, extracted from technetium's ui-depth-v1
+  // on 2026-09-18 and named rather than re-composed -- a gradient re-typed in
+  // a second stylesheet drifts exactly the way a hex does.
+  background-color: var(--mod-surface, var(--body-background-color));
+  background-image: var(--mod-head-gradient);
+  border-bottom: 1px solid var(--mod-head-line, var(--mod-line, var(--default-border-color)));
+  box-shadow: inset 0 1px 0 var(--mod-head-lip);
   margin-top: 0;
   padding: 0;
+
+  // The bar row and the descending strip, and nothing else. This is the box
+  // the strip is positioned against, so "100% of it" is the underside of the
+  // bar on every page -- which is the whole point of the wrapper existing.
+  .modnav-head {
+    position: relative;
+
+    // The room the strip descends into, reserved on EVERY page whether or not
+    // it is open. Without it the strip would land on whatever is below, and
+    // "does not displace" would have been bought with "covers something".
+    // Reserved HERE rather than under the whole header, so the subnav starts
+    // below the landing zone instead of inside it.
+    margin-bottom: var(--modnav-session-h);
+  }
 
   // --- reload this panel ---------------------------------------------------
   // Pinned hard right by an auto margin rather than by ordering, so it stays in
@@ -198,7 +223,22 @@
 
   // One tint recipe, applied per category. `$token` names the semantic variable
   // so adding a category is one line and never a colour.
-  @each $name, $token in (general: --general-tag-color, artist: --artist-tag-color, meta: --meta-tag-color) {
+  //
+  // A NAV DESTINATION IS NOT A TAG (2026-09-18). This map used to read
+  // (general: --general-tag-color, artist: --artist-tag-color,
+  // meta: --meta-tag-color), so Posts, Tags, Pools, Wiki and More came out
+  // azure and Sample, Reports and Dashboard came out yellow -- each wearing
+  // the colour of a tag CATEGORY it has nothing to do with. Operator: "The
+  // blue and yellow pills in the header are not intentional." It is the same
+  // false semantic that formant-bridge.css corrects in technetium, where role
+  // sigils had borrowed warning-yellow and info-blue for "voice" and "op".
+  //
+  // RED STAYS, and that is not an inconsistency left behind. "Creators" IS the
+  // artist category -- the pill leads to the artist index -- so it is the one
+  // entry whose tag colour is its actual meaning rather than a borrowed one.
+  // The operator objected to blue and yellow and not to red, and asked in the
+  // same breath for the artist TAG to move closer to this exact red.
+  @each $name, $token in (general: --modnav-structural, artist: --artist-tag-color, meta: --modnav-privileged) {
     .modnav-pill--#{$name} {
       color: var(#{$token});
       border-color: color-mix(in srgb, var(#{$token}) 26%, transparent);
@@ -212,11 +252,18 @@
       // The current page is the one pill that fills; everything else is outline
       // plus tint, so there is exactly one thing drawing the eye.
       &.is-current {
-        background: color-mix(in srgb, var(#{$token}) 26%, var(--mod-surface-2, transparent));
-        border-color: color-mix(in srgb, var(#{$token}) 70%, transparent);
         font-weight: 600;
       }
     }
+  }
+
+  // WHERE YOU ARE IS STRUCTURE, not subject, so the filled pill is the brand
+  // green whatever the entry's category. Declared after the @each so it wins
+  // over the per-category tint above without needing !important.
+  .modnav-pill.is-current {
+    color: var(--mod-accent);
+    background: color-mix(in srgb, var(--mod-accent) 22%, var(--mod-surface-2, transparent));
+    border-color: color-mix(in srgb, var(--mod-accent) 60%, transparent);
   }
 
   // --- subnav --------------------------------------------------------------
@@ -385,7 +432,7 @@
     border-radius: 50%;
     background: #2b3441;
   }
-  .modnav-monitor[data-state="go"] .modnav-lamp { background: #35e08d; box-shadow: 0 0 6px rgb(53 224 141 / 45%); }
+  .modnav-monitor[data-state="go"] .modnav-lamp { background: var(--mod-ok-fg, #35e08d); box-shadow: 0 0 6px color-mix(in srgb, var(--mod-ok-fg, #35e08d) 45%, transparent); }
   .modnav-monitor[data-state="idle"] .modnav-lamp { background: #5a6472; }
   .modnav-monitor[data-state="stale"] .modnav-lamp { background: #f0b429; box-shadow: 0 0 6px rgb(240 180 41 / 40%); }
   .modnav-monitor[data-state="alarm"] .modnav-lamp { background: #ff5f56; box-shadow: 0 0 6px rgb(255 95 86 / 50%); }
@@ -488,10 +535,10 @@
     cursor: pointer;
     font: inherit;
 
-    &[data-state="go"] .modnav-pill-dot { background: #35e08d; }
+    &[data-state="go"] .modnav-pill-dot { background: var(--mod-ok-fg, #35e08d); }
     &[data-state="idle"] .modnav-pill-dot, &[data-state="unlit"] .modnav-pill-dot { background: #5a6472; }
-    &[data-state="stale"] .modnav-pill-dot { background: #f0b429; }
-    &[data-state="alarm"] .modnav-pill-dot { background: #ff5f56; }
+    &[data-state="stale"] .modnav-pill-dot { background: var(--mod-warn-fg, #f0b429); }
+    &[data-state="alarm"] .modnav-pill-dot { background: var(--mod-alarm-fg, #ff5f56); }
   }
 
   // --- narrow viewports ----------------------------------------------------

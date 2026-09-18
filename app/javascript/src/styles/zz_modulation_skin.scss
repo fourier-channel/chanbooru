@@ -33,7 +33,31 @@ body[data-preset="modulation"] {
      hundred selectors could not. */
   color-scheme: dark;
 
-  background: var(--mod-surface);
+  /* THE GROUND, AND THE FADE AT ITS EDGE (2026-09-18). The vignette is
+     formant's --mod-page-vignette, named rather than re-composed.
+
+     IT IS A BACKGROUND LAYER ON THIS ELEMENT, deliberately, and not the fixed
+     z-index:-1 pseudo-element that fourier-domain uses for the same token.
+     That shape cannot work here. A negative-z fixed pseudo paints in step 2 of
+     the root stacking context -- BEFORE the backgrounds of in-flow blocks --
+     and 020_base.scss:29 sets `body { background-color: ... }` at a bare
+     `body` selector that BOTH presets see. The opaque body background would
+     paint straight over the vignette, with no error anywhere and a page that
+     looks exactly as it did before. Making body transparent is not available
+     either: that rule is upstream's and the historical preset is supposed to
+     be upstream's interface untouched.
+
+     Painting the gradient as a layer on the same element as the colour has no
+     stacking problem to lose to, and stays inside this selector, so the
+     historical preset never sees it. Canon says the consumer chooses which
+     element wears a token; this is that choice, made for a reason.
+
+     `fixed` so the fade describes the rendered EDGE rather than the document
+     -- a long index page must not carry a dark band down its middle. */
+  background-color: var(--mod-surface);
+  background-image: var(--mod-page-vignette);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   color: var(--mod-ink);
 
   --mod-page: 1180px;

@@ -793,7 +793,16 @@ body[data-current-user-theme="dark"] {
   /* Green is Modulation's signature; it carries links the way azure carries
      them upstream. General tags keep blue so the five tag categories stay
      mutually distinguishable. */
-  --link-color: #38e08a;
+  // THE BRAND GREEN, not the mint (2026-09-18). This paints every link in the
+  // modulation view -- "Leave a comment" and the rest -- which makes it
+  // structure, and structure is --mod-accent. It held #38e08a, the same value
+  // as --character-tag-color two lines down, and those two agreeing was the
+  // coincidence canon warns about rather than a relationship: a link and a
+  // character tag are not the same idea and must not move together.
+  // Safe for the historical preset because this whole block is inside
+  // @mixin modulation-theme, which is applied only at
+  // body[data-preset="modulation"].
+  --link-color: var(--mod-accent, #0ce92a);
   --link-hover-color: #6ceaa8;
   --focus-ring-color: var(--link-color);
 

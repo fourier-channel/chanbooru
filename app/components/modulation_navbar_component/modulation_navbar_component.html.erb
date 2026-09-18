@@ -3,7 +3,26 @@
       Manage Session as the LAST pill of the nav, directly after "More". The wordmark used to be a centred line of its
       own above a centred row of pills, which spent two rows of vertical space
       saying what fits in one. %>
-  <div class="modnav-bar">
+  <%# SESSION STATE IS ALWAYS THE FIRST THING UNDER THE BAR (operator ruling
+      2026-09-18): "Any page that attaches a 'search' sub-header is bumping the
+      session state header down. session state should always be the first
+      element underneath the main header."
+
+      It was, structurally. The strip is absolute at top:100% of its positioned
+      ancestor, and that ancestor was .modnav -- which CONTAINS the subnav. So
+      100% resolved to the bottom of the whole header, and on every page that
+      set :secondary_links the strip descended below the search row instead of
+      below the bar. On pages without one it looked correct, which is why it
+      survived: the bug was invisible exactly where most people looked.
+
+      This wrapper is the fix. It holds the bar and the strip and nothing else,
+      so top:100% means "under the bar" on every page, with or without a
+      subnav. The reserved room moves here with it, which also puts the subnav
+      BELOW the strip's landing zone rather than on top of it -- the strip
+      still occludes nothing when it opens, which is the property three earlier
+      cuts were rejected for losing. %>
+  <div class="modnav-head">
+    <div class="modnav-bar">
     <div class="modnav-brand">
       <%= link_to main_app.root_path, id: "app-logo", class: "modnav-logo" do %>
         <%= image_pack_tag("static/danbooru-logo-128x128.png", alt: "") %>
@@ -89,7 +108,7 @@
       <%= menu_icon(class: "block w-6", "x-show": "!menuOpen") %>
       <%= close_icon(class: "block w-6", "x-show": "menuOpen", "x-cloak": true) %>
     </a>
-  </div>
+    </div>
 
   <% if observation.present? %>
     <div class="modnav-session" id="modnav-session" data-observation="<%= observation.to_json %>"
@@ -135,6 +154,7 @@
       </div>
     </div>
   <% end %>
+  </div><%# /.modnav-head %>
 
   <% if content_for?(:secondary_links) %>
     <div class="modnav-subnav">

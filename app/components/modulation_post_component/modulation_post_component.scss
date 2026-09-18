@@ -524,10 +524,27 @@ body:has(.modulation) {
 
   // --- category bucket ----------------------------------------------------
   // The Danbooru-category tags (artist; character / copyright) pulled out of
-  // the flow into their own bucket at the head of the list. Colour is the
-  // provenance language and stays untouched -- what sets these apart is
-  // weight, size and placement (operator: "visibly distinct from the general
-  // tags", "do not change the color yet").
+  // the flow into their own bucket at the head of the list.
+  //
+  // SUPERSEDED 2026-09-18. This block used to read: "Colour is the provenance
+  // language and stays untouched -- what sets these apart is weight, size and
+  // placement (operator: 'visibly distinct from the general tags', 'do not
+  // change the color yet')." That ruling stood, and the "yet" has now expired:
+  // operator, looking at a post page, "the 'artist' tag as shown on the page
+  // should be closer to the red used in the header."
+  //
+  // What they were seeing: the pill was orange. Not an artist orange -- there
+  // is no such thing, every artist token in this repo is #ff6b7a -- but
+  // --mod-auto-fg, the colour of "the autotagger put this here". The bucket
+  // was labelled by CATEGORY and coloured by PROVENANCE, so a category the
+  // autotagger happened to supply wore the autotagger's colour. Canon is
+  // explicit that these are two axes and "must not borrow each other's
+  // colours".
+  //
+  // So category now paints the pill and provenance keeps the dot. Both
+  // questions stay answerable on the same pill, which is what the two-axis
+  // rule asks for, and the artist pill lands on the same red as the Creators
+  // entry in the header because both name --mod-tag-artist-fg.
   .mod-cats {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
@@ -557,6 +574,41 @@ body:has(.modulation) {
       .mod-cat-pills { justify-content: flex-start; }
     }
   }
+  // CATEGORY PAINTS THE PILL. Declared after the provenance pills so it wins
+  // on specificity order without !important -- .mod-pill--auto and friends are
+  // single classes too, and these rules come later in the same file.
+  //
+  // The values are formant's tag-category names, NOT this component's local
+  // copies: --mod-tag-artist-fg is the same token the header's "Creators"
+  // entry resolves to through --artist-tag-color, which is exactly what
+  // "closer to the red used in the header" asks for. Nothing here is a hex.
+  @each $cat, $token in (artist: --mod-tag-artist-fg,
+                         character: --mod-tag-character-fg,
+                         copyright: --mod-tag-copyright-fg,
+                         species: --mod-tag-general-fg) {
+    .mod-pill--cat-#{$cat} {
+      color: var(#{$token});
+      border-color: color-mix(in srgb, var(#{$token}) 40%, transparent);
+      background: color-mix(in srgb, var(#{$token}) 12%, var(--mod-surface));
+
+      &:hover { border-color: color-mix(in srgb, var(#{$token}) 65%, transparent); }
+    }
+  }
+
+  // PROVENANCE KEEPS THE DOT, which is the whole reason the pill can afford to
+  // change colour: "who put this here" is still on the pill, just no longer
+  // competing with "what kind of thing is it". The dot inherits the pill's
+  // colour by default, so each bucket restates its own.
+  .mod-pill--cat {
+    .mod-pill-dot { background: currentcolor; }
+
+    &.mod-pill--creator .mod-pill-dot { background: var(--mod-creator-fg); }
+    &.mod-pill--both .mod-pill-dot { background: var(--mod-both-fg); }
+    &.mod-pill--auto .mod-pill-dot { background: var(--mod-auto-fg); }
+    &.mod-pill--pending .mod-pill-dot { background: var(--mod-pending-fg); }
+    &.mod-pill--unsourced .mod-pill-dot { background: var(--mod-ink-faint, var(--mod-meta-fg)); }
+  }
+
   .mod-cat-label {
     font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
     font-size: 0.62rem;
