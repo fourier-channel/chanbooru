@@ -162,7 +162,23 @@ function boot() {
       if (m.info?.expires_at) {
         lines.push(`This session expires in ${tick(m.info.expires_at, "until")}.`);
       }
-      if (m.info?.refresh_at) {
+      // THE TOKEN'S OWN LIFE, which is not the session's. A session lasts a
+      // day; the Matrix token inside it lasts five minutes and the gate renews
+      // it as long as it holds a refresh token. A token past its life with no
+      // way to renew is the state that refused pictures for weeks while this
+      // bar said "23 hours remain" (2026-09-19). So it is said outright.
+      if (m.info?.token_expires_at) {
+        const left = m.info.token_expires_at - Math.floor(Date.now() / 1000);
+        if (m.info.renewable) {
+          lines.push(left > 0
+            ? `Your Matrix token has ${tick(m.info.token_expires_at, "until")} left and the gate renews it ${tick(m.info.refresh_at, "until")} from now, on use.`
+            : `Your Matrix token lapsed ${tick(m.info.token_expires_at)} ago; the gate renews it on your next request.`);
+        } else {
+          lines.push(left > 0
+            ? `Your Matrix token has ${tick(m.info.token_expires_at, "until")} left and CANNOT be renewed: sign out and in before then, or pictures from Matrix will be refused.`
+            : `Your Matrix token EXPIRED ${tick(m.info.token_expires_at)} ago and cannot be renewed: pictures from Matrix are being refused. Sign out and in.`);
+        }
+      } else if (m.info?.refresh_at) {
         lines.push(`There are ${tick(m.info.refresh_at, "until")} until the next refresh.`);
       } else if (m.digest && !m.info) {
         lines.push("The gate does not publish its session evidence to this host yet; expiry and previous-token lines appear here when it does.");

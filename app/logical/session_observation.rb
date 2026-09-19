@@ -91,7 +91,10 @@ module SessionObservation
     return nil if header.blank?
 
     data = JSON.parse(header)
-    data.is_a?(Hash) ? data.slice("previous_digest", "previous_ended_at", "expires_at", "refresh_at") : nil
+    # token_expires_at and renewable arrived 2026-09-19: the bar had been
+    # reporting the cookie's 24-hour TTL while the Matrix token under it had
+    # lived five minutes, which is the green lamp that measured the wrong thing.
+    data.is_a?(Hash) ? data.slice("previous_digest", "previous_ended_at", "expires_at", "refresh_at", "token_expires_at", "renewable") : nil
   rescue JSON::ParserError
     nil
   end
