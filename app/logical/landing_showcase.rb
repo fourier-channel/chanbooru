@@ -39,7 +39,10 @@ class LandingShowcase
       posts = category_posts[spec.key]
       next if posts.blank?
 
-      { key: spec.key, label: spec.label, slides: posts.map { |post| slide_for(post) }}
+      # `visible` is how many the belt should show at once, or nil for its own
+      # default -- see LandingCategory#visible_slides for what nil means.
+      { key: spec.key, label: spec.label, visible: spec.visible_slides,
+        slides: posts.map { |post| slide_for(post) } }
     end
   end
 
@@ -78,7 +81,8 @@ class LandingShowcase
   # this method and recurse. Gather first, then render.
   def category_posts
     @category_posts ||= specs.to_h do |spec|
-      [spec.key, posts_for_spec(spec).uniq(&:id).first(PER_CATEGORY)]
+      # A creators row takes at least one per creator; see LandingCategory#wanted_posts.
+      [spec.key, posts_for_spec(spec).uniq(&:id).first(spec.wanted_posts)]
     end
   end
 

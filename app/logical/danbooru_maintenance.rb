@@ -10,11 +10,10 @@ module DanbooruMaintenance
     queue PruneUploadsJob
     queue PruneJobsJob
     queue PruneBansJob
-    # Keeps the multi-tag carousel rows warm on a quiet site. The read path
-    # already re-enqueues this when it finds a stale list, so this is the
-    # belt-and-braces half: without it, a front page nobody visits for a day
-    # comes back with a cold cache and an absent row for the first visitor.
-    queue LandingShowcaseRefreshJob
+    # LandingShowcaseRefreshJob is NOT here any more: it runs on its own
+    # clock in config/initializers/clockwork.rb, every
+    # LandingShowcaseCache::REFRESH_EVERY, because hourly was far too long for
+    # the front page (operator, 2026-09-19).
     # queue AmcheckDatabaseJob
   end
 

@@ -26,14 +26,27 @@ class LandingCategory < ApplicationRecord
 
   KINDS = %w[board tags galleries].freeze
   # A FIXED MAP, not free text, so the panel can only offer orderings that
-  # cannot break a row. "random" is deliberately absent: it would destroy the
-  # queue behaviour the showcase depends on, where a row only changes when
-  # something new arrives to replace what fell off the end.
-  ORDERINGS = { "new" => nil, "favcount" => "order:favcount", "score" => "order:score" }.freeze
-  # 30 x QUERY_TIMEOUT_SECONDS is 90s, which is fine in a background job and
-  # would be an outage in a request. The cap is here so the panel cannot ask
-  # for something the refresh job cannot finish.
-  MAX_TAGS = 30
+  # cannot break a row.
+  #
+  # "random" WAS deliberately absent, on the grounds that it destroys the queue
+  # behaviour where a row only changes when something new arrives. That stands
+  # as a description of what random does; it no longer stands as a reason to
+  # withhold it. Operator, 2026-09-19: "add 'random' as an option for pulling
+  # posts." A row on random reshuffles each time its candidates are refreshed
+  # -- see LandingShowcaseCache::STALE_AFTER -- and the admin who chose it
+  # chose that. Applies to tag rows: a board row's query is already two terms
+  # and never carried an order term (see #queries).
+  ORDERINGS = { "new" => nil, "favcount" => "order:favcount", "score" => "order:score", "random" => "order:random" }.freeze
+  # How many slides the belt shows at once, when set. The ceiling is not taste:
+  # the belt shrinks each cell by FALLOFF against the one before it, so past
+  # about seven a side the outer cells are a few pixels wide and cost a paint
+  # for nothing. 15 is seven each side and the focus.
+  SLIDES_RANGE = (1..15)
+  # 50 x QUERY_TIMEOUT_SECONDS is 150s worst case, which is fine in a
+  # background job every five minutes and would be an outage in a request. The
+  # cap is here so the panel cannot ask for something the refresh job cannot
+  # finish. Was 30; raised to 50 on 2026-09-19 at the operator's request.
+  MAX_TAGS = 50
   MAX_TERMS = 2
 
   # Mirrored from the migration's seed. The seed carries the live front page
@@ -60,6 +73,8 @@ class LandingCategory < ApplicationRecord
   validates :label, presence: true, length: { maximum: 40 }
   validates :kind, inclusion: { in: KINDS }
   validates :ordering, inclusion: { in: ORDERINGS.keys }
+  validates :slides, numericality: { only_integer: true, greater_than_or_equal_to: SLIDES_RANGE.min,
+                                     less_than_or_equal_to: SLIDES_RANGE.max }, allow_nil: true
   validates :board, format: { with: /\A[a-z0-9]{1,10}\z/,
                               message: "is a board slug like 'b', without slashes" }, allow_nil: true
   validate :board_matches_kind
@@ -91,6 +106,28 @@ class LandingCategory < ApplicationRecord
     else
       []
     end
+  end
+
+  # Slides on screen at once, or nil for the belt's own default.
+  #
+  # NIL IS A RULE, NOT AN ABSENCE. For a creators row it means one slide per
+  # listed creator -- the row exists to show them all, and the cache's
+  # round-robin already hands each one a slide before anyone gets a second, so
+  # the belt should be wide enough to show that. For every other kind nil means
+  # the belt decides, which is what it did before this column existed.
+  def visible_slides
+    return slides if slides.present?
+    return tags.length if kind == "tags" && tags.any?
+
+    nil
+  end
+
+  # How many posts the row wants gathered. PER_CATEGORY is the floor; a
+  # creators row wants at least one per creator, or the last ones listed would
+  # never get a slide however wide the belt was set.
+  def wanted_posts
+    base = LandingShowcase::PER_CATEGORY
+    kind == "tags" ? [base, tags.length].max : base
   end
 
   # The widest query this category will ask for, in terms.

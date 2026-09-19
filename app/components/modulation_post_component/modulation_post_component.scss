@@ -774,6 +774,22 @@ body:has(.modulation) {
   animation: mod-hype-move var(--mod-hype-period) ease-in-out infinite;
   will-change: transform;
 
+  // ORANGE, WHATEVER BUCKET IT FELL IN (operator, 2026-09-19: "showing up in
+  // metadata grey instead of orange, which kind of defeats the purpose of the
+  // sparkling and jiggling"). A hyped tag is the one thing on the page meant
+  // to be read first, which is exactly what --mod-active-fg means; but this
+  // block only ever animated, and the colour came from whichever provenance
+  // bucket the tag happened to be filed under -- meta grey, as it turned out.
+  // Three classes, so it outranks the two-class provenance and category rules
+  // whatever order a future edit leaves them in.
+  &.mod-pill.mod-pill--hype {
+    color: var(--mod-active-fg);
+    border-color: color-mix(in srgb, var(--mod-active-fg) 45%, transparent);
+    background: color-mix(in srgb, var(--mod-active-fg) 14%, var(--mod-surface));
+
+    .mod-pill-dot { background: var(--mod-active-fg); }
+  }
+
   &::after {
     content: "";
     position: absolute;

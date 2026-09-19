@@ -39,10 +39,21 @@ class LandingShowcaseCache
   # How long an entry is still SERVED. Long on purpose: a stale row is better
   # than an absent one, and the refresh below happens long before this.
   TTL = 24.hours
+  # HOW OFTEN THE SEARCHES RUN. Operator, 2026-09-19: "Hourly is far too long.
+  # It should be every 5 minutes or so. That's a max of 30 individual tag
+  # searches every 5 minutes -- very little load on the box." One constant,
+  # read by the scheduler (config/initializers/clockwork.rb) and by the stale
+  # check below, and shown by the landing console's explanation of itself --
+  # so the page that describes the cadence cannot describe a different one from
+  # the one that runs. The value itself lives in config (landing_refresh_every),
+  # because the scheduler is an initializer and cannot load this class at
+  # boot; this is the name the rest of the app reads it by.
+  REFRESH_EVERY = Danbooru.config.landing_refresh_every
   # When the read path asks for a refresh. Stale-while-revalidate: the visitor
   # who notices the staleness is served the old list immediately and never
-  # waits for the new one.
-  STALE_AFTER = 15.minutes
+  # waits for the new one. The same interval as the scheduled refresh, so a
+  # visited row is never fresher or staler than an unvisited one by design.
+  STALE_AFTER = REFRESH_EVERY
   # One enqueue per category per window, however many requests arrive in it.
   ENQUEUE_DEBOUNCE = 2.minutes
 
@@ -52,8 +63,9 @@ class LandingShowcaseCache
   # creator's contribution.
   PER_TAG = 4
   # A ceiling on the stored list whatever the tag count, so a misconfigured
-  # thirty-tag category cannot put an unbounded array in the cache.
-  MAX_CANDIDATES = 120
+  # category cannot put an unbounded array in the cache. MAX_TAGS x PER_TAG,
+  # so every listed creator's candidates fit; a list of fifty ids is nothing.
+  MAX_CANDIDATES = LandingCategory::MAX_TAGS * PER_TAG
 
   # Longer than the request path's 3s, because this is a background job where
   # 30 x 3s is fine and an outage in a request.

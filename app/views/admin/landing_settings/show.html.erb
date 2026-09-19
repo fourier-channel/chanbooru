@@ -79,7 +79,9 @@
                                  id: "landing-#{category.key}-tags", size: 60,
                                  data: { autocomplete: "tag-edit" } %>
               <span class="hint">
-                Space separated, up to <%= LandingCategory::MAX_TAGS %>.
+                <strong><span data-tag-count="landing-<%= category.key %>-tags"><%= category.tags.length %></span>
+                of <%= LandingCategory::MAX_TAGS %></strong> listed.
+                Space separated.
                 <strong>Each tag is searched on its own</strong>, not all together:
                 twenty creators is twenty one-term searches, run in the background
                 and cached, because an anonymous visitor may search only
@@ -97,6 +99,25 @@
             </p>
           <% end %>
 
+          <% if category.kind == "tags" %>
+            <div class="input">
+              <%= label_tag "landing-#{category.key}-slides", "Slides on screen" %>
+              <%= number_field_tag name.call(:slides), category.slides,
+                                   id: "landing-#{category.key}-slides", size: 4,
+                                   min: LandingCategory::SLIDES_RANGE.min, max: LandingCategory::SLIDES_RANGE.max,
+                                   placeholder: category.tags.any? ? category.tags.length : "belt default" %>
+              <span class="hint">
+                How many slides this row shows at once. Leave it empty for
+                <strong>one per listed creator</strong>
+                (<%= category.tags.any? ? "#{category.tags.length} now" : "none listed yet" %>),
+                which is what every creator gets before anyone gets a second.
+                <%= LandingCategory::SLIDES_RANGE.min %> to <%= LandingCategory::SLIDES_RANGE.max %>.
+                The belt is symmetric about the focused slide, so an even number
+                rounds up to the next odd one rather than hiding a creator.
+              </span>
+            </div>
+          <% end %>
+
           <% if category.kind != "galleries" %>
             <div class="input">
               <%= label_tag "landing-#{category.key}-ordering", "Order" %>
@@ -106,7 +127,10 @@
               <span class="hint">
                 "new" spends no term and keeps the row behaving as a queue: a new
                 post enters at the front and the last falls off the back, so
-                nothing shuffles on its own.
+                nothing shuffles on its own. "random" reshuffles the row every
+                time its candidates are refreshed -- see below for when that is.
+                Order applies to tag rows; a board row's search is already two
+                terms and carries no order term.
               </span>
             </div>
           <% end %>
@@ -129,5 +153,53 @@
 
       <%= submit_tag "Save carousel" %>
     <% end %>
+
+    <%# The count beside each tag field follows what is typed, so an admin
+        pasting a list sees "48 of 50" before saving rather than an error after.
+        Counts whitespace-separated tokens, which is exactly how the model
+        splits the field. Server-rendered first, so it is right with no JS. %>
+    <script>
+      document.querySelectorAll("[data-tag-count]").forEach(function (out) {
+        var field = document.getElementById(out.dataset.tagCount);
+        if (!field) return;
+        var update = function () { out.textContent = String(field.value.trim().split(/\s+/).filter(Boolean).length); };
+        field.addEventListener("input", update);
+        field.addEventListener("change", update);
+      });
+    </script>
+
+    <h2>When the searches run</h2>
+    <p class="hint">
+      Two different clocks, because the rows are two different kinds of thing.
+      Every number here is read from the code that enforces it.
+    </p>
+    <ul class="hint list-bulleted">
+      <li>
+        <strong>A board row</strong> ("<%= @landing_categories.find { |c| c.kind == "board" }&.label || "Fresh from DEGEN" %>")
+        is one bounded search, run <strong>on every page load</strong> as whoever is
+        looking, with a <%= LandingShowcase::QUERY_TIMEOUT_SECONDS %>-second cap. It is
+        live by design: a new capture appears at the front of the row within the minute.
+      </li>
+      <li>
+        <strong>A tag row</strong> with more than one creator is
+        <strong>never searched on a page load</strong>. A background job runs one search
+        per creator (up to <%= LandingCategory::MAX_TAGS %>, keeping
+        <%= LandingShowcaseCache::PER_TAG %> posts each, interleaved so every creator
+        gets a slide before anyone gets a second) and stores the post ids. A visit
+        reads that list. When a visit finds the list older than
+        <strong><%= LandingShowcaseCache::STALE_AFTER.inspect %></strong> it is served
+        the old list at once and a refresh is queued behind it -- at most one queue
+        per row per <%= LandingShowcaseCache::ENQUEUE_DEBOUNCE.inspect %>, however many
+        visitors arrive. Independently of visits, a scheduled job refreshes every such
+        row <strong>every <%= LandingShowcaseCache::REFRESH_EVERY.inspect %></strong>,
+        so a quiet site does not go cold and a busy one is never searched more
+        often than that. A stored list is kept for
+        <%= LandingShowcaseCache::TTL.inspect %> at most if every refresh fails.
+      </li>
+      <li>
+        Editing a row's tags or order changes its cache key, so the next visit
+        sees an empty row once and a fresh search is queued immediately.
+      </li>
+    </ul>
   </div>
 </div>

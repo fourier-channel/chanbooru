@@ -74,7 +74,20 @@ function initLanding(root) {
   // things sliding while the rest cut is not a conveyor; it reads as a swap
   // with scenery. Nothing here is measured, nothing is destroyed, and no cell
   // is special-cased for travelling. The belt just gets a new set of numbers.
-  const RANKS = 3;             // cells visible either side of the focus
+  const RANKS = 3;             // cells visible either side of the focus, by default
+  // Per axis, from the payload. A row may say how many slides it wants on
+  // screen (`visible`); a creators row defaults to one per creator. Halved
+  // and rounded UP, because the belt is symmetric about a focus and a count
+  // with no middle rounds to the wider belt rather than hiding a creator.
+  // Capped by what the row actually has, so a belt is never told to show
+  // more cells than it holds.
+  function ranksFor(a) {
+    const cat = cats[a];
+    const want = cat && cat.visible;
+    if (!want) return RANKS;
+    const have = slidesOf(a).length || want;
+    return Math.max(0, Math.ceil((Math.min(want, have) - 1) / 2));
+  }
   const HEAD_H = 0.42;         // first neighbour's height, as a fraction of the focus
   const FALLOFF = 0.72;        // each further cell against the one before it
   const HEAD_O = 0.55;         // and the same idea for opacity
@@ -257,7 +270,8 @@ function initLanding(root) {
     const focus = list.find((e) => e.d === 0);
     const xs = { 0: 0 };
     let acc = 0;
-    for (let k = 1; k <= RANKS + 1; k++) {
+    const ranks = ranksFor(axis);
+    for (let k = 1; k <= ranks + 1; k++) {
       const prevW = k === 1 ? cellWidth(0, focus ? focus.slide : {}) : cellWidth(k - 1, {});
       acc += (prevW / 2) + (GAP * Math.pow(GAP_FALLOFF, k - 1)) + (cellWidth(k, {}) / 2);
       xs[k] = acc;
@@ -323,7 +337,8 @@ function initLanding(root) {
 
   function prewarm() {
     const wanted = [];
-    for (let d = -(RANKS + 2); d <= RANKS + 2; d++) wanted.push([axis, at(axis, pos + d)]);
+    const reach = ranksFor(axis) + 2;
+    for (let d = -reach; d <= reach; d++) wanted.push([axis, at(axis, pos + d)]);
     cats.forEach((_, a) => { if (a !== axis) wanted.push([a, at(a, pos)], [a, at(a, pos + 1)]); });
 
     wanted.forEach(([a, slide]) => {
@@ -344,13 +359,14 @@ function initLanding(root) {
 
     const placed = list.map((slide, i) => ({ slide, d: ringDelta(i, pos, list.length) }));
     const xs = layout(placed);
+    const ranks = ranksFor(axis);
 
     placed.forEach(({ slide, d }) => {
       const k = Math.abs(d);
       const cell = cellFor(axis, slide);
 
-      const shown = k <= RANKS;
-      const x = (xs[Math.min(k, RANKS + 1)] || 0) * Math.sign(d);
+      const shown = k <= ranks;
+      const x = (xs[Math.min(k, ranks + 1)] || 0) * Math.sign(d);
       const w = cellWidth(k, slide);
       cell.style.setProperty("--cx", `${x}px`);
       cell.style.setProperty("--cw", `${w}px`);

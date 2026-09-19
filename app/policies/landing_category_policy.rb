@@ -19,6 +19,6 @@ class LandingCategoryPolicy < ApplicationPolicy
   # on it, which the model would then have to reject in a form that has no
   # field to point the error at.
   def permitted_attributes
-    %i[enabled label board fresh_only tags_string ordering]
+    %i[enabled label board fresh_only tags_string ordering slides]
   end
 end

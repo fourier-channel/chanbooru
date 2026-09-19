@@ -175,6 +175,11 @@
     // identically wherever it is read.
     const HYPE = new Set(["butthole"]);
     const hypeOf = (t) => (HYPE.has(String(t).trim().toLowerCase()) ? " mod-pill--hype" : "");
+    // ALPHABETICAL within every bucket (operator ruling 2026-09-19). The payload
+    // arrives in tag-string order, which is whatever order the taggers and the
+    // editors happened to write things in, and a list a reader cannot predict
+    // is a list they have to read end to end to know a tag is absent.
+    const alpha = (list) => (list || []).slice().sort((a, b) => String(a).localeCompare(String(b)));
     const pill = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + hypeOf(t) + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
     // The category bucket at the head of the list: artist on the left;
     // character / copyright (/ species, should the booru ever grow one) on the
@@ -191,7 +196,7 @@
         (t[b] || []).forEach(tag => { if (!(tag in bucketOf)) bucketOf[tag] = b; }));
       const cell = (keys) => keys.filter(k => (cats[k] || []).length).map(k =>
         '<div class="mod-cat-group"><span class="mod-cat-label">' + esc(k) + '</span><div class="mod-cat-pills">' +
-          cats[k].map(tag => pill(tag, bucketOf[tag] || "unsourced", true, "mod-pill--cat mod-pill--cat-" + k)).join("") + "</div></div>").join("");
+          alpha(cats[k]).map(tag => pill(tag, bucketOf[tag] || "unsourced", true, "mod-pill--cat mod-pill--cat-" + k)).join("") + "</div></div>").join("");
       const left = cell(["artist"]), right = cell(["character", "copyright", "species"]);
       if (!left && !right) return "";
       return '<div class="mod-cats"><div class="mod-cats-cell mod-cats-cell--left">' + left + '</div><div class="mod-cats-cell mod-cats-cell--right">' + right + "</div></div>";
@@ -217,7 +222,7 @@
           "</div>" : "") +
         toggle + "</div></div>";
       if (!tagsExpanded) { el.innerHTML = head + catsHTML; return; }
-      const flow = (b) => (t[b] || []).filter(tag => !catSet.has(tag));
+      const flow = (b) => alpha(t[b]).filter(tag => !catSet.has(tag));
       const uni = ORDER.flatMap(b => flow(b).map(tag => pill(tag, b, true))).join("");
       const grouped = ORDER.filter(b => flow(b).length).map(b =>
         '<div class="mod-group"><span class="mod-group-label">' + L[b] + '</span><div class="mod-group-pills">' + flow(b).map(tag => pill(tag, b, false)).join("") + "</div></div>").join("");

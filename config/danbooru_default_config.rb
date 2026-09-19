@@ -696,6 +696,21 @@ module Danbooru
       true
     end
 
+    # How often the landing carousel's multi-creator rows are re-searched, in
+    # the background. Read by config/initializers/clockwork.rb (the schedule)
+    # and by LandingShowcaseCache (the stale check), so the two cannot drift.
+    # Lives HERE and not as a constant on the cache class because an
+    # initializer cannot reference an autoloaded app class at boot -- doing so
+    # raised NameError and stopped the app starting, which is the one failure a
+    # front-page setting must never be able to cause.
+    #
+    # Operator, 2026-09-19: "Hourly is far too long. It should be every 5
+    # minutes or so. That's a max of 30 individual tag searches every 5
+    # minutes -- very little load on the box."
+    def landing_refresh_every
+      5.minutes
+    end
+
     # Whether to enable comments.
     def comments_enabled?
       true
