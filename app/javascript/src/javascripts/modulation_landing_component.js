@@ -81,6 +81,16 @@ function initLanding(root) {
   // with no middle rounds to the wider belt rather than hiding a creator.
   // Capped by what the row actually has, so a belt is never told to show
   // more cells than it holds.
+  // The outermost cell must stay a cell. FALLOFF is tuned for three a side;
+  // applied to fifteen it leaves the far ones at two percent of the focus,
+  // which is a paint for nothing and a run that looks like seven slides
+  // whatever the setting says. For a wider run the shrink per rank is chosen
+  // so the last rank is still MIN_OUTER of the first neighbour.
+  const MIN_OUTER = 0.12;
+  function falloffFor(ranks) {
+    if (ranks <= RANKS) return FALLOFF;
+    return Math.pow(MIN_OUTER, 1 / (ranks - 1));
+  }
   function ranksFor(a) {
     const cat = cats[a];
     const want = cat && cat.visible;
@@ -230,7 +240,7 @@ function initLanding(root) {
   // Rank 0 is the focus, at the band's full height; each rank out is a fixed
   // fraction of the one before it, which is what makes the run recede.
   function cellHeight(k) {
-    return k === 0 ? beltHeight() : beltHeight() * HEAD_H * Math.pow(FALLOFF, k - 1);
+    return k === 0 ? beltHeight() : beltHeight() * HEAD_H * Math.pow(falloffFor(ranksFor(axis)), k - 1);
   }
 
   // The focal cell is cut to its picture's own aspect; every other cell is a
@@ -371,7 +381,7 @@ function initLanding(root) {
       cell.style.setProperty("--cx", `${x}px`);
       cell.style.setProperty("--cw", `${w}px`);
       cell.style.setProperty("--ch", `${cellHeight(k)}px`);
-      cell.style.setProperty("--co", k === 0 ? "1" : String(HEAD_O * Math.pow(FALLOFF_O, k - 1)));
+      cell.style.setProperty("--co", k === 0 ? "1" : String(HEAD_O * Math.pow(ranks > RANKS ? falloffFor(ranks) : FALLOFF_O, k - 1)));
       cell.style.setProperty("--cz", String(10 - k));
       cell.dataset.d = String(d);
 

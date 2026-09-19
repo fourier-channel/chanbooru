@@ -113,7 +113,10 @@
                 which is what every creator gets before anyone gets a second.
                 <%= LandingCategory::SLIDES_RANGE.min %> to <%= LandingCategory::SLIDES_RANGE.max %>.
                 The belt is symmetric about the focused slide, so an even number
-                rounds up to the next odd one rather than hiding a creator.
+                rounds up to the next odd one rather than hiding a creator. The
+                belt is as wide as the page: on a wide run the outer slides
+                shrink and thin toward the edges, and what does not fit is off
+                screen until the run advances.
               </span>
             </div>
           <% end %>
@@ -162,7 +165,14 @@
       document.querySelectorAll("[data-tag-count]").forEach(function (out) {
         var field = document.getElementById(out.dataset.tagCount);
         if (!field) return;
-        var update = function () { out.textContent = String(field.value.trim().split(/\s+/).filter(Boolean).length); };
+        var slides = document.getElementById(out.dataset.tagCount.replace(/-tags$/, "-slides"));
+        var update = function () {
+          var n = field.value.trim().split(/\s+/).filter(Boolean).length;
+          out.textContent = String(n);
+          // The slides field's placeholder IS the default -- one per creator --
+          // so it follows the count rather than showing the count at page load.
+          if (slides) slides.placeholder = n ? String(n) : "belt default";
+        };
         field.addEventListener("input", update);
         field.addEventListener("change", update);
       });

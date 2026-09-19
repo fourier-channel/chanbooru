@@ -223,7 +223,15 @@
         toggle + "</div></div>";
       if (!tagsExpanded) { el.innerHTML = head + catsHTML; return; }
       const flow = (b) => alpha(t[b]).filter(tag => !catSet.has(tag));
-      const uni = ORDER.flatMap(b => flow(b).map(tag => pill(tag, b, true))).join("");
+      // ONE alphabetical list, not five sorted lists end to end. The first cut
+      // sorted within each provenance bucket and then concatenated them in
+      // ORDER, so a tag in the last bucket sat after every tag of the first --
+      // "butthole" landed after the general tags and before meta, and nobody
+      // could tell whether it was the end of one group or the start of
+      // another (operator, 2026-09-19). Unitag is the view that HIDES the
+      // buckets; the pill's class still carries them for the colour.
+      const uni = alpha(ORDER.flatMap(b => flow(b).map(tag => ({ tag, b }))).map(e => e.tag))
+        .map(tag => pill(tag, ORDER.find(b => flow(b).includes(tag)), true)).join("");
       const grouped = ORDER.filter(b => flow(b).length).map(b =>
         '<div class="mod-group"><span class="mod-group-label">' + L[b] + '</span><div class="mod-group-pills">' + flow(b).map(tag => pill(tag, b, false)).join("") + "</div></div>").join("");
       const meta = flow("meta");
@@ -527,6 +535,21 @@
       }).catch(() => { window.location.href = nb.url; }); // network failure: fall back to a real load
     }
 
+    // The hyped tag's third state. Hover is CSS; the wind-down is a finite
+    // animation that must start when the pointer LEAVES and never on load, so
+    // it is a class: on at pointer-leave, off when its animation ends. A
+    // pointer coming back mid-wind-down clears it so :hover's spin takes over.
+    root.addEventListener("pointerleave", e => {
+      const pill = e.target && e.target.closest && e.target.closest(".mod-pill--hype");
+      if (pill) pill.classList.add("is-spinning-down");
+    }, true);
+    root.addEventListener("pointerenter", e => {
+      const pill = e.target && e.target.closest && e.target.closest(".mod-pill--hype");
+      if (pill) pill.classList.remove("is-spinning-down");
+    }, true);
+    root.addEventListener("animationend", e => {
+      if (e.animationName === "mod-hype-spin-down") e.target.classList.remove("is-spinning-down");
+    });
     root.addEventListener("click", e => {
       if (e.target.closest("[data-act='lightbox-close']")) { closeLightbox(); return; }
       // The centre image opens the fullscreen viewer. Spoilered and gated

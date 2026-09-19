@@ -37,17 +37,19 @@ class LandingCategory < ApplicationRecord
   # chose that. Applies to tag rows: a board row's query is already two terms
   # and never carried an order term (see #queries).
   ORDERINGS = { "new" => nil, "favcount" => "order:favcount", "score" => "order:score", "random" => "order:random" }.freeze
-  # How many slides the belt shows at once, when set. The ceiling is not taste:
-  # the belt shrinks each cell by FALLOFF against the one before it, so past
-  # about seven a side the outer cells are a few pixels wide and cost a paint
-  # for nothing. 15 is seven each side and the focus.
-  SLIDES_RANGE = (1..15)
+
   # 50 x QUERY_TIMEOUT_SECONDS is 150s worst case, which is fine in a
   # background job every five minutes and would be an outage in a request. The
   # cap is here so the panel cannot ask for something the refresh job cannot
   # finish. Was 30; raised to 50 on 2026-09-19 at the operator's request.
   MAX_TAGS = 50
   MAX_TERMS = 2
+  # How many slides the belt shows at once, when set. Up to the creator cap,
+  # because "one per listed creator" is the default and a ceiling below the
+  # number of creators made the default unsettable by hand (operator,
+  # 2026-09-19: "won't actually let another value be set over 15"). The belt
+  # flattens its falloff for wide runs so the outer cells stay visible.
+  SLIDES_RANGE = (1..MAX_TAGS)
 
   # Mirrored from the migration's seed. The seed carries the live front page
   # over on production; this carries it on a database that never ran the seed,
