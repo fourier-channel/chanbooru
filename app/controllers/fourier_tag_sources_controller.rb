@@ -5,7 +5,7 @@
 # (the bmb bot). POST /fourier/posts/:post_id/tag_sources
 #   { creator: [], auto: [], both: [], meta: [], pending: [] }
 class FourierTagSourcesController < ApplicationController
-  wrap_parameters :fourier_tag_source, include: %i[creator auto both meta pending]
+  wrap_parameters :fourier_tag_source, include: %i[creator auto both meta pending replace_creator]
   respond_to :json
 
   def create
@@ -13,8 +13,14 @@ class FourierTagSourcesController < ApplicationController
     skip_authorization # gated on is_builder? above, not a per-record Pundit policy
 
     post = Post.find(params[:post_id])
-    sources = params.require(:fourier_tag_source).permit(creator: [], auto: [], both: [], meta: [], pending: []).to_h
-    FourierTagSource.record_partition!(post, sources, CurrentUser.user)
+    sources = params.require(:fourier_tag_source).permit(:replace_creator, creator: [], auto: [], both: [], meta: [], pending: []).to_h
+    # replace_creator: a RE-SCAN of the image's own metadata (the tunnel's
+    # !rescan). The creator rows this post has are the previous read of the
+    # same bytes, so they are dropped before the new read is written; without
+    # that, an upsert can only add, and a name the old normaliser mangled
+    # would sit beside its corrected self forever.
+    replace = ActiveModel::Type::Boolean.new.cast(sources.delete("replace_creator"))
+    FourierTagSource.record_partition!(post, sources, CurrentUser.user, replace_creator: replace)
     FourierTagPropagation.fan_out!(post) # single write path -> fan out the public projection
 
     # Return the PUBLIC-SAFE projection so the caller (bmb) writes the Matrix state

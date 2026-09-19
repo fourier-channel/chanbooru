@@ -51,7 +51,7 @@ class FourierTagSource < ApplicationRecord
   # name -- and the old rule, first list wins, would have filed that tag as
   # creator-only and PRIVATE, hiding a tag the autotagger had put on the
   # public post. After resolution a name in both creator and auto is `both`.
-  def self.record_partition!(post, sources, user)
+  def self.record_partition!(post, sources, user, replace_creator: false)
     now = Time.zone.now
     fetch = ->(k) { Array(sources[k.to_s] || sources[k.to_sym]).map(&:to_s).reject(&:blank?) }
     lists = %i[both creator auto meta pending].index_with { |k| fetch.call(k) }
@@ -68,7 +68,14 @@ class FourierTagSource < ApplicationRecord
     add.call(auto - both,    AUTO,           APPROVED, true)
     add.call(lists[:meta],   META,           APPROVED, true)
     add.call(lists[:pending], HUMAN,         PENDING,  true)
-    upsert_all(rows.uniq { |r| r[:tag] }, unique_by: %i[post_id tag]) if rows.any?
+    transaction do
+      # A re-read of the bytes replaces the previous read: every row that
+      # carries the creator bit goes, `both` included -- a tag still in both
+      # lists comes straight back as both, one now only the autotagger's
+      # comes back as auto, and one the prompt no longer yields is gone.
+      where(post_id: post.id).where("source & ? > 0", CREATOR).delete_all if replace_creator
+      upsert_all(rows.uniq { |r| r[:tag] }, unique_by: %i[post_id tag]) if rows.any?
+    end
     rows.size
   end
 
