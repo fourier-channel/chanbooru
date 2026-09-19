@@ -310,6 +310,11 @@
   }
 
   // The label travels WITH its cell, because it is part of the thing moving.
+  // It is sized by the SAME formula as the creator's name below it, so the
+  // two shrink together as the card recedes (operator, 2026-09-19: "it
+  // should scale exactly with creator name") -- a fixed 0.6rem read as the
+  // one thing on a far card that had not got smaller. And it goes out on the
+  // focus card, whose credit line already says everything the label would.
   .mod-cell-tag {
     position: absolute;
     bottom: 0;
@@ -318,10 +323,17 @@
     text-align: center;
     padding: 0.12rem 0;
     font-family: var(--mod-mono);
-    font-size: 0.6rem;
+    font-size: var(--cell-text, 0.6rem);
     letter-spacing: 0.02em;
     color: var(--mod-ink);
     background: linear-gradient(to top, color-mix(in srgb, var(--mod-surface) 88%, transparent), transparent);
+    transition: font-size var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--belt-move-ms) ease;
+  }
+  .mod-cell.is-focus .mod-cell-tag { opacity: 0; }
+  // One formula for everything written on or under a cell, read from the
+  // cell's own height: the label above and the name below both use it.
+  .mod-cell, .mod-cell-name {
+    --cell-text: clamp(0.5rem, calc(var(--ch, 150px) * 0.048), 0.86rem);
   }
 
   // The creator's name under its card: a sibling positioned by the cell's
@@ -337,7 +349,7 @@
     padding: 0 0.2rem;
     text-align: center;
     font-family: var(--mod-mono);
-    font-size: clamp(0.5rem, calc(var(--ch, 150px) * 0.048), 0.86rem);
+    font-size: var(--cell-text, 0.6rem);
     line-height: 1.25;
     letter-spacing: 0.02em;
     color: var(--mod-tag-artist-fg);
@@ -355,7 +367,10 @@
       font-size var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
       opacity var(--belt-move-ms) ease;
 
-    &.is-focus { font-weight: 600; }
+    // Out on the focus card: its name is the credit line's "Created by X",
+    // a few pixels below, and the two were printing over each other
+    // (operator, 2026-09-19).
+    &.is-focus { opacity: 0; }
     &.is-offstage { opacity: 0; }
   }
 
