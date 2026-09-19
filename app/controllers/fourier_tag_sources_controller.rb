@@ -5,7 +5,7 @@
 # (the bmb bot). POST /fourier/posts/:post_id/tag_sources
 #   { creator: [], auto: [], both: [], meta: [], pending: [] }
 class FourierTagSourcesController < ApplicationController
-  wrap_parameters :fourier_tag_source, include: %i[creator auto both meta pending replace_creator]
+  wrap_parameters :fourier_tag_source, include: %i[creator auto both meta pending oc replace_creator]
   respond_to :json
 
   def create
@@ -13,7 +13,7 @@ class FourierTagSourcesController < ApplicationController
     skip_authorization # gated on is_builder? above, not a per-record Pundit policy
 
     post = Post.find(params[:post_id])
-    sources = params.require(:fourier_tag_source).permit(:replace_creator, creator: [], auto: [], both: [], meta: [], pending: []).to_h
+    sources = params.require(:fourier_tag_source).permit(:replace_creator, creator: [], auto: [], both: [], meta: [], pending: [], oc: []).to_h
     # replace_creator: a RE-SCAN of the image's own metadata (the tunnel's
     # !rescan). The creator rows this post has are the previous read of the
     # same bytes, so they are dropped before the new read is written; without

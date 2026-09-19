@@ -57,17 +57,23 @@ class FourierTagSource < ApplicationRecord
     lists = %i[both creator auto meta pending].index_with { |k| fetch.call(k) }
     resolved = FourierTagResolver.resolve(lists.values.flatten)
     lists = lists.transform_values { |names| names.map { |n| resolved.fetch(Tag.normalize_name(n), n) }.uniq }
+    # ORIGINAL CHARACTERS (oc_<name>, operator 2026-09-19): the creator naming
+    # a character in the prompt. Not resolved -- the name IS the tag -- and
+    # not private: it is put on the post and filed as a character below.
+    oc = fetch.call(:oc).map { |n| Tag.normalize_name(n) }.uniq.select { |n| n.start_with?(ORIGINAL_CHARACTER_PREFIX) }
 
-    creator = (lists[:creator] + lists[:both]).uniq
+    creator = (lists[:creator] + lists[:both]).uniq - oc
     auto = (lists[:auto] + lists[:both]).uniq
     both = creator & auto
     rows = []
     add = ->(tags, source, status, pub) { tags.each { |t| rows << { post_id: post.id, tag: t, source: source, status: status, public: pub, added_by: user&.id, created_at: now } } }
     add.call(both,           CREATOR | AUTO, APPROVED, true)
+    add.call(oc,             CREATOR,        APPROVED, true)
     add.call(creator - both, CREATOR,        APPROVED, false)
     add.call(auto - both,    AUTO,           APPROVED, true)
     add.call(lists[:meta],   META,           APPROVED, true)
     add.call(lists[:pending], HUMAN,         PENDING,  true)
+    declare_original_characters!(post, oc, user) if oc.any?
     transaction do
       # A re-read of the bytes replaces the previous read: every row that
       # carries the creator bit goes, `both` included -- a tag still in both
@@ -77,6 +83,31 @@ class FourierTagSource < ApplicationRecord
       upsert_all(rows.uniq { |r| r[:tag] }, unique_by: %i[post_id tag]) if rows.any?
     end
     rows.size
+  end
+
+  ORIGINAL_CHARACTER_PREFIX = "oc_"
+
+  # An original character is DECLARED, not merely recorded: the name goes on
+  # the post (public, so it is searchable and lands on the character shelf)
+  # and its tag is filed under the character category. A tag that already
+  # has a category other than general keeps it -- this never re-files
+  # somebody's artist or copyright tag because a prompt said oc_.
+  def self.declare_original_characters!(post, names, user)
+    missing = names - post.tag_array
+    if missing.any?
+      CurrentUser.scoped(user || User.system) do
+        post.add_tag(*missing)
+        post.save!
+      end
+    end
+    CurrentUser.scoped(user || User.system) do
+      names.each do |name|
+        tag = Tag.find_or_create_by_name(name)
+        # A tag is versioned and its version needs an updater; the hub's own
+        # API user is the honest one, since it is the hub declaring this.
+        tag.update!(category: TagCategory::CHARACTER, updater: user || User.system) if tag.category == TagCategory::GENERAL
+      end
+    end
   end
 
   # Group a relation of rows into { creator, auto, both, meta, pending } tag lists.
