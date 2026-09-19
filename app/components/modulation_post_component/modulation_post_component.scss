@@ -790,17 +790,19 @@ body:has(.modulation) {
     .mod-pill-dot { background: var(--mod-active-fg); }
   }
 
-  // THREE STATES, ONE ANIMATION AT A TIME. Dormant jiggles (above). Leaving
-  // winds down: one finite tumble, eased out, ending at rest so the jiggle
-  // resumes with no snap; the class is set on pointer-leave and cleared on
-  // animationend by the script below. Hovered spins on every axis for as
-  // long as the pointer stays -- declared LAST so it wins over a wind-down
-  // still in flight when the pointer comes back. Motion is canon's
-  // (mod-hype-spin, mod-hype-spin-down); this file only says who wears it.
+  // THREE STATES, ONE ANIMATION AT A TIME, ALL CLASSES. Dormant jiggles
+  // (above). Spinning tumbles on every axis for as long as the script keeps
+  // the class on -- NOT :hover: a pill rotating in 3D leaves its own hit
+  // region twice a turn, so :hover flickered, and each flicker rewrote
+  // `animation`, which restarts it (operator, 2026-09-19: "constantly reset
+  // every time the mouse moves 1 pixel"). Winding down is one finite tumble,
+  // eased out, ending at rest so the jiggle resumes with no snap. The script
+  // decides the transitions; this file only says what each state wears.
+  // Motion is canon's (mod-hype-spin, mod-hype-spin-down).
   &.is-spinning-down {
     animation: mod-hype-spin-down var(--mod-hype-spin-down) cubic-bezier(0.16, 1, 0.3, 1) 1 both;
   }
-  &:hover {
+  &.is-spinning {
     animation: mod-hype-spin var(--mod-hype-spin-period) linear infinite;
   }
 
@@ -821,7 +823,7 @@ body:has(.modulation) {
 
 @media (prefers-reduced-motion: reduce) {
   .mod-pill--hype,
-  .mod-pill--hype:hover,
+  .mod-pill--hype.is-spinning,
   .mod-pill--hype.is-spinning-down,
   .mod-pill--hype::after { animation: none; }
   .mod-pill--hype::after { opacity: 0.6; }
