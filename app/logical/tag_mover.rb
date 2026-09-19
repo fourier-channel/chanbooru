@@ -31,7 +31,18 @@ class TagMover
       move_blacklists!
       rewrite_wiki_links!
       move_posts!
+      move_tag_sources!
     end
+  end
+
+  # The provenance sidecar the redesigned tag UI draws from. Without this a
+  # move rewrites every post's tag_string and leaves the pills showing the old
+  # name -- 35,396 rows said "anus" a day after it was aliased to "butthole"
+  # (operator, 2026-09-19). After the posts, so a failure here cannot leave
+  # the tags themselves half-moved.
+  def move_tag_sources!
+    n = FourierTagSource.move_tag!(old_tag.name, new_tag.name)
+    DanbooruLogger.info("tag sources: moved #{n} provenance row(s) #{old_tag.name} -> #{new_tag.name}")
   end
 
   # Sync the category of both tags, if one is a general tag and the other is non-general.

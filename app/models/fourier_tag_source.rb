@@ -85,6 +85,67 @@ class FourierTagSource < ApplicationRecord
     rows.size
   end
 
+  # A TAG MOVE MOVES ITS PROVENANCE TOO.
+  #
+  # Aliasing anus -> butthole moved every post's tag_string and left 35,396
+  # sidecar rows saying "anus" (operator, 2026-09-19: "'Anus' is still being
+  # tagged on images after being aliased to 'butthole'"). The post page draws
+  # its pills from HERE, not from tag_string, so the old name kept appearing
+  # on pictures whose tags no longer contained it -- and the hype list, which
+  # names only the canonical "butthole", could not match it either.
+  #
+  # Called from TagMover, so every alias, every rename and every manual move
+  # carries provenance with it. Aliasing at the WRITE path
+  # (FourierTagResolver) only ever fixed rows written after the alias existed;
+  # this is the half that fixes the ones written before.
+  #
+  # A post that already carries the new name keeps ONE row: the source bits
+  # are OR'd (a tag that was the creator's under one name and the tagger's
+  # under the other is genuinely both), the earlier created_at wins because it
+  # is what the grace-period edit lock reads, approved beats pending because
+  # the tag is on the post either way, and public beats private for the reason
+  # record_partition! already writes `both` as public.
+  #
+  # AN UPSERT, NOT A RENAME, because the table is written while this runs.
+  # The poster adds rows under the new name continuously. A rename guarded by
+  # "does a counterpart exist" -- even with the guard inside the UPDATE -- reads
+  # its subquery at statement start and meets the unique index at write time,
+  # so a row committed in between kills the whole move (seen twice against
+  # production, 2026-09-19). An upsert asks the index itself and merges what it
+  # finds there, which is the only form that cannot race.
+  #
+  # @return [Integer] rows carried over
+  def self.move_tag!(old_name, new_name, batch_size: 1000)
+    old_name = Tag.normalize_name(old_name.to_s)
+    new_name = Tag.normalize_name(new_name.to_s)
+    return 0 if old_name.blank? || new_name.blank? || old_name == new_name
+
+    merge = Arel.sql(<<~SQL.squish)
+      source = fourier_tag_sources.source | excluded.source,
+      status = LEAST(fourier_tag_sources.status, excluded.status),
+      public = fourier_tag_sources.public OR excluded.public,
+      created_at = LEAST(fourier_tag_sources.created_at, excluded.created_at)
+    SQL
+
+    moved = 0
+    loop do
+      rows = where(tag: old_name).limit(batch_size)
+                                 .pluck(:id, :post_id, :source, :status, :public, :added_by, :created_at)
+      break if rows.empty?
+      transaction do
+        upsert_all(
+          rows.map do |(_id, post_id, source, status, pub, added_by, created_at)|
+            { post_id: post_id, tag: new_name, source: source, status: status,
+              public: pub, added_by: added_by, created_at: created_at }
+          end,
+          unique_by: %i[post_id tag], on_duplicate: merge,
+        )
+        moved += where(id: rows.map(&:first)).delete_all
+      end
+    end
+    moved
+  end
+
   # oc_<name>, character_oc_<name>, <name>_oc, <name>_character_oc -- both
   # shapes, with or without "character" (operator, 2026-09-19). Bare "oc" is
   # nobody's name. The same rule the tunnel's parser applies.
