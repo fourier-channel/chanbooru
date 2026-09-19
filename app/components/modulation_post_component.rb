@@ -239,7 +239,7 @@ class ModulationPostComponent < ApplicationComponent
       list << {
         kind: "parent",
         text: "This post belongs to a parent.",
-        href: routes.post_path(post.parent_id, preset: "modulation"),
+        href: routes.post_path(post.parent_id),
         label: "view parent ##{post.parent_id}",
       }
     end
@@ -248,7 +248,7 @@ class ModulationPostComponent < ApplicationComponent
       list << {
         kind: "child",
         text: "This post has children.",
-        href: routes.posts_path(tags: "parent:#{post.id}", preset: "modulation"),
+        href: routes.posts_path(tags: "parent:#{post.id}"),
         label: "view children",
       }
     end
@@ -497,6 +497,6 @@ class ModulationPostComponent < ApplicationComponent
 
   # Route helper that works outside a render context (used by the JSON endpoint).
   def post_url_for(target, search)
-    Rails.application.routes.url_helpers.post_path(target, preset: "modulation", q: search.presence)
+    Rails.application.routes.url_helpers.post_path(target, q: search.presence)
   end
 end

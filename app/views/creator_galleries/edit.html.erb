@@ -27,7 +27,7 @@
       <% @gallery.creator_gallery_posts.includes(:post).each do |cgp| %>
         <div class="modcreator-edit-card">
           <% if cgp.post %>
-            <%= link_to post_path(cgp.post, preset: "modulation") do %>
+            <%= link_to post_path(cgp.post) do %>
               <img src="<%= cgp.post.preview_file_url rescue "" %>" alt="" loading="lazy">
             <% end %>
           <% end %>

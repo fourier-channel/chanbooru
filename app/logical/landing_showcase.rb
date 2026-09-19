@@ -240,7 +240,7 @@ class LandingShowcase
   def slide_for(post)
     {
       id: post.id,
-      url: Rails.application.routes.url_helpers.post_path(post, preset: "modulation"),
+      url: Rails.application.routes.url_helpers.post_path(post),
       src: media_url(post),
       w: post.image_width,
       h: post.image_height,
@@ -265,7 +265,7 @@ class LandingShowcase
   # nobody" is not a sentence worth rendering.
   def creator_for(post)
     artist = post.tag_array.find { |name| artist_names.include?(name) }
-    return { name: artist.tr("_", " "), url: routes.posts_path(tags: artist, preset: "modulation") } if artist
+    return { name: artist.tr("_", " "), url: routes.posts_path(tags: artist) } if artist
 
     { name: post.uploader.name, url: routes.user_path(post.uploader_id) }
   end

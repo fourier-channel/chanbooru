@@ -65,7 +65,7 @@ class ModulationGalleryComponent < ApplicationComponent
   def board_href(board)
     rest = query_terms.reject { |t| BOARDS.any? { |b| b[:source] == t.downcase } }
     rest << board[:source] unless board_active?(board)
-    routes.posts_path(preset: "modulation", tags: rest.join(" ").presence)
+    routes.posts_path(tags: rest.join(" ").presence)
   end
 
   # `settings` is the viewer's Modulation view state (ModulationSetting.for_viewer);
@@ -120,7 +120,7 @@ class ModulationGalleryComponent < ApplicationComponent
 
   # The post view link, carrying the search so its nav follows this exact search.
   def post_link(post)
-    routes.post_path(post, preset: "modulation", q: query_string.presence)
+    routes.post_path(post, q: query_string.presence)
   end
 
   # The facet tags this viewer may be shown: banished names withheld unless
@@ -305,7 +305,7 @@ class ModulationGalleryComponent < ApplicationComponent
   end
 
   def page_url(page)
-    routes.posts_path(preset: "modulation", tags: query_string.presence, page: (page if page > 1))
+    routes.posts_path(tags: query_string.presence, page: (page if page > 1))
   end
 
   private

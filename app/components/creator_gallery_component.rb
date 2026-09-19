@@ -36,7 +36,7 @@ class CreatorGalleryComponent < ApplicationComponent
   end
 
   def post_link(post)
-    helpers.post_path(post, preset: "modulation")
+    helpers.post_path(post)
   end
 
   # matrix.to deep link opens the viewer's Matrix client to message the creator.
