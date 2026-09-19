@@ -60,7 +60,7 @@ class FourierTagSource < ApplicationRecord
     # ORIGINAL CHARACTERS (oc_<name>, operator 2026-09-19): the creator naming
     # a character in the prompt. Not resolved -- the name IS the tag -- and
     # not private: it is put on the post and filed as a character below.
-    oc = fetch.call(:oc).map { |n| Tag.normalize_name(n) }.uniq.select { |n| n.start_with?(ORIGINAL_CHARACTER_PREFIX) }
+    oc = fetch.call(:oc).map { |n| Tag.normalize_name(n) }.uniq.grep(ORIGINAL_CHARACTER)
 
     creator = (lists[:creator] + lists[:both]).uniq - oc
     auto = (lists[:auto] + lists[:both]).uniq
@@ -85,7 +85,10 @@ class FourierTagSource < ApplicationRecord
     rows.size
   end
 
-  ORIGINAL_CHARACTER_PREFIX = "oc_"
+  # oc_<name>, character_oc_<name>, <name>_oc, <name>_character_oc -- both
+  # shapes, with or without "character" (operator, 2026-09-19). Bare "oc" is
+  # nobody's name. The same rule the tunnel's parser applies.
+  ORIGINAL_CHARACTER = /\A(?:(?:character_)?oc_[a-z0-9].*|.*[a-z0-9]_(?:character_)?oc)\z/
 
   # An original character is DECLARED, not merely recorded: the name goes on
   # the post (public, so it is searchable and lands on the character shelf)
