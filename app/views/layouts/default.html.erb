@@ -52,7 +52,18 @@
   <%= tag.meta name: "git-hash", content: Rails.application.config.x.git_hash %>
   <%= tag.meta name: "theme-color", content: "hsl(213, 100%, 50%)" %>
 
-  <%= yield :html_header %>
+  <% header = yield :html_header %>
+  <%= header %>
+  <%# THE CARD'S PICTURE WHEN THE PAGE HAS NONE. A post page renders its own
+      og:image through OpenGraphComponent (upstream's, untouched); every other
+      page -- the front page first -- unfurled with no picture at all. The
+      mark stands in, and only where nothing else did: the header is read back
+      rather than the component asked, so upstream's file stays upstream's
+      (operator, 2026-09-19: "those should explicitly just be the logo"). %>
+  <% unless header.to_s.include?("og:image") %>
+    <%= tag.meta property: "og:image", content: "https://41chan.net/41chan.png" %>
+    <%= tag.meta name: "twitter:card", content: "summary" %>
+  <% end %>
   <%= raw Danbooru.config.custom_html_header_content %>
 </head>
 
