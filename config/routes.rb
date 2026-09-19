@@ -20,6 +20,9 @@ Rails.application.routes.draw do
   get  "posts/:post_id/modulation",  to: "modulation#show", as: :post_modulation # client-side nav payload
   patch "modulation/settings",       to: "modulation_settings#update", as: :modulation_settings # server-held view state
   get  "modulation/session_status",  to: "modulation_session#status", as: :modulation_session_status # the session bar's monitors
+  get  "modulation/creator_activity", to: "modulation#creator_activity", as: :modulation_creator_activity # the creator lamps' re-read
+  patch "modulation/posts/:post_id/moderation", to: "modulation_moderation#update", as: :modulation_moderation # the ( jail | delete ) pill
+  delete "modulation/random_trail",  to: "modulation#clear_random_trail", as: :modulation_random_trail # Clear 'Random' History
   post "modulation/matrix_logout",   to: "modulation_session#matrix_logout", as: :modulation_matrix_logout # cookie force-delete
   get  "fourier_identity",           to: "fourier_identity#show", as: :fourier_identity # "am I linked yet?" poll
   # fourier: release one image from troll jail (undelete its post). Approver+,

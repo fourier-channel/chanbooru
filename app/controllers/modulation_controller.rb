@@ -23,8 +23,28 @@ class ModulationController < ApplicationController
     # troll jail exists so that there is nothing to point at.
     raise ActiveRecord::RecordNotFound if post.hidden_from_anonymous?(CurrentUser.user)
     raise ActiveRecord::RecordNotFound if post.hidden_as_deleted?(CurrentUser.user)
-    component = ModulationPostComponent.new(post: post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session))
+    component = ModulationPostComponent.new(post: post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session)
     render json: component.payload.merge(comments_html: comments_html(post)), status: :ok
+  end
+
+  # "Clear 'Random' History": forget the trail for this search, so the next
+  # payload reseeds both directions. The viewer's own trail only -- it is
+  # keyed on who they are (or their session), never on a post.
+  def clear_random_trail
+    skip_authorization
+    trail = RandomTrail.for(CurrentUser.user, session, params[:q].to_s)
+    trail.clear!
+    render json: { cleared: trail.search, history: 0 }, status: :ok
+  end
+
+  # The creator lamps' re-read: which of the named artist tags are active
+  # now (CreatorActivity). Public -- it discloses only that a public post was
+  # created recently, which /posts already shows -- and bounded: twenty names
+  # a call, one range scan however many are asked.
+  def creator_activity
+    skip_authorization
+    names = params[:tags].to_s.split(",").map(&:strip).reject(&:blank?).first(20)
+    render json: { active: CreatorActivity.active(names), window: Danbooru.config.creator_active_window.to_i }, status: :ok
   end
 
   private

@@ -45,6 +45,16 @@ class PostPolicy < ApplicationPolicy
     unbanned? && user.is_approver? && !record.is_deleted?
   end
 
+  # fourier: the Modulation post page's ( jail | delete ) pill. The bar is
+  # delete?'s -- an unbanned approver -- WITHOUT delete?'s "not already
+  # deleted", because the pill is exactly the control you use on a deleted
+  # post (to undelete it, or to unjail it while it stays deleted). Each
+  # transition then answers for itself: undeleting is a PostApproval with
+  # upstream's own refusals, deleting is delete?.
+  def moderate?
+    unbanned? && user.is_approver?
+  end
+
   def destroy?
     delete?
   end

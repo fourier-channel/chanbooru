@@ -29,7 +29,58 @@
 
   // --- showcase ----------------------------------------------------------
 
-  .modland-showcase { display: flex; flex-direction: column; gap: 0.7rem; }
+  .modland-showcase { position: relative; display: flex; flex-direction: column; gap: 0.7rem; }
+
+  // MAXIMIZE HERO BAND: the toggle, top right of the panel. Quiet until
+  // hovered; its title names the act.
+  .modland-hero-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 13;
+    appearance: none;
+    width: 1.9rem;
+    height: 1.9rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius-sm);
+    background: color-mix(in srgb, var(--mod-surface) 72%, transparent);
+    color: var(--mod-ink-dim);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.14s ease, color 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+
+    &:hover, &:focus-visible { opacity: 1; color: var(--mod-accent); border-color: var(--mod-accent); }
+    &[aria-pressed="true"] { color: var(--mod-active-fg); border-color: color-mix(in srgb, var(--mod-active-fg) 55%, transparent); .modland-hero-glyph { transform: rotate(180deg); } }
+  }
+  .modland-hero-glyph { display: block; transition: transform 0.2s ease; }
+
+  // ON: the showcase leaves the column and runs edge to edge, slightly past
+  // the viewport, so the outermost cells are cut by the screen rather than
+  // by a box. The clip that keeps that excess from becoming a horizontal
+  // scrollbar is on the DOCUMENT (below, outside this block): put on
+  // .modland it clipped the band at the column instead, which is the box the
+  // band had just been told to leave -- measured as an arrow inside the
+  // viewport that no pointer could reach. The band's height does not change;
+  // the script re-lays the run for the width it now has.
+  &.is-hero-max {
+    .modland-showcase {
+      width: calc(100vw + 3rem);
+      max-width: none;
+      margin-left: calc(50% - 50vw - 1.5rem);
+    }
+    .modland-hero-toggle { right: 1.5rem; }
+    .modland-tabs { z-index: 13; }
+    // The arrows come back inside the screen: the band overhangs the
+    // viewport by 1.5rem a side on purpose, and an arrow parked on the
+    // band's edge would be parked off the screen. Measured: the next arrow
+    // sat at 1617px on a 1600px viewport and could not be clicked.
+    .modland-arrow--prev { left: 1.5rem; border-left: 1px solid var(--mod-line); border-radius: var(--mod-radius); }
+    .modland-arrow--next { right: 1.5rem; border-right: 1px solid var(--mod-line); border-radius: var(--mod-radius); }
+  }
 
   // One elongated pill, segmented. The highlight is a single element that
   // slides rather than a background on each segment: when the axis changes on
@@ -274,9 +325,31 @@
     border-radius: var(--mod-radius);
     background: var(--mod-surface-2);
     padding: 0.5rem;
-    transition: border-color 0.12s ease, transform 0.12s ease;
+    // THE RAISE (canon --mod-raise-*): the same hover every clickable picture
+    // wears. overflow: hidden clips the sweep to the card.
+    position: relative;
+    overflow: hidden;
+    transition: transform var(--mod-raise-ease), box-shadow var(--mod-raise-ease), border-color var(--mod-raise-ease);
+    will-change: transform;
 
-    &:hover { border-color: var(--artist-tag-color); transform: translateY(-2px); }
+    &::before {
+      content: "";
+      position: absolute;
+      top: 0; bottom: 0; left: -60%; width: 220%;
+      z-index: 2;
+      pointer-events: none;
+      background: var(--mod-sweep);
+      opacity: 0;
+      transform: translateX(-40%);
+    }
+    &:hover, &:focus-visible {
+      transform: scale(var(--mod-raise-scale));
+      z-index: 4;
+      box-shadow: var(--mod-raise-ring), var(--mod-raise-lift);
+      border-color: var(--mod-active-fg);
+
+      &::before { opacity: 1; animation: mod-sweep var(--mod-sweep-period) ease-in-out infinite; }
+    }
   }
 
   .modland-promoted-thumb {
@@ -310,15 +383,15 @@
   .modland-enter-button {
     padding: 0.5rem 1.2rem;
     border-radius: var(--mod-pill-radius);
-    border: 1px solid color-mix(in srgb, var(--character-tag-color) 45%, transparent);
-    background: color-mix(in srgb, var(--character-tag-color) 12%, transparent);
-    color: var(--character-tag-color);
+    border: 1px solid color-mix(in srgb, var(--mod-accent) 45%, transparent);
+    background: color-mix(in srgb, var(--mod-accent) 12%, transparent);
+    color: var(--mod-accent);
     font-size: 0.9rem;
     text-decoration: none;
 
     &:hover {
-      border-color: var(--character-tag-color);
-      background: color-mix(in srgb, var(--character-tag-color) 20%, transparent);
+      border-color: var(--mod-accent);
+      background: color-mix(in srgb, var(--mod-accent) 20%, transparent);
     }
   }
 
@@ -356,3 +429,6 @@
   .modland .modland-ride .mod-sortrow { transition: none; }
   .modland .modland-tabs-thumb { transition: none; }
 }
+
+// The document, not the column, absorbs the hero band's overhang.
+html:has(.modland.is-hero-max) { overflow-x: clip; }

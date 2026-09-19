@@ -77,12 +77,40 @@
 
     img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-    &:hover { opacity: 0.85; }
+    // THE RAISE (canon --mod-raise-*): a flank thumb is a picture you can
+    // click, so under the pointer it scales on top of its rank transform, takes
+    // the ring and the lift, and the sweep crosses it. The scale MULTIPLIES the
+    // rank scale rather than replacing the transform, or the row would jump to
+    // the centre spot on hover. Landing's ride disables the transition for its
+    // own reasons and keeps the rest.
+    &::before {
+      content: "";
+      position: absolute;
+      top: 0; bottom: 0; left: -60%; width: 220%;
+      z-index: 1;
+      pointer-events: none;
+      background: var(--mod-sweep);
+      opacity: 0;
+      transform: translateX(-40%);
+    }
+    &:hover, &:focus-visible {
+      opacity: 1; z-index: 4;
+      transform: translate(-50%, -50%) translateY(calc(var(--rank, 0) * var(--stack-gap))) scale(calc(var(--flank-scale) * var(--mod-raise-scale)));
+      box-shadow: var(--mod-raise-ring), var(--mod-raise-lift);
+      border-color: var(--mod-active-fg);
+
+      &::before { opacity: 1; animation: mod-sweep var(--mod-sweep-period) ease-in-out infinite; }
+    }
 
     &.is-current {
       opacity: 1; z-index: 3;
       transform: translate(-50%, -50%) scale(1);
-      border-color: color-mix(in srgb, var(--mod-creator-fg) 30%, var(--mod-line));
+      border-color: color-mix(in srgb, var(--mod-accent) 30%, var(--mod-line));
+
+      &:hover, &:focus-visible {
+        z-index: 4;
+        transform: translate(-50%, -50%) scale(var(--mod-raise-scale));
+      }
     }
 
     &.is-empty {
@@ -296,7 +324,43 @@
     background: linear-gradient(to top, color-mix(in srgb, var(--mod-surface) 88%, transparent), transparent);
   }
 
+  // The creator's name under its card: a sibling positioned by the cell's
+  // own variables, so it sits just under the cell's bottom edge, at a size
+  // and an opacity that follow the cell's. Its transition is the cell's, so
+  // it travels with it rather than after it.
+  .mod-cell-name {
+    position: absolute;
+    top: calc(50% + var(--ch, 150px) / 2 + 0.25rem);
+    left: 50%;
+    width: var(--cw, 120px);
+    margin: 0;
+    padding: 0 0.2rem;
+    text-align: center;
+    font-family: var(--mod-mono);
+    font-size: clamp(0.5rem, calc(var(--ch, 150px) * 0.048), 0.86rem);
+    line-height: 1.25;
+    letter-spacing: 0.02em;
+    color: var(--mod-tag-artist-fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: var(--co, 0.3);
+    z-index: var(--cz, 1);
+    pointer-events: none;
+    transform: translate(-50%, 0) translateX(var(--cx, 0));
+    transition:
+      transform var(--belt-move-ms) var(--belt-ease),
+      top var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
+      width var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
+      font-size var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
+      opacity var(--belt-move-ms) ease;
+
+    &.is-focus { font-weight: 600; }
+    &.is-offstage { opacity: 0; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
+    .mod-cell-name { transition-duration: 1ms; transition-timing-function: linear; }
     .mod-cell {
       transition-duration: 1ms;
 

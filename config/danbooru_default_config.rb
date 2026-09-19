@@ -711,6 +711,16 @@ module Danbooru
       5.minutes
     end
 
+    # How recently a creator must have posted to be "active" -- the lamp on an
+    # artist pill (operator, 2026-09-19: "lit up green when that creator is
+    # 'active' -- i.e. has within the past 5 minutes made a post directly to
+    # the booru, or had a post attributed to them via sample or tunnel").
+    # A duration; CreatorActivity reads it, the post page polls at a fraction
+    # of it.
+    def creator_active_window
+      5.minutes
+    end
+
     # Whether to enable comments.
     def comments_enabled?
       true

@@ -44,16 +44,30 @@ class FourierTagSource < ApplicationRecord
   # Upsert provenance for a post from a {creator, auto, both, meta, pending}
   # partition (as bmb sends it). Idempotent per (post, tag). Creator-ONLY tags are
   # private by default (prompt-derived, may leak); everything else is public.
+  #
+  # NAMES ARE RESOLVED FIRST (FourierTagResolver): aliases, and a prompt's
+  # "hilda" to the booru's hilda_(pokemon). Then the partition is RE-DERIVED,
+  # because resolution can make a creator name and an auto name the same
+  # name -- and the old rule, first list wins, would have filed that tag as
+  # creator-only and PRIVATE, hiding a tag the autotagger had put on the
+  # public post. After resolution a name in both creator and auto is `both`.
   def self.record_partition!(post, sources, user)
     now = Time.zone.now
+    fetch = ->(k) { Array(sources[k.to_s] || sources[k.to_sym]).map(&:to_s).reject(&:blank?) }
+    lists = %i[both creator auto meta pending].index_with { |k| fetch.call(k) }
+    resolved = FourierTagResolver.resolve(lists.values.flatten)
+    lists = lists.transform_values { |names| names.map { |n| resolved.fetch(Tag.normalize_name(n), n) }.uniq }
+
+    creator = (lists[:creator] + lists[:both]).uniq
+    auto = (lists[:auto] + lists[:both]).uniq
+    both = creator & auto
     rows = []
-    fetch = ->(k) { sources[k.to_s] || sources[k.to_sym] || [] }
-    add = ->(tags, source, status, pub) { tags.each { |t| rows << { post_id: post.id, tag: t.to_s, source: source, status: status, public: pub, added_by: user&.id, created_at: now } } }
-    add.call(fetch.call(:both),    CREATOR | AUTO, APPROVED, true)
-    add.call(fetch.call(:creator), CREATOR,        APPROVED, false)
-    add.call(fetch.call(:auto),    AUTO,           APPROVED, true)
-    add.call(fetch.call(:meta),    META,           APPROVED, true)
-    add.call(fetch.call(:pending), HUMAN,          PENDING,  true)
+    add = ->(tags, source, status, pub) { tags.each { |t| rows << { post_id: post.id, tag: t, source: source, status: status, public: pub, added_by: user&.id, created_at: now } } }
+    add.call(both,           CREATOR | AUTO, APPROVED, true)
+    add.call(creator - both, CREATOR,        APPROVED, false)
+    add.call(auto - both,    AUTO,           APPROVED, true)
+    add.call(lists[:meta],   META,           APPROVED, true)
+    add.call(lists[:pending], HUMAN,         PENDING,  true)
     upsert_all(rows.uniq { |r| r[:tag] }, unique_by: %i[post_id tag]) if rows.any?
     rows.size
   end

@@ -19,12 +19,16 @@ class ModulationPostComponent < ApplicationComponent
   # `settings` is the viewer's Modulation view state (ModulationSetting.for_viewer);
   # callers with no session context get the defaults so the component stays
   # renderable anywhere.
-  def initialize(post:, viewer:, query: nil, settings: nil)
+  # `session` is only for random mode's trail (RandomTrail): an anonymous
+  # viewer's history lives in it. Absent, random still renders -- fresh picks,
+  # remembered nowhere -- so the component stays renderable anywhere.
+  def initialize(post:, viewer:, query: nil, settings: nil, session: nil)
     super
     @post = post
     @viewer = viewer
     @query = query
     @settings = settings || ModulationSetting.defaults
+    @session = session
   end
 
   # --- gallery navigation -------------------------------------------------
@@ -315,7 +319,7 @@ class ModulationPostComponent < ApplicationComponent
       tags: buckets,
       cat_tags: category_tags,
       settings: settings,
-      presets: nav_presets.map { |p| p.slice(:key, :label, :search, :prev, :next) },
+      presets: nav_presets.map { |p| p.slice(:key, :label, :search, :prev, :next, :history) },
       active_key: active_preset_key,
       status: status,
       rating: post.rating,
@@ -328,6 +332,16 @@ class ModulationPostComponent < ApplicationComponent
       # the blacklist keeps matching the post the viewer arrived on.
       blacklist: blacklist_data,
       can_browse: can_browse?,
+      # The creator lamps: which of this post's artist tags are active now,
+      # and the window that means. The page polls /modulation/creator_activity
+      # to keep them honest while it stays open.
+      live_creators: CreatorActivity.active(category_tags[:artist].to_a),
+      live_window: Danbooru.config.creator_active_window.to_i,
+      # The ( jail | delete ) pill: what the post is, and whether this viewer
+      # may change it. The rule between the two switches -- jailed implies
+      # deleted, deleted does not imply jailed -- is enforced by
+      # ModulationModerationController; the pill only shows it.
+      moderation: { can: policy.moderate?, jailed: jailed?, deleted: post.is_deleted? },
     }
   end
 
@@ -445,13 +459,30 @@ class ModulationPostComponent < ApplicationComponent
 
   # Random's neighbours ARE random -- PostNeighbors' id-walk fallback would
   # make "random" a deterministic stroll, which is the exact confidence trick
-  # the mode redesign exists to end. Two fresh picks from the filtered set,
-  # re-rolled on every payload, so each step scatters again.
+  # the mode redesign exists to end. But random has a HISTORY (RandomTrail,
+  # operator 2026-09-19): a post already on the viewer's trail keeps the
+  # neighbours it had, and only the frontier -- the far side of the last post
+  # seen in that direction -- is rolled, once, and remembered. Re-rolling
+  # both sides on every payload, which is what this did, made "back" a
+  # different random post than the one just left.
   def random_neighbours
-    ids = Post.user_tag_match(base_tags.to_s, viewer).where.not(id: post.id).reorder(Arel.sql("random()")).limit(2).pluck(:id)
-    { prev_id: ids[0], next_id: ids[1] }
+    roll = ->(taken) { Post.user_tag_match(base_tags.to_s, viewer).where.not(id: taken + [post.id]).reorder(Arel.sql("random()")).limit(1).pick(:id) }
+    trail = random_trail
+    if trail
+      found = trail.neighbours_for(post, &roll)
+      trail.save!
+      found.merge(history: trail.size)
+    else
+      { prev_id: roll.call([]), next_id: roll.call([]), history: 0 }
+    end
   rescue StandardError
-    { prev_id: nil, next_id: nil }
+    { prev_id: nil, next_id: nil, history: 0 }
+  end
+
+  def random_trail
+    return nil if @session.nil? && (viewer.nil? || viewer.is_anonymous?)
+
+    @random_trail ||= RandomTrail.for(viewer, @session, base_tags)
   end
 
   def neighbour_preview(neighbour, search)

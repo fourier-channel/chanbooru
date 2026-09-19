@@ -314,6 +314,45 @@ class ModulationGalleryComponent < ApplicationComponent
     Rails.application.routes.url_helpers
   end
 
+  # PROVENANCE, for the page. name -> "creator" | "both" | "auto" | "meta" |
+  # "pending", for every sidebar tag that has a public provenance row on any
+  # post of this page; a name with none is unsourced. One grouped query for
+  # the page: bit_or over the source flags says who put the name there
+  # anywhere on the page, which is the honest answer for a list that
+  # aggregates the page. Public rows only -- the sidebar's names come from
+  # tag_string, which never holds a private creator tag, so a private row
+  # could only ever add information this viewer may not have.
+  def page_tag_provenance
+    @page_tag_provenance ||= begin
+      names = page_tag_categories.keys
+      if names.empty? || posts.empty?
+        {}
+      else
+        FourierTagSource.publicly_visible
+          .where(post_id: posts.map(&:id), tag: names)
+          .group(:tag)
+          .pluck(:tag, Arel.sql("bit_or(source)"), Arel.sql("bool_and(status = #{FourierTagSource::PENDING})"))
+          .to_h { |tag, source, pending| [tag, provenance_bucket(source, pending)] }
+      end
+    end
+  end
+
+  def provenance_bucket(source, pending)
+    return "pending" if pending
+    return "meta" if source & FourierTagSource::META > 0
+    return "both" if source & FourierTagSource::CREATOR > 0 && source & FourierTagSource::AUTO > 0
+    return "creator" if source & FourierTagSource::CREATOR > 0
+
+    "auto"
+  end
+
+  # The pill's classes: provenance paints it, category only for the
+  # identifying kinds (the post page's rule; the stylesheet's compound
+  # category selector is what makes artist/character/copyright win).
+  def pill_classes(tag)
+    "mod-pill mod-pill--#{page_tag_provenance[tag.name] || 'unsourced'} mod-pill--cat mod-pill--cat-#{category_key(tag)}"
+  end
+
   def category_key(tag)
     return "artist" if tag.artist?
     return "copyright" if tag.copyright?

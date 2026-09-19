@@ -32,7 +32,7 @@ class ModulationSetting < ApplicationRecord
   # always reloads after an auth action, so there is no preference to keep.
   # Dropped from the key list rather than defaulted to true, so a stored
   # `false` from before the ruling cannot come back and disable the reload.
-  PANEL_KEYS = %w[image_cap tags_expanded gallery_sort gallery_view gallery_show_deleted session_bar_open].freeze
+  PANEL_KEYS = %w[image_cap tags_expanded gallery_sort gallery_view gallery_show_deleted session_bar_open hero_band].freeze
 
   SESSION_KEY = :modulation_settings
 
@@ -48,6 +48,8 @@ class ModulationSetting < ApplicationRecord
       "gallery_view" => "unitag",
       "gallery_show_deleted" => false,
       "session_bar_open" => false,
+      # The landing carousel run edge to edge ("Maximize Hero Band").
+      "hero_band" => false,
     }
   end
 
@@ -79,6 +81,7 @@ class ModulationSetting < ApplicationRecord
     clean["gallery_view"] = changes["gallery_view"] if GALLERY_VIEWS.include?(changes["gallery_view"])
     clean["gallery_show_deleted"] = changes["gallery_show_deleted"].to_s.truthy? unless changes["gallery_show_deleted"].nil?
     clean["session_bar_open"] = changes["session_bar_open"].to_s.truthy? unless changes["session_bar_open"].nil?
+    clean["hero_band"] = changes["hero_band"].to_s.truthy? unless changes["hero_band"].nil?
     # Admin-only, row-only: revealing the banished vocabulary is a deliberate
     # act (see TagBanishment), and it means nothing in an anonymous session.
     if !changes["reveal_banished"].nil? && user.respond_to?(:is_admin?) && user.is_admin?

@@ -1,4 +1,4 @@
-<div class="modland" data-modland data-config="<%= config.to_json %>">
+<div class="modland<%= " is-hero-max" if hero_band? %>" data-modland data-config="<%= config.to_json %>">
 
   <%# --- the showcase -------------------------------------------------
       The post view's stage, not a lookalike: same grid, same flank columns,
@@ -11,6 +11,18 @@
       place, whether or not it is the one on screen. %>
   <% if any_slides? %>
     <section class="modland-showcase">
+      <%# MAXIMIZE HERO BAND. Top right of the panel: expansion arrows whose
+          hover names the act. On, the showcase leaves the column and runs
+          edge to edge -- slightly past the viewport, so the outermost cells
+          are cut by the screen and not by a box -- and the run shows as many
+          more cards as the extra width holds (operator, 2026-09-19: "I want
+          to see more of the cards lined up as they scroll in and out").
+          Remembered server-side, like every other Modulation view choice. %>
+      <button type="button" class="modland-hero-toggle" data-act="hero"
+              title="<%= hero_band? ? "Restore Hero Band" : "Maximize Hero Band" %>"
+              aria-pressed="<%= hero_band? %>" aria-label="Maximize Hero Band">
+        <span class="modland-hero-glyph" aria-hidden="true">&#x2922;</span>
+      </button>
       <%# One elongated pill, segmented. The flank rows are the post view's own
           axis control; this labels all three at once, which the front page
           needs and a post page does not. %>

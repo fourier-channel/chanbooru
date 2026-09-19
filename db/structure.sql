@@ -1209,7 +1209,8 @@ CREATE TABLE public.landing_categories (
     creator_gallery_id bigint,
     updated_by_id integer,
     created_at timestamp(6) without time zone NOT NULL,
-    updated_at timestamp(6) without time zone NOT NULL
+    updated_at timestamp(6) without time zone NOT NULL,
+    slides integer
 );
 
 
@@ -1461,7 +1462,9 @@ CREATE TABLE public.modulation_settings (
     gallery_view character varying DEFAULT 'unitag'::character varying NOT NULL,
     gallery_show_deleted boolean DEFAULT false NOT NULL,
     session_bar_open boolean DEFAULT false NOT NULL,
-    session_autorefresh boolean DEFAULT true NOT NULL
+    session_autorefresh boolean DEFAULT true NOT NULL,
+    hero_band boolean DEFAULT false NOT NULL,
+    random_trails jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 
@@ -7906,6 +7909,9 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260919000002'),
+('20260919000001'),
+('20260919000000'),
 ('20260917000001'),
 ('20260917000000'),
 ('20260912200000'),

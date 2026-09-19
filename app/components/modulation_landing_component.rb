@@ -17,12 +17,20 @@
 class ModulationLandingComponent < ApplicationComponent
   attr_reader :categories, :promoted, :preference, :viewer
 
-  def initialize(categories:, promoted: [], preference: nil, viewer: nil)
+  # `settings` is the viewer's Modulation view state (ModulationSetting.for_viewer);
+  # the landing page reads one key of it, hero_band, and renders the band
+  # already maximised so a remembered choice does not flash into place.
+  def initialize(categories:, promoted: [], preference: nil, viewer: nil, settings: nil)
     super
     @categories = categories.to_a
     @promoted = promoted.to_a
     @preference = preference.to_s
     @viewer = viewer
+    @settings = settings || ModulationSetting.defaults
+  end
+
+  def hero_band?
+    @settings["hero_band"].to_s.truthy?
   end
 
   def any_slides?
@@ -66,6 +74,8 @@ class ModulationLandingComponent < ApplicationComponent
       advanceMs: landing_setting.advance_ms,
       # How long the resume control takes to fill before it restarts the ride.
       resumeMs: 10_000,
+      # The band runs edge to edge, remembered (ModulationSetting.hero_band).
+      heroBand: hero_band?,
       # No periodic re-fetch. The carousel cycling three categories is what keeps
       # a page left open from becoming a fixed poster, and a background swap
       # would either yank the slide out from under a reader or silently undo the

@@ -5,4 +5,5 @@
       categories: @categories,
       promoted: @promoted,
       preference: @preference,
-      viewer: CurrentUser.user) %>
+      viewer: CurrentUser.user,
+  settings: ModulationSetting.for_viewer(CurrentUser.user, session)) %>

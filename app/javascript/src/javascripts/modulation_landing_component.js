@@ -91,12 +91,24 @@ function initLanding(root) {
     if (ranks <= RANKS) return FALLOFF;
     return Math.pow(MIN_OUTER, 1 / (ranks - 1));
   }
+  // THE HERO BAND shows more of the run, in proportion to the width it
+  // gained: the band's normal width is the column's, and every extra column's
+  // worth of belt is another column's worth of cards. Measured, not assumed --
+  // a 1440px screen is 1.3 columns, a 2560px one is 2.3 -- so the setting's
+  // count still means what the admin set on a band that has not been widened.
+  const COLUMN_W = 1120;
+  function heroScale() {
+    if (!root.classList.contains("is-hero-max")) return 1;
+    const belt = region("belt");
+    return belt && belt.clientWidth > COLUMN_W ? belt.clientWidth / COLUMN_W : 1;
+  }
   function ranksFor(a) {
     const cat = cats[a];
     const want = cat && cat.visible;
     if (!want) return RANKS;
     const have = slidesOf(a).length || want;
-    return Math.max(0, Math.ceil((Math.min(want, have) - 1) / 2));
+    const wanted = Math.min(Math.round(want * heroScale()), have);
+    return Math.max(0, Math.ceil((wanted - 1) / 2));
   }
   const HEAD_H = 0.42;         // first neighbour's height, as a fraction of the focus
   const FALLOFF = 0.72;        // each further cell against the one before it
@@ -196,7 +208,31 @@ function initLanding(root) {
     tag.className = "mod-cell-tag";
     tag.textContent = cats[a].label;
     cell.appendChild(tag);
+
+    // THE CREATOR'S NAME TRAVELS WITH THE CARD, just underneath it, and
+    // shrinks and dims as the card does (operator, 2026-09-19). It is a
+    // SIBLING of the cell rather than a child: the cell clips to its own
+    // box, and "underneath" is outside that box. It reads the cell's own
+    // variables -- --cx, --ch, --co -- so it is positioned by the same
+    // numbers and moved by the same transition, never measured.
+    const creator = slide.creator && slide.creator.name;
+    if (creator) {
+      const name = document.createElement("span");
+      name.className = "mod-cell-name";
+      name.textContent = creator;
+      cell.nameEl = name;
+    }
     return cell;
+  }
+  // The name goes wherever its cell goes, carrying the cell's variables.
+  function placeName(cell, belt) {
+    const name = cell.nameEl;
+    if (!name) return;
+    ["--cx", "--cw", "--ch", "--co", "--cz"].forEach((v) => name.style.setProperty(v, cell.style.getPropertyValue(v)));
+    name.dataset.d = cell.dataset.d;
+    name.classList.toggle("is-offstage", cell.classList.contains("is-offstage"));
+    name.classList.toggle("is-focus", cell.classList.contains("is-focus"));
+    if (belt && name.parentNode !== belt) belt.appendChild(name);
   }
 
   function cellFor(a, slide) {
@@ -404,11 +440,12 @@ function initLanding(root) {
       cell.classList.toggle("is-focus", d === 0);
       cell.classList.toggle("is-incoming", k === 1);
       if (failed.has(String(slide.id))) cell.classList.add("is-failed");
+      placeName(cell, belt);
     });
 
     // Cells belonging to other axes stay built but must not sit on this belt.
     cells.forEach((cell, key) => {
-      if (!key.startsWith(`${axis}:`) && cell.parentNode === belt) cell.remove();
+      if (!key.startsWith(`${axis}:`) && cell.parentNode === belt) { cell.remove(); if (cell.nameEl) cell.nameEl.remove(); }
     });
 
     renderCredit(at(axis, pos));
@@ -585,6 +622,7 @@ function initLanding(root) {
     if (!act) return;
 
     if (act.dataset.act === "resume") { e.preventDefault(); resume(); return; }
+    if (act.dataset.act === "hero") { e.preventDefault(); toggleHero(act); return; }
 
     e.preventDefault();
     if (act.dataset.act === "next") step(1);
@@ -605,7 +643,24 @@ function initLanding(root) {
     else if (e.key === "ArrowDown") { e.preventDefault(); shiftAxis(1); pause(); }
   });
 
-  window.addEventListener("resize", positionThumb);
+  // MAXIMIZE HERO BAND. The class does the widening (stylesheet); the run is
+  // re-laid for the width it now has; the choice is remembered server-side
+  // through the same endpoint every other Modulation view choice uses.
+  function toggleHero(btn) {
+    const on = !root.classList.contains("is-hero-max");
+    root.classList.toggle("is-hero-max", on);
+    btn.setAttribute("aria-pressed", String(on));
+    btn.title = on ? "Restore Hero Band" : "Maximize Hero Band";
+    requestAnimationFrame(() => { render(); positionThumb(); });
+    fetch("/modulation/settings", {
+      method: "PATCH",
+      headers: { "X-CSRF-Token": (document.querySelector('meta[name="csrf-token"]') || {}).content || "", "Content-Type": "application/json", Accept: "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ hero_band: on }),
+    }).catch(() => {});
+  }
+
+  window.addEventListener("resize", () => { positionThumb(); if (root.classList.contains("is-hero-max")) scheduleRender(); });
 
   resetRun();
   renderAll();

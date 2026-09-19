@@ -21,6 +21,11 @@
         <span class="mod-sort-label">mode <b data-region="sort-label"></b></span>
         <button type="button" class="mod-sort-arrow" data-act="sort-down" aria-label="Next mode">&#9660;</button>
       </div>
+      <%# Random's history control. Random keeps a trail of what it showed
+          (RandomTrail); this forgets it and reseeds both directions. Only on
+          the random mode, because it means nothing on the others. %>
+      <button type="button" class="mod-random-clear" data-act="random-clear" data-region="random-clear" hidden
+              title="Random remembers the posts it showed you, so walking back retraces your steps. Clear that trail and reseed both directions.">Clear 'Random' History <span class="mod-random-count" data-region="random-count"></span></button>
       <span class="mod-gate" data-region="gate" title="Served through the fourier-auth media gate" hidden>R2 gated</span>
     </div>
   </header>
@@ -159,7 +164,17 @@
       region("flank-next").innerHTML = presets().map((p, i) => flankRow(p, i, "next")).join("");
       applyRanks();
     }
+    // The clear-history control shows only on random, with the trail's size.
+    function renderRandomClear() {
+      const el = region("random-clear"); if (!el) return;
+      const a = active();
+      const on = !!a && a.key === "random";
+      el.hidden = !on;
+      const n = on && a.history != null ? a.history : 0;
+      const cnt = region("random-count"); if (cnt) cnt.textContent = n ? String(n) : "";
+    }
     function applyRanks() {
+      renderRandomClear();
       const ai = activeIndex();
       root.querySelectorAll(".mod-sortrow").forEach(el => {
         const i = +el.dataset.i;
@@ -180,7 +195,39 @@
     // editors happened to write things in, and a list a reader cannot predict
     // is a list they have to read end to end to know a tag is absent.
     const alpha = (list) => (list || []).slice().sort((a, b) => String(a).localeCompare(String(b)));
-    const pill = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + hypeOf(t) + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
+    const pill = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + hypeOf(t) + '" data-tag="' + esc(t) + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
+    // THE CREATOR'S LAMP. An artist pill's dot is a lamp, lit while that
+    // creator is active -- a post of theirs, direct or attributed through
+    // sample or the tunnel, inside the server's window (payload.live_window
+    // seconds). The payload says who is live at render; applyLamps() is also
+    // what the poll below calls, so a lamp changes in place without the tag
+    // panel re-rendering under the pointer.
+    const liveSet = () => new Set(cur.live_creators || []);
+    const lampTitle = (on) => on
+      ? "active: posted within the last " + Math.round((cur.live_window || 300) / 60) + " min"
+      : "no post in the last " + Math.round((cur.live_window || 300) / 60) + " min";
+    function applyLamps() {
+      const live = liveSet();
+      root.querySelectorAll(".mod-pill--cat-artist").forEach(el => {
+        const on = live.has(el.dataset.tag);
+        el.classList.toggle("is-live", on);
+        el.title = lampTitle(on);
+      });
+    }
+    // The re-read: a fraction of the window, only while the page is visible
+    // and only when there is an artist tag to ask about, plus once on every
+    // return to the tab. A lamp lit at render and never re-read would stay
+    // lit for as long as the page was left open, which is a lamp that lies.
+    function lampTick() {
+      const names = ((cur.cat_tags || {}).artist || []).slice(0, 20);
+      if (!names.length || document.hidden) return;
+      fetch("/modulation/creator_activity?tags=" + encodeURIComponent(names.join(",")), { headers: { Accept: "application/json" }, credentials: "same-origin" })
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => { if (d && Array.isArray(d.active)) { cur.live_creators = d.active; if (d.window) cur.live_window = d.window; applyLamps(); } })
+        .catch(() => {});
+    }
+    setInterval(lampTick, Math.max(15000, Math.round(((cur.live_window || 300) * 1000) / 5)));
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) lampTick(); });
     // The category bucket at the head of the list: artist on the left;
     // character / copyright (/ species, should the booru ever grow one) on the
     // right. Each pill still carries the class of the provenance bucket it came
@@ -221,7 +268,7 @@
             '<button type="button" data-act="view" data-view="grouped" class="' + (view === "grouped" ? "is-active" : "") + '">Grouped</button>' +
           "</div>" : "") +
         toggle + "</div></div>";
-      if (!tagsExpanded) { el.innerHTML = head + catsHTML; return; }
+      if (!tagsExpanded) { el.innerHTML = head + catsHTML; applyLamps(); return; }
       const flow = (b) => alpha(t[b]).filter(tag => !catSet.has(tag));
       // ONE alphabetical list, not five sorted lists end to end. The first cut
       // sorted within each provenance bucket and then concatenated them in
@@ -246,6 +293,7 @@
           '<div class="mod-meta-section"><button type="button" class="mod-meta-toggle" data-act="meta-toggle" aria-expanded="' + metaOpen + '">' +
             '<span class="mod-meta-caret ' + (metaOpen ? "is-open" : "") + '">&#9656;</span> quality &amp; meta tags <span class="mod-meta-count">' + meta.length + "</span></button>" +
             '<div class="mod-meta-tags"' + (metaOpen ? "" : " hidden") + ">" + meta.map(tag => pill(tag, "meta", false)).join("") + "</div></div>" : "");
+      applyLamps();
     }
     // The notice strip: why a post is in the modqueue, and its family. Both were
     // upstream-only, and the family notices are how you reach a parent or the
@@ -285,6 +333,48 @@
         '" title="' + (sc.can_vote ? (on ? "Remove vote" : (dir === "up" ? "Upvote" : "Downvote")) : "Sign in to vote") + '">' + glyph + "</button>";
     }
 
+    // THE MODERATION PILL: ( jail | delete ), for an approver. Lit means
+    // true, desaturated means false. jailed implies deleted, so delete is
+    // inert while jail is lit and lights with it; jail can go out on its own
+    // and leaves the post deleted (operator, 2026-09-19). The server enforces
+    // the rule; this only draws it and asks.
+    function moderationHTML() {
+      const m = cur.moderation;
+      if (!m || !m.can) return "";
+      const seg = (key, on, label, disabled, title) =>
+        '<button type="button" class="mod-modpill-seg mod-modpill-seg--' + key + (on ? " is-lit" : "") + '" data-act="moderate" data-key="' + key + '" data-on="' + (on ? 1 : 0) + '"' +
+          (disabled ? " disabled" : "") + ' title="' + esc(title) + '" aria-pressed="' + on + '">' + label + "</button>";
+      return '<span class="mod-modpill" role="group" aria-label="Moderation">' +
+        seg("jail", m.jailed, "jail", false, m.jailed ? "Unjail (the post stays deleted)" : "Jail (deletes the post too)") +
+        seg("deleted", m.deleted, "delete", m.jailed, m.jailed ? "A jailed post stays deleted; unjail first" : (m.deleted ? "Undelete (approves the post)" : "Delete (recoverable)")) +
+        "</span>";
+    }
+    function moderate(btn) {
+      const key = btn.dataset.key, want = btn.dataset.on !== "1";
+      const pill = btn.closest(".mod-modpill"); if (!pill || pill.classList.contains("is-busy")) return;
+      pill.classList.add("is-busy");
+      const body = {}; body[key] = want;
+      fetch("/modulation/posts/" + cur.id + "/moderation", {
+        method: "PATCH",
+        headers: { "X-CSRF-Token": csrfToken(), "Content-Type": "application/json", Accept: "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(body),
+      }).then(r => r.json().catch(() => ({})).then(d => ({ ok: r.ok, d })))
+        .then(({ ok, d }) => {
+          if (d && typeof d.jailed === "boolean") cur.moderation = { can: true, jailed: d.jailed, deleted: d.deleted };
+          // The whole page re-reads the post: status line, notice strip, the
+          // spoiler over a deleted picture, and the pill itself.
+          return refreshCurrent().then(() => { revealed = false; renderNotices(); renderCenter(); renderBlacklist(); })
+            .then(() => { if (!ok) flashPill(d && d.refused ? d.refused : "refused"); });
+        })
+        .catch(() => flashPill("network error"))
+        .finally(() => { const p2 = root.querySelector(".mod-modpill"); if (p2) p2.classList.remove("is-busy"); });
+    }
+    function flashPill(msg) {
+      const p = root.querySelector(".mod-modpill"); if (!p) return;
+      p.setAttribute("data-refused", msg); p.classList.add("is-refused");
+      setTimeout(() => { p.classList.remove("is-refused"); p.removeAttribute("data-refused"); }, 2600);
+    }
     function renderActions() {
       const m = cur.media, full = (m && (m.full || m.src)) || "#";
       const sc = cur.score || {}, fv = cur.fav || {};
@@ -301,6 +391,7 @@
           (fv.faved ? "&#9733;" : "&#9734;") + ' <span class="mod-fav-count">' + favCount + "</span></button>" +
         '<a class="mod-action" href="' + esc(full) + '" target="_blank" rel="noopener">View original</a>' +
         '<a class="mod-action" href="' + esc(full) + '" download>Download</a>' +
+        moderationHTML() +
         '<button type="button" class="mod-action mod-more-toggle" data-act="more" aria-expanded="' + moreOpen + '">' +
           'More <span class="mod-caret' + (moreOpen ? " is-open" : "") + '">&#9656;</span></button>' +
         moreHTML();
@@ -472,6 +563,21 @@
         credentials: "same-origin",
       });
     }
+    // Forget the trail, drop every cached payload (each carries neighbours
+    // from the old trail), and re-read this post: random's flanks reseed.
+    function clearRandomHistory(btn) {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      const a = active(); const search = (a && a.search) || "";
+      fetch("/modulation/random_trail?q=" + encodeURIComponent(search), {
+        method: "DELETE",
+        headers: { "X-CSRF-Token": csrfToken(), Accept: "application/json" },
+        credentials: "same-origin",
+      }).then(() => { cache.clear(); return fetchPayload(cur.id, search); })
+        .then(p => { cur = p; renderFlanks(); renderActions(); renderMeta(); preloadNeighbours(); })
+        .catch(() => {})
+        .finally(() => { btn.disabled = false; });
+    }
     function refreshCurrent() {
       const search = (active() || {}).search || "";
       cache.delete(cur.id + "|" + search);
@@ -605,6 +711,8 @@
       else if (a === "reveal") { revealed = true; renderCenter(); }
       else if (a === "vote") vote(act.dataset.dir);
       else if (a === "fav") toggleFav();
+      else if (a === "moderate") moderate(act);
+      else if (a === "random-clear") clearRandomHistory(act);
       else if (a === "signin") window.location.href = "/login?url=" + encodeURIComponent(location.pathname + location.search);
     });
 
