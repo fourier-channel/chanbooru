@@ -201,10 +201,26 @@
     // they sit BESIDE `tags`, not inside it -- a tag in
     // none of them (an artist pill's creator lamp, an unsourced tag) keeps
     // the dot the stylesheet gives it.
-    const lampOf = {};
-    const lampBuckets = cur.lamp || {};
-    ["both", "hydra", "spectrum", "manual"].forEach(l => (lampBuckets[l] || []).forEach(tag => { if (!(tag in lampOf)) lampOf[tag] = l; }));
-    const lampClass = (t) => (lampOf[t] ? " mod-pill-dot--" + lampOf[t] : "");
+    //
+    // READ AT RENDER, NOT AT LOAD. This page navigates post-to-post without a
+    // reload: `cur` is REASSIGNED to the next payload and the regions
+    // re-render. The first cut of this built the map once, at script init, so
+    // every post after the first was painted with the FIRST post's lamps --
+    // and a hard refresh "fixed" it only by making some other post the first
+    // one. liveSet() below is the same value read the same way, and is the
+    // shape this should have had. Memoised on the payload OBJECT so a pill()
+    // call is still O(1); the nav cache hands back the same object for a post
+    // already visited, which is exactly when the map is still valid.
+    let lampCache = null, lampCacheFor = null;
+    const lampMap = () => {
+      if (lampCacheFor === cur) return lampCache;
+      const out = {}, buckets = (cur && cur.lamp) || {};
+      ["both", "hydra", "spectrum", "manual"].forEach(l => (buckets[l] || []).forEach(tag => { if (!(tag in out)) out[tag] = l; }));
+      lampCacheFor = cur;
+      lampCache = out;
+      return out;
+    };
+    const lampClass = (t) => { const m = lampMap(); return m[t] ? " mod-pill-dot--" + m[t] : ""; };
     const pill = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + hypeOf(t) + '" data-tag="' + esc(t) + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot' + lampClass(t) + '"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
     // THE CREATOR'S LAMP. An artist pill's dot is a lamp, lit while that
     // creator is active -- a post of theirs, direct or attributed through
