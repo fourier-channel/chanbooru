@@ -10,6 +10,26 @@
     ExperiencePreset for how a page picks between them. %>
 <% if modulation? %>
   <%= render ModulationPostComponent.new(post: @post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session) %>
+
+  <%# THE EDIT FORM LIVES HERE TOO, so Modulation's "contribute" links can be
+      plain #edit anchors instead of a detour through ?preset=historical.
+      Operator ruling 2026-09-20: "Nothing should be preset=historical."
+
+      Before this, the three contribute links sent the viewer to the upstream
+      page. The preset param was the only thing making those links work at
+      all -- #edit exists in the `else` branch below and nowhere else -- so
+      dropping the param without rendering the form here would have replaced
+      a detour with three dead anchors.
+
+      The SAME partial upstream uses, not a copy: it takes only `post`, so
+      one form serves both presets and a change to it cannot land in one and
+      miss the other. posts.js does `$("#edit").show()` on the anchor and
+      appends #form into `#c-posts #edit`, both of which match here. %>
+  <% if policy(@post).update? %>
+    <section id="edit" class="mod-edit" style="display: none;">
+      <%= render "posts/partials/show/edit", :post => @post %>
+    </section>
+  <% end %>
 <% else %>
 <%= render "posts/partials/common/secondary_links" %>
 

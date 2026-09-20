@@ -277,15 +277,21 @@ class ModulationPostComponent < ApplicationComponent
     groups << { label: "discover", links: discover }
 
     if policy.update?
-      # These route to the upstream page because Modulation has no native form
-      # for them yet. preset_sticky: 0 is what keeps that a detour rather than
-      # a one-way door -- the viewer edits and comes back, instead of silently
-      # spending the rest of their session in the old interface.
-      edit_href = routes.post_path(post, preset: "historical", preset_sticky: 0, anchor: "edit")
+      # A PLAIN ANCHOR ON THIS PAGE. These used to carry
+      # ?preset=historical&preset_sticky=0, sending the viewer to the upstream
+      # interface because Modulation had no form of its own -- a detour that
+      # was never meant to be permanent.
+      #
+      # Operator ruling 2026-09-20: "Nothing should be preset=historical."
+      # posts/show.html.erb now renders the same upstream edit partial inside
+      # the Modulation page, so #edit resolves here and the link stays put.
+      # That render is what makes this safe: without it these are dead
+      # anchors, because #edit exists in the historical branch and nowhere
+      # else.
       groups << { label: "contribute", links: [
-        { label: "Edit tags", href: edit_href },
-        { label: "Add to pool", href: edit_href },
-        { label: "Add commentary", href: edit_href },
+        { label: "Edit tags", href: "#edit", local: true },
+        { label: "Add to pool", href: "#edit", local: true },
+        { label: "Add commentary", href: "#edit", local: true },
       ] }
     end
 
