@@ -29,6 +29,12 @@ class FourierTagSourceTest < ActiveSupport::TestCase
     end
 
     should "keep creator-only tags private and out of the public projection" do
+      # Both readers intersect against post.tag_string (a sidecar row whose tag
+      # was since removed is not a tag the post has), so the post must actually
+      # carry these. Until 2026-09-20 it did not and the assertions passed on an
+      # unpruned sidecar -- then the intersection landed and they went red with
+      # nothing running them.
+      @post.update!(tag_string: "a b highres")
       FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => ["a"], "both" => ["b"], "meta" => ["highres"] }, @user)
       assert_equal false, FourierTagSource.find_by(post_id: @post.id, tag: "secret").public
       proj = FourierTagSource.matrix_projection(@post)
@@ -79,6 +85,7 @@ class FourierTagSourceTest < ActiveSupport::TestCase
     end
 
     should "surface private tags to the creator but not to anonymous viewers" do
+      @post.update!(tag_string: "secret a")
       FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => ["a"] }, @user)
       assert_includes FourierTagSource.for_viewer(@post, @user)[:creator], "secret"
       assert_empty FourierTagSource.for_viewer(@post, nil)[:creator]
