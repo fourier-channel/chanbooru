@@ -41,7 +41,15 @@ class FourierTagSourcesController < ApplicationController
   def show
     skip_authorization
     post = Post.find(params[:post_id])
-    payload = params[:scope] == "public" ? FourierTagSource.matrix_projection(post) : FourierTagSource.for_viewer(post, CurrentUser.user)
+    payload = if params[:scope] == "public"
+                FourierTagSource.matrix_projection(post)
+              else
+                # The one place the two shapes are joined: on the wire, where a
+                # reader indexes by key rather than flattening values. Technetium
+                # reads `lamp` from the top level of this document.
+                buckets, lamp = FourierTagSource.buckets_and_lamps_for(post, CurrentUser.user)
+                buckets.merge(lamp: lamp)
+              end
     render json: payload, status: :ok
   end
 end

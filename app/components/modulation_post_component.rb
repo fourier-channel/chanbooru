@@ -55,12 +55,23 @@ class ModulationPostComponent < ApplicationComponent
   # admin reveal toggle; blacklist_data keeps them, because matching is not
   # display and the enforced rules must still see them.
   def buckets
-    @buckets ||= begin
-      raw = FourierTagSource.for_viewer(post, viewer)
+    tag_view.first
+  end
+
+  # The lamps, tag name lists per model, filtered by the same banishment gate.
+  # They come back beside the buckets rather than inside them -- see
+  # FourierTagSource.lamps_for for what happened the evening they did not.
+  def lamps
+    tag_view.last
+  end
+
+  def tag_view
+    @tag_view ||= begin
+      raw = FourierTagSource.buckets_and_lamps_for(post, viewer)
       if TagBanishment.revealed_to?(viewer)
         raw
       else
-        raw.transform_values { |names| names.reject { |n| TagBanishment.banished?(n) } }
+        raw.map { |h| h.transform_values { |names| names.reject { |n| TagBanishment.banished?(n) } } }
       end
     end
   end
@@ -323,6 +334,7 @@ class ModulationPostComponent < ApplicationComponent
       meta: meta_payload,
       gated: media_gated?,
       tags: buckets,
+      lamp: lamps,
       cat_tags: category_tags,
       settings: settings,
       presets: nav_presets.map { |p| p.slice(:key, :label, :search, :prev, :next, :history) },

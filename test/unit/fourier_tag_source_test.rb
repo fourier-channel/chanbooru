@@ -37,6 +37,47 @@ class FourierTagSourceTest < ActiveSupport::TestCase
       assert_includes proj[:tags], "a"
     end
 
+    # THE LAMP (operator ruling 2026-09-20). None of this was covered the
+    # evening the lamp shipped, and the post page 500d in production.
+    should "light the lamp for the model that reported the tag" do
+      assert_equal :both,     FourierTagSource.new(source: FourierTagSource::AUTO | FourierTagSource::SPECTRUM | FourierTagSource::HYDRA).lamp
+      assert_equal :hydra,    FourierTagSource.new(source: FourierTagSource::AUTO | FourierTagSource::HYDRA).lamp
+      assert_equal :spectrum, FourierTagSource.new(source: FourierTagSource::AUTO | FourierTagSource::SPECTRUM).lamp
+      # a model row from before the bits existed still reads as spectrum
+      assert_equal :spectrum, FourierTagSource.new(source: FourierTagSource::AUTO).lamp
+      assert_equal :spectrum, FourierTagSource.new(source: FourierTagSource::META).lamp
+      # nobody's model: a creator's prompt, or a human edit
+      assert_equal :manual,   FourierTagSource.new(source: FourierTagSource::CREATOR).lamp
+      assert_equal :manual,   FourierTagSource.new(source: FourierTagSource::HUMAN, status: FourierTagSource::PENDING).lamp
+    end
+
+    should "report which model saw each tag, beside the buckets" do
+      @post.update!(tag_string: "a b m")
+      FourierTagSource.record_partition!(
+        @post, { "auto" => %w[a b], "meta" => ["m"], "spectrum" => %w[a], "hydra" => %w[a b] }, @user
+      )
+      _buckets, lamp = FourierTagSource.buckets_and_lamps_for(@post, nil)
+      assert_includes lamp[:both], "a"
+      assert_includes lamp[:hydra], "b"
+      assert_includes lamp[:spectrum], "m"
+      assert_includes FourierTagSource.matrix_projection(@post)[:lamp][:both], "a"
+    end
+
+    # THE STRUCTURAL GUARD. for_viewer's every value is a list of tag names,
+    # and its callers flatten those values without looking -- `buckets.values
+    # .flatten` into Tag.categories_for, and a banishment filter that calls
+    # `.reject` on each. The lamps rode inside this hash for one evening and
+    # fed a Hash to Digest::SHA256, which took every post page down with a
+    # TypeError. A shape assertion is the only thing that catches the NEXT key.
+    should "return only lists of tag names from for_viewer" do
+      @post.update!(tag_string: "a b")
+      FourierTagSource.record_partition!(@post, { "auto" => %w[a b], "hydra" => %w[a] }, @user)
+      FourierTagSource.for_viewer(@post, nil).each do |key, value|
+        assert_kind_of Array, value, "for_viewer[#{key.inspect}] must be a list of tag names"
+        value.each { |name| assert_kind_of String, name, "for_viewer[#{key.inspect}] must hold tag names" }
+      end
+    end
+
     should "surface private tags to the creator but not to anonymous viewers" do
       FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => ["a"] }, @user)
       assert_includes FourierTagSource.for_viewer(@post, @user)[:creator], "secret"

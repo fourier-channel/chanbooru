@@ -197,11 +197,12 @@
     const alpha = (list) => (list || []).slice().sort((a, b) => String(a).localeCompare(String(b)));
     // THE LAMP (operator ruling 2026-09-20): the dot says which MODEL put the
     // tag here. spectrum orange, hydra green, both a swirl, a person white.
-    // The payload's `lamp` buckets come from FourierTagSource#lamp; a tag in
+    // The payload's top-level `lamp` buckets come from FourierTagSource#lamp;
+    // they sit BESIDE `tags`, not inside it -- a tag in
     // none of them (an artist pill's creator lamp, an unsourced tag) keeps
     // the dot the stylesheet gives it.
     const lampOf = {};
-    const lampBuckets = (cur.tags && cur.tags.lamp) || {};
+    const lampBuckets = cur.lamp || {};
     ["both", "hydra", "spectrum", "manual"].forEach(l => (lampBuckets[l] || []).forEach(tag => { if (!(tag in lampOf)) lampOf[tag] = l; }));
     const lampClass = (t) => (lampOf[t] ? " mod-pill-dot--" + lampOf[t] : "");
     const pill = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + hypeOf(t) + '" data-tag="' + esc(t) + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot' + lampClass(t) + '"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";

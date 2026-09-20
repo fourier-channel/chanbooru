@@ -193,12 +193,23 @@ class FourierTagSource < ApplicationRecord
   # Group a relation of rows into { creator, auto, both, meta, pending } tag lists.
   def self.buckets_for(rows)
     out = { creator: [], auto: [], both: [], meta: [], pending: [] }
-    lamp = { spectrum: [], hydra: [], both: [], manual: [] }
-    rows.each do |r|
-      out[r.bucket] << r.tag
-      lamp[r.lamp] << r.tag
-    end
-    out.transform_values(&:uniq).merge(lamp: lamp.transform_values(&:uniq))
+    rows.each { |r| out[r.bucket] << r.tag }
+    out.transform_values(&:uniq)
+  end
+
+  # The lamps, in the SAME shape but a hash of its own.
+  #
+  # These rode inside buckets_for's return value for one evening and took the
+  # post page down with a TypeError: every consumer of that hash treats every
+  # value as a list of tag names -- `buckets.values.flatten` fed a Hash to
+  # Cache.hash, and the banishment filter's `names.reject` silently rewrote a
+  # Hash as one. A new key in a hash whose values are uniform is not a new key,
+  # it is a new SHAPE, and the callers were right to assume the old one. So the
+  # two travel separately in Ruby and are joined only where they are serialised.
+  def self.lamps_for(rows)
+    out = { spectrum: [], hydra: [], both: [], manual: [] }
+    rows.each { |r| out[r.lamp] << r.tag }
+    out.transform_values(&:uniq)
   end
 
   # THE LAMP: which model put this tag here, or a person. The dot on the pill.
@@ -268,11 +279,20 @@ class FourierTagSource < ApplicationRecord
   # the post actually carries. Pruning the orphans themselves is a separate,
   # write-side task and is not attempted here.
   def self.for_viewer(post, viewer)
+    buckets, = buckets_and_lamps_for(post, viewer)
+    buckets
+  end
+
+  # Buckets AND lamps from one pass over one query, for the caller that needs
+  # both -- the post page. Returned as a pair rather than one merged hash for
+  # the reason lamps_for gives.
+  def self.buckets_and_lamps_for(post, viewer)
     current = post.tag_string.to_s.split
     rows = where(post_id: post.id, tag: current)
     known = rows.pluck(:tag)
     rows = rows.publicly_visible unless private_visible_to?(post, viewer)
-    buckets_for(rows).merge(unsourced: current - known)
+    rows = rows.to_a
+    [buckets_for(rows).merge(unsourced: current - known), lamps_for(rows)]
   end
 
   # The tags that may be published into the DOM for `viewer`, per post, in one
@@ -327,7 +347,9 @@ class FourierTagSource < ApplicationRecord
   def self.matrix_projection(post)
     # Same intersection as for_viewer, for the same reason: a row whose tag has
     # left the post is not provenance for anything.
-    b = buckets_for(where(post_id: post.id, public: true, status: APPROVED, tag: post.tag_string.to_s.split))
-    { tags: (b[:creator] + b[:auto] + b[:both] + b[:meta]).uniq, sources: b.slice(:creator, :auto, :both, :meta), lamp: b[:lamp] }
+    rows = where(post_id: post.id, public: true, status: APPROVED, tag: post.tag_string.to_s.split).to_a
+    b = buckets_for(rows)
+    { tags: (b[:creator] + b[:auto] + b[:both] + b[:meta]).uniq, sources: b.slice(:creator, :auto, :both, :meta),
+      lamp: lamps_for(rows) }
   end
 end
