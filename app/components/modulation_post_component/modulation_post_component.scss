@@ -711,15 +711,17 @@ body:has(.modulation) {
                          copyright: --copyright-tag-color,
                          species: --general-tag-color) {
     .mod-pill--cat.mod-pill--cat-#{$cat} {
-      color: var(#{$token});
+      // WHITE TEXT (operator ruling 2026-09-20, formant --mod-tag-ink): the
+      // category paints the border, the tint and the dot, never the words.
+      color: var(--mod-tag-ink);
       border-color: color-mix(in srgb, var(#{$token}) 40%, transparent);
       background: color-mix(in srgb, var(#{$token}) 12%, var(--mod-surface));
 
-      // Raised, an identifying pill keeps its colour (measured: the artist
+      // Raised, an identifying pill keeps its tint (measured: the artist
       // pill on sampling's page kept red while the general pills went slate);
       // only the edge brightens to the raise edge.
       &:hover, &:focus-visible {
-        color: var(#{$token});
+        color: var(--mod-tag-ink);
         background: color-mix(in srgb, var(#{$token}) 12%, var(--mod-surface));
         border-color: color-mix(in srgb, var(#{$token}) var(--mod-raise-edge), transparent);
       }
@@ -840,19 +842,19 @@ body:has(.modulation) {
   }
 
   // creator: bright green pill+text on dark green
-  .mod-pill--creator { background: var(--mod-creator-bg); color: var(--mod-creator-fg); border-color: color-mix(in srgb, var(--mod-creator-fg) 35%, transparent); }
+  .mod-pill--creator { background: var(--mod-creator-bg); color: var(--mod-tag-ink); border-color: color-mix(in srgb, var(--mod-creator-fg) 35%, transparent); }
   // auto: bright orange pill+text on dark orange
-  .mod-pill--auto { background: var(--mod-auto-bg); color: var(--mod-auto-fg); border-color: color-mix(in srgb, var(--mod-auto-fg) 30%, transparent); }
+  .mod-pill--auto { background: var(--mod-auto-bg); color: var(--mod-tag-ink); border-color: color-mix(in srgb, var(--mod-auto-fg) 30%, transparent); }
   // both: green outline, orange text, dark-orange <-> dark-green gradient
   .mod-pill--both {
     background: linear-gradient(100deg, var(--mod-auto-bg), var(--mod-creator-bg));
-    color: var(--mod-both-fg);
+    color: var(--mod-tag-ink);
     border-color: var(--mod-both-outline);
   }
   // pending: greyed, dashed
   .mod-pill--pending {
     background: transparent;
-    color: var(--mod-pending-fg);
+    color: var(--mod-tag-ink);
     border: 1px dashed color-mix(in srgb, var(--mod-pending-fg) 55%, transparent);
     .mod-pill-dot { opacity: 0.5; }
   }
@@ -869,7 +871,7 @@ body:has(.modulation) {
   // meta: quietest of all
   .mod-pill--meta {
     background: var(--mod-surface-2);
-    color: var(--mod-meta-fg);
+    color: var(--mod-tag-ink);
     border-color: var(--mod-line);
     font-size: 0.76rem;
   }
