@@ -335,6 +335,11 @@ class ModulationPostComponent < ApplicationComponent
       gated: media_gated?,
       tags: buckets,
       lamp: lamps,
+      # MAY THIS VIEWER EDIT THE POOL. The same policy that gates the
+      # "contribute" links and the edit section, so the three cannot disagree.
+      # The client never decides this: a hidden control is a courtesy, and the
+      # write is authorised again at /posts/:id.
+      can_edit: policy.update?,
       cat_tags: category_tags,
       settings: settings,
       presets: nav_presets.map { |p| p.slice(:key, :label, :search, :prev, :next, :history) },

@@ -567,6 +567,107 @@ body:has(.modulation) {
     align-items: center;
     gap: 0.85rem;
   }
+  // ---- editing the pool --------------------------------------------------
+  //
+  // The same controls Technetium's media panel has, in the same tokens, because
+  // the operator's requirement is that the experience be identical across
+  // surfaces (2026-09-20). What the two share for real is the GRAMMAR
+  // (formant/tagedit.js); this is the chrome, and it only has to agree.
+  .mod-tags-edit {
+    appearance: none;
+    border: 1px solid color-mix(in srgb, var(--mod-tag-general-fg) 40%, transparent);
+    border-radius: var(--mod-pill-radius, 999px);
+    background: transparent;
+    color: var(--mod-ink-dim);
+    font: inherit;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.55rem;
+    cursor: pointer;
+
+    &:hover, &:focus-visible { color: var(--mod-ink); border-color: var(--mod-tag-general-fg); }
+    &.is-active {
+      color: var(--mod-tag-ink);
+      background: var(--mod-auto-bg);
+      border-color: var(--mod-tag-general-fg);
+    }
+  }
+
+  // The remove control sits BESIDE the pill, never inside it -- a button in an
+  // <a> is invalid and the browsers that tolerate it disagree about which one
+  // a click hit.
+  .mod-tagrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    max-width: 100%;
+  }
+  .mod-tagrow > .mod-pill { min-width: 0; }
+  .mod-tagrow-x {
+    appearance: none;
+    font: inherit;
+    font-size: 0.8rem;
+    line-height: 1;
+    padding: 0.1rem 0.3rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--mod-ink-dim);
+    cursor: pointer;
+    flex: none;
+
+    &:hover, &:focus-visible {
+      color: var(--mod-tag-artist-fg);
+      background: color-mix(in srgb, var(--mod-tag-artist-fg) 14%, transparent);
+    }
+  }
+
+  .mod-tagedit {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    margin-top: 0.6rem;
+  }
+  .mod-tagedit-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: var(--mod-pill-radius, 999px);
+    border: 1px solid color-mix(in srgb, var(--mod-tag-general-fg) 40%, transparent);
+    background: var(--mod-surface);
+    color: var(--mod-ink);
+
+    &:focus-visible { outline: none; border-color: var(--mod-tag-general-fg); }
+    &:disabled { opacity: 0.6; }
+  }
+  .mod-tagedit-add {
+    appearance: none;
+    font: inherit;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    padding: 0.25rem 0.7rem;
+    border-radius: var(--mod-pill-radius, 999px);
+    border: 1px dashed color-mix(in srgb, var(--mod-tag-general-fg) 45%, transparent);
+    background: var(--mod-surface);
+    color: var(--mod-ink);
+    cursor: pointer;
+    flex: none;
+
+    &:hover, &:focus-visible { border-style: solid; border-color: var(--mod-tag-general-fg); }
+    &:disabled { opacity: 0.6; cursor: default; }
+  }
+  // A refusal names the fix, per the org ruling on errors. It has to be
+  // readable, so it wraps rather than being clipped to the pill flow.
+  .mod-tagedit-error {
+    margin: 0.5rem 0 0;
+    font-size: 0.76rem;
+    line-height: 1.35;
+    color: var(--mod-tag-artist-fg);
+  }
+
   .mod-tags-toggle {
     appearance: none;
     border: 0;

@@ -211,6 +211,19 @@
     // shape this should have had. Memoised on the payload OBJECT so a pill()
     // call is still O(1); the nav cache hands back the same object for a post
     // already visited, which is exactly when the map is still valid.
+    // THE TAG POOL IS EDITED IN PLACE (operator ruling 2026-09-20: "a pool of
+    // objects instead of a rendered page, so the tag-editing experience is
+    // identical across surfaces"). Editing is a mode on the panel, not a
+    // separate page: each pill grows a remove control and an input takes
+    // additions. The grammar -- what a typed line means, what an edit does to
+    // a tag string, which edits are refused and in what words -- is formant's
+    // and is shared byte-for-byte with Technetium (window.FourierTagEdit,
+    // hydrated from docs/design/formant/tagedit.js). Only the chrome is ours.
+    // editDraft survives the re-render a refusal causes. Without it the typed
+    // line is wiped by the innerHTML that shows the error explaining why it
+    // was not accepted, which is the one moment the text is worth keeping.
+    let editing = false, editBusy = false, editError = "", editDraft = "", editFocus = false;
+    const tagEdit = () => window.FourierTagEdit || null;
     let lampCache = null, lampCacheFor = null;
     const lampMap = () => {
       if (lampCacheFor === cur) return lampCache;
@@ -221,7 +234,15 @@
       return out;
     };
     const lampClass = (t) => { const m = lampMap(); return m[t] ? " mod-pill-dot--" + m[t] : ""; };
-    const pill = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + hypeOf(t) + '" data-tag="' + esc(t) + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot' + lampClass(t) + '"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
+    const pillAnchor = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + hypeOf(t) + '" data-tag="' + esc(t) + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot' + lampClass(t) + '"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
+    // The remove control is a SIBLING of the anchor, never inside it: a button
+    // nested in an <a> is invalid, and the browsers that tolerate it disagree
+    // about which one a click hit. Technetium's panel is built the same way.
+    const pill = (t, b, dot, extra) => editing
+      ? '<span class="mod-tagrow">' + pillAnchor(t, b, dot, extra) +
+        '<button type="button" class="mod-tagrow-x" data-act="tag-remove" data-tag="' + esc(t) +
+        '" title="remove ' + esc(t) + '" aria-label="remove ' + esc(t) + '">&#215;</button></span>'
+      : pillAnchor(t, b, dot, extra);
     // THE CREATOR'S LAMP. An artist pill's dot is a lamp, lit while that
     // creator is active -- a post of theirs, direct or attributed through
     // sample or the tunnel, inside the server's window (payload.live_window
@@ -293,7 +314,20 @@
             '<button type="button" data-act="view" data-view="unitag" class="' + (view === "unitag" ? "is-active" : "") + '">Unitag</button>' +
             '<button type="button" data-act="view" data-view="grouped" class="' + (view === "grouped" ? "is-active" : "") + '">Grouped</button>' +
           "</div>" : "") +
+        (tagsExpanded && cur.can_edit ?
+          '<button type="button" class="mod-tags-edit' + (editing ? " is-active" : "") + '" data-act="tags-edit" aria-pressed="' + editing + '">' +
+            (editing ? "Done" : "Edit tags") + "</button>" : "") +
         toggle + "</div></div>";
+      // The add row and the error line render together, below the pills, so a
+      // refusal names the edit that was refused without moving anything.
+      const editor = (tagsExpanded && cur.can_edit && editing) ?
+        '<div class="mod-tagedit">' +
+          '<input class="mod-tagedit-input" type="text" data-region="tagedit-input" ' +
+            'placeholder="add tags, space separated" autocomplete="off" spellcheck="false" ' +
+            'value="' + esc(editDraft) + '"' + (editBusy ? " disabled" : "") + ">" +
+          '<button type="button" class="mod-tagedit-add" data-act="tag-add"' + (editBusy ? " disabled" : "") + ">Add</button>" +
+        "</div>" +
+        (editError ? '<p class="mod-tagedit-error">' + esc(editError) + "</p>" : "") : "";
       if (!tagsExpanded) { el.innerHTML = head + catsHTML; applyLamps(); return; }
       const flow = (b) => alpha(t[b]).filter(tag => !catSet.has(tag));
       // ONE alphabetical list, not five sorted lists end to end. The first cut
@@ -318,8 +352,16 @@
         (meta.length ?
           '<div class="mod-meta-section"><button type="button" class="mod-meta-toggle" data-act="meta-toggle" aria-expanded="' + metaOpen + '">' +
             '<span class="mod-meta-caret ' + (metaOpen ? "is-open" : "") + '">&#9656;</span> quality &amp; meta tags <span class="mod-meta-count">' + meta.length + "</span></button>" +
-            '<div class="mod-meta-tags"' + (metaOpen ? "" : " hidden") + ">" + meta.map(tag => pill(tag, "meta", false)).join("") + "</div></div>" : "");
+            '<div class="mod-meta-tags"' + (metaOpen ? "" : " hidden") + ">" + meta.map(tag => pill(tag, "meta", false)).join("") + "</div></div>" : "") +
+        editor;
       applyLamps();
+      // Only an edit action asks for the caret back. Re-rendering for a view
+      // toggle must not pull focus out from under the pointer.
+      if (editFocus) {
+        editFocus = false;
+        const inp = region("tagedit-input");
+        if (inp && !inp.disabled) { inp.focus({ preventScroll: true }); inp.setSelectionRange(inp.value.length, inp.value.length); }
+      }
     }
     // The notice strip: why a post is in the modqueue, and its family. Both were
     // upstream-only, and the family notices are how you reach a parent or the
@@ -740,9 +782,102 @@
       else if (a === "fav") toggleFav();
       else if (a === "moderate") moderate(act);
       else if (a === "random-clear") clearRandomHistory(act);
+      else if (a === "tags-edit") { editing = !editing; editError = ""; renderTags(); }
+      else if (a === "tag-remove") { if (!editBusy) commitEdit({ remove: [act.dataset.tag] }); }
+      else if (a === "tag-add") { if (!editBusy) addTypedTags(); }
       else if (a === "local-anchor") revealLocal(act.getAttribute("href"));
       else if (a === "signin") window.location.href = "/login?url=" + encodeURIComponent(location.pathname + location.search);
     });
+
+    // ---- editing the pool --------------------------------------------------
+    //
+    // WHAT THIS VIEWER HAS SEEN. old_tag_string must be what the client was
+    // looking at, and for this page that is the union of the buckets -- which
+    // is deliberately NOT post.tag_string: the denormalised string still holds
+    // private creator tags, and publishing it to build a write would put them
+    // in the page source of every post. Danbooru applies only the DIFFERENCE
+    // between the two strings, so a tag in neither is untouched -- private
+    // tags a viewer cannot see are therefore neither removed nor disturbed,
+    // and a concurrent edit by someone else survives for the same reason.
+    const BUCKETS = ["creator", "both", "auto", "pending", "unsourced", "meta"];
+    function seenTagString() {
+      const t = cur.tags || {}, out = [];
+      BUCKETS.forEach(b => (t[b] || []).forEach(tag => { if (!out.includes(tag)) out.push(tag); }));
+      return out.join(" ");
+    }
+
+    // Rails puts the token in the head of every page it renders. Same origin,
+    // so there is no exchange to do -- unlike Technetium, which has to fetch a
+    // page to read one.
+    function csrfToken() {
+      const m = document.querySelector('meta[name="csrf-token"]');
+      return m ? m.getAttribute("content") : null;
+    }
+
+    // One write, then a forced re-read. The optimistic pass is what makes the
+    // pill move under the finger; the re-read is what makes the CATEGORY and
+    // the LAMP correct, because both are the server's to decide and an added
+    // tag has neither until it answers.
+    function commitEdit(edit) {
+      const g = tagEdit();
+      if (!g) { editError = "the tag-edit grammar did not load, so nothing was sent. Fix: reload the page; if it persists the application pack failed to build."; renderTags(); return; }
+      const seen = seenTagString();
+      const refusal = g.refuseEdit(cur.id, seen, edit);
+      if (refusal) { editError = refusal; renderTags(); return; }
+
+      const token = csrfToken();
+      if (!token) { editError = "no CSRF token on this page, so the edit would be refused. Fix: reload the page."; renderTags(); return; }
+
+      // Optimistic: put the pool where it will be. Kept as a snapshot so a
+      // refusal can put it back exactly, rather than approximately.
+      const before = cur.tags;
+      const names = new Set(g.nextNames(seenTagString().split(" ").filter(Boolean), edit));
+      const added = new Set(edit.add || []);
+      const next = {};
+      Object.keys(before || {}).forEach(b => { next[b] = (before[b] || []).filter(t => names.has(t)); });
+      // An added tag has no bucket until the server gives it one; unsourced is
+      // the honest holding pen, and it is also where it would land if nothing
+      // ever recorded a provenance row for it.
+      next.unsourced = (next.unsourced || []).concat([...added].filter(t => !BUCKETS.some(b => (before[b] || []).includes(t))));
+      cur = Object.assign({}, cur, { tags: next });
+      editBusy = true; editError = "";
+      renderTags();
+
+      const body = new URLSearchParams(g.editFields(seen, edit, token));
+      fetch("/posts/" + cur.id + ".json", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+      }).then(r => {
+        if (!r.ok) return Promise.reject(r.status);
+        // The payload, not the post JSON: buckets, lamps and categories all
+        // come from the component, and this is the only thing that has them.
+        cache.clear();
+        return fetchPayload(cur.id, (active() || {}).search);
+      }).then(p => {
+        cur = p; editBusy = false; editError = ""; editDraft = ""; editFocus = true; renderAll();
+      }).catch(status => {
+        cur = Object.assign({}, cur, { tags: before });
+        editBusy = false; editFocus = true;
+        editError = "the booru refused the edit (HTTP " + status + "). " +
+          "Fix: a 403 is usually a missing or expired session -- reload and sign in; " +
+          "a 422 is the booru rejecting the tags themselves, or an account without " +
+          "permission to edit them.";
+        renderTags();
+      });
+    }
+
+    function addTypedTags() {
+      const g = tagEdit(); if (!g) return;
+      const input = region("tagedit-input");
+      const typed = input ? input.value : editDraft;
+      editDraft = typed;
+      const add = g.parseTagInput(typed);
+      editFocus = true;
+      if (!add.length) { editError = "nothing to add. Fix: type one or more tag names, separated by spaces."; renderTags(); return; }
+      commitEdit({ add: add });
+    }
 
     // A "contribute" link points at a section of THIS page that starts hidden.
     // posts/show.html.erb renders the upstream edit partial inside Modulation
@@ -768,7 +903,18 @@
       if (field) field.focus({ preventScroll: true });
     }
 
+    root.addEventListener("input", e => {
+      if (e.target.classList && e.target.classList.contains("mod-tagedit-input")) editDraft = e.target.value;
+    });
+
     window.addEventListener("keydown", e => {
+      // The add box owns Enter. The guard below hands every key back to any
+      // input, which would leave Enter doing nothing at all in this one.
+      if (e.key === "Enter" && e.target.classList && e.target.classList.contains("mod-tagedit-input")) {
+        e.preventDefault();
+        if (!editBusy) addTypedTags();
+        return;
+      }
       if (e.target.closest("input, textarea, select, [contenteditable]")) return;
       // While the fullscreen viewer is up it owns the keyboard: Esc closes,
       // everything else stays put rather than navigating under the overlay.
