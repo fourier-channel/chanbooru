@@ -212,11 +212,30 @@ class FourierTagSource < ApplicationRecord
   # very viewer the filter just took it from, through the fallback -- the tag
   # would have no VISIBLE row and so would read as unsourced. The privacy gate
   # is the reason this table exists; the fallback must not open a second door.
+  #
+  # ONLY ROWS FOR TAGS THE POST STILL HAS (2026-09-20). The sidecar is written
+  # at post time and by TagMover, and nothing hooks Post's own tag changes --
+  # the paragraph above says so about ADDED tags. The same gap runs the other
+  # way: a tag REMOVED from tag_string kept its row, and this method drew the
+  # row, so the pill never left the page. Measured on production: a removal
+  # from Technetium landed in post_versions and in posts.tag_string within
+  # the second, and the post page went on showing the tag because its row was
+  # still here. Adds appeared (through :unsourced) and removes never did --
+  # the exact asymmetry reported. 8,595 such orphan rows across 273 posts in
+  # the seven days before this was found.
+  #
+  # Intersecting here fixes the page, the tag_sources.json read Technetium
+  # uses for provenance, and blacklist_data, all at read time and with no
+  # backfill. The privacy argument above survives it unchanged: `known` is
+  # still taken before the visibility filter, only now from the rows for tags
+  # the post actually carries. Pruning the orphans themselves is a separate,
+  # write-side task and is not attempted here.
   def self.for_viewer(post, viewer)
-    rows = where(post_id: post.id)
+    current = post.tag_string.to_s.split
+    rows = where(post_id: post.id, tag: current)
     known = rows.pluck(:tag)
     rows = rows.publicly_visible unless private_visible_to?(post, viewer)
-    buckets_for(rows).merge(unsourced: post.tag_string.to_s.split - known)
+    buckets_for(rows).merge(unsourced: current - known)
   end
 
   # The tags that may be published into the DOM for `viewer`, per post, in one
@@ -269,7 +288,9 @@ class FourierTagSource < ApplicationRecord
   # Private tags and unapproved suggestions are omitted -- nothing sensitive
   # ever leaves the gated store.
   def self.matrix_projection(post)
-    b = buckets_for(where(post_id: post.id, public: true, status: APPROVED))
+    # Same intersection as for_viewer, for the same reason: a row whose tag has
+    # left the post is not provenance for anything.
+    b = buckets_for(where(post_id: post.id, public: true, status: APPROVED, tag: post.tag_string.to_s.split))
     { tags: (b[:creator] + b[:auto] + b[:both] + b[:meta]).uniq, sources: b.slice(:creator, :auto, :both, :meta) }
   end
 end
