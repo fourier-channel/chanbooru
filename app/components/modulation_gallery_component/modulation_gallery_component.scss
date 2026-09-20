@@ -204,16 +204,22 @@ body:has(.modgal) {
     border-color: var(--mod-both-outline);
   }
   .mod-pill--pending {
-    background: transparent; color: var(--mod-pending-fg);
+    background: transparent; color: var(--mod-tag-ink);
     border: 1px dashed color-mix(in srgb, var(--mod-pending-fg) 55%, transparent);
     .mod-pill-dot { opacity: 0.5; }
   }
+  // Unsourced is a general tag whose ORIGIN was unrecorded, not a doubtful
+  // tag: orange pill, white words, white lamp, exactly as on the post page
+  // (operator ruling 2026-09-20). This copy is the gallery's own and was
+  // still grey after the post page's was fixed -- the two blocks have to move
+  // together or a tag changes colour when you click it.
   .mod-pill--unsourced {
-    background: transparent; color: var(--mod-meta-fg);
-    border-color: color-mix(in srgb, var(--mod-meta-fg) 45%, transparent);
-    .mod-pill-dot { opacity: 0.45; }
+    background: var(--mod-auto-bg); color: var(--mod-tag-ink);
+    border-color: color-mix(in srgb, var(--mod-auto-fg) 30%, transparent);
   }
-  .mod-pill--meta { background: var(--mod-surface-2); color: var(--mod-meta-fg); border-color: var(--mod-line); }
+  // White words here too: the 2026-09-20 ruling was for tags generally, and
+  // only the post page had been carried over.
+  .mod-pill--meta { background: var(--mod-surface-2); color: var(--mod-tag-ink); border-color: var(--mod-line); }
 
   // Compound on purpose: three classes, so category outranks the two-class
   // provenance rules above whatever order a future edit leaves them in.
@@ -237,7 +243,8 @@ body:has(.modgal) {
     &.mod-pill--both .mod-pill-dot { background: var(--mod-both-fg); }
     &.mod-pill--auto .mod-pill-dot { background: var(--mod-auto-fg); }
     &.mod-pill--pending .mod-pill-dot { background: var(--mod-pending-fg); }
-    &.mod-pill--unsourced .mod-pill-dot { background: var(--mod-ink-faint, var(--mod-meta-fg)); }
+    // No row means no model put it there, which is what a white lamp says.
+    &.mod-pill--unsourced .mod-pill-dot { background: var(--mod-lamp-manual); }
   }
 
   // --- search subject -----------------------------------------------------
