@@ -840,6 +840,25 @@ body:has(.modulation) {
     background: currentColor;
     opacity: 0.9;
   }
+  // THE LAMP IS VISIBLE PROVENANCE (operator ruling 2026-09-20). Which MODEL
+  // put the tag here: spectrum orange, hydra green -- so green appears only
+  // where hydra has been -- both a swirl, a person white. Tokens are canon
+  // (formant --mod-lamp-*), so Technetium's dots are these dots.
+  //
+  // Declared with the lamp class on the DOT itself and !important-free: three
+  // classes on the pill above cannot outrank a class on the dot for the dot's
+  // own background, so ordering does not decide this one.
+  .mod-pill-dot--spectrum { background: var(--mod-lamp-spectrum); opacity: 1; }
+  .mod-pill-dot--hydra    { background: var(--mod-lamp-hydra); opacity: 1; }
+  .mod-pill-dot--manual   { background: var(--mod-lamp-manual); opacity: 1; }
+  // The swirl: a conic gradient painted once and ROTATED. Transform-only, on
+  // its own layer, which is the one infinite animation canon permits.
+  .mod-pill-dot--both {
+    background: var(--mod-lamp-swirl);
+    opacity: 1;
+    animation: mod-lamp-swirl var(--mod-lamp-swirl-period) linear infinite;
+    will-change: transform;
+  }
 
   // creator: bright green pill+text on dark green
   .mod-pill--creator { background: var(--mod-creator-bg); color: var(--mod-tag-ink); border-color: color-mix(in srgb, var(--mod-creator-fg) 35%, transparent); }

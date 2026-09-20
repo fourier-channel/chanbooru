@@ -14,7 +14,7 @@ class FourierTagSourcesController < ApplicationController
     skip_authorization # gated on is_builder? above, not a per-record Pundit policy
 
     post = Post.find(params[:post_id])
-    sources = params.require(:fourier_tag_source).permit(:replace_creator, creator: [], auto: [], both: [], meta: [], pending: [], oc: []).to_h
+    sources = params.require(:fourier_tag_source).permit(:replace_creator, creator: [], auto: [], both: [], meta: [], pending: [], oc: [], spectrum: [], hydra: []).to_h
     # replace_creator: a RE-SCAN of the image's own metadata (the tunnel's
     # !rescan). The creator rows this post has are the previous read of the
     # same bytes, so they are dropped before the new read is written; without

@@ -13,6 +13,14 @@ class FourierTagSource < ApplicationRecord
   AUTO    = 2
   HUMAN   = 4
   META    = 8
+  # WHICH MODEL (operator ruling 2026-09-20: "the lamp is visible provenance").
+  # Two taggers run on the same images; these bits record which of them put a
+  # tag here so a reader can see where they agree. OR-ed onto an AUTO or META
+  # row. A row with AUTO and neither bit predates this and is spectrum -- the
+  # tunnel has only ever called spectrum, and sampling's own record says an
+  # absent tagger means spectrum.
+  SPECTRUM = 16
+  HYDRA    = 32
 
   # status
   APPROVED = 0
@@ -26,6 +34,8 @@ class FourierTagSource < ApplicationRecord
 
   def creator? = source & CREATOR > 0
   def auto?    = source & AUTO > 0
+  def spectrum? = source & SPECTRUM > 0
+  def hydra?    = source & HYDRA > 0
   def human?   = source & HUMAN > 0
   def meta?    = source & META > 0
   def both?    = creator? && auto?
@@ -55,9 +65,14 @@ class FourierTagSource < ApplicationRecord
   def self.record_partition!(post, sources, user, replace_creator: false)
     now = Time.zone.now
     fetch = ->(k) { Array(sources[k.to_s] || sources[k.to_sym]).map(&:to_s).reject(&:blank?) }
-    lists = %i[both creator auto meta pending].index_with { |k| fetch.call(k) }
+    lists = %i[both creator auto meta pending spectrum hydra].index_with { |k| fetch.call(k) }
     resolved = FourierTagResolver.resolve(lists.values.flatten)
     lists = lists.transform_values { |names| names.map { |n| resolved.fetch(Tag.normalize_name(n), n) }.uniq }
+    # Which model reported each tag. Resolved through the same aliases as the
+    # buckets above, or a renamed tag would lose its lamp.
+    spectrum = lists[:spectrum].to_set
+    hydra = lists[:hydra].to_set
+    model_bits = ->(t) { (spectrum.include?(t) ? SPECTRUM : 0) | (hydra.include?(t) ? HYDRA : 0) }
     # ORIGINAL CHARACTERS (oc_<name>, operator 2026-09-19): the creator naming
     # a character in the prompt. Not resolved -- the name IS the tag -- and
     # not private: it is put on the post and filed as a character below.
@@ -67,7 +82,7 @@ class FourierTagSource < ApplicationRecord
     auto = (lists[:auto] + lists[:both]).uniq
     both = creator & auto
     rows = []
-    add = ->(tags, source, status, pub) { tags.each { |t| rows << { post_id: post.id, tag: t, source: source, status: status, public: pub, added_by: user&.id, created_at: now } } }
+    add = ->(tags, source, status, pub) { tags.each { |t| rows << { post_id: post.id, tag: t, source: source | model_bits.call(t), status: status, public: pub, added_by: user&.id, created_at: now } } }
     add.call(both,           CREATOR | AUTO, APPROVED, true)
     add.call(oc,             CREATOR,        APPROVED, true)
     add.call(creator - both, CREATOR,        APPROVED, false)
@@ -178,8 +193,30 @@ class FourierTagSource < ApplicationRecord
   # Group a relation of rows into { creator, auto, both, meta, pending } tag lists.
   def self.buckets_for(rows)
     out = { creator: [], auto: [], both: [], meta: [], pending: [] }
-    rows.each { |r| out[r.bucket] << r.tag }
-    out.transform_values(&:uniq)
+    lamp = { spectrum: [], hydra: [], both: [], manual: [] }
+    rows.each do |r|
+      out[r.bucket] << r.tag
+      lamp[r.lamp] << r.tag
+    end
+    out.transform_values(&:uniq).merge(lamp: lamp.transform_values(&:uniq))
+  end
+
+  # THE LAMP: which model put this tag here, or a person. The dot on the pill.
+  #
+  #   both      spectrum AND hydra reported it -- the swirl
+  #   hydra     hydra only -- green appears only where hydra has been
+  #   spectrum  spectrum only, OR a model row from before the bits existed
+  #   manual    nobody's model: a creator's prompt or a human edit
+  #
+  # A creator tag the autotagger also found lights the MODEL's lamp: the
+  # question the lamp answers is which model saw it, and one did. White is for
+  # a tag no model produced at all.
+  def lamp
+    return :both if spectrum? && hydra?
+    return :hydra if hydra?
+    return :spectrum if spectrum? || auto? || meta?
+
+    :manual
   end
 
   # Can `viewer` see this post's PRIVATE (creator-only) tags? The creator (the
@@ -291,6 +328,6 @@ class FourierTagSource < ApplicationRecord
     # Same intersection as for_viewer, for the same reason: a row whose tag has
     # left the post is not provenance for anything.
     b = buckets_for(where(post_id: post.id, public: true, status: APPROVED, tag: post.tag_string.to_s.split))
-    { tags: (b[:creator] + b[:auto] + b[:both] + b[:meta]).uniq, sources: b.slice(:creator, :auto, :both, :meta) }
+    { tags: (b[:creator] + b[:auto] + b[:both] + b[:meta]).uniq, sources: b.slice(:creator, :auto, :both, :meta), lamp: b[:lamp] }
   end
 end

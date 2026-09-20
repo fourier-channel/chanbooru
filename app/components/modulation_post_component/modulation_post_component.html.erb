@@ -195,7 +195,16 @@
     // editors happened to write things in, and a list a reader cannot predict
     // is a list they have to read end to end to know a tag is absent.
     const alpha = (list) => (list || []).slice().sort((a, b) => String(a).localeCompare(String(b)));
-    const pill = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + hypeOf(t) + '" data-tag="' + esc(t) + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
+    // THE LAMP (operator ruling 2026-09-20): the dot says which MODEL put the
+    // tag here. spectrum orange, hydra green, both a swirl, a person white.
+    // The payload's `lamp` buckets come from FourierTagSource#lamp; a tag in
+    // none of them (an artist pill's creator lamp, an unsourced tag) keeps
+    // the dot the stylesheet gives it.
+    const lampOf = {};
+    const lampBuckets = (cur.tags && cur.tags.lamp) || {};
+    ["both", "hydra", "spectrum", "manual"].forEach(l => (lampBuckets[l] || []).forEach(tag => { if (!(tag in lampOf)) lampOf[tag] = l; }));
+    const lampClass = (t) => (lampOf[t] ? " mod-pill-dot--" + lampOf[t] : "");
+    const pill = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + hypeOf(t) + '" data-tag="' + esc(t) + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot' + lampClass(t) + '"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
     // THE CREATOR'S LAMP. An artist pill's dot is a lamp, lit while that
     // creator is active -- a post of theirs, direct or attributed through
     // sample or the tunnel, inside the server's window (payload.live_window
