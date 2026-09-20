@@ -2,7 +2,8 @@
 
 # The tag-propagation hub. The booru is the single source of truth for a post's
 # tags; any change funnels through here and fans out the PUBLIC-SAFE projection to
-# every consumer (Matrix state via bmb, the autotagger training feed, ...).
+# every consumer (originally: Matrix state, the autotagger training feed).
+# See the WHAT IS ACTUALLY WIRED note below -- there are none today.
 #
 # Private creator tags never leave the gated store: consumers only ever receive
 # FourierTagSource.matrix_projection, which already excludes them. Identity-gated
@@ -13,8 +14,11 @@
 # thing. Read this before believing the header.
 #
 #   - fan_out! has exactly ONE caller: FourierTagSourcesController#create, the
-#     provenance POST that fourier-bmb makes. An ordinary tag edit -- a person
-#     on the post page, sampling's bot, the API -- does NOT reach it.
+#     provenance POST. Its callers are fourier-sampling (src/booru/client.ts)
+#     and fourier-tunnel (danbooru.js) -- NOT fourier-bmb, which no longer
+#     exists: no repo, no container, no checkout, and Synapse does not load
+#     its registration. An ordinary tag edit -- a person on the post page, the
+#     API, a tag_string update -- does NOT reach fan_out! at all.
 #   - `publishers` is EMPTY. Nothing registers one anywhere in this repo;
 #     MatrixTagPublisher exists only in the example line below and has never
 #     been written. So publish falls through to log_publisher and the entire

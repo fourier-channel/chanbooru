@@ -42,7 +42,8 @@ class FourierTagSource < ApplicationRecord
   end
 
   # Upsert provenance for a post from a {creator, auto, both, meta, pending}
-  # partition (as bmb sends it). Idempotent per (post, tag). Creator-ONLY tags are
+  # partition (the shape sampling and tunnel send). Idempotent per (post, tag).
+  # Creator-ONLY tags are
   # private by default (prompt-derived, may leak); everything else is public.
   #
   # NAMES ARE RESOLVED FIRST (FourierTagResolver): aliases, and a prompt's

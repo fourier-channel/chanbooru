@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
-# Receives per-tag provenance from fourier-bmb at post creation and records it in
+# Receives per-tag provenance at post creation and records it in
 # the fourier_tag_sources sidecar (the redesigned tag buckets). Builder+ only
-# (the bmb bot). POST /fourier/posts/:post_id/tag_sources
+# (the posting bots: fourier-sampling and fourier-tunnel).
+# POST /fourier/posts/:post_id/tag_sources
 #   { creator: [], auto: [], both: [], meta: [], pending: [] }
 class FourierTagSourcesController < ApplicationController
   wrap_parameters :fourier_tag_source, include: %i[creator auto both meta pending oc replace_creator]
@@ -23,7 +24,7 @@ class FourierTagSourcesController < ApplicationController
     FourierTagSource.record_partition!(post, sources, CurrentUser.user, replace_creator: replace)
     FourierTagPropagation.fan_out!(post) # single write path -> fan out the public projection
 
-    # Return the PUBLIC-SAFE projection so the caller (bmb) writes the Matrix state
+    # Return the PUBLIC-SAFE projection so the caller writes the Matrix state
     # event from the canonical store rather than recomputing it -- private creator
     # tags never leave here.
     render json: {
@@ -35,7 +36,7 @@ class FourierTagSourcesController < ApplicationController
 
   # Read the tag buckets for a post. Default is the identity-gated view (creator/mod
   # see private creator tags, everyone else sees public only). `?scope=public`
-  # returns the machine-facing public projection unconditionally -- used by bmb to
+  # returns the machine-facing public projection unconditionally -- used by a bot to
   # refresh a duplicate image's Matrix state without leaking private tags.
   def show
     skip_authorization

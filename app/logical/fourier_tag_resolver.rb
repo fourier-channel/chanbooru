@@ -12,7 +12,7 @@
 # being posted as general tags").
 #
 # This runs at the single write path (FourierTagSource.record_partition!), so
-# every writer -- tunnel, sampling, bmb -- is corrected the same way and none
+# every writer -- tunnel, sampling -- is corrected the same way and none
 # has to talk to the tags API to do it. Four steps, cheapest and surest first,
 # each only for the names the previous step left unresolved:
 #
