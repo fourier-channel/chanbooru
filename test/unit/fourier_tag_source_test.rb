@@ -69,6 +69,15 @@ class FourierTagSourceTest < ActiveSupport::TestCase
       assert_includes FourierTagSource.matrix_projection(@post)[:lamp][:both], "a"
     end
 
+    should "light an unsourced tag's lamp white -- no row means no model" do
+      @post.update!(tag_string: "a byhand")
+      FourierTagSource.record_partition!(@post, { "auto" => ["a"], "spectrum" => ["a"] }, @user)
+      buckets, lamp = FourierTagSource.buckets_and_lamps_for(@post, nil)
+      assert_includes buckets[:unsourced], "byhand"
+      assert_includes lamp[:manual], "byhand"
+      refute_includes lamp[:spectrum], "byhand"
+    end
+
     # THE STRUCTURAL GUARD. for_viewer's every value is a list of tag names,
     # and its callers flatten those values without looking -- `buckets.values
     # .flatten` into Tag.categories_for, and a banishment filter that calls

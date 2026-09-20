@@ -292,7 +292,15 @@ class FourierTagSource < ApplicationRecord
     known = rows.pluck(:tag)
     rows = rows.publicly_visible unless private_visible_to?(post, viewer)
     rows = rows.to_a
-    [buckets_for(rows).merge(unsourced: current - known), lamps_for(rows)]
+    unsourced = current - known
+    # An unsourced tag has no row, so no model claimed it -- which is exactly
+    # what a white lamp says. A tag added by hand from Matrix lands here (the
+    # Technetium write goes through Post's own tag edit, and nothing hooks that
+    # to write a sidecar row), and the operator ruled 2026-09-20 that it reads
+    # as what it is: a general tag, orange, with a white lamp.
+    lamps = lamps_for(rows)
+    lamps[:manual] = (lamps[:manual] + unsourced).uniq
+    [buckets_for(rows).merge(unsourced: unsourced), lamps]
   end
 
   # The tags that may be published into the DOM for `viewer`, per post, in one

@@ -761,7 +761,10 @@ body:has(.modulation) {
     &.mod-pill--both .mod-pill-dot { background: var(--mod-both-fg); }
     &.mod-pill--auto .mod-pill-dot { background: var(--mod-auto-fg); }
     &.mod-pill--pending .mod-pill-dot { background: var(--mod-pending-fg); }
-    &.mod-pill--unsourced .mod-pill-dot { background: var(--mod-ink-faint, var(--mod-meta-fg)); }
+    // unsourced is manual: no row means no model, and the lamp says so in
+    // white. Named here rather than left to the lamp class because this
+    // selector is three classes deep and would otherwise win the tie.
+    &.mod-pill--unsourced .mod-pill-dot { background: var(--mod-lamp-manual); }
   }
 
   .mod-cat-label {
@@ -877,15 +880,19 @@ body:has(.modulation) {
     border: 1px dashed color-mix(in srgb, var(--mod-pending-fg) 55%, transparent);
     .mod-pill-dot { opacity: 0.5; }
   }
-  // unsourced: a tag that is on the post with no provenance row -- a moderator's
-  // hand edit, an upload-time tag, troll_jail. Solid outline rather than
-  // pending's dashed one: the tag is really there, it is its ORIGIN that is
-  // unknown, and those are different claims.
+  // unsourced: a tag on the post with no provenance row -- a tag added by hand
+  // from Matrix, a moderator's edit, an upload-time tag, troll_jail.
+  //
+  // Operator ruling 2026-09-20, on seeing `1girl` arrive from Matrix and render
+  // grey: it looks like what it IS, a general tag -- the autotagger's orange,
+  // white words -- and its lamp is white, because no model put it there. The
+  // greyed treatment said "we are unsure this tag belongs", which was never the
+  // claim; the tag is really there and only its ORIGIN was unrecorded, and the
+  // white lamp is the honest way to say that.
   .mod-pill--unsourced {
-    background: transparent;
-    color: var(--mod-meta-fg);
-    border-color: color-mix(in srgb, var(--mod-meta-fg) 45%, transparent);
-    .mod-pill-dot { opacity: 0.45; }
+    background: var(--mod-auto-bg);
+    color: var(--mod-tag-ink);
+    border-color: color-mix(in srgb, var(--mod-auto-fg) 30%, transparent);
   }
   // meta: quietest of all
   .mod-pill--meta {
