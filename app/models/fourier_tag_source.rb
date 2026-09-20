@@ -303,6 +303,41 @@ class FourierTagSource < ApplicationRecord
     [buckets_for(rows).merge(unsourced: unsourced), lamps]
   end
 
+  # ONE READ, EVERYTHING A SURFACE NEEDS TO DRAW A TAG POOL.
+  #
+  # Technetium used to ask for this in two requests -- the post for categories
+  # and rating, this sidecar for buckets and lamps -- and paid two round trips
+  # per image on screen to answer one question. They already shared a limiter
+  # slot and produced one render, so this is not a rendering fix; it is half
+  # the requests.
+  #
+  # TAG_STRING HERE IS THE VIEWER'S, NOT THE POST'S. That is the part worth
+  # being careful about. Danbooru's own /posts/:id.json hands out the
+  # denormalised tag_string, which still contains the private creator tags
+  # this class exists to withhold -- so a client that read it for a write's
+  # old_tag_string was holding them, undisplayed but present. What goes out
+  # here is the union of the buckets this viewer may see, which is exactly
+  # what the booru's own Modulation page sends as old_tag_string, and for the
+  # same reason: Danbooru applies only the DIFFERENCE between the two strings,
+  # so a tag in neither is untouched. Private tags stay put and unmentioned.
+  #
+  # Categories are intersected against that same visible set, so a category
+  # cannot smuggle back a name the buckets withheld.
+  def self.live_read(post, viewer)
+    buckets, lamp = buckets_and_lamps_for(post, viewer)
+    visible = buckets.values.flatten.uniq
+    cats = Tag.categories_for(visible)
+    names = TagCategory.reverse_mapping
+    categories = Hash.new { |h, k| h[k] = [] }
+    visible.each { |n| categories[names.fetch(cats[n], "general")] << n }
+    buckets.merge(
+      lamp: lamp,
+      rating: post.rating,
+      tag_string: visible.join(" "),
+      categories: categories,
+    )
+  end
+
   # The tags that may be published into the DOM for `viewer`, per post, in one
   # query for a whole page.
   #

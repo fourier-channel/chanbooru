@@ -78,6 +78,35 @@ class FourierTagSourceTest < ActiveSupport::TestCase
       refute_includes lamp[:spectrum], "byhand"
     end
 
+    should "answer one live read with everything a pool needs, and no private tag" do
+      @post.update!(tag_string: "a secret bkub 1girl")
+      # update_columns, not update!: Versionable needs a CurrentUser and the
+      # category is all this test cares about.
+      Tag.find_or_create_by_name("bkub").update_columns(category: TagCategory::ARTIST)
+      FourierTagSource.record_partition!(
+        @post, { "creator" => ["secret"], "auto" => %w[a bkub 1girl], "hydra" => ["a"] }, @user
+      )
+
+      anon = FourierTagSource.live_read(@post, nil)
+      assert_equal @post.rating, anon[:rating]
+      assert_includes anon[:categories]["artist"], "bkub"
+      assert_includes anon[:categories]["general"], "a"
+      assert_includes anon[:lamp][:hydra], "a"
+
+      # THE PRIVATE TAG IS NOWHERE. Not in a bucket, not in a category, and
+      # above all not in tag_string -- which a client sends back as
+      # old_tag_string, so a leak here would also be a client holding it.
+      refute_includes anon[:tag_string].split, "secret"
+      assert_empty anon[:categories].values.flatten.select { |n| n == "secret" }
+      assert_empty anon[:creator]
+
+      # The creator sees their own, in every one of those places.
+      mine = FourierTagSource.live_read(@post, @user)
+      assert_includes mine[:creator], "secret"
+      assert_includes mine[:tag_string].split, "secret"
+      assert_includes mine[:categories].values.flatten, "secret"
+    end
+
     # THE STRUCTURAL GUARD. for_viewer's every value is a list of tag names,
     # and its callers flatten those values without looking -- `buckets.values
     # .flatten` into Tag.categories_for, and a banishment filter that calls

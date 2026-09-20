@@ -44,11 +44,11 @@ class FourierTagSourcesController < ApplicationController
     payload = if params[:scope] == "public"
                 FourierTagSource.matrix_projection(post)
               else
-                # The one place the two shapes are joined: on the wire, where a
-                # reader indexes by key rather than flattening values. Technetium
-                # reads `lamp` from the top level of this document.
-                buckets, lamp = FourierTagSource.buckets_and_lamps_for(post, CurrentUser.user)
-                buckets.merge(lamp: lamp)
+                # The one place the shapes are joined: on the wire, where a
+                # reader indexes by key rather than flattening values. Buckets,
+                # lamps, categories, rating and a VIEWER-SAFE tag_string, so a
+                # client can draw and edit a pool from this one request.
+                FourierTagSource.live_read(post, CurrentUser.user)
               end
     render json: payload, status: :ok
   end
