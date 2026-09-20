@@ -633,8 +633,11 @@
   }
 }
 
+/* Rotation only -- the gradient is painted once and turned. (The note sits
+   OUTSIDE the block on purpose: a colon inside a keyframes comment reads as a
+   declaration to a regex parser, and technetium's animation check caught
+   exactly that on the first hydration.) */
 @keyframes mod-lamp-swirl {
-  /* Rotation only: the gradient is painted once and turned. */
   to { transform: rotate(1turn); }
 }
 
