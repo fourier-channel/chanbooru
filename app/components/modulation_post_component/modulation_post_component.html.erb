@@ -346,7 +346,8 @@
         capBtn("fit", "fit page") + capBtn("screen", "fill screen") + capBtn("none", "natural") + "</div>";
       return '<div class="mod-more"' + (moreOpen ? "" : " hidden") + ">" + groups.map(g =>
         '<div class="mod-more-group"><span class="mod-more-label">' + esc(g.label) + "</span>" +
-          (g.links || []).map(l => '<a class="mod-more-link" href="' + esc(l.href) + '"' + outward(l.href) + ' rel="noopener">' + esc(l.label) + "</a>").join("") +
+          (g.links || []).map(l => '<a class="mod-more-link" href="' + esc(l.href) + '"' +
+            (l.local ? ' data-act="local-anchor"' : outward(l.href) + ' rel="noopener"') + ">" + esc(l.label) + "</a>").join("") +
         "</div>").join("") + viewGroup + "</div>";
     }
 
@@ -739,8 +740,33 @@
       else if (a === "fav") toggleFav();
       else if (a === "moderate") moderate(act);
       else if (a === "random-clear") clearRandomHistory(act);
+      else if (a === "local-anchor") revealLocal(act.getAttribute("href"));
       else if (a === "signin") window.location.href = "/login?url=" + encodeURIComponent(location.pathname + location.search);
     });
+
+    // A "contribute" link points at a section of THIS page that starts hidden.
+    // posts/show.html.erb renders the upstream edit partial inside Modulation
+    // with `display: none`, because upstream reveals it from posts.js, and
+    // posts.js binds #post-edit-link and #side-edit-link -- neither of which
+    // exists here. So all three contribute links set the hash and did nothing
+    // at all: "'Edit tags' on the booru is completely inert" (operator,
+    // 2026-09-20). The payload has carried `local: true` since those links
+    // stopped going through ?preset=historical; nothing was reading it.
+    //
+    // The section is rendered OUTSIDE the component root (it is a sibling of
+    // it in show.html.erb), so this reaches for it on the document, and
+    // returns quietly when it is absent -- which is what policy(@post).update?
+    // being false looks like from here.
+    function revealLocal(href) {
+      const id = String(href || "").replace(/^#/, "");
+      if (!id) return;
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.style.display === "none") el.style.display = "";
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      const field = el.querySelector("textarea, input:not([type=hidden])");
+      if (field) field.focus({ preventScroll: true });
+    }
 
     window.addEventListener("keydown", e => {
       if (e.target.closest("input, textarea, select, [contenteditable]")) return;
