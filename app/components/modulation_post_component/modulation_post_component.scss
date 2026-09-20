@@ -1055,14 +1055,18 @@ body:has(.modulation) {
 // opacity only. The sparkle is a STATIC gradient on a pseudo-element whose
 // opacity animates, which is the shape that took the lamp incident from 45% of
 // a core to 5%. No box-shadow, no filter.
+// THIS BLOCK IS NOT NESTED UNDER `.modulation`, and that is load-bearing to
+// get wrong. It compiles to a BARE `.mod-pill--hype` (0,1,0), while the pill's
+// own rules compile to `.modulation .mod-pill` (0,2,0) and beat it. Measured
+// 2026-09-20: `overflow: visible` below lost to the raise's `overflow: hidden`
+// and the sparkle -- which sits at top:-2px, outside the pill's box -- was
+// clipped away entirely, on a pill that was still jiggling. Anything here that
+// has to beat a pill rule goes in the three-class block below, which wins on
+// specificity rather than on what order a future edit leaves the file in.
 .mod-pill--hype {
   position: relative;
   animation: mod-hype-move var(--mod-hype-period) ease-in-out infinite;
   will-change: transform;
-  // The sparkle (::after) rides the pill's edge, so the raise's clipping is
-  // off here and its sweep with it; the spin is this pill's hover. The ring,
-  // the lift and the colours of the raise still apply.
-  overflow: visible;
   &::before { display: none; }
 
   // ORANGE, WHATEVER BUCKET IT FELL IN (operator, 2026-09-19: "showing up in
@@ -1074,11 +1078,27 @@ body:has(.modulation) {
   // Three classes, so it outranks the two-class provenance and category rules
   // whatever order a future edit leaves them in.
   &.mod-pill.mod-pill--hype {
-    color: var(--mod-active-fg);
+    // WHITE WORDS, like every other tag (operator 2026-09-20: "the text on
+    // tags should be white by default"). The orange INK here predates that
+    // ruling: it was the 2026-09-19 answer to a hyped tag rendering in
+    // metadata grey, from a time when the pill took its colour from whichever
+    // provenance bucket it fell in. General is the autotagger's orange now, so
+    // the ground and the edge carry "this one is worth reading" -- which is
+    // what that ruling actually asked for, and it still holds in the quiet
+    // buckets -- while the words match the rest of the pool.
+    color: var(--mod-tag-ink);
     border-color: color-mix(in srgb, var(--mod-active-fg) 45%, transparent);
     background: color-mix(in srgb, var(--mod-active-fg) 14%, var(--mod-surface));
 
-    .mod-pill-dot { background: var(--mod-active-fg); }
+    // The sparkle sits OUTSIDE the pill's box, so the raise's clipping has to
+    // be off. It is named at three classes because two lose to
+    // `.modulation .mod-pill` -- see the note above the block.
+    overflow: visible;
+
+    // THE LAMP OWNS THE DOT. This block used to paint it --mod-active-fg at
+    // four classes, which beat every mod-pill-dot--* rule: a hyped tag's lamp
+    // read "spectrum" whatever model had actually seen it, and a hyped tag
+    // hydra found could never show green. Hype is not provenance.
   }
 
   // THREE STATES, ONE ANIMATION AT A TIME, ALL CLASSES. Dormant jiggles
