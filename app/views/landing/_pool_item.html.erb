@@ -1,0 +1,15 @@
+<%# ONE definition of a pool item.
+    The blacklist matches on elements, not on the carousel's JSON payload, so
+    every slide the belt can show needs a hidden element here. The landing page
+    renders these at load and /landing/slides.json renders MORE of them when the
+    carousel pulls a fresh set -- from this same partial, so a field added for
+    one surface cannot go missing on the other. %>
+<span class="modland-poolitem"
+      data-slide
+      data-cat="<%= slide[:category] %>"
+      data-id="<%= slide[:id] %>"
+      data-tags="<%= slide[:tags] %>"
+      data-rating="<%= slide[:rating] %>"
+      data-flags="<%= slide[:flags] %>"
+      data-score="<%= slide[:score] %>"
+      data-uploader-id="<%= slide[:uploader_id] %>"></span>

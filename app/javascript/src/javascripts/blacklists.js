@@ -179,13 +179,41 @@ class Blacklist {
     // the Modulation post view's media container -- the DEFAULT views of this
     // site, so a selector list that does not name them means the blacklist
     // matches nothing on almost every page.
-    this.posts = $(".post-preview, .image-container, #c-comments .post, .mod-queue-preview.post-preview, .modgal-card, .mod-blacklist-target, .modland-poolitem").toArray().map(post => new Post(post, this));
-    this.apply();
+    this.collectPosts();
     this.cleanupStorage();
 
     this.showAll = JSON.parse(localStorage.getItem(`blacklist.showAll`)) ?? false;
     this.autocollapse = JSON.parse(localStorage.getItem(`blacklist.autocollapse`)) ?? true;
     this.collapsed = JSON.parse(localStorage.getItem(`blacklist.collapsed`)) ?? this.enabled; // This comes last because it depends on blacklists being applied first.
+  }
+
+  // WHAT THE BLACKLIST CAN SEE, in one place.
+  //
+  // .modgal-card and .mod-blacklist-target are the Modulation gallery card and
+  // the Modulation post view's media container -- the DEFAULT views of this
+  // site, so a selector list that does not name them means the blacklist
+  // matches nothing on almost every page. .modland-poolitem is the landing
+  // carousel's hidden pool.
+  //
+  // Read by initialize() and by rescan(). One definition, because a selector
+  // that is right in one of them and stale in the other silently stops
+  // filtering the surface it forgot.
+  static POST_SELECTOR = ".post-preview, .image-container, #c-comments .post, .mod-queue-preview.post-preview, .modgal-card, .mod-blacklist-target, .modland-poolitem";
+
+  // Re-read the page and apply the CURRENT rules to it.
+  //
+  // For a surface that replaces its matchable elements after load -- the
+  // landing carousel swaps its hidden pool whenever it pulls a fresh set --
+  // where the rules have not changed and the elements have. Without this, a
+  // slide that arrived after load is a slide the blacklist never saw, and an
+  // element it never saw is one it never filtered.
+  rescan() {
+    this.collectPosts();
+  }
+
+  collectPosts() {
+    this.posts = $(Blacklist.POST_SELECTOR).toArray().map(post => new Post(post, this));
+    this.apply();
   }
 
   // Apply all blacklist rules to all posts.

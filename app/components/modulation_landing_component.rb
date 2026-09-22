@@ -60,6 +60,11 @@ class ModulationLandingComponent < ApplicationComponent
   def config
     {
       slidesUrl: routes.landing_slides_path(format: :json),
+      # How often the page pulls a fresh set, FROM THE SAME CONSTANT the
+      # scheduler and the staleness check read. A row on "random" is redrawn
+      # server-side on that cadence; asking more often than that gets the same
+      # answer, and asking less often means a draw nobody ever sees.
+      refreshMs: LandingShowcaseCache::REFRESH_EVERY.to_i * 1_000,
       # The whole set travels to the client: every axis has to be renderable at
       # any position, including the ones not on screen, because that is what
       # "up from image X lands on image X" means.

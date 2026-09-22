@@ -69,17 +69,7 @@
             shows anything. Without them the filter would simply not apply to
             this page, silently. %>
         <div class="modland-pool" hidden aria-hidden="true">
-          <% all_slides.each do |slide| %>
-            <span class="modland-poolitem"
-                  data-slide
-                  data-cat="<%= slide[:category] %>"
-                  data-id="<%= slide[:id] %>"
-                  data-tags="<%= slide[:tags] %>"
-                  data-rating="<%= slide[:rating] %>"
-                  data-flags="<%= slide[:flags] %>"
-                  data-score="<%= slide[:score] %>"
-                  data-uploader-id="<%= slide[:uploader_id] %>"></span>
-          <% end %>
+          <%= render partial: "landing/pool_item", collection: all_slides, as: :slide %>
         </div>
       </div>
     </section>

@@ -29,9 +29,20 @@ class LandingController < ApplicationController
   end
 
   # A fresh set, for the page to swap in on its timer without a reload.
+  #
+  # Carries the hidden pool markup as well as the slides, because the blacklist
+  # matches on ELEMENTS. A slide that arrives without its pool item is a slide
+  # the viewer's blacklist never sees, which is the quietest way to show someone
+  # the thing they asked never to see. Rendered from the same partial the page
+  # uses, so the two cannot drift apart.
   def slides
     skip_authorization
-    render json: { categories: showcase.categories }, status: 200
+    categories = showcase.categories
+    pool = categories.flat_map { |c| c[:slides].map { |s| s.merge(category: c[:key]) } }
+    render json: {
+      categories: categories,
+      pool: render_to_string(partial: "landing/pool_item", collection: pool, as: :slide, formats: [:html]),
+    }, status: 200
   end
 
   # POST rather than a link: it writes state, and a preference that a link

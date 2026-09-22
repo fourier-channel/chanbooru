@@ -631,6 +631,74 @@ function initLanding(root) {
     });
   }
 
+
+  // --- the fresh set --------------------------------------------------------
+  //
+  // The candidates behind a random row are recomputed server-side every few
+  // minutes (LandingShowcaseCache::REFRESH_EVERY). Until this was wired the
+  // only way to see a new draw was to reload the page, and /landing/slides.json
+  // was rendered by the controller and fetched by nobody.
+  //
+  // The swap replaces the hidden pool as well as the payload, and re-runs the
+  // blacklist over it. A slide whose pool element the blacklist never saw is a
+  // slide it never filtered.
+  function swapSlides(next, poolHtml) {
+    const pool = root.querySelector(".modland-pool");
+    if (pool && typeof poolHtml === "string") {
+      pool.innerHTML = poolHtml;
+      const box = document.querySelector("#blacklist-box");
+      if (box && box.blacklist) { box.blacklist.rescan(); }
+    }
+
+    // Every built cell is keyed by axis and slide id, and the ids have just
+    // changed. Drop them all rather than let a stale one be found by a key that
+    // happens to match.
+    cells.forEach((cell) => {
+      if (cell.nameEl) { cell.nameEl.remove(); }
+      cell.remove();
+    });
+    cells.clear();
+    failed.clear();
+
+    // `cats` is captured by every closure in this module, so it is emptied and
+    // refilled rather than reassigned.
+    cats.length = 0;
+    next.forEach((c) => cats.push(c));
+    if (axis >= cats.length) { axis = 0; }
+
+    resetRun();
+    renderTabs();
+    render();
+    positionThumb();
+  }
+
+  async function pullFreshSet() {
+    if (!cfg.slidesUrl) { return; }
+    // Not while someone is using it, and not while the tab is in the
+    // background: a set swapped under a reader's hand is a set that loses their
+    // place, and one swapped where nobody is looking is work for nothing. The
+    // next tick asks again.
+    if (paused || busy || document.hidden) { return; }
+
+    try {
+      const r = await fetch(cfg.slidesUrl, { headers: { Accept: "application/json" }, credentials: "same-origin" });
+      if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
+      const data = await r.json();
+      if (Array.isArray(data.categories) && data.categories.length) {
+        swapSlides(data.categories, data.pool);
+      }
+    } catch {
+      // The page keeps the set it already has, which is the whole reason this
+      // is a refresh and not a load. Reporting a background poll that will run
+      // again in a few minutes would be noise over something the reader cannot
+      // act on and has not lost.
+    }
+  }
+
+  if (cfg.slidesUrl && cfg.refreshMs) {
+    setInterval(pullFreshSet, cfg.refreshMs);
+  }
+
   // --- interaction --------------------------------------------------------
 
   root.addEventListener("click", (e) => {
