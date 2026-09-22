@@ -23,17 +23,17 @@ export default class DTextEditor {
 
   // The list of URLs that will be converted to DText links when pasted into the editor.
   static SHORTLINKS = new Map([
-    [/^\/artists\/(\d+)$/,              (id) => `artist #${id}`],
+    [/^\/artists\/(\d+)$/, (id) => `artist #${id}`],
     [/^\/bulk_update_requests\/(\d+)$/, (id) => `bur #${id}`],
-    [/^\/comments\/(\d+)$/,             (id) => `comment #${id}`],
-    [/^\/forum_posts\/(\d+)$/,          (id) => `forum #${id}`],
-    [/^\/forum_topics\/(\d+)$/,         (id) => `topic #${id}`],
-    [/^\/media_assets\/(\d+)$/,         (id) => `asset #${id}`],
-    [/^\/notes\/(\d+)$/,                (id) => `note #${id}`],
-    [/^\/pools\/(\d+)$/,                (id) => `pool #${id}`],
-    [/^\/posts\/(\d+)$/,                (id) => `post #${id}`],
-    [/^\/wiki_pages\/([^.]+)$/,         (title) => `[[${title.replace(/_/g, " ")}]]`],
-    [/^\/users\/(\d+)$/,                (id) => `user #${id}`],
+    [/^\/comments\/(\d+)$/, (id) => `comment #${id}`],
+    [/^\/forum_posts\/(\d+)$/, (id) => `forum #${id}`],
+    [/^\/forum_topics\/(\d+)$/, (id) => `topic #${id}`],
+    [/^\/media_assets\/(\d+)$/, (id) => `asset #${id}`],
+    [/^\/notes\/(\d+)$/, (id) => `note #${id}`],
+    [/^\/pools\/(\d+)$/, (id) => `pool #${id}`],
+    [/^\/posts\/(\d+)$/, (id) => `post #${id}`],
+    [/^\/wiki_pages\/([^.]+)$/, (title) => `[[${title.replace(/_/g, " ")}]]`],
+    [/^\/users\/(\d+)$/, (id) => `user #${id}`],
   ]);
 
   root = null; // The root <div class="dtext-editor"> element.
@@ -63,9 +63,9 @@ export default class DTextEditor {
   // @param {Boolean} inline - Whether the editor is in inline mode.
   // @param {Boolean} mediaEmbeds - Whether to enable media embeds in the preview.
   // @param {String[]} domains - The list of the domains for the current site.
-  initialize({ inline = false, mediaEmbeds = false, domains = [] } = {}) {
+  initialize({ inline: inlineEditor = false, mediaEmbeds = false, domains = [] } = {}) {
     this.root.editor = this;
-    this.inline = inline;
+    this.inline = inlineEditor;
     this.mediaEmbeds = mediaEmbeds;
     this.domains = domains;
 
@@ -100,19 +100,19 @@ export default class DTextEditor {
   }
 
   // Toggle the specified markup around the currently selected text.
-  toggleBold()          { this.toggleInline("[b]", "[/b]"); }
-  toggleItalic()        { this.toggleInline("[i]", "[/i]"); }
-  toggleUnderline()     { this.toggleInline("[u]", "[/u]"); }
+  toggleBold() { this.toggleInline("[b]", "[/b]"); }
+  toggleItalic() { this.toggleInline("[i]", "[/i]"); }
+  toggleUnderline() { this.toggleInline("[u]", "[/u]"); }
   toggleStrikethrough() { this.toggleInline("[s]", "[/s]"); }
-  toggleWikiLink()      { this.toggleInline("[[", "]]"); }
-  toggleNamedLink()     { this.toggleInline('"', '":[https://www.example.com]'); }
-  toggleSearchLink()    { this.toggleInline("{{", "}}"); }
-  toggleSpoiler()       { this.toggleInline("[spoiler]", "[/spoiler]"); }
-  insertRule()          { this.insertMarkup("\n[hr]\n"); }
-  toggleQuote()         { this.toggleBlock("[quote]", "[/quote]"); }
-  toggleExpand()        { this.toggleBlock("[expand]", "[/expand]"); }
-  toggleCode()          { this.toggleBlock("[code]", "[/code]"); }
-  toggleNoDText()       { this.toggleBlock("[nodtext]", "[/nodtext]"); }
+  toggleWikiLink() { this.toggleInline("[[", "]]"); }
+  toggleNamedLink() { this.toggleInline('"', '":[https://www.example.com]'); }
+  toggleSearchLink() { this.toggleInline("{{", "}}"); }
+  toggleSpoiler() { this.toggleInline("[spoiler]", "[/spoiler]"); }
+  insertRule() { this.insertMarkup("\n[hr]\n"); }
+  toggleQuote() { this.toggleBlock("[quote]", "[/quote]"); }
+  toggleExpand() { this.toggleBlock("[expand]", "[/expand]"); }
+  toggleCode() { this.toggleBlock("[code]", "[/code]"); }
+  toggleNoDText() { this.toggleBlock("[nodtext]", "[/nodtext]"); }
 
   // Toggle `startTag` and `endTag` around the currently selected text.
   toggleInline(startTag, endTag) {
@@ -207,7 +207,7 @@ export default class DTextEditor {
   insertUrl(text) {
     let url = URL.parse(text);
     let path = decodeURIComponent(url.pathname);
-    let [regex, formatter] = DTextEditor.SHORTLINKS.entries().find(([regex, _formatter]) => path.match(regex)) || [];
+    let [regex, formatter] = DTextEditor.SHORTLINKS.entries().find(([pattern, _formatter]) => path.match(pattern)) || [];
     let dtext = formatter?.(path.match(regex)[1]);
 
     if (dtext) {
@@ -385,52 +385,61 @@ export default class DTextEditor {
 
   // @returns {Object} - The autocompletion type and context for the current word, if it's autocompleteable, or nothing if the word can't be autocompleted.
   get autocompletionQuery() {
+    // init-declarations (upstream's explicit choice) demands a value here;
+    // no-useless-assignment (new in the ESLint 10 recommended set) rejects any
+    // value put here, because every path overwrites it before reading it. The
+    // two cannot both be satisfied for a binding declared in an outer scope and
+    // decided in an inner one. The initialiser stays: a declared-but-unset
+    // variable is the worse of the two.
+    // eslint-disable-next-line no-useless-assignment
     let match = null;
+    // eslint-disable-next-line no-useless-assignment
     let prefix = "";
     let suffix = "";
+    // eslint-disable-next-line no-useless-assignment
     let fullPrefix = "";
     let fullSuffix = "";
     let formatCompletion = word => word;
 
-    if (match = this.selectionPrefixLine.match(/(\[\[)([^\[\]\|]+?)$/)) {
+    if ((match = this.selectionPrefixLine.match(/(\[\[)([^[\]|]+?)$/))) {
       let label = "";
       prefix = match[2];
       fullPrefix = `${match[1]}${prefix}`;
 
-      if (match = this.selectionSuffixLine.match(/^([^\[\]\|]*?)(\|[^\]]*?)?\]\]/)) {
+      if ((match = this.selectionSuffixLine.match(/^([^[\]|]*?)(\|[^\]]*?)?\]\]/))) {
         suffix = match[1];
         fullSuffix = match[0];
         label = match[2] || "";
-      } else if (match = this.selectionSuffixLine.match(/^\S*/)) {
+      } else if ((match = this.selectionSuffixLine.match(/^\S*/))) {
         suffix = match[0];
         fullSuffix = suffix;
       }
 
       return { type: "tag", term: `${prefix}${suffix}`.toLowerCase(), fullTerm: `${fullPrefix}${fullSuffix}`, prefix, fullPrefix, formatCompletion: (_word, properName) => `[[${properName}${label}]]` };
-    } else if (match = this.selectionPrefixLine.match(/(\{\{[^\{\}\|]*?)(\S*)$/)) {
+    } else if ((match = this.selectionPrefixLine.match(/(\{\{[^{}|]*?)(\S*)$/))) {
       let label = "";
       let lhs = match[1];
       prefix = match[2];
       fullPrefix = `${lhs}${prefix}`;
 
-      if (match = this.selectionSuffixLine.match(/^([^\{\}\|]*?)(\|[^\}]*?)?\}\}/)) {
+      if ((match = this.selectionSuffixLine.match(/^([^{}|]*?)(\|[^}]*?)?\}\}/))) {
         suffix = match[1];
         fullSuffix = match[0];
         label = match[2] || "";
-      } else if (match = this.selectionSuffixLine.match(/^\S*/)) {
+      } else if ((match = this.selectionSuffixLine.match(/^\S*/))) {
         suffix = match[0];
         fullSuffix = suffix;
       }
 
       return { type: "tag_query", term: `${prefix}${suffix}`.toLowerCase(), fullTerm: `${fullPrefix}${fullSuffix}`, prefix, fullPrefix, formatCompletion: word => `${lhs}${word}${label}}}` };
-    } else if (match = this.selectionPrefixLine.match(/([ \r\n/\\()[\]{}<>]|^):([a-zA-Z0-9_]*)$/)) {
+    } else if ((match = this.selectionPrefixLine.match(/([ \r\n/\\()[\]{}<>]|^):([a-zA-Z0-9_]*)$/))) {
       prefix = match[2];
       suffix = this.selectionSuffixLine.match(/^\S*/)[0];
       fullPrefix = `:${prefix}`;
 
       return { type: "emoji", term: `${prefix}${suffix}`, fullTerm: `${fullPrefix}${suffix}`, prefix, fullPrefix, formatCompletion };
     // See user_name_validator.rb for the username rules.
-    } else if (match = this.selectionPrefixLine.match(/([^a-zA-Z0-9\[\{]|^)@([a-zA-Z0-9_.\-\p{Script=Han}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}]+)$/u)) {
+    } else if ((match = this.selectionPrefixLine.match(/([^a-zA-Z0-9[{]|^)@([a-zA-Z0-9_.\-\p{Script=Han}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}]+)$/u))) {
       prefix = match[2];
       suffix = this.selectionSuffixLine.match(/^\S*/)[0];
       fullPrefix = `@${prefix}`;
@@ -463,17 +472,12 @@ export default class DTextEditor {
     let query = this.autocompletionQuery;
     let properName = item.getAttribute("data-autocomplete-proper-name");
     let formattedCompletion = query.formatCompletion(completion, properName);
-    let start = 0;
-    let end = 0;
-
     // If the user typed capitals, keep what they typed to preserve their capitalization. Otherwise, replace the whole query.
-    if (query.prefix.match(/[A-Z]/) && completion.startsWith(query.prefix.toLowerCase().replace(/ /g, "_"))) {
-      start = this.selectionStart;
-      end = start + (query.fullTerm.length - query.fullPrefix.length);
+    let keepTypedCase = query.prefix.match(/[A-Z]/) && completion.startsWith(query.prefix.toLowerCase().replace(/ /g, "_"));
+    let start = keepTypedCase ? this.selectionStart : this.selectionStart - query.fullPrefix.length;
+    let end = keepTypedCase ? start + (query.fullTerm.length - query.fullPrefix.length) : start + query.fullTerm.length;
+    if (keepTypedCase) {
       formattedCompletion = formattedCompletion.substring(query.fullPrefix.length);
-    } else {
-      start = this.selectionStart - query.fullPrefix.length;
-      end = start + query.fullTerm.length;
     }
 
     // Add a space after the completion. If there's already a space, move the cursor past it instead.

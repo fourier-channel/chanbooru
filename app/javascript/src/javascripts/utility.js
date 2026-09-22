@@ -119,30 +119,39 @@ export function createTooltip(name, options = {}) {
   });
 }
 
-// Upload a list of files or a URL to the site.
-export async function uploadFilesOrURL(filesOrURL) {
-  if (typeof filesOrURL === "string") {
-    return uploadURL(filesOrURL);
-  } else {
-    return uploadFiles(filesOrURL);
-  }
+// Get the validation errors returned by an API call as a single string.
+// Equivalent to `@model.errors.full_messages.join('; ')`.
+export function errorFromResponse(apiResponse, separator = "; ") {
+  let errors = apiResponse.errors ?? {};
+
+  return Object.keys(errors).map(attribute => {
+    return errors[attribute].map(error => {
+      if (attribute === "base") {
+        return `${error}`;
+      } else {
+        return `${capitalize(attribute)} ${error}`;
+      }
+    });
+  }).join(separator);
 }
 
-// Upload a list of files to the site.
-// @param {File[]} files - The list of files to upload.
-export async function uploadFiles(files) {
-  let params = Object.fromEntries(Array.from(files).map((file, n) => [`upload[files][${n}]`, file]));
-
-  return createUpload(params);
-}
-
-// Upload a URL to the site.
-// @param {String} url - The URL to upload.
-export async function uploadURL(url) {
-  if (url.match(/^https?:\/\//)) {
-    return createUpload({ "upload[source]": url });
+// Return the error message for a failed upload.
+export function uploadError(upload) {
+  // The upload failed during processing (normally because the URL didn't contain any images)
+  if (upload.status === "error") {
+    return upload.error;
+  // The upload failed with a 4xx or 5xx error (normally rate limiting)
+  } else if (upload.success === false && upload.message) {
+    return upload.message;
+  // The upload failed with a validation error (normally an invalid URL or too many queued assets)
+  } else if (upload.errors) {
+    return errorFromResponse(upload);
+  } else if (upload.cloudflare_error === true) {
+    return `Cloudflare: ${upload.title}`;
+  } else if (typeof upload === "string") {
+    return upload;
   } else {
-    throw new Error(`Invalid URL`);
+    return null;
   }
 }
 
@@ -178,40 +187,31 @@ export async function createUpload(params, pollDelay = 250) {
   return upload;
 }
 
-// Return the error message for a failed upload.
-export function uploadError(upload) {
-  // The upload failed during processing (normally because the URL didn't contain any images)
-  if (upload.status === "error") {
-    return upload.error;
-  // The upload failed with a 4xx or 5xx error (normally rate limiting)
-  } else if (upload.success === false && upload.message) {
-    return upload.message;
-  // The upload failed with a validation error (normally an invalid URL or too many queued assets)
-  } else if (upload.errors) {
-    return errorFromResponse(upload);
-  } else if (upload.cloudflare_error === true) {
-    return `Cloudflare: ${upload.title}`;
-  } else if (typeof upload === "string") {
-    return upload;
+// Upload a list of files to the site.
+// @param {File[]} files - The list of files to upload.
+export async function uploadFiles(files) {
+  let params = Object.fromEntries(Array.from(files).map((file, n) => [`upload[files][${n}]`, file]));
+
+  return createUpload(params);
+}
+
+// Upload a URL to the site.
+// @param {String} url - The URL to upload.
+export async function uploadURL(url) {
+  if (url.match(/^https?:\/\//)) {
+    return createUpload({ "upload[source]": url });
   } else {
-    return null;
+    throw new Error(`Invalid URL`);
   }
 }
 
-// Get the validation errors returned by an API call as a single string.
-// Equivalent to `@model.errors.full_messages.join('; ')`.
-export function errorFromResponse(apiResponse, separator = "; ") {
-  let errors = apiResponse.errors ?? {};
-
-  return Object.keys(errors).map(attribute => {
-    return errors[attribute].map(error => {
-      if (attribute === "base") {
-        return `${error}`;
-      } else {
-        return `${capitalize(attribute)} ${error}`;
-      }
-    });
-  }).join(separator);
+// Upload a list of files or a URL to the site.
+export async function uploadFilesOrURL(filesOrURL) {
+  if (typeof filesOrURL === "string") {
+    return uploadURL(filesOrURL);
+  } else {
+    return uploadFiles(filesOrURL);
+  }
 }
 
 // Call a function after all Alpine.js components on the page have been initialized.

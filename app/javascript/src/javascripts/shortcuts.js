@@ -31,7 +31,7 @@ Shortcuts.initialize_nav_shortcuts = function() {
   let timer = null;
 
   $(document).on("keydown.danbooru.nav_prefix", function(event) {
-    if ($(event.target).is('input, textarea, select')) return;
+    if ($(event.target).is('input, textarea, select')) { return; }
 
     if (!gPressed) {
       if (event.key === "g" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
@@ -46,7 +46,7 @@ Shortcuts.initialize_nav_shortcuts = function() {
       const id = Shortcuts.NAV_KEYS[event.key];
       if (id) {
         const link = document.getElementById(id);
-        if (link) link.click();
+        if (link) { link.click(); }
         event.preventDefault();
       }
     }

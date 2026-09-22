@@ -449,9 +449,19 @@ class Note {
       var w = $note_body.width();
       var h = $note_body.height();
       var golden_ratio = 1.6180339887;
+      // init-declarations (upstream's explicit choice) demands a value here;
+      // no-useless-assignment (new in the ESLint 10 recommended set) rejects any
+      // value put here, because every path overwrites it before reading it. The
+      // two cannot both be satisfied for a binding declared in an outer scope and
+      // decided in an inner one. The initialiser stays: a declared-but-unset
+      // variable is the worse of the two.
+      // eslint-disable-next-line no-useless-assignment
       var last = 0;
+      // eslint-disable-next-line no-useless-assignment
       var x = 0;
+      // eslint-disable-next-line no-useless-assignment
       var lo = 0;
+      // eslint-disable-next-line no-useless-assignment
       var hi = 0;
 
       if ((w / h) < golden_ratio) {

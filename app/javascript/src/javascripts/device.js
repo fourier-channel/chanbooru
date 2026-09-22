@@ -8,7 +8,10 @@ export default class Device {
   static async metadata() {
     try {
       if ("speechSynthesis" in window) {
-        window.speechSynthesis.onvoiceschanged = () => {}; // Somehow forces Chrome to initialize the getVoices() list.
+        window.speechSynthesis.onvoiceschanged = () => {
+          // Assigning any handler somehow forces Chrome to initialize the
+          // getVoices() list. The handler itself has nothing to do.
+        };
       }
 
       return {
@@ -63,13 +66,13 @@ export default class Device {
         browser: {
           userAgent: window.navigator?.userAgent,
           userAgentFullVersion: (await this.userAgentData())?.uaFullVersion,
-          //hasWindowScheduler: "scheduler" in window,
-          //hasWindowNavigation: "navigation" in window,
-          //hasEventCounts: "eventCounts" in (window.performance ?? {}),
-          //hasNavigatorConnection: "connection" in (window.navigator ?? {}),
-          //hasNavigatorUSB: "usb" in (window.navigator ?? {}),
-          //hasNavigatorHID: "hid" in (window.navigator ?? {}),
-          //hasNavigatorShare: "share" in (window.navigator ?? {}),
+          // hasWindowScheduler: "scheduler" in window,
+          // hasWindowNavigation: "navigation" in window,
+          // hasEventCounts: "eventCounts" in (window.performance ?? {}),
+          // hasNavigatorConnection: "connection" in (window.navigator ?? {}),
+          // hasNavigatorUSB: "usb" in (window.navigator ?? {}),
+          // hasNavigatorHID: "hid" in (window.navigator ?? {}),
+          // hasNavigatorShare: "share" in (window.navigator ?? {}),
           speechSynthesisFingerprint: await this.speechSynthesisFingerprint(),
           webdriver: window.navigator?.webdriver,
         },
@@ -133,43 +136,43 @@ export default class Device {
 
   // Detect floating point rounding differences between browsers.
   static async mathFingerprint() {
-    let log  = Math.log;
-    let exp  = Math.exp;
+    let log = Math.log;
+    let exp = Math.exp;
     let sqrt = Math.sqrt;
-    let acoshPf = x => log(x + sqrt(x * x - 1))
-    let asinhPf = x => log(x + sqrt(x * x + 1))
+    let acoshPf = x => log(x + sqrt((x * x) - 1))
+    let asinhPf = x => log(x + sqrt((x * x) + 1))
     let atanhPf = x => log((1 + x) / (1 - x)) / 2
-    let sinhPf  = x => exp(x) - 1 / exp(x) / 2
-    let coshPf  = x => (exp(x) + 1 / exp(x)) / 2
+    let sinhPf = x => exp(x) - ((1 / exp(x)) / 2)
+    let coshPf = x => (exp(x) + (1 / exp(x))) / 2
     let expm1Pf = x => exp(x) - 1
-    let tanhPf  = x => (exp(2 * x) - 1) / (exp(2 * x) + 1)
+    let tanhPf = x => (exp(2 * x) - 1) / (exp(2 * x) + 1)
     let log1pPf = x => log(1 + x)
 
     let fingerprint = {
-      acos:    Math.acos(0.123124234234234242),
-      acosh:   Math.acosh(1e308),
+      acos: Math.acos(0.123124234234234242),
+      acosh: Math.acosh(1e308),
       acoshPf: acoshPf(1e154),
-      asin:    Math.asin(0.123124234234234242),
-      asinh:   Math.asinh(1),
+      asin: Math.asin(0.123124234234234242),
+      asinh: Math.asinh(1),
       asinhPf: asinhPf(1),
-      atanh:   Math.atanh(0.5),
+      atanh: Math.atanh(0.5),
       atanhPf: atanhPf(0.5),
-      atan:    Math.atan(0.5),
-      sin:     Math.sin(-1e300),
-      sinh:    Math.sinh(1),
-      sinhPf:  sinhPf(1),
-      cos:     Math.cos(10.000000000123),
-      cosh:    Math.cosh(1),
-      coshPf:  coshPf(1),
-      tan:     Math.tan(-1e300),
-      tanh:    Math.tanh(1),
-      tanhPf:  tanhPf(1),
-      exp:     Math.exp(1),
-      expm1:   Math.expm1(1),
+      atan: Math.atan(0.5),
+      sin: Math.sin(-1e300),
+      sinh: Math.sinh(1),
+      sinhPf: sinhPf(1),
+      cos: Math.cos(10.000000000123),
+      cosh: Math.cosh(1),
+      coshPf: coshPf(1),
+      tan: Math.tan(-1e300),
+      tanh: Math.tanh(1),
+      tanhPf: tanhPf(1),
+      exp: Math.exp(1),
+      expm1: Math.expm1(1),
       expm1Pf: expm1Pf(1),
-      log1p:   Math.log1p(10),
+      log1p: Math.log1p(10),
       log1pPf: log1pPf(10),
-      powPI:   Math.pow(Math.PI, -100),
+      powPI: Math.pow(Math.PI, -100),
     }
 
     let hash = await this.hash(JSON.stringify(fingerprint));
@@ -177,7 +180,7 @@ export default class Device {
   }
 
   static async speechSynthesisFingerprint(data) {
-    if (! ("speechSynthesis" in window)) {
+    if (!("speechSynthesis" in window)) {
       return undefined;
     }
 
@@ -188,16 +191,16 @@ export default class Device {
 
   // Generate a hash of the data. The hash function is SHA-512, truncated to first 32 hex characters.
   static async hash(data) {
-    if (! ("subtle" in window.crypto)) {
+    if (!("subtle" in window.crypto)) {
       return undefined;
     }
 
     let input = new TextEncoder().encode(data);
     let hash = await window.crypto.subtle.digest("SHA-512", input);
     let bytes = new Uint8Array(hash);
-	  let hex = Array.from(bytes).map(byte => byte.toString(16).padStart(2, "0")).join("");
+    let hex = Array.from(bytes).map(byte => byte.toString(16).padStart(2, "0")).join("");
 
-	  return hex.slice(0, 32);
+    return hex.slice(0, 32);
   }
 
   static get webgl() {

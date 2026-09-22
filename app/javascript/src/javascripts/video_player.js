@@ -50,20 +50,20 @@ export default class VideoPlayer {
 
     $(document).on("visibilitychange", event => this.onVisibilityChange(event));
     this.$container.on("keydown", event => this.onKeypress(event));
-    this.$container.on("fullscreenchange", event => this.fullscreen = document.fullscreenElement !== null);
+    this.$container.on("fullscreenchange", event => { this.fullscreen = document.fullscreenElement !== null; });
     this.$container.find("canvas, video").on("click", event => this.togglePlaying());
     this.$container.find("canvas, video").on("dblclick", event => this.toggleFullscreen(event));
-    this.$container.find("canvas, video").on("seeking", event => this.currentTime = this.video.currentTime);
-    this.$container.find("canvas, video").on("progress", event => this.currentTime = this.video.currentTime);
-    this.$container.find("canvas, video").on("timeupdate", event => this.currentTime = this.video.currentTime);
-    this.$container.find("canvas, video").on("durationchange", event => this.duration = this.video.duration);
-    this.$container.find("canvas, video").on("ratechange", event => this.playbackRate = this.video.playbackRate);
-    this.$container.find("canvas, video").on("ratechange", event => this._showPlaybackRate = true);
-    this.$container.find("canvas, video").on("ratechange", debounce(event => this._showPlaybackRate = false, 1000)); // hide after 1 second of no changes to the playback rate
+    this.$container.find("canvas, video").on("seeking", event => { this.currentTime = this.video.currentTime; });
+    this.$container.find("canvas, video").on("progress", event => { this.currentTime = this.video.currentTime; });
+    this.$container.find("canvas, video").on("timeupdate", event => { this.currentTime = this.video.currentTime; });
+    this.$container.find("canvas, video").on("durationchange", event => { this.duration = this.video.duration; });
+    this.$container.find("canvas, video").on("ratechange", event => { this.playbackRate = this.video.playbackRate; });
+    this.$container.find("canvas, video").on("ratechange", event => { this._showPlaybackRate = true; });
+    this.$container.find("canvas, video").on("ratechange", debounce(event => { this._showPlaybackRate = false; }, 1000)); // hide after 1 second of no changes to the playback rate
     this.$container.find("canvas, video").on("play", event => this.onPlay());
     this.$container.find("canvas, video").on("pause", event => this.onPause());
     this.$container.find("canvas, video").on("volumechange", event => this.onVolumeChange());
-    this.$container.find("canvas, video").on("error", event => this._error ??= event.target.error?.message ?? "An unknown error occurred while loading the video.");
+    this.$container.find("canvas, video").on("error", event => { this._error ??= event.target.error?.message ?? "An unknown error occurred while loading the video."; });
     this.$container.find("canvas, video").on("error", event => this.pause());
     this.$container.find(".video-slider").on("pointerdown", event => this.onDragStart(event));
     this.$container.find(".video-slider").on("pointerup", event => this.onDragEnd(event));
@@ -73,7 +73,7 @@ export default class VideoPlayer {
     this.$container.find(".volume-slider").on("input", event => this.onVolumeDrag(event));
     this.$container.find(".video-slider, .volume-slider").on("keydown", event => this.onKeypress(event));
 
-    let hideVolumeSlider = debounce(() => this._showVolumeSlider = false, 100);
+    let hideVolumeSlider = debounce(() => { this._showVolumeSlider = false; }, 100);
     this.$container.find(".volume-controls").on("mouseenter", event => {
       hideVolumeSlider.cancel();
       this._showVolumeSlider = true;
@@ -359,7 +359,7 @@ export default class VideoPlayer {
   get loadProgress() {
     // XXX Hack to force Alpine to update the progress bar every time the time is updated, because browsers don't always
     // send the final progress event when the video finishes loading, which causes the loading bar to get stuck below 100%.
-    this.currentTime;
+    void this.currentTime;
 
     if (!this.video) {
       return "0%";

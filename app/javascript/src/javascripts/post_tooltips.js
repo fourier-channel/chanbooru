@@ -51,8 +51,6 @@ PostTooltip.on_create = function (instance) {
 };
 
 PostTooltip.on_show = async function (instance) {
-  let post_id = null;
-  let preview = false;
   let $target = $(instance.reference);
   let $tooltip = $(instance.popper);
 
@@ -63,12 +61,12 @@ PostTooltip.on_show = async function (instance) {
     return;
   }
 
-  if ($target.is(".dtext-post-id-link")) {
-    preview = true;
-    post_id = /\/posts\/(\d+)/.exec($target.attr("href"))[1];
-  } else {
-    post_id = $target.parents("[data-id]").data("id");
-  }
+  // Declared where they are decided, so neither carries a placeholder value
+  // that is always overwritten before anything reads it.
+  let preview = $target.is(".dtext-post-id-link");
+  let post_id = preview
+    ? /\/posts\/(\d+)/.exec($target.attr("href"))[1]
+    : $target.parents("[data-id]").data("id");
 
   try {
     $tooltip.addClass("tooltip-loading");

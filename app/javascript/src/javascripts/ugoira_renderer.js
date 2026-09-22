@@ -24,7 +24,8 @@ export class UgoiraLoader {
       frame.frameStart = frameStart;
       frame.frameEnd = frameStart + duration;
 
-      if (frameOffsets?.[i] != null && fileSize != null) {
+      const offset = frameOffsets?.[i];
+      if (offset !== null && offset !== undefined && fileSize !== null && fileSize !== undefined) {
         frame.fileOffset = frameOffsets[i] + 40; // 40 bytes for the zip file header
         frame.fileSize = (frameOffsets[i + 1] ?? fileSize) - frame.fileOffset;
       }
@@ -85,7 +86,8 @@ export class UgoiraLoader {
   // Return the list of frames in the ugoira. Each frame will have `fileOffset` and `fileSize` properties indicating the
   // location of the frame in the zip file. Frames will have an `image` property after the frame is loaded by loadFrames().
   async frames() {
-    if (this._frames[0].fileOffset != null) { return this._frames; }
+    const firstOffset = this._frames[0].fileOffset;
+    if (firstOffset !== null && firstOffset !== undefined) { return this._frames; }
 
     let { cdOffset, cdLength, cdEntries } = await this.endOfCentralDirectory();
     let cdBuffer = await this.read(cdOffset, cdLength);
@@ -220,14 +222,14 @@ export default class UgoiraRenderer {
     this.networkState = HTMLMediaElement.NETWORK_IDLE; // EMPTY, IDLE, LOADING, NO_SOURCE
     this.readyState = HTMLMediaElement.HAVE_METADATA; // HAVE_NOTHING, HAVE_METADATA, HAVE_CURRENT_DATA, HAVE_FUTURE_DATA, HAVE_ENOUGH_DATA
 
-    this._canvas = canvas;      // The <canvas> element the ugoira is drawn on.
-    this._previousTime = null;  // The time in seconds of the last requestAnimationFrame call. Used for measuring elapsed time.
-    this._currentTime = 0;      // The current playback time in seceonds (e.g 3.2 means we're 3.2 seconds into the ugoira).
-    this._playbackRate = 1.0;   // The speed multiplier for playback (e.g. 2 means play at double speed).
-    this._animationId = null;   // The handle for the requestAnimationFrame callback that updates the canvas.
-    this._loadedFrame = null;   // The frame number of the latest frame that is ready to be drawn.
-    this._currentFrame = null;  // The frame that is currently being displayed on the canvas.
-    this._error = null;         // The error message if an error occurs while loading frames.
+    this._canvas = canvas; // The <canvas> element the ugoira is drawn on.
+    this._previousTime = null; // The time in seconds of the last requestAnimationFrame call. Used for measuring elapsed time.
+    this._currentTime = 0; // The current playback time in seceonds (e.g 3.2 means we're 3.2 seconds into the ugoira).
+    this._playbackRate = 1.0; // The speed multiplier for playback (e.g. 2 means play at double speed).
+    this._animationId = null; // The handle for the requestAnimationFrame callback that updates the canvas.
+    this._loadedFrame = null; // The frame number of the latest frame that is ready to be drawn.
+    this._currentFrame = null; // The frame that is currently being displayed on the canvas.
+    this._error = null; // The error message if an error occurs while loading frames.
     this._loader = new UgoiraLoader(fileUrl, frameDelays, frameOffsets, fileSize);
     this._frames = this._loader._frames;
 
@@ -348,6 +350,8 @@ export default class UgoiraRenderer {
   }
 
   set volume(value) {
+    // No audio to set. The setter exists so this can stand in for a video
+    // element, which is written to unconditionally by the player.
   }
 
   get muted() {
@@ -355,6 +359,8 @@ export default class UgoiraRenderer {
   }
 
   set muted(value) {
+    // Always muted, and nothing to change. Present for the same reason as
+    // the volume setter above.
   }
 
   get error() {
