@@ -105,12 +105,13 @@
               <%= number_field_tag name.call(:slides), category.slides,
                                    id: "landing-#{category.key}-slides", size: 4,
                                    min: LandingCategory::SLIDES_RANGE.min, max: LandingCategory::SLIDES_RANGE.max,
-                                   placeholder: category.tags.any? ? category.tags.length : "belt default" %>
+                                   placeholder: "belt default" %>
               <span class="hint">
-                How many slides this row shows at once. Leave it empty for
-                <strong>one per listed creator</strong>
-                (<%= category.tags.any? ? "#{category.tags.length} now" : "none listed yet" %>),
-                which is what every creator gets before anyone gets a second.
+                How many slides this row shows at once. <strong>Presentation
+                only</strong> -- it does not change which posts the row holds
+                or how far it advances before repeating. That is the creator
+                list and the order, below. Leave it empty for the belt's own
+                default.
                 <%= LandingCategory::SLIDES_RANGE.min %> to <%= LandingCategory::SLIDES_RANGE.max %>.
                 The belt is symmetric about the focused slide, so an even number
                 rounds up to the next odd one rather than hiding a creator. The

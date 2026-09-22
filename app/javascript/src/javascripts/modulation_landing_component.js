@@ -1,3 +1,5 @@
+import Notice from "./notice";
+
 // The landing carousel, built on the post view's stage.
 //
 // Two axes, exactly as the post view has two: left/right moves along the
@@ -22,16 +24,16 @@
 // to answer, on every single advance.
 
 function initLanding(root) {
-  if (root.dataset.modlandBooted) return;
+  if (root.dataset.modlandBooted) { return; }
   root.dataset.modlandBooted = "1";
 
   const cfg = JSON.parse(root.dataset.config || "{}");
   const region = (name) => root.querySelector(`[data-region="${name}"]`);
   const ride = region("ride");
-  if (!ride) return;
+  if (!ride) { return; }
 
   const cats = cfg.categories || [];
-  if (!cats.length) return;
+  if (!cats.length) { return; }
 
   let axis = 0;
   let pos = 0;
@@ -41,13 +43,13 @@ function initLanding(root) {
   let paused = false;
   let busy = false;
 
-  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const esc = (s) => String(s === null || s === undefined ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
   // A slide the viewer's blacklist has marked is skipped. The marks live on the
   // hidden pool elements, because that is what the blacklist can see.
   const blocked = (id) => {
     const el = root.querySelector(`.modland-poolitem[data-id="${id}"]`);
-    return !!el && el.classList.contains("blacklisted-active");
+    return Boolean(el) && el.classList.contains("blacklisted-active");
   };
 
   const slidesOf = (a) => (cats[a] && cats[a].slides ? cats[a].slides : []).filter((s) => !blocked(s.id));
@@ -56,7 +58,7 @@ function initLanding(root) {
   // different sizes stay lined up under one shared position.
   function at(a, p) {
     const list = slidesOf(a);
-    if (!list.length) return null;
+    if (!list.length) { return null; }
     return list[((p % list.length) + list.length) % list.length];
   }
 
@@ -74,7 +76,7 @@ function initLanding(root) {
   // things sliding while the rest cut is not a conveyor; it reads as a swap
   // with scenery. Nothing here is measured, nothing is destroyed, and no cell
   // is special-cased for travelling. The belt just gets a new set of numbers.
-  const RANKS = 3;             // cells visible either side of the focus, by default
+  const RANKS = 3; // cells visible either side of the focus, by default
   // Per axis, from the payload. A row may say how many slides it wants on
   // screen (`visible`); a creators row defaults to one per creator. Halved
   // and rounded UP, because the belt is symmetric about a focus and a count
@@ -87,8 +89,9 @@ function initLanding(root) {
   // whatever the setting says. For a wider run the shrink per rank is chosen
   // so the last rank is still MIN_OUTER of the first neighbour.
   const MIN_OUTER = 0.12;
+  const FALLOFF = 0.72; // each further cell against the one before it
   function falloffFor(ranks) {
-    if (ranks <= RANKS) return FALLOFF;
+    if (ranks <= RANKS) { return FALLOFF; }
     return Math.pow(MIN_OUTER, 1 / (ranks - 1));
   }
   // THE HERO BAND shows more of the run, in proportion to the width it
@@ -98,31 +101,33 @@ function initLanding(root) {
   // count still means what the admin set on a band that has not been widened.
   const COLUMN_W = 1120;
   function heroScale() {
-    if (!root.classList.contains("is-hero-max")) return 1;
+    if (!root.classList.contains("is-hero-max")) { return 1; }
     const belt = region("belt");
     return belt && belt.clientWidth > COLUMN_W ? belt.clientWidth / COLUMN_W : 1;
   }
   function ranksFor(a) {
     const cat = cats[a];
     const want = cat && cat.visible;
-    if (!want) return RANKS;
-    const have = slidesOf(a).length || want;
-    const wanted = Math.min(Math.round(want * heroScale()), have);
+    if (!want) { return RANKS; }
+    // NOT capped by how many slides the row holds. `at()` wraps each axis at
+    // its own length, so a belt wider than the row simply repeats -- and
+    // capping here let a data value (how many posts were gathered) quietly
+    // decide a presentation one. Operator ruling 2026-09-22: unlink them.
+    const wanted = Math.round(want * heroScale());
     return Math.max(0, Math.ceil((wanted - 1) / 2));
   }
-  const HEAD_H = 0.42;         // first neighbour's height, as a fraction of the focus
-  const FALLOFF = 0.72;        // each further cell against the one before it
-  const HEAD_O = 0.55;         // and the same idea for opacity
+  const HEAD_H = 0.42; // first neighbour's height, as a fraction of the focus
+  const HEAD_O = 0.55; // and the same idea for opacity
   const FALLOFF_O = 0.62;
-  const THUMB_RATIO = 0.8;     // w/h of a non-focus cell: fixed, so the focal
-                               // cell's true aspect is what makes the border
-                               // morph as it arrives
-  const GAP = 18;              // px between focus and first neighbour
+  const THUMB_RATIO = 0.8; // w/h of a non-focus cell: fixed, so the focal
+  // cell's true aspect is what makes the border
+  // morph as it arrives
+  const GAP = 18; // px between focus and first neighbour
   const GAP_FALLOFF = 0.78;
 
   const BASE_MS = 430;
-  const MIN_MS = 130;          // floor for a held-down arrow
-  const SETTLE_MS = 180;       // quiet time that counts as "the run stopped"
+  const MIN_MS = 130; // floor for a held-down arrow
+  const SETTLE_MS = 180; // quiet time that counts as "the run stopped"
   // Overshoot is part of the travel, not a twitch after it. A back-out curve
   // carries a cell past its slot and brings it back inside one continuous
   // movement -- which is what the ask was: the cell arrives at speed, goes too
@@ -150,10 +155,10 @@ function initLanding(root) {
   }
   const NAV_MS = 260;
 
-  const failed = new Set();    // slide ids whose media will not load
-  const cells = new Map();     // `${axis}:${id}` -> element
+  const failed = new Set(); // slide ids whose media will not load
+  const cells = new Map(); // `${axis}:${id}` -> element
 
-  let burst = 0;               // steps since the run last came to rest
+  let burst = 0; // steps since the run last came to rest
   let settleTimer = null;
 
   // A failure changes a cell's SHAPE, not just its contents -- a failed cell is
@@ -164,8 +169,14 @@ function initLanding(root) {
   let redrawQueued = false;
 
   function scheduleRender() {
-    if (redrawQueued) return;
+    if (redrawQueued) { return; }
     redrawQueued = true;
+    // render() is declared after the geometry helpers it calls, so writing it
+    // above scheduleRender only moves this error onto those ten. The reference
+    // lives in a frame callback and resolves long after the declaration is
+    // evaluated. The disable is one line because a multi-line one does not
+    // reach past its own continuation comments.
+    // eslint-disable-next-line no-use-before-define
     requestAnimationFrame(() => { redrawQueued = false; render(); });
   }
 
@@ -189,7 +200,7 @@ function initLanding(root) {
     el.addEventListener("error", () => {
       failed.add(String(slide.id));
       const cell = el.closest(".mod-cell");
-      if (cell) cell.classList.add("is-failed");
+      if (cell) { cell.classList.add("is-failed"); }
       scheduleRender();
     }, { once: true });
     el.src = slide.src;
@@ -201,8 +212,7 @@ function initLanding(root) {
     cell.className = "mod-cell";
     cell.href = slide.url || "#";
     cell.title = cats[a].label;
-    if (slide.src && !failed.has(String(slide.id))) cell.appendChild(mediaEl(slide));
-    else cell.classList.add("is-failed");
+    if (slide.src && !failed.has(String(slide.id))) { cell.appendChild(mediaEl(slide)); } else { cell.classList.add("is-failed"); }
 
     const tag = document.createElement("span");
     tag.className = "mod-cell-tag";
@@ -227,17 +237,17 @@ function initLanding(root) {
   // The name goes wherever its cell goes, carrying the cell's variables.
   function placeName(cell, belt) {
     const name = cell.nameEl;
-    if (!name) return;
+    if (!name) { return; }
     ["--cx", "--cw", "--ch", "--co", "--cz"].forEach((v) => name.style.setProperty(v, cell.style.getPropertyValue(v)));
     name.dataset.d = cell.dataset.d;
     name.classList.toggle("is-offstage", cell.classList.contains("is-offstage"));
     name.classList.toggle("is-focus", cell.classList.contains("is-focus"));
-    if (belt && name.parentNode !== belt) belt.appendChild(name);
+    if (belt && name.parentNode !== belt) { belt.appendChild(name); }
   }
 
   function cellFor(a, slide) {
     const key = `${a}:${slide.id}`;
-    if (!cells.has(key)) cells.set(key, buildCell(a, slide));
+    if (!cells.has(key)) { cells.set(key, buildCell(a, slide)); }
     return cells.get(key);
   }
 
@@ -245,26 +255,26 @@ function initLanding(root) {
   // size for a living here -- one promoted to the focus would otherwise keep a
   // thumbnail's card at full size, and one demoted keeps an unreadable essay.
   // The card has to follow the box it is in.
-  const CARD_RATIO = 640 / 362;   // the full error card's own viewBox
+  const CARD_RATIO = 640 / 362; // the full error card's own viewBox
   const CARD_SRC = /^\/errors\/(\d+)\.svg/;
   const COMPACT_BELOW = 320; // matches error_card.js
 
   function retuneCard(cell, width) {
     const img = cell.querySelector("img");
-    if (!img) return;
+    if (!img) { return; }
     const src = img.getAttribute("src") || "";
     const m = src.match(CARD_SRC);
-    if (!m) return;
+    if (!m) { return; }
     const wanted = `/errors/${m[1]}.svg${width > 0 && width < COMPACT_BELOW ? "?compact=1" : ""}`;
-    if (src !== wanted) img.setAttribute("src", wanted);
+    if (src !== wanted) { img.setAttribute("src", wanted); }
   }
 
   // Shortest signed distance around the ring, so a cell at the end of a short
   // category travels IN from the near side rather than all the way around.
   function ringDelta(i, p, n) {
     let d = (i - p) % n;
-    if (d > n / 2) d -= n;
-    if (d < -n / 2) d += n;
+    if (d > n / 2) { d -= n; }
+    if (d < -n / 2) { d += n; }
     return d;
   }
 
@@ -286,7 +296,7 @@ function initLanding(root) {
   // thumbnail and becomes the picture.
   function cellWidth(k, slide) {
     const h = cellHeight(k);
-    if (k !== 0) return h * THUMB_RATIO;
+    if (k !== 0) { return h * THUMB_RATIO; }
     // The payload carries the picture's real dimensions, so the focal cell is
     // cut to the right shape BEFORE the picture arrives -- and stays right when
     // it never arrives at all, which is what every image on this site does for
@@ -303,7 +313,7 @@ function initLanding(root) {
     const ratio = failed.has(String(slide.id))
       ? CARD_RATIO
       : (slide.w > 0 && slide.h > 0 ? slide.w / slide.h : 0);
-    if (!ratio) return h * THUMB_RATIO;
+    if (!ratio) { return h * THUMB_RATIO; }
     const belt = region("belt");
     const maxW = (belt ? belt.clientWidth : 800) * 0.62;
     return Math.min(h * ratio, maxW);
@@ -327,7 +337,7 @@ function initLanding(root) {
 
   function renderCredit(slide) {
     const el = region("credit");
-    if (!el) return;
+    if (!el) { return; }
     if (!slide) { el.innerHTML = ""; el.hidden = true; return; }
 
     const creator = slide.creator && slide.creator.name;
@@ -336,7 +346,7 @@ function initLanding(root) {
 
     el.hidden = false;
     const parts = [];
-    if (creator) parts.push(`Created by <span class="modland-credit-creator">${esc(creator)}</span>`);
+    if (creator) { parts.push(`Created by <span class="modland-credit-creator">${esc(creator)}</span>`); }
     if (platform) {
       // The slug rides on the element so a per-site logo is later a rule per
       // platform, and the display name never becomes an identifier.
@@ -349,7 +359,7 @@ function initLanding(root) {
   function positionThumb() {
     const thumb = region("thumb");
     const active = root.querySelector("[data-act='axis'].is-active");
-    if (!thumb || !active) return;
+    if (!thumb || !active) { return; }
     thumb.style.width = `${active.offsetWidth}px`;
     thumb.style.transform = `translateX(${active.offsetLeft}px)`;
   }
@@ -384,24 +394,24 @@ function initLanding(root) {
   function prewarm() {
     const wanted = [];
     const reach = ranksFor(axis) + 2;
-    for (let d = -reach; d <= reach; d++) wanted.push([axis, at(axis, pos + d)]);
-    cats.forEach((_, a) => { if (a !== axis) wanted.push([a, at(a, pos)], [a, at(a, pos + 1)]); });
+    for (let d = -reach; d <= reach; d++) { wanted.push([axis, at(axis, pos + d)]); }
+    cats.forEach((_, a) => { if (a !== axis) { wanted.push([a, at(a, pos)], [a, at(a, pos + 1)]); } });
 
     wanted.forEach(([a, slide]) => {
-      if (!slide) return;
+      if (!slide) { return; }
       const cell = cellFor(a, slide);
       // Only adopt a cell that is nowhere. isConnected would be true of a cell
       // already ON the belt, but so would it be of one already in the holder --
       // see render(), where that distinction is the whole bug.
-      if (!cell.parentNode) warmHolder().appendChild(cell);
+      if (!cell.parentNode) { warmHolder().appendChild(cell); }
     });
   }
 
   function render() {
     const belt = region("belt");
-    if (!belt) return;
+    if (!belt) { return; }
     const list = slidesOf(axis);
-    if (!list.length) return;
+    if (!list.length) { return; }
 
     const placed = list.map((slide, i) => ({ slide, d: ringDelta(i, pos, list.length) }));
     const xs = layout(placed);
@@ -433,19 +443,19 @@ function initLanding(root) {
       // variables still written, so the run had a correctly-spaced hole in it
       // that moved with the conveyor, and stayed there: nothing ever
       // reconsidered a cell once it was "connected".
-      if (cell.parentNode !== belt) belt.appendChild(cell);
+      if (cell.parentNode !== belt) { belt.appendChild(cell); }
       retuneCard(cell, w);
 
       cell.classList.toggle("is-offstage", !shown);
       cell.classList.toggle("is-focus", d === 0);
       cell.classList.toggle("is-incoming", k === 1);
-      if (failed.has(String(slide.id))) cell.classList.add("is-failed");
+      if (failed.has(String(slide.id))) { cell.classList.add("is-failed"); }
       placeName(cell, belt);
     });
 
     // Cells belonging to other axes stay built but must not sit on this belt.
     cells.forEach((cell, key) => {
-      if (!key.startsWith(`${axis}:`) && cell.parentNode === belt) { cell.remove(); if (cell.nameEl) cell.nameEl.remove(); }
+      if (!key.startsWith(`${axis}:`) && cell.parentNode === belt) { cell.remove(); if (cell.nameEl) { cell.nameEl.remove(); } }
     });
 
     renderCredit(at(axis, pos));
@@ -475,7 +485,7 @@ function initLanding(root) {
 
   function step(delta) {
     const list = slidesOf(axis);
-    if (list.length < 2) return;
+    if (list.length < 2) { return; }
 
     pos += delta;
     burst += 1;
@@ -494,7 +504,7 @@ function initLanding(root) {
     // The run has stopped only when nothing else has arrived. Every step pushes
     // this out, so a held arrow never lurches mid-travel -- it lurches once, at
     // the end, harder for having gone further.
-    if (settleTimer) clearTimeout(settleTimer);
+    if (settleTimer) { clearTimeout(settleTimer); }
     settleTimer = setTimeout(settle, ms + SETTLE_MS);
   }
 
@@ -502,7 +512,7 @@ function initLanding(root) {
   // does change -- the post view keeps its centre because the post IS the thing
   // being sorted; here the axes hold different images.
   function goToAxis(target, direction) {
-    if (target === axis || target < 0 || target >= cats.length || busy) return;
+    if (target === axis || target < 0 || target >= cats.length || busy) { return; }
     busy = true;
 
     const outClass = direction > 0 ? "is-axis-down" : "is-axis-up";
@@ -531,6 +541,10 @@ function initLanding(root) {
 
   // --- the ride -----------------------------------------------------------
 
+  function resetRun(forAxis = axis) {
+    runLeft = Math.max(slidesOf(forAxis).length - 1, 0);
+  }
+
   function autoAdvance() {
     if (runLeft > 0) {
       runLeft -= 1;
@@ -542,8 +556,8 @@ function initLanding(root) {
     }
   }
 
-  function resetRun(forAxis = axis) {
-    runLeft = Math.max(slidesOf(forAxis).length - 1, 0);
+  function stopTimer() {
+    if (advanceTimer) { clearInterval(advanceTimer); advanceTimer = null; }
   }
 
   function startTimer() {
@@ -551,41 +565,12 @@ function initLanding(root) {
     advanceTimer = setInterval(autoAdvance, cfg.advanceMs || 6000);
   }
 
-  function stopTimer() {
-    if (advanceTimer) { clearInterval(advanceTimer); advanceTimer = null; }
-  }
-
-  function pause() {
-    if (paused) return;
-    paused = true;
-    stopTimer();
-    showResume();
-  }
-
-  function showResume() {
-    const box = region("resume");
-    const fill = region("fill");
-    if (!box || !fill) return;
-
-    box.hidden = false;
-    // Replay the fill from zero. Removing the class and forcing a reflow is what
-    // makes it restart when the reader interacts again mid-fill; without the
-    // reflow the browser coalesces the change and nothing happens.
-    fill.classList.remove("is-filling");
-    void fill.offsetWidth;
-    fill.style.animationDuration = `${cfg.resumeMs || 10000}ms`;
-    fill.classList.add("is-filling");
-
-    if (resumeTimer) clearTimeout(resumeTimer);
-    resumeTimer = setTimeout(resume, cfg.resumeMs || 10000);
-  }
-
   function hideResume() {
     const box = region("resume");
     const fill = region("fill");
     if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; }
-    if (fill) fill.classList.remove("is-filling");
-    if (box) box.hidden = true;
+    if (fill) { fill.classList.remove("is-filling"); }
+    if (box) { box.hidden = true; }
   }
 
   // A shove backwards before going forward, so the restart reads as picking up
@@ -602,46 +587,30 @@ function initLanding(root) {
     }, 260);
   }
 
-  // --- interaction --------------------------------------------------------
+  function showResume() {
+    const box = region("resume");
+    const fill = region("fill");
+    if (!box || !fill) { return; }
 
-  root.addEventListener("click", (e) => {
-    const cell = e.target.closest(".mod-cell");
-    if (cell && ride.contains(cell)) {
-      const d = Number(cell.dataset.d || 0);
-      // The cell under the microscope is the one you are looking at, so a click
-      // there means "open this". Any other cell means "bring that one here",
-      // which is the same gesture the arrows make, just aimed.
-      if (d === 0) return;
-      e.preventDefault();
-      step(d);
-      pause();
-      return;
-    }
+    box.hidden = false;
+    // Replay the fill from zero. Removing the class and forcing a reflow is what
+    // makes it restart when the reader interacts again mid-fill; without the
+    // reflow the browser coalesces the change and nothing happens.
+    fill.classList.remove("is-filling");
+    void fill.offsetWidth;
+    fill.style.animationDuration = `${cfg.resumeMs || 10000}ms`;
+    fill.classList.add("is-filling");
 
-    const act = e.target.closest("[data-act]");
-    if (!act) return;
+    if (resumeTimer) { clearTimeout(resumeTimer); }
+    resumeTimer = setTimeout(resume, cfg.resumeMs || 10000);
+  }
 
-    if (act.dataset.act === "resume") { e.preventDefault(); resume(); return; }
-    if (act.dataset.act === "hero") { e.preventDefault(); toggleHero(act); return; }
-
-    e.preventDefault();
-    if (act.dataset.act === "next") step(1);
-    else if (act.dataset.act === "prev") step(-1);
-    else if (act.dataset.act === "axis") {
-      selectAxis(Array.from(root.querySelectorAll("[data-act='axis']")).indexOf(act));
-    }
-    pause();
-  });
-
-  // Same keys and the same guard as the post view: left/right along the axis,
-  // up/down between axes. A key pressed while typing belongs to the field.
-  window.addEventListener("keydown", (e) => {
-    if (e.target.closest("input, textarea, select, [contenteditable]")) return;
-    if (e.key === "ArrowLeft") { step(-1); pause(); }
-    else if (e.key === "ArrowRight") { step(1); pause(); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); shiftAxis(-1); pause(); }
-    else if (e.key === "ArrowDown") { e.preventDefault(); shiftAxis(1); pause(); }
-  });
+  function pause() {
+    if (paused) { return; }
+    paused = true;
+    stopTimer();
+    showResume();
+  }
 
   // MAXIMIZE HERO BAND. The class does the widening (stylesheet); the run is
   // re-laid for the width it now has; the choice is remembered server-side
@@ -657,10 +626,48 @@ function initLanding(root) {
       headers: { "X-CSRF-Token": (document.querySelector('meta[name="csrf-token"]') || {}).content || "", "Content-Type": "application/json", Accept: "application/json" },
       credentials: "same-origin",
       body: JSON.stringify({ hero_band: on }),
-    }).catch(() => {});
+    }).catch(() => {
+      Notice.error("Could not save the hero band setting; it will not be remembered.");
+    });
   }
 
-  window.addEventListener("resize", () => { positionThumb(); if (root.classList.contains("is-hero-max")) scheduleRender(); });
+  // --- interaction --------------------------------------------------------
+
+  root.addEventListener("click", (e) => {
+    const cell = e.target.closest(".mod-cell");
+    if (cell && ride.contains(cell)) {
+      const d = Number(cell.dataset.d || 0);
+      // The cell under the microscope is the one you are looking at, so a click
+      // there means "open this". Any other cell means "bring that one here",
+      // which is the same gesture the arrows make, just aimed.
+      if (d === 0) { return; }
+      e.preventDefault();
+      step(d);
+      pause();
+      return;
+    }
+
+    const act = e.target.closest("[data-act]");
+    if (!act) { return; }
+
+    if (act.dataset.act === "resume") { e.preventDefault(); resume(); return; }
+    if (act.dataset.act === "hero") { e.preventDefault(); toggleHero(act); return; }
+
+    e.preventDefault();
+    if (act.dataset.act === "next") { step(1); } else if (act.dataset.act === "prev") { step(-1); } else if (act.dataset.act === "axis") {
+      selectAxis(Array.from(root.querySelectorAll("[data-act='axis']")).indexOf(act));
+    }
+    pause();
+  });
+
+  // Same keys and the same guard as the post view: left/right along the axis,
+  // up/down between axes. A key pressed while typing belongs to the field.
+  window.addEventListener("keydown", (e) => {
+    if (e.target.closest("input, textarea, select, [contenteditable]")) { return; }
+    if (e.key === "ArrowLeft") { step(-1); pause(); } else if (e.key === "ArrowRight") { step(1); pause(); } else if (e.key === "ArrowUp") { e.preventDefault(); shiftAxis(-1); pause(); } else if (e.key === "ArrowDown") { e.preventDefault(); shiftAxis(1); pause(); }
+  });
+
+  window.addEventListener("resize", () => { positionThumb(); if (root.classList.contains("is-hero-max")) { scheduleRender(); } });
 
   resetRun();
   renderAll();

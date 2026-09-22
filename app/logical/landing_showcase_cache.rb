@@ -57,14 +57,25 @@ class LandingShowcaseCache
   # One enqueue per category per window, however many requests arrive in it.
   ENQUEUE_DEBOUNCE = 2.minutes
 
-  # Posts kept per tag. Small, because the row shows PER_CATEGORY (10) in total
-  # and every creator should get a slide before anyone gets a second -- see
-  # #interleave. Wide enough that showable? dropping a post does not empty that
-  # creator's contribution.
-  PER_TAG = 4
+  # Posts kept per tag, and therefore HOW MANY LAPS OF THE CREATOR LIST the
+  # belt can travel before it repeats. #interleave orders the cache as every
+  # creator's first post, then every creator's second, so one lap of the belt
+  # is one level of this depth and the next lap is fresh work by the same
+  # creators, in the same order.
+  #
+  # Was 4, and LandingCategory#wanted_posts then cut the row to a single lap,
+  # so three quarters of what the searches found was stored and never served.
+  # Raised to 10 on 2026-09-22 (operator: "every full cycle of the list should
+  # have fresh images every time around"). Depth is close to free at the
+  # SEARCH: order:random makes the database sort every post matching the tag
+  # whatever the limit, so ten off the top costs what four did. Depth is NOT
+  # free on the page that renders it -- see #wanted_posts.
+  PER_TAG = 10
   # A ceiling on the stored list whatever the tag count, so a misconfigured
   # category cannot put an unbounded array in the cache. MAX_TAGS x PER_TAG,
-  # so every listed creator's candidates fit; a list of fifty ids is nothing.
+  # so every listed creator's candidates fit -- and so this is also the most
+  # LandingCategory#wanted_posts can ever ask for, which is what keeps the two
+  # ends of this path agreeing. Five hundred ids is nothing.
   MAX_CANDIDATES = LandingCategory::MAX_TAGS * PER_TAG
 
   # Longer than the request path's 3s, because this is a background job where

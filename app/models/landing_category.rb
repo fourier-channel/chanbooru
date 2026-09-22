@@ -44,12 +44,16 @@ class LandingCategory < ApplicationRecord
   # finish. Was 30; raised to 50 on 2026-09-19 at the operator's request.
   MAX_TAGS = 50
   MAX_TERMS = 2
-  # How many slides the belt shows at once, when set. Up to the creator cap,
-  # because "one per listed creator" is the default and a ceiling below the
-  # number of creators made the default unsettable by hand (operator,
-  # 2026-09-19: "won't actually let another value be set over 15"). The belt
-  # flattens its falloff for wide runs so the outer cells stay visible.
-  SLIDES_RANGE = (1..MAX_TAGS)
+  # How many slides the belt shows at once, when set.
+  #
+  # A PRESENTATION CAP, and deliberately not MAX_TAGS. It was written as
+  # (1..MAX_TAGS) back when the default was one slide per listed creator, so
+  # the creator cap and the belt width were the same number by construction.
+  # Operator ruling 2026-09-22: "Slides on screen is a presentation value, do
+  # not comingle it with a data value." The two are unlinked; this happens to
+  # be 50 as well, and must not be rewritten in terms of MAX_TAGS again.
+  # The belt flattens its falloff for wide runs so the outer cells stay visible.
+  SLIDES_RANGE = (1..50)
 
   # Mirrored from the migration's seed. The seed carries the live front page
   # over on production; this carries it on a database that never ran the seed,
@@ -112,24 +116,40 @@ class LandingCategory < ApplicationRecord
 
   # Slides on screen at once, or nil for the belt's own default.
   #
-  # NIL IS A RULE, NOT AN ABSENCE. For a creators row it means one slide per
-  # listed creator -- the row exists to show them all, and the cache's
-  # round-robin already hands each one a slide before anyone gets a second, so
-  # the belt should be wide enough to show that. For every other kind nil means
-  # the belt decides, which is what it did before this column existed.
+  # PRESENTATION ONLY. It used to return tags.length for a creators row, so the
+  # number of creators -- a data value -- silently set the belt width, and the
+  # two could not be tuned apart: widening the belt meant listing more people.
+  # Operator ruling 2026-09-22: "Slides on screen is a presentation value, do
+  # not comingle it with a data value. Unlink these two properties."
+  #
+  # How deep the row goes is #wanted_posts and the creator list. How much of it
+  # you can see at one time is this. Neither reads the other.
   def visible_slides
-    return slides if slides.present?
-    return tags.length if kind == "tags" && tags.any?
-
-    nil
+    slides.presence
   end
 
   # How many posts the row wants gathered. PER_CATEGORY is the floor; a
-  # creators row wants at least one per creator, or the last ones listed would
-  # never get a slide however wide the belt was set.
+  # creators row wants EVERY CACHED LAP, not just the first one.
+  #
+  # This was [base, tags.length].max, which for 38 creators cut the row to 38
+  # -- exactly the end of LandingShowcaseCache#interleave's first pass. The
+  # cache held four posts per creator and the page served one of them, so
+  # "every creator gets a slide before anyone gets a second" was true and
+  # nobody ever got a second. With the belt also set to one cell per creator,
+  # every image the row could show was on screen at once and the row changed
+  # only when its candidates were refreshed.
+  #
+  # The ceiling is MAX_TAGS x PER_TAG, which is exactly
+  # LandingShowcaseCache::MAX_CANDIDATES -- this may not ask for more than the
+  # cache is allowed to hold.
+  #
+  # A tags row with NO tags listed is a single query on the live path and never
+  # touches the cache, so it keeps the floor.
   def wanted_posts
     base = LandingShowcase::PER_CATEGORY
-    kind == "tags" ? [base, tags.length].max : base
+    return base unless kind == "tags" && tags.any?
+
+    [base, tags.length * LandingShowcaseCache::PER_TAG].max
   end
 
   # The widest query this category will ask for, in terms.
