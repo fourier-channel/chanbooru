@@ -521,12 +521,98 @@ function initLanding(root) {
     ride.style.setProperty("--belt-ease", easeFor(1));
   }
 
+  // A fresh set ARRIVES AT THE RIGHT-HAND EDGE, one slide at a time.
+  //
+  // This replaced the whole payload at once, dropped every cell and rendered
+  // again -- correct, and a visible reload: the entire belt blinked and
+  // restarted. Operator, 2026-09-22: base it on the card entering from the far
+  // right instead of on the focus, so new images scroll into view naturally.
+  //
+  // So a pull does not swap. It queues, and each advance installs ONE queued
+  // slide into the slot about to enter the window. Over one traverse of the
+  // row the whole set turns over and nothing ever blinks.
+  const pending = new Map(); // category key -> slides still to be fed in
+
+  // The queued slides' pool elements are added IMMEDIATELY, before any of them
+  // is installed, because blocked() reads those elements and a slide whose
+  // element is not there yet reads as not-blacklisted. Appended, not replaced:
+  // the slides currently on the belt still need theirs.
+  function queueFreshSet(next, poolHtml) {
+    const pool = root.querySelector(".modland-pool");
+    if (pool && typeof poolHtml === "string") {
+      const seen = new Set(Array.from(pool.querySelectorAll("[data-id]"), (el) => el.dataset.id));
+      const staging = document.createElement("div");
+      staging.innerHTML = poolHtml;
+      Array.from(staging.children).forEach((el) => {
+        if (!seen.has(el.dataset.id)) { pool.appendChild(el); }
+      });
+      const box = document.querySelector("#blacklist-box");
+      if (box && box.blacklist) { box.blacklist.rescan(); }
+    }
+
+    next.forEach((c) => {
+      if (Array.isArray(c.slides) && c.slides.length) { pending.set(c.key, c.slides.slice()); }
+    });
+  }
+
+  // Pool elements for slides nothing refers to any more. Left alone while a
+  // queue is still draining, because a queued slide's element is what blocked()
+  // will be asked about.
+  function prunePool() {
+    if (pending.size) { return; }
+    const pool = root.querySelector(".modland-pool");
+    if (!pool) { return; }
+    const live = new Set();
+    cats.forEach((c) => (c.slides || []).forEach((slide) => live.add(String(slide.id))));
+    Array.from(pool.querySelectorAll("[data-id]")).forEach((el) => {
+      if (!live.has(el.dataset.id)) { el.remove(); }
+    });
+  }
+
+  // Install one queued slide into the slot that is about to enter the window
+  // from the right, and give back the cell of whatever was there.
+  //
+  // The raw list and the list the ring walks are not the same array --
+  // slidesOf filters out what the viewer's blacklist marked -- so the ring
+  // index is mapped back to a raw one. A blocked slide is discarded rather
+  // than installed: dropping one would shorten the filtered list under the
+  // belt, and every position after it would jump.
+  function feedOne(a) {
+    const cat = cats[a];
+    const queue = cat && pending.get(cat.key);
+    if (!queue || !queue.length) { return; }
+
+    const list = slidesOf(a);
+    if (!list.length) { return; }
+
+    let incoming = null;
+    while (queue.length) {
+      const candidate = queue.shift();
+      if (!blocked(candidate.id)) { incoming = candidate; break; }
+    }
+    if (!queue.length) { pending.delete(cat.key); prunePool(); }
+    if (!incoming) { return; }
+
+    // The far right-hand edge: one past the outermost cell the window builds.
+    const ringIndex = (((pos + reachFor(a) + 1) % list.length) + list.length) % list.length;
+    const outgoing = list[ringIndex];
+    if (!outgoing || outgoing.id === incoming.id) { return; }
+
+    const rawIndex = cat.slides.indexOf(outgoing);
+    if (rawIndex < 0) { return; }
+
+    cat.slides[rawIndex] = incoming;
+    dropCell(a, outgoing);
+  }
+
   function step(delta) {
     const list = slidesOf(axis);
     if (list.length < 2) { return; }
 
     pos += delta;
     burst += 1;
+    // One slide per step, at the edge the step is uncovering.
+    feedOne(axis);
 
     const ms = Math.max(MIN_MS, Math.round(BASE_MS / (1 + (burst * 0.38))));
     ride.style.setProperty("--belt-move-ms", `${ms}ms`);
@@ -680,50 +766,20 @@ function initLanding(root) {
   // The swap replaces the hidden pool as well as the payload, and re-runs the
   // blacklist over it. A slide whose pool element the blacklist never saw is a
   // slide it never filtered.
-  function swapSlides(next, poolHtml) {
-    const pool = root.querySelector(".modland-pool");
-    if (pool && typeof poolHtml === "string") {
-      pool.innerHTML = poolHtml;
-      const box = document.querySelector("#blacklist-box");
-      if (box && box.blacklist) { box.blacklist.rescan(); }
-    }
-
-    // Every built cell is keyed by axis and slide id, and the ids have just
-    // changed. Drop them all rather than let a stale one be found by a key that
-    // happens to match.
-    cells.forEach((cell) => {
-      if (cell.nameEl) { cell.nameEl.remove(); }
-      cell.remove();
-    });
-    cells.clear();
-    failed.clear();
-
-    // `cats` is captured by every closure in this module, so it is emptied and
-    // refilled rather than reassigned.
-    cats.length = 0;
-    next.forEach((c) => cats.push(c));
-    if (axis >= cats.length) { axis = 0; }
-
-    resetRun();
-    renderTabs();
-    render();
-    positionThumb();
-  }
-
   async function pullFreshSet() {
     if (!cfg.slidesUrl) { return; }
     // Not while someone is using it, and not while the tab is in the
     // background: a set swapped under a reader's hand is a set that loses their
     // place, and one swapped where nobody is looking is work for nothing. The
     // next tick asks again.
-    if (paused || busy || document.hidden) { return; }
+    if (document.hidden) { return; }
 
     try {
       const r = await fetch(cfg.slidesUrl, { headers: { Accept: "application/json" }, credentials: "same-origin" });
       if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
       const data = await r.json();
       if (Array.isArray(data.categories) && data.categories.length) {
-        swapSlides(data.categories, data.pool);
+        queueFreshSet(data.categories, data.pool);
       }
     } catch {
       // The page keeps the set it already has, which is the whole reason this
