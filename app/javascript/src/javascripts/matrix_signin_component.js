@@ -1,9 +1,11 @@
+import Notice from "./notice";
+
 // Drives the Matrix sign-in panel. See MatrixSigninComponent for why the
 // completion signal is a poll of this site's own origin rather than anything
 // the sign-in document tells us.
 
 function initPanel(root) {
-  if (root.dataset.mxsignBooted) return;
+  if (root.dataset.mxsignBooted) { return; }
   root.dataset.mxsignBooted = "1";
 
   const cfg = JSON.parse(root.dataset.config || "{}");
@@ -22,36 +24,41 @@ function initPanel(root) {
 
   function show(name, visible) {
     const el = region(name);
-    if (el) el.hidden = !visible;
+    if (el) { el.hidden = !visible; }
+  }
+
+  function rest() {
+    if (timer) { clearInterval(timer); timer = null; }
+    attemptStarted = null;
   }
 
   function markLinked(matrixId) {
     rest();
     root.classList.add("is-linked");
     const stateText = region("state-text");
-    if (stateText) stateText.textContent = "linked";
+    if (stateText) { stateText.textContent = "linked"; }
     const id = region("id");
-    if (id) id.textContent = matrixId || "";
+    if (id) { id.textContent = matrixId || ""; }
 
     // Hidden, not removed. Signing out has to be able to put this panel back
     // without reloading the page, and a removed element cannot come back.
     show("linked", true);
     show("fallback", false);
     window.__fourierLoginPopupOpen = false;
-    if (popup && !popup.closed) popup.close();
+    if (popup && !popup.closed) { popup.close(); }
   }
 
   function markUnlinked() {
     root.classList.remove("is-linked", "is-unavailable");
     const stateText = region("state-text");
-    if (stateText) stateText.textContent = "not linked";
+    if (stateText) { stateText.textContent = "not linked"; }
     const id = region("id");
-    if (id) id.textContent = "";
+    if (id) { id.textContent = ""; }
 
     show("linked", false);
     show("fallback", true);
     const note = region("note");
-    if (note) note.textContent = NOTE_DEFAULT;
+    if (note) { note.textContent = NOTE_DEFAULT; }
 
     // Deliberately does NOT start watching. Signing out is not the start of
     // signing in, and the panel has no reason to poll until someone asks it to.
@@ -65,13 +72,10 @@ function initPanel(root) {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
     })
-      .then((r) => { if (r.ok) markUnlinked(); })
-      .catch(() => {});
-  }
-
-  function rest() {
-    if (timer) { clearInterval(timer); timer = null; }
-    attemptStarted = null;
+      .then((r) => { if (r.ok) { markUnlinked(); } })
+      .catch(() => {
+        Notice.error("Could not sign out of Matrix; you may still be linked.");
+      });
   }
 
   /**
@@ -86,12 +90,6 @@ function initPanel(root) {
    * panel that had stopped listening. The login had worked. Nothing was
    * watching for it.
    */
-  function watch() {
-    attemptStarted = Date.now();
-    if (!timer) timer = setInterval(poll, cfg.pollIntervalMs || 2000);
-    poll();
-  }
-
   function poll() {
     if (attemptStarted !== null && Date.now() - attemptStarted > cfg.pollCeilingMs) {
       rest();
@@ -100,10 +98,20 @@ function initPanel(root) {
 
     fetch(cfg.statusUrl, { headers: { Accept: "application/json" }, credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d && d.linked) markLinked(d.matrix_id); })
-      // A failed poll is not a failed login -- the next tick asks again.
-      .catch(() => {});
+      .then((d) => { if (d && d.linked) { markLinked(d.matrix_id); } })
+      .catch(() => {
+        // A failed poll is not a failed login -- the next tick asks again, and
+        // watch() gives up on its own at cfg.pollCeilingMs. Reporting each
+        // tick would turn one flaky moment into a column of toasts.
+      });
   }
+
+  function watch() {
+    attemptStarted = Date.now();
+    if (!timer) { timer = setInterval(poll, cfg.pollIntervalMs || 2000); }
+    poll();
+  }
+
 
   function openPopup() {
     // Marks THIS window as the one waiting on a login popup. The popup reads it
@@ -114,8 +122,8 @@ function initPanel(root) {
 
     const w = 520;
     const h = 680;
-    const y = window.top.outerHeight / 2 + window.top.screenY - h / 2;
-    const x = window.top.outerWidth / 2 + window.top.screenX - w / 2;
+    const y = (window.top.outerHeight / 2) + window.top.screenY - (h / 2);
+    const x = (window.top.outerWidth / 2) + window.top.screenX - (w / 2);
     popup = window.open(cfg.loginUrl, "fourier-login",
       `popup=yes,width=${w},height=${h},top=${Math.max(0, y)},left=${Math.max(0, x)}`);
 
@@ -142,7 +150,7 @@ function initPanel(root) {
         note.innerHTML = "";
         const a = document.createElement("a");
         a.href = cfg.loginUrl;
-        a.textContent = "Popup blocked — open sign-in directly";
+        a.textContent = "Popup blocked \u2014 open sign-in directly";
         note.appendChild(a);
       }
     }
@@ -150,17 +158,16 @@ function initPanel(root) {
 
   root.addEventListener("click", (e) => {
     const act = e.target.closest("[data-act]");
-    if (!act) return;
-    if (act.dataset.act === "popup") { watch(); openPopup(); }
-    else if (act.dataset.act === "logout") logout();
+    if (!act) { return; }
+    if (act.dataset.act === "popup") { watch(); openPopup(); } else if (act.dataset.act === "logout") { logout(); }
   });
 
   function markUnavailable() {
     root.classList.add("is-unavailable");
     const stateText = region("state-text");
-    if (stateText) stateText.textContent = "unavailable";
+    if (stateText) { stateText.textContent = "unavailable"; }
     const note = region("note");
-    if (note) note.textContent = "Matrix sign-in is not responding right now. The booru login still works.";
+    if (note) { note.textContent = "Matrix sign-in is not responding right now. The booru login still works."; }
   }
 
   // Is the gate answering at all? /fourier/login is same-origin here (the proxy
@@ -172,7 +179,7 @@ function initPanel(root) {
   function preflight() {
     return fetch(cfg.loginUrl, { method: "HEAD", redirect: "manual", credentials: "same-origin" })
       .then((r) => {
-        if (r.type === "opaqueredirect") return true;
+        if (r.type === "opaqueredirect") { return true; }
         return r.status < 400;
       })
       // A network error here is itself the answer.
@@ -182,16 +189,16 @@ function initPanel(root) {
   // The gate can be down, and a button that opens a window onto a 502 is worse
   // than one that says so first. Same-origin through the proxy, so unlike the
   // provider's own pages this status IS readable.
-  preflight().then((ok) => { if (!ok) markUnavailable(); });
+  preflight().then((ok) => { if (!ok) { markUnavailable(); } });
 
   // Coming back to this tab is the strongest signal there is that something
   // happened elsewhere -- a popup finished, or a sign-in was completed in
   // another tab entirely. One request, on an event, instead of a heartbeat.
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && !root.classList.contains("is-linked")) poll();
+    if (document.visibilityState === "visible" && !root.classList.contains("is-linked")) { poll(); }
   });
   window.addEventListener("focus", () => {
-    if (!root.classList.contains("is-linked")) poll();
+    if (!root.classList.contains("is-linked")) { poll(); }
   });
 
   // Exactly one request on load, to render the state the reader arrives with.
@@ -220,9 +227,9 @@ function initPanel(root) {
 function closeIfLoginPopup() {
   try {
     const opener = window.opener;
-    if (!opener || opener.closed) return;
+    if (!opener || opener.closed) { return; }
     // Cross-origin opener throws here, which is the correct answer: not ours.
-    if (!opener.__fourierLoginPopupOpen) return;
+    if (!opener.__fourierLoginPopupOpen) { return; }
 
     opener.__fourierLoginPopupOpen = false;
     window.close();

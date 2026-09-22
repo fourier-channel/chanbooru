@@ -1,127 +1,6 @@
 import { splitWords } from './utility';
 import Cookie from './cookie';
 
-// A blacklist represents a set of blacklist rules that match against a set of posts.
-class Blacklist {
-  // @param {HTMLElement} root - The root DOM element that contains the blacklist controls.
-  constructor(root) {
-    this.root = root;
-    this.rules = [];
-    this.posts = [];
-  }
-
-  // @param {Array<String>} rules - The list of blacklist rules.
-  // @param {Array<String>} enforced - Site-enforced rules: always on, never
-  //   toggleable, always hard-hide (operator ruling 2026-09-04).
-  initialize(rules, enforced = []) {
-    // Attach the blacklist instance to the root DOM element for access with `$("#blacklist-box").get(0).blacklist`
-    this.root.blacklist = this;
-
-    this.rules = [
-      ...rules.map(rule => new Rule(this, rule)),
-      ...enforced.map(rule => new Rule(this, rule, { enforced: true })),
-    ];
-    // .modgal-card and .mod-blacklist-target are the Modulation gallery card and
-    // the Modulation post view's media container -- the DEFAULT views of this
-    // site, so a selector list that does not name them means the blacklist
-    // matches nothing on almost every page.
-    this.posts = $(".post-preview, .image-container, #c-comments .post, .mod-queue-preview.post-preview, .modgal-card, .mod-blacklist-target, .modland-poolitem").toArray().map(post => new Post(post, this));
-    this.apply();
-    this.cleanupStorage();
-
-    this.showAll = JSON.parse(localStorage.getItem(`blacklist.showAll`)) ?? false;
-    this.autocollapse = JSON.parse(localStorage.getItem(`blacklist.autocollapse`)) ?? true;
-    this.collapsed = JSON.parse(localStorage.getItem(`blacklist.collapsed`)) ?? this.enabled; // This comes last because it depends on blacklists being applied first.
-  }
-
-  // Apply all blacklist rules to all posts.
-  apply() {
-    this.posts.forEach(post => post.applyRules());
-  }
-
-  get enabled() {
-    return this.visibleRules.every(rule => rule.enabled);
-  }
-
-  set enabled(value) {
-    if (this.autocollapse) {
-      this.collapsed = value;
-    }
-
-    this.visibleRules.forEach(rule => { rule.enabled = Boolean(value) });
-    this.posts.forEach(post => post.update());
-  }
-
-  // @returns {Boolean} - True if some but not all rules are enabled.
-  get partiallyEnabled() {
-    return this.visibleRules.some(rule => rule.enabled) && !this.visibleRules.every(rule => rule.enabled);
-  }
-
-  get showAll() {
-    return this._showAll;
-  }
-
-  set showAll(value) {
-    this._showAll = Boolean(value);
-    localStorage.setItem(`blacklist.showAll`, JSON.stringify(value));
-  }
-
-  get blurImages() {
-    return this.rules.some(rule => rule.hideMethod === "blur");
-  }
-
-  set blurImages(value) {
-    this.rules.forEach(rule => { rule.hideMethod = Boolean(value) ? "blur" : "hide"; });
-  }
-
-  get collapsed() {
-    return this._collapsed;
-  }
-
-  set collapsed(value) {
-    this._collapsed = Boolean(value);
-    localStorage.setItem(`blacklist.collapsed`, JSON.stringify(value));
-  }
-
-  get autocollapse() {
-    return this._autocollapse;
-  }
-
-  set autocollapse(value) {
-    this._autocollapse = Boolean(value);
-    localStorage.setItem(`blacklist.autocollapse`, JSON.stringify(value));
-  }
-
-  // @returns {Boolean} - True if the blacklist box should be visible, i.e. if there are any visible rules.
-  get visible() {
-    return this.visibleRules.length > 0;
-  }
-
-  // @returns {Array<Rule>} - The set of rules that are currently visible (all rules if showAll is enabled, or only rules matching a post if not).
-  get visibleRules() {
-    return this.rules.filter(rule => rule.visible);
-  }
-
-  // @returns {Array<Post>} - The set of posts that are currently blacklisted by at least one rule.
-  get blacklistedPosts() {
-    return this.posts.filter(post => post.blacklisted);
-  }
-
-  get blacklistedPostCount() {
-    return new Set(this.blacklistedPosts.map(post => post.post.dataset.id)).size;
-  }
-
-  // Remove from storage any rules that have been removed from the blacklist.
-  cleanupStorage() {
-    Cookie.remove("dab");
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith("blacklist.enabled:") && !this.rules.some(rule => key === `blacklist.enabled:${rule.string}`)) {
-        localStorage.removeItem(key);
-      }
-    });
-  }
-}
-
 // A post holds the set of blacklist rules that match the post. The post is blacklisted if any of the matching rules are enabled.
 class Post {
   // @param {HTMLElement} post - The DOM element representing the post.
@@ -225,12 +104,12 @@ class Rule {
   }
 
   get enabled() {
-    if (this.enforced) return true;
+    if (this.enforced) { return true; }
     return JSON.parse(localStorage.getItem(`blacklist.enabled:${this.string}`)) ?? true;
   }
 
   set enabled(value) {
-    if (this.enforced) return;
+    if (this.enforced) { return; }
     localStorage.setItem(`blacklist.enabled:${this.string}`, JSON.stringify(value));
     this.posts.forEach(post => post.update());
   }
@@ -238,12 +117,12 @@ class Rule {
   get hideMethod() {
     // An enforced rule always hard-hides: "blur images" is a viewing comfort
     // for one's own rules, not a keyhole into the enforced ones.
-    if (this.enforced) return "hide";
+    if (this.enforced) { return "hide"; }
     return JSON.parse(localStorage.getItem(`blacklist.hideMethod:${this.string}`)) ?? "hide";
   }
 
   set hideMethod(value) {
-    if (this.enforced) return;
+    if (this.enforced) { return; }
     localStorage.setItem(`blacklist.hideMethod:${this.string}`, JSON.stringify(value));
     this.posts.forEach(post => post.update());
   }
@@ -273,6 +152,127 @@ class Rule {
     }
 
     post.update();
+  }
+}
+
+// A blacklist represents a set of blacklist rules that match against a set of posts.
+class Blacklist {
+  // @param {HTMLElement} root - The root DOM element that contains the blacklist controls.
+  constructor(root) {
+    this.root = root;
+    this.rules = [];
+    this.posts = [];
+  }
+
+  // @param {Array<String>} rules - The list of blacklist rules.
+  // @param {Array<String>} enforced - Site-enforced rules: always on, never
+  //   toggleable, always hard-hide (operator ruling 2026-09-04).
+  initialize(rules, enforced = []) {
+    // Attach the blacklist instance to the root DOM element for access with `$("#blacklist-box").get(0).blacklist`
+    this.root.blacklist = this;
+
+    this.rules = [
+      ...rules.map(rule => new Rule(this, rule)),
+      ...enforced.map(rule => new Rule(this, rule, { enforced: true })),
+    ];
+    // .modgal-card and .mod-blacklist-target are the Modulation gallery card and
+    // the Modulation post view's media container -- the DEFAULT views of this
+    // site, so a selector list that does not name them means the blacklist
+    // matches nothing on almost every page.
+    this.posts = $(".post-preview, .image-container, #c-comments .post, .mod-queue-preview.post-preview, .modgal-card, .mod-blacklist-target, .modland-poolitem").toArray().map(post => new Post(post, this));
+    this.apply();
+    this.cleanupStorage();
+
+    this.showAll = JSON.parse(localStorage.getItem(`blacklist.showAll`)) ?? false;
+    this.autocollapse = JSON.parse(localStorage.getItem(`blacklist.autocollapse`)) ?? true;
+    this.collapsed = JSON.parse(localStorage.getItem(`blacklist.collapsed`)) ?? this.enabled; // This comes last because it depends on blacklists being applied first.
+  }
+
+  // Apply all blacklist rules to all posts.
+  apply() {
+    this.posts.forEach(post => post.applyRules());
+  }
+
+  get enabled() {
+    return this.visibleRules.every(rule => rule.enabled);
+  }
+
+  set enabled(value) {
+    if (this.autocollapse) {
+      this.collapsed = value;
+    }
+
+    this.visibleRules.forEach(rule => { rule.enabled = Boolean(value) });
+    this.posts.forEach(post => post.update());
+  }
+
+  // @returns {Boolean} - True if some but not all rules are enabled.
+  get partiallyEnabled() {
+    return this.visibleRules.some(rule => rule.enabled) && !this.visibleRules.every(rule => rule.enabled);
+  }
+
+  get showAll() {
+    return this._showAll;
+  }
+
+  set showAll(value) {
+    this._showAll = Boolean(value);
+    localStorage.setItem(`blacklist.showAll`, JSON.stringify(value));
+  }
+
+  get blurImages() {
+    return this.rules.some(rule => rule.hideMethod === "blur");
+  }
+
+  set blurImages(value) {
+    this.rules.forEach(rule => { rule.hideMethod = value ? "blur" : "hide"; });
+  }
+
+  get collapsed() {
+    return this._collapsed;
+  }
+
+  set collapsed(value) {
+    this._collapsed = Boolean(value);
+    localStorage.setItem(`blacklist.collapsed`, JSON.stringify(value));
+  }
+
+  get autocollapse() {
+    return this._autocollapse;
+  }
+
+  set autocollapse(value) {
+    this._autocollapse = Boolean(value);
+    localStorage.setItem(`blacklist.autocollapse`, JSON.stringify(value));
+  }
+
+  // @returns {Boolean} - True if the blacklist box should be visible, i.e. if there are any visible rules.
+  get visible() {
+    return this.visibleRules.length > 0;
+  }
+
+  // @returns {Array<Rule>} - The set of rules that are currently visible (all rules if showAll is enabled, or only rules matching a post if not).
+  get visibleRules() {
+    return this.rules.filter(rule => rule.visible);
+  }
+
+  // @returns {Array<Post>} - The set of posts that are currently blacklisted by at least one rule.
+  get blacklistedPosts() {
+    return this.posts.filter(post => post.blacklisted);
+  }
+
+  get blacklistedPostCount() {
+    return new Set(this.blacklistedPosts.map(post => post.post.dataset.id)).size;
+  }
+
+  // Remove from storage any rules that have been removed from the blacklist.
+  cleanupStorage() {
+    Cookie.remove("dab");
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith("blacklist.enabled:") && !this.rules.some(rule => key === `blacklist.enabled:${rule.string}`)) {
+        localStorage.removeItem(key);
+      }
+    });
   }
 }
 

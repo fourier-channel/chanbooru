@@ -52,7 +52,7 @@ export function parseTagInput(raw) {
   const out = []
   for (const part of String(raw).split(/[\s,]+/)) {
     const name = normaliseTagName(part)
-    if (name && !out.includes(name)) out.push(name)
+    if (name && !out.includes(name)) { out.push(name) }
   }
   return out
 }
@@ -81,8 +81,8 @@ export function tagNames(tagString) {
  */
 export function applyEdit(tagString, edit) {
   const names = new Set(tagNames(tagString))
-  for (const t of edit.remove || []) names.delete(t)
-  for (const t of edit.add || []) names.add(t)
+  for (const t of edit.remove || []) { names.delete(t) }
+  for (const t of edit.add || []) { names.add(t) }
   return [...names].join(' ')
 }
 
@@ -174,7 +174,7 @@ export function refuseEdit(postId, tagString, edit) {
 export function editFields(tagString, edit, csrf) {
   /** @type {Record<string, string>} */
   const fields = { _method: 'put' }
-  if (csrf) fields.authenticity_token = csrf
+  if (csrf) { fields.authenticity_token = csrf }
   fields['post[old_tag_string]'] = tagString
   fields['post[tag_string]'] = applyEdit(tagString, edit)
   return fields

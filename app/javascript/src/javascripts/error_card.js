@@ -72,7 +72,7 @@ function probeCredentials(src) {
 }
 
 function resolveStatus(src) {
-  if (!src) return Promise.resolve(UNKNOWN);
+  if (!src) { return Promise.resolve(UNKNOWN); }
 
   return fetch(src, { method: "HEAD", credentials: probeCredentials(src) })
     .then((r) => (r.status >= 400 ? r.status : UNKNOWN))
@@ -81,7 +81,7 @@ function resolveStatus(src) {
 
 function cardify(img) {
   // Guard against the card itself failing and re-entering this handler.
-  if (img.dataset.errorCarded) return;
+  if (img.dataset.errorCarded) { return; }
   img.dataset.errorCarded = "1";
 
   const src = img.currentSrc || img.getAttribute("src");
@@ -92,7 +92,7 @@ function cardify(img) {
   // A <picture> resolves its own <source> ahead of the img's src, so setting
   // src alone would be ignored and the broken image would stay.
   const picture = img.closest("picture");
-  if (picture) picture.querySelectorAll("source").forEach((s) => s.remove());
+  if (picture) { picture.querySelectorAll("source").forEach((s) => s.remove()); }
 
   resolveStatus(src).then((status) => {
     img.classList.add("error-card");
@@ -116,8 +116,8 @@ function cardify(img) {
 // the page you were actually looking at".
 document.addEventListener("error", (event) => {
   const el = event.target;
-  if (!(el instanceof HTMLImageElement)) return;
-  if (!el.matches(MEDIA_SELECTOR)) return;
+  if (!(el instanceof HTMLImageElement)) { return; }
+  if (!el.matches(MEDIA_SELECTOR)) { return; }
   cardify(el);
 }, true);
 

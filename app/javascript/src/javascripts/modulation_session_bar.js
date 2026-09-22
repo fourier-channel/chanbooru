@@ -1,3 +1,5 @@
+import Notice from "./notice";
+
 // The Manage Session panel: a right-aligned control in the header row, one
 // monitor per session.
 //
@@ -18,15 +20,15 @@
 //   - the page always reloads after an auth action. The opt-out checkbox is
 //     gone; a session change you can half-see is worse than a reload.
 
-const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = (s) => String(s === null || s === undefined ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 function fmtDur(seconds) {
   const s = Math.max(0, Math.floor(seconds));
-  if (s < 60) return `${s}s`;
+  if (s < 60) { return `${s}s`; }
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ${s % 60}s`;
+  if (m < 60) { return `${m}m ${s % 60}s`; }
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ${m % 60}m`;
+  if (h < 24) { return `${h}h ${m % 60}m`; }
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
@@ -34,8 +36,8 @@ function fmtDur(seconds) {
 function openLoginPopup(url, name) {
   const w = 480;
   const h = 640;
-  const x = window.screenX + (window.outerWidth - w) / 2;
-  const y = window.screenY + (window.outerHeight - h) / 2;
+  const x = window.screenX + ((window.outerWidth - w) / 2);
+  const y = window.screenY + ((window.outerHeight - h) / 2);
   return window.open(url, name, `width=${w},height=${h},left=${x},top=${y}`);
 }
 
@@ -59,7 +61,7 @@ function boot() {
   const startOpen = !bar.hasAttribute("hidden");
   bar.removeAttribute("hidden");
   if (group && startOpen) { group.classList.add("is-open"); bar.classList.add("is-settled"); }
-  const isOpen = () => !!group && group.classList.contains("is-open");
+  const isOpen = () => Boolean(group) && group.classList.contains("is-open");
 
   let obs = {};
   try {
@@ -69,9 +71,12 @@ function boot() {
   }
   // The tickers count from the SERVER's clock: baseNow anchors it to local
   // monotonic-ish time so "#s ago" is arithmetic, not polling.
+  // Null while the last refetch succeeded; a timestamp while it is failing.
+  // See refetch below: it is what keeps one outage to one report.
+  let staleSince = null;
   let baseNow = obs.now || Math.floor(Date.now() / 1000);
   let baseAt = Date.now();
-  const nowEpoch = () => baseNow + (Date.now() - baseAt) / 1000;
+  const nowEpoch = () => baseNow + ((Date.now() - baseAt) / 1000);
 
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content || "";
   const persist = (changes) => fetch("/modulation/settings", {
@@ -79,7 +84,9 @@ function boot() {
     credentials: "same-origin",
     headers: { "X-CSRF-Token": csrf(), "Content-Type": "application/json" },
     body: JSON.stringify(changes),
-  }).catch(() => {});
+  }).catch(() => {
+    Notice.error("Could not save that session-bar setting; it will not be remembered.");
+  });
 
   const region = (monitor, name) => bar.querySelector(`[data-monitor="${monitor}"] [data-region="${name}"]`);
   const tick = (epoch, dir = "since") => `<span data-tick="${epoch}" data-dir="${dir}"></span>`;
@@ -90,9 +97,9 @@ function boot() {
   // matrix cookie the gate has not vouched for -- still owned, not signed
   // out; "alarm" is the monitor reading an object other than its GO.
   function lampState(m, kind) {
-    if (!m.observed) return "unlit";
-    if (m.observed !== m.expect) return "alarm";
-    if (kind === "booru") return m.signed_in ? "go" : "idle";
+    if (!m.observed) { return "unlit"; }
+    if (m.observed !== m.expect) { return "alarm"; }
+    if (kind === "booru") { return m.signed_in ? "go" : "idle"; }
     return m.linked ? "go" : (m.gate === "stale" ? "stale" : "idle");
   }
 
@@ -194,7 +201,7 @@ function boot() {
     }
     const state = lampState(m, kind);
     bar.querySelector(`[data-monitor="${kind}"]`).dataset.state = state;
-    if (kind === "booru") renderBooru(m, state); else renderMatrix(m, state);
+    if (kind === "booru") { renderBooru(m, state); } else { renderMatrix(m, state); }
     renderTip(kind, m, state);
   }
 
@@ -210,7 +217,7 @@ function boot() {
 
   function tickNow() {
     bar.querySelectorAll("[data-tick]").forEach((el) => {
-      const t = +el.dataset.tick;
+      const t = Number(el.dataset.tick);
       el.textContent = fmtDur(el.dataset.dir === "until" ? t - nowEpoch() : nowEpoch() - t);
     });
   }
@@ -222,7 +229,7 @@ function boot() {
     tickNow();
   }
 
-  setInterval(() => { if (isOpen()) tickNow(); }, 1000);
+  setInterval(() => { if (isOpen()) { tickNow(); } }, 1000);
 
   let fetching = false;
   function refetch() {
@@ -232,12 +239,20 @@ function boot() {
     fetching = true;
     fetch("/modulation/session_status", { headers: { Accept: "application/json" }, credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((next) => { obs = next; baseNow = next.now; baseAt = Date.now(); renderAll(); })
-      .catch(() => {})
+      .then((next) => { obs = next; baseNow = next.now; baseAt = Date.now(); renderAll(); staleSince = null; })
+      .catch(() => {
+        // A poll runs on every focus, so reporting each failure would be a
+        // toast storm on a flaky connection. Say it ONCE per outage, and say
+        // it again only after a refetch has succeeded in between.
+        if (staleSince === null) {
+          staleSince = Date.now();
+          Notice.error("Session details could not be refreshed; what you see may be out of date.");
+        }
+      })
       .finally(() => { fetching = false; });
   }
-  window.addEventListener("focus", () => { if (isOpen()) refetch(); });
-  document.addEventListener("visibilitychange", () => { if (!document.hidden && isOpen()) refetch(); });
+  window.addEventListener("focus", () => { if (isOpen()) { refetch(); } });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && isOpen()) { refetch(); } });
 
   // Always. An auth action changes what the whole page is allowed to show, so
   // re-rendering only the header would leave the body describing the previous
@@ -254,7 +269,9 @@ function boot() {
   // away too, and the monitor's next read says "nothing" truthfully.
   function matrixLogout() {
     fetch("/fourier/logout", { method: "POST", credentials: "same-origin" })
-      .catch(() => {})
+      .catch(() => {
+        Notice.error("Could not clear the Fourier session cookie on this host; sign-out may be incomplete.");
+      })
       .finally(() => {
         fetch("/modulation/matrix_logout", { method: "POST", credentials: "same-origin", headers: { "X-CSRF-Token": csrf() } })
           .then(refreshNow, refreshNow);
@@ -279,7 +296,7 @@ function boot() {
     afterPopup(() => {
       fetch("/fourier_identity.json", { credentials: "same-origin" })
         .then((r) => r.json())
-        .then((d) => { if (d.linked && !(obs.matrix || {}).linked) refreshNow(); else refetch(); })
+        .then((d) => { if (d.linked && !(obs.matrix || {}).linked) { refreshNow(); } else { refetch(); } })
         .catch(refetch);
     });
   }
@@ -292,7 +309,7 @@ function boot() {
     afterPopup(() => {
       fetch("/modulation/session_status", { headers: { Accept: "application/json" }, credentials: "same-origin" })
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-        .then((next) => { if (next.booru?.signed_in && !(obs.booru || {}).signed_in) refreshNow(); else { obs = next; baseNow = next.now; baseAt = Date.now(); renderAll(); } })
+        .then((next) => { if (next.booru?.signed_in && !(obs.booru || {}).signed_in) { refreshNow(); } else { obs = next; baseNow = next.now; baseAt = Date.now(); renderAll(); } })
         .catch(refetch);
     });
   }
@@ -303,10 +320,7 @@ function boot() {
       return;
     }
     const a = act.dataset.act;
-    if (a === "booru-logout") booruLogout();
-    else if (a === "booru-login") { e.preventDefault(); booruLogin(); }
-    else if (a === "matrix-login") { e.preventDefault(); matrixLogin(); }
-    else if (a === "matrix-logout") matrixLogout();
+    if (a === "booru-logout") { booruLogout(); } else if (a === "booru-login") { e.preventDefault(); booruLogin(); } else if (a === "matrix-login") { e.preventDefault(); matrixLogin(); } else if (a === "matrix-logout") { matrixLogout(); }
   });
 
   if (toggle && group) {
@@ -364,14 +378,14 @@ function boot() {
     // The lamp and the service name, not the whole row: the status text and the
     // sign-in control are not a question about the monitor.
     const trigger = monitor.querySelector('[data-region="trigger"]');
-    if (!tip || !trigger) return;
+    if (!tip || !trigger) { return; }
     let follow = null;
     const show = () => {
       // Class first, THEN measure: offsetWidth of a display:none element is 0,
       // which would anchor every tip to the right edge of the window.
       tip.classList.add("is-open");
       placeTip(trigger, tip);
-      if (follow) return;
+      if (follow) { return; }
       // #top.modnav is in normal flow, so the header moves when the page
       // scrolls and a fixed tip has to be told about it.
       follow = () => placeTip(trigger, tip);
@@ -380,7 +394,7 @@ function boot() {
     };
     const hide = () => {
       tip.classList.remove("is-open");
-      if (!follow) return;
+      if (!follow) { return; }
       window.removeEventListener("scroll", follow);
       window.removeEventListener("resize", follow);
       follow = null;

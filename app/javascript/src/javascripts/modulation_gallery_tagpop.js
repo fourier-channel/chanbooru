@@ -74,32 +74,6 @@ function boot() {
     meter.hidden = true;
   }
 
-  // Sit the meter along the bottom edge of the card being waited on, so the
-  // progress belongs visibly to THAT card rather than floating near the
-  // cursor.
-  function startMeter(card) {
-    const r = card.getBoundingClientRect();
-    meter.style.left = `${Math.round(r.left)}px`;
-    meter.style.top = `${Math.round(r.bottom - 3)}px`;
-    meter.style.width = `${Math.round(r.width)}px`;
-    meter.hidden = false;
-    const fill = meter.firstElementChild;
-    fill.style.width = "0%";
-    const started = performance.now();
-    const step = (now) => {
-      const p = Math.min(1, (now - started) / DWELL_MS);
-      fill.style.width = `${(p * 100).toFixed(1)}%`;
-      if (p < 1) {
-        raf = requestAnimationFrame(step);
-        return;
-      }
-      raf = null;
-      stopMeter();
-      show(card);
-    };
-    raf = requestAnimationFrame(step);
-  }
-
   function show(card) {
     const groups = {};
     (card.getAttribute("data-tags") || "").split(/\s+/).forEach((tag) => {
@@ -134,6 +108,32 @@ function boot() {
     y = Math.max(8, Math.min(y, window.innerHeight - ph - 8));
     pop.style.left = `${Math.round(x)}px`;
     pop.style.top = `${Math.round(y)}px`;
+  }
+
+  // Sit the meter along the bottom edge of the card being waited on, so the
+  // progress belongs visibly to THAT card rather than floating near the
+  // cursor.
+  function startMeter(card) {
+    const r = card.getBoundingClientRect();
+    meter.style.left = `${Math.round(r.left)}px`;
+    meter.style.top = `${Math.round(r.bottom - 3)}px`;
+    meter.style.width = `${Math.round(r.width)}px`;
+    meter.hidden = false;
+    const fill = meter.firstElementChild;
+    fill.style.width = "0%";
+    const started = performance.now();
+    const step = (now) => {
+      const p = Math.min(1, (now - started) / DWELL_MS);
+      fill.style.width = `${(p * 100).toFixed(1)}%`;
+      if (p < 1) {
+        raf = requestAnimationFrame(step);
+        return;
+      }
+      raf = null;
+      stopMeter();
+      show(card);
+    };
+    raf = requestAnimationFrame(step);
   }
 
   function hide() {
