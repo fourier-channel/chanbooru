@@ -203,7 +203,7 @@ function initLanding(root) {
       if (cell) { cell.classList.add("is-failed"); }
       scheduleRender();
     }, { once: true });
-    el.src = slide.src;
+    el.src = (slide.kind === "video" ? null : slide.thumb) || slide.src;
     return el;
   }
 
@@ -243,6 +243,39 @@ function initLanding(root) {
     name.classList.toggle("is-offstage", cell.classList.contains("is-offstage"));
     name.classList.toggle("is-focus", cell.classList.contains("is-focus"));
     if (belt && name.parentNode !== belt) { belt.appendChild(name); }
+  }
+
+  // THE WINDOW IS WHAT EXISTS, not what is visible.
+  //
+  // render() used to walk the whole category and build a cell for every slide
+  // in it, marking the far ones is-offstage -- so a row of N slides fetched N
+  // images on its first frame whatever was on screen. That was survivable at a
+  // row of ten and is not at a row of several hundred, which is what a row
+  // holding every cached lap now is. Beyond this window a cell is not hidden,
+  // it is not built; come back and it rebuilds.
+  const REACH_MARGIN = 2;
+  function reachFor(a) { return ranksFor(a) + REACH_MARGIN; }
+
+  // Give a cell back. `failed` is deliberately NOT cleared: it is keyed by
+  // slide id, and a slide whose media would not load will not load on the next
+  // lap either. Forgetting that would re-request every broken file every time
+  // the belt came round.
+  function dropCell(a, slide) {
+    const key = `${a}:${slide.id}`;
+    const cell = cells.get(key);
+    if (!cell) { return; }
+    if (cell.nameEl) { cell.nameEl.remove(); }
+    cell.remove();
+    cells.delete(key);
+  }
+
+  // Promote a cell's image to the full sample. Once, and only for the focus:
+  // reassigning src to the value it already holds would restart the fetch.
+  function promoteMedia(cell, slide) {
+    const el = cell.querySelector("img.mod-image");
+    if (!el || !slide.thumb || cell.dataset.promoted === "1") { return; }
+    cell.dataset.promoted = "1";
+    el.src = slide.src;
   }
 
   function cellFor(a, slide) {
@@ -393,7 +426,7 @@ function initLanding(root) {
 
   function prewarm() {
     const wanted = [];
-    const reach = ranksFor(axis) + 2;
+    const reach = reachFor(axis);
     for (let d = -reach; d <= reach; d++) { wanted.push([axis, at(axis, pos + d)]); }
     cats.forEach((_, a) => { if (a !== axis) { wanted.push([a, at(a, pos)], [a, at(a, pos + 1)]); } });
 
@@ -417,8 +450,12 @@ function initLanding(root) {
     const xs = layout(placed);
     const ranks = ranksFor(axis);
 
+    const reach = reachFor(axis);
     placed.forEach(({ slide, d }) => {
       const k = Math.abs(d);
+      // Outside the window: not built, and released if it was.
+      if (k > reach) { dropCell(axis, slide); return; }
+
       const cell = cellFor(axis, slide);
 
       const shown = k <= ranks;
@@ -448,6 +485,7 @@ function initLanding(root) {
 
       cell.classList.toggle("is-offstage", !shown);
       cell.classList.toggle("is-focus", d === 0);
+      if (d === 0) { promoteMedia(cell, slide); }
       cell.classList.toggle("is-incoming", k === 1);
       if (failed.has(String(slide.id))) { cell.classList.add("is-failed"); }
       placeName(cell, belt);

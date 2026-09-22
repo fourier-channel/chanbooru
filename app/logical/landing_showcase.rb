@@ -42,7 +42,7 @@ class LandingShowcase
       # `visible` is how many the belt should show at once, or nil for its own
       # default -- see LandingCategory#visible_slides for what nil means.
       { key: spec.key, label: spec.label, visible: spec.visible_slides,
-        slides: posts.map { |post| slide_for(post) } }
+        slides: posts.map { |post| slide_for(post) }}
     end
   end
 
@@ -242,6 +242,14 @@ class LandingShowcase
       id: post.id,
       url: Rails.application.routes.url_helpers.post_path(post),
       src: media_url(post),
+      # The small variant, for every cell that is not the focused one.
+      #
+      # `src` is large_file_url -- an 850px sample for anything wider than
+      # that. A belt cell off the focus renders at a fraction of its width and
+      # shrinks further toward the edges, so fetching the sample for all of
+      # them was tens of times the bytes needed to draw them, and it showed as
+      # thumbnails arriving late. The focused cell still gets the sample.
+      thumb: thumb_url(post),
       w: post.image_width,
       h: post.image_height,
       # Videos are real posts and belong in the showcase, but they are not
@@ -321,6 +329,16 @@ class LandingShowcase
 
   def media_url(post)
     post.large_file_url
+  rescue StandardError
+    nil
+  end
+
+  # nil when there is no small variant to have -- the caller falls back to src,
+  # which is what a post with no variants had to use anyway.
+  def thumb_url(post)
+    return nil unless post.media_asset.has_variant?(:"360x360")
+
+    post.media_asset.variant(:"360x360").file_url
   rescue StandardError
     nil
   end
