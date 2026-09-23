@@ -585,10 +585,26 @@ function initLanding(root) {
     const list = slidesOf(a);
     if (!list.length) { return; }
 
+    // IDS MUST STAY UNIQUE WITHIN A CATEGORY.
+    //
+    // cellFor keys a cell by `${axis}:${id}`, so two entries sharing an id
+    // share one DOM element -- and an element can only be in one place, so
+    // render() moves it to the second position and the first draws NOTHING.
+    // The server dedupes within one set, but this feed MIXES two: a fresh
+    // random draw from the same creators overlaps the set already on the belt,
+    // heavily. That is where the missing cards came from, and it showed on the
+    // second lap because that is when fed-in slides first reach the eye.
+    const present = new Set(cat.slides.map((slide) => String(slide.id)));
+
     let incoming = null;
     while (queue.length) {
       const candidate = queue.shift();
-      if (!blocked(candidate.id)) { incoming = candidate; break; }
+      if (blocked(candidate.id)) { continue; }
+      // Already on the belt: nothing to gain by moving it, and a hole to pay
+      // for putting it in twice.
+      if (present.has(String(candidate.id))) { continue; }
+      incoming = candidate;
+      break;
     }
     if (!queue.length) { pending.delete(cat.key); prunePool(); }
     if (!incoming) { return; }
@@ -596,13 +612,17 @@ function initLanding(root) {
     // The far right-hand edge: one past the outermost cell the window builds.
     const ringIndex = (((pos + reachFor(a) + 1) % list.length) + list.length) % list.length;
     const outgoing = list[ringIndex];
-    if (!outgoing || outgoing.id === incoming.id) { return; }
+    if (!outgoing) { return; }
 
     const rawIndex = cat.slides.indexOf(outgoing);
     if (rawIndex < 0) { return; }
 
     cat.slides[rawIndex] = incoming;
-    dropCell(a, outgoing);
+    // Only give the cell back if nothing else still shows that slide. The list
+    // is unique going forward, but this also holds if it ever was not.
+    if (!cat.slides.some((slide) => String(slide.id) === String(outgoing.id))) {
+      dropCell(a, outgoing);
+    }
   }
 
   function step(delta) {
