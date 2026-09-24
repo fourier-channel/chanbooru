@@ -4,9 +4,13 @@
 # the fourier_tag_sources sidecar (the redesigned tag buckets). Builder+ only
 # (the posting bots: fourier-sampling and fourier-tunnel).
 # POST /fourier/posts/:post_id/tag_sources
-#   { creator: [], auto: [], both: [], meta: [], pending: [] }
+#   { creator: [], auto: [], both: [], meta: [], pending: [], spectrum: [], hydra: [] }
 class FourierTagSourcesController < ApplicationController
-  wrap_parameters :fourier_tag_source, include: %i[creator auto both meta pending oc replace_creator]
+  # EVERY key create permits must be listed here too. A JSON body's top-level
+  # keys reach params[:fourier_tag_source] only if they are wrapped, and
+  # spectrum and hydra were not: the lamp's model bits were dropped for every
+  # post from the day the lamp shipped (2026-09-20) until 2026-09-24.
+  wrap_parameters :fourier_tag_source, include: %i[creator auto both meta pending oc spectrum hydra replace_creator]
   respond_to :json
 
   def create
