@@ -33,6 +33,61 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # THE READ IS A DOOR (review, 2026-09-24). Post#hidden_as_deleted? says a
+  # deleted post answers nothing -- "not the page, not the tags, not the id"
+  # -- and every other door asks it. This one did not: any caller, signed in
+  # or not, read a jailed post's whole tag list here, the one list troll jail
+  # exists to take out of view, and a signed-out caller read a gated post's.
+  # Every reader (technetium's panel, sampling's lamp check, the tunnel's
+  # duplicate projection) already treats a 404 as "no such post".
+  context "GET /posts/:post_id/tag_sources" do
+    setup do
+      Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
+      # an approver, as the sampling bot is: a member would hit the upload limit
+      @uploader = create(:approver_user)
+      @live = create(:post, tag_string: "a b", uploader: @uploader)
+      @deleted = create(:post, tag_string: "a b", uploader: @uploader)
+      @deleted.update_columns(is_deleted: true)
+    end
+
+    should "answer for a live post, signed in or not" do
+      get "/posts/#{@live.id}/tag_sources.json"
+      assert_response :success
+
+      get_auth "/posts/#{@live.id}/tag_sources.json", create(:user)
+      assert_response :success
+    end
+
+    should "answer nothing about a deleted post, by either scope, to anyone who may not see it" do
+      [nil, create(:user), create(:builder_user)].each do |user|
+        [{}, { scope: "public" }].each do |params|
+          if user
+            get_auth "/posts/#{@deleted.id}/tag_sources.json", user, params: params
+          else
+            get "/posts/#{@deleted.id}/tag_sources.json", params: params
+          end
+          assert_response 404, "#{user ? user.level_string : "anonymous"} #{params}"
+        end
+      end
+    end
+
+    should "still answer the uploader, as the post page does" do
+      get_auth "/posts/#{@deleted.id}/tag_sources.json", @uploader
+      assert_response :success
+
+      get_auth "/posts/#{@deleted.id}/tag_sources.json", @uploader, params: { scope: "public" }
+      assert_response :success
+    end
+
+    should "answer nothing about a gated post to a signed-out caller" do
+      gated = create(:post, tag_string: "a child", uploader: @uploader)
+      assert gated.gated?, "fixture: the post is gated"
+
+      get "/posts/#{gated.id}/tag_sources.json"
+      assert_response 404
+    end
+  end
+
   # THE MODEL-BIT BACKFILL (2026-09-24). fourier-sampling's retag timer pushes
   # hydra's tags onto posts that already exist and recorded them with no model
   # bit at all, and 22.4M older rows predate the bits entirely -- the lamp

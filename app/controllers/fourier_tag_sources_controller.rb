@@ -80,11 +80,19 @@ class FourierTagSourcesController < ApplicationController
 
   # Read the tag buckets for a post. Default is the identity-gated view (creator/mod
   # see private creator tags, everyone else sees public only). `?scope=public`
-  # returns the machine-facing public projection unconditionally -- used by a bot to
-  # refresh a duplicate image's Matrix state without leaking private tags.
+  # returns the machine-facing public projection whoever asks -- used by a bot to
+  # refresh a duplicate image's Matrix state without leaking private tags -- for
+  # any post the caller may see at all (below).
   def show
     skip_authorization
     post = Post.find(params[:post_id])
+    # The doors PostsController#show shuts, shut here too, by either scope:
+    # a deleted post answers nothing -- "not the page, not the tags, not the
+    # id" -- and a gated post does not exist for a signed-out caller. This
+    # read answered both until 2026-09-24: a jailed post's whole tag list, to
+    # anyone. 404 as there, which every reader already takes as "no such post".
+    raise ActiveRecord::RecordNotFound if post.hidden_from_anonymous?(CurrentUser.user)
+    raise ActiveRecord::RecordNotFound if post.hidden_as_deleted?(CurrentUser.user)
     payload = if params[:scope] == "public"
                 FourierTagSource.matrix_projection(post)
               else
