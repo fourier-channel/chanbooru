@@ -240,7 +240,7 @@ class PostQuery
   # them: rating:g under safe mode, and the gated tags a signed-out visitor may
   # not know exist.
   def implicit_metatags
-    safe_mode_metatags + gated_metatags + deleted_metatags
+    safe_mode_metatags + gated_metatags + deleted_metatags + banished_metatags
   end
 
   def safe_mode_metatags
@@ -280,6 +280,18 @@ class PostQuery
     return [] if current_user.blank? || current_user.can_see_deleted_posts?
 
     [-AST.metatag("status", "deleted")]
+  end
+
+  # A jailed or banished-tagged post is not in an admin's results unless that
+  # admin has switched reveal_banished on -- status:deleted included, since
+  # the terms are AND-ed onto whatever was asked. The query-level half of
+  # Post#hidden_as_banished?, here for the reason deleted_metatags gives: a
+  # filter over results never sees the count, the paginator or the
+  # neighbours. See TagBanishment.withholds_posts_from?.
+  def banished_metatags
+    return [] unless TagBanishment.withholds_posts_from?(current_user)
+
+    TagBanishment.post_tags.map { |tag| -AST.tag(tag) }
   end
 
   def gated_metatags
@@ -407,5 +419,5 @@ class PostQuery
     end
   end
 
-  memoize :tags, :replace_aliases, :with_implicit_metatags, :to_cnf, :aliases, :implicit_metatags, :safe_mode_metatags, :gated_metatags, :deleted_metatags, :term_count
+  memoize :tags, :replace_aliases, :with_implicit_metatags, :to_cnf, :aliases, :implicit_metatags, :safe_mode_metatags, :gated_metatags, :deleted_metatags, :banished_metatags, :term_count
 end

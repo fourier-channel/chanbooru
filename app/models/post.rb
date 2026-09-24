@@ -2016,7 +2016,14 @@ class Post < ApplicationRecord
   # The uploader keeps access so an appeal is possible. On 4chan scrapes the
   # uploader is the bot, which is the design working rather than an exception to
   # it -- there, nobody outside admins sees a deleted post at all.
+  #
+  # And a JAILED post does not exist for an admin who has not asked to see
+  # it (hidden_as_banished?, operator 2026-09-24). It is answered here, not
+  # beside it, because this is the predicate every door already asks -- the
+  # post page, its json, the md5 lookup, modulation.json -- and a door added
+  # later that asks this one gets both rules without knowing there are two.
   def hidden_as_deleted?(user = CurrentUser.user)
+    return true if hidden_as_banished?(user)
     return false unless is_deleted?
     # nil is treated as anonymous, the same way gating treats it: an unknown
     # viewer has to fail towards withholding.
@@ -2024,6 +2031,15 @@ class Post < ApplicationRecord
     return false if user.can_see_deleted_posts?
 
     (!user.is_anonymous? && uploader_id == user.id) ? false : true
+  end
+
+  # A post carrying the jail tag or a banished tag, withheld from an admin
+  # whose reveal_banished is off -- live or deleted, since a released post
+  # still carries its banished tag. Nobody below admin is affected: the
+  # deletion a jailing leaves is what withholds it from them. The tag test
+  # comes first because it is free and the reveal test reads a row.
+  def hidden_as_banished?(user = CurrentUser.user)
+    tag_array.intersect?(TagBanishment.post_tags) && TagBanishment.withholds_posts_from?(user)
   end
 
   # THE BOORU'S OWN JAIL (2026-09-24). A live post that GAINS a banished tag

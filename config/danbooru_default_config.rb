@@ -721,6 +721,26 @@ module Danbooru
       5.minutes
     end
 
+    # Whether a post carrying a banished tag or the jail tag is withheld from
+    # an admin whose reveal_banished is off (operator ruling 2026-09-24: such
+    # a post "is supposed to immediately disappear from the booru view surface
+    # for all but an admin with the setting explicitly ON to view it"). See
+    # TagBanishment.withholds_posts_from?.
+    #
+    # HERE, not in danbooru_local_config.rb where the fork's other
+    # restrictions sit: that file has been untracked since 2026-09-11 (its
+    # canon is the deployment's own copy), so a switch the code cannot run
+    # without has to ship with the code, or the first deploy that lacks the
+    # local line raises on every admin search.
+    #
+    # FALSE under test, the fork restriction pattern: this adds negated terms
+    # to every admin search, and the inherited suite asserts admin searches as
+    # upstream shapes them. banished_post_visibility_test stubs it true and
+    # asserts every door.
+    def banished_posts_need_reveal?
+      !Rails.env.test?
+    end
+
     # Whether to enable comments.
     def comments_enabled?
       true

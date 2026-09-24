@@ -80,7 +80,9 @@ class ArchivePulse
   # between two strangers, and a per-user key would make this cache useless for
   # the audience it exists for.
   def cached(name, &)
-    Cache.get("archive-pulse/#{name}/#{viewer.level}", CACHE_TTL, race_condition_ttl: 30.seconds, &)
+    # The reveal toggle too: two admins at one level see different archives
+    # when one of them has it off (TagBanishment.withholds_posts_from?).
+    Cache.get("archive-pulse/#{name}/#{viewer.level}/#{TagBanishment.withholds_posts_from?(viewer) ? "withheld" : "all"}", CACHE_TTL, race_condition_ttl: 30.seconds, &)
   rescue ActiveRecord::QueryCanceled, ActiveRecord::StatementInvalid
     # A stat that timed out is omitted, not zero. Reporting zero posts because a
     # count was slow would tell the visitor the opposite of the truth.

@@ -20,7 +20,13 @@ class BlacklistComponent < ApplicationComponent
     @rules = user.blacklist_rules
   end
 
+  # An admin who has switched reveal_banished on has asked to see the posts
+  # the banished names are on (operator, 2026-09-24), so those names are not
+  # hard-hiding rules for them. The conjunction rules are not banishment and
+  # stay.
   def enforced_rules
+    return Danbooru.config.enforced_blacklist - TagBanishment.list if reveal_banished?
+
     Danbooru.config.enforced_blacklist
   end
 

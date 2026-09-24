@@ -233,6 +233,9 @@ class LandingShowcase
     # still kept out.
     return false if post.is_deleted?
     return false if post.has_tag?(Danbooru.config.troll_jail_tag)
+    # A released post keeps its banished tag, and an admin whose reveal is
+    # off is not shown one anywhere (Post#hidden_as_banished?).
+    return false if post.hidden_as_banished?(viewer)
 
     post.visible?(viewer)
   end
