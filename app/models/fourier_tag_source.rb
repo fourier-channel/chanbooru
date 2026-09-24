@@ -101,6 +101,81 @@ class FourierTagSource < ApplicationRecord
     rows.size
   end
 
+  # Posts per call to record_models!, and to the route that serves it.
+  MAX_MODEL_POSTS = 100
+
+  # WHICH MODEL REPORTED EACH TAG, for posts that already have provenance.
+  #
+  # record_partition! is the write at post time, and it re-derives buckets:
+  # the wrong tool for saying afterwards "hydra saw this too". The retag
+  # timer in fourier-sampling adds hydra's tags to existing posts, and with
+  # nothing but record_partition! to call it filed every one with no model
+  # bit -- and 22.4M rows predate the bits entirely, which the lamp reads as
+  # spectrum. This is the other write: it ONLY ever ORs model bits in.
+  #
+  # For each tag named in either list, after the same name resolution
+  # record_partition! uses:
+  #
+  #   a row exists              source |= the bits (whatever the row is)
+  #   no row, tag on the post   insert AUTO | bits, public, approved
+  #   neither                   skip
+  #
+  # Never clears a bit, never touches bucket bits, public, status, added_by
+  # or created_at, and never fans out: the lamp is not part of the public
+  # projection. So a creator's private tag that hydra also found keeps its
+  # creator bucket and its privacy and gains only the lamp.
+  #
+  # Every (post, tag) asked about lands in exactly one count: `updated` if its
+  # bits changed, `inserted` if its row is new, `skipped` otherwise -- not on
+  # the post, or already carrying those bits. So a second identical call
+  # reports everything as skipped, which is what idempotent looks like.
+  #
+  # Race-safe without a lock. The poster writes this table continuously: the
+  # update is one conditional statement, and an insert that meets a row
+  # written since the read is ON CONFLICT DO NOTHING, then OR'd like any
+  # other existing row.
+  #
+  # @param entries [Array<Hash>] { post_id:, spectrum: [names], hydra: [names] }
+  # @return [Hash] { updated:, inserted:, skipped:, missing_posts: [ids] }
+  def self.record_models!(entries, user)
+    wanted = entries.group_by { |e| e[:post_id] }.transform_values do |es|
+      %i[spectrum hydra].index_with { |k| es.flat_map { |e| Array(e[k]) } }
+    end
+    resolved = FourierTagResolver.resolve(wanted.values.flat_map { |l| l[:spectrum] + l[:hydra] })
+    resolve = ->(names) { names.map(&:to_s).compact_blank.to_set { |n| resolved.fetch(Tag.normalize_name(n), n) } }
+
+    tag_strings = Post.where(id: wanted.keys).pluck(:id, :tag_string).to_h
+    result = { updated: 0, inserted: 0, skipped: 0, missing_posts: wanted.keys - tag_strings.keys }
+    now = Time.zone.now
+
+    tag_strings.each do |post_id, tag_string|
+      spectrum = resolve.call(wanted[post_id][:spectrum])
+      hydra = resolve.call(wanted[post_id][:hydra])
+      bits = (spectrum | hydra).index_with { |t| (spectrum.include?(t) ? SPECTRUM : 0) | (hydra.include?(t) ? HYDRA : 0) }
+      next if bits.empty?
+
+      existing = where(post_id: post_id, tag: bits.keys).pluck(:tag)
+      on_post = tag_string.to_s.split.to_set
+      absent = bits.keys - existing
+      fresh = absent.select { |t| on_post.include?(t) }
+      result[:skipped] += absent.size - fresh.size
+
+      if fresh.any?
+        rows = fresh.map { |t| { post_id: post_id, tag: t, source: AUTO | bits[t], status: APPROVED, public: true, added_by: user&.id, created_at: now } }
+        inserted = insert_all(rows, unique_by: %i[post_id tag], returning: %w[tag]).rows.flatten
+        result[:inserted] += inserted.size
+        existing += fresh - inserted # lost the race to another writer: OR into its row below
+      end
+
+      existing.group_by { |t| bits[t] }.each do |b, tags|
+        changed = where(post_id: post_id, tag: tags).where("source & ? <> ?", b, b).update_all(["source = source | ?", b])
+        result[:updated] += changed
+        result[:skipped] += tags.size - changed
+      end
+    end
+    result
+  end
+
   # A TAG MOVE MOVES ITS PROVENANCE TOO.
   #
   # Aliasing anus -> butthole moved every post's tag_string and left 35,396

@@ -5,6 +5,7 @@
 # (the posting bots: fourier-sampling and fourier-tunnel).
 # POST /fourier/posts/:post_id/tag_sources
 #   { creator: [], auto: [], both: [], meta: [], pending: [], spectrum: [], hydra: [] }
+# POST /posts/tag_source_models -- model bits only, for posts already recorded.
 class FourierTagSourcesController < ApplicationController
   # EVERY key create permits must be listed here too. A JSON body's top-level
   # keys reach params[:fourier_tag_source] only if they are wrapped, and
@@ -36,6 +37,45 @@ class FourierTagSourcesController < ApplicationController
       recorded: FourierTagSource.where(post_id: post.id).count,
       projection: FourierTagSource.matrix_projection(post),
     }, status: :ok
+  end
+
+  # POST /posts/tag_source_models
+  #   { posts: [{ post_id: 1, spectrum: [...], hydra: [...] }, ...] }   1 to 100 posts
+  #
+  # Which model reported each tag, for posts that already exist. The retag
+  # timer in fourier-sampling adds hydra's tags to old posts, and create is no
+  # way to say which model found them: it re-files buckets. This route ONLY
+  # ORs model bits in (the rules are on FourierTagSource.record_models!), so
+  # sending the same body again changes nothing.
+  #
+  # Reads params[:posts] directly rather than through permit: nothing here is
+  # mass-assigned, and this app answers an unpermitted key with a 403, which
+  # would make a malformed body look like a refused login.
+  def models
+    raise User::PrivilegeError unless CurrentUser.user.is_builder?
+    skip_authorization # gated on is_builder? above, as create is
+
+    entries = params[:posts]
+    limit = FourierTagSource::MAX_MODEL_POSTS
+    unless entries.is_a?(Array) && entries.size.between?(1, limit) && entries.all?(ActionController::Parameters)
+      return render json: {
+        error: "posts must be a list of 1 to #{limit} objects",
+        fix: "send {\"posts\": [{\"post_id\": 123, \"spectrum\": [...], \"hydra\": [...]}]}, split into batches of #{limit}",
+      }, status: 422
+    end
+
+    bad = entries.find { |e| Integer(e[:post_id].to_s, 10, exception: false).nil? }
+    if bad
+      return render json: {
+        error: "post_id must be an integer, got #{bad[:post_id].inspect}",
+        fix: "send each post's numeric booru id as post_id",
+      }, status: 422
+    end
+
+    parsed = entries.map do |e|
+      { post_id: e[:post_id].to_s.to_i, spectrum: Array(e[:spectrum]).map(&:to_s), hydra: Array(e[:hydra]).map(&:to_s) }
+    end
+    render json: FourierTagSource.record_models!(parsed, CurrentUser.user), status: 200
   end
 
   # Read the tag buckets for a post. Default is the identity-gated view (creator/mod

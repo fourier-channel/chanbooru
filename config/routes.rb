@@ -17,6 +17,8 @@ Rails.application.routes.draw do
   # show = identity-gated read (private creator tags only to the creator/mod).
   post "posts/:post_id/tag_sources", to: "fourier_tag_sources#create"
   get  "posts/:post_id/tag_sources", to: "fourier_tag_sources#show"
+  # which MODEL reported each tag, for posts already recorded: OR-only, many posts a call.
+  post "posts/tag_source_models",    to: "fourier_tag_sources#models", as: :fourier_tag_source_models
   get  "posts/:post_id/modulation",  to: "modulation#show", as: :post_modulation # client-side nav payload
   patch "modulation/settings",       to: "modulation_settings#update", as: :modulation_settings # server-held view state
   get  "modulation/session_status",  to: "modulation_session#status", as: :modulation_session_status # the session bar's monitors
