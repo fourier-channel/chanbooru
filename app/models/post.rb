@@ -70,11 +70,13 @@ class Post < ApplicationRecord
   before_save :has_enough_tags
   before_save :update_tag_post_counts
   before_save :update_tag_category_counts
+  before_save :note_banished_tags_gained # fork: the booru's own jail, see jail_on_banished_tags
   before_create :remove_blank_artist_commentary
   before_create :autoban
   after_save :create_version
   after_save :update_parent_on_save
   after_save :apply_post_metatags
+  after_save :jail_on_banished_tags # fork: LAST, because it saves again (see create_version)
   after_create_commit :update_iqdb
 
   belongs_to :approver, class_name: "User", optional: true
@@ -2022,6 +2024,68 @@ class Post < ApplicationRecord
     return false if user.can_see_deleted_posts?
 
     (!user.is_anonymous? && uploader_id == user.id) ? false : true
+  end
+
+  # THE BOORU'S OWN JAIL (2026-09-24). A live post that GAINS a banished tag
+  # (Danbooru.config.banished_tags) is jailed in the same transaction: the
+  # jail tag added, then the post deleted -- the end state fourier-sampling's
+  # jailSync.ts produces, in its order, with a reason naming the tag.
+  #
+  # Until this, jailing was something only a client did, so it happened only
+  # when that client was looking. Measured on production the day this was
+  # written: five posts sampling had jailed were live, because the jail
+  # landed seconds before the poster created the post and nothing looked
+  # again. A callback on the save is the one place every door passes through
+  # -- API and form edits, the retag bot, the tunnel, uploads, implications,
+  # alias moves, reverts. update_columns and raw SQL do not pass through it,
+  # and nothing in this app writes tags that way.
+  #
+  # GAINS, not CARRIES. Releasing a jailed post takes troll_jail off and
+  # leaves the banished tag on, on purpose; a rule keyed on carrying would
+  # put it straight back. So only a banished tag a save ADDED fires, and a
+  # post that is deleted by the time the save finishes is left alone.
+  #
+  # Noted before the save, acted on after it, because the tag diff is only
+  # exact before the write -- after_save callbacks that save again
+  # (apply_post_metatags) replace saved_changes. Noted by OR-ing in, because
+  # those nested saves run this hook too and must not erase what the outer
+  # save found.
+  concerning :BanishedTagJailMethods do
+    private
+
+    def note_banished_tags_gained
+      gained = (tag_array - (new_record? ? [] : tag_array_was)) & Danbooru.config.banished_tags
+      @banished_tags_gained = @banished_tags_gained.to_a | gained if gained.any?
+    end
+
+    # Tag first, then delete, as the booru's system user: the editor added a
+    # tag, the booru did the jailing, and the version history and mod log say
+    # exactly that. No loop: the jail tag is not banished, and deleting
+    # changes no tags. No double jailing: a post already carrying troll_jail
+    # keeps one, and a deleted post is never reached.
+    def jail_on_banished_tags
+      gained = @banished_tags_gained
+      @banished_tags_gained = nil
+      return if gained.blank? || is_deleted?
+
+      jail = Danbooru.config.troll_jail_tag
+      reason = "troll jail: banished #{"tag".pluralize(gained.size)} #{gained.sort.join(", ")}".truncate(140)
+      # The editor's view of the edit (old_tag_string and friends) is spent;
+      # the saves below are the booru's own and must not be merged against it.
+      self.old_tag_string = self.old_rating = self.old_source = self.old_parent_id = nil
+      # safe_mode off as well: a deletion flag refuses a post its creator
+      # cannot see, and the system user must see every post.
+      CurrentUser.set(user: User.system, safe_mode: false) do
+        unless has_tag?(jail)
+          add_tag(jail)
+          save!
+        end
+        delete!(reason, user: User.system)
+        # delete! logs nothing for the system user (upstream treats its
+        # deletions as routine pruning). A jailing is not routine; log it.
+        ModAction.log("deleted post ##{id}, reason: #{reason}", :post_delete, subject: self, user: User.system)
+      end
+    end
   end
 
   def levelblocked?(user = CurrentUser.user)

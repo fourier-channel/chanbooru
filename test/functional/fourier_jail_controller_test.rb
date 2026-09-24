@@ -82,7 +82,11 @@ class FourierJailControllerTest < ActionDispatch::IntegrationTest
     # The safety property. Everything else here is convenience; this is the one
     # that says the route cannot be turned into a general-purpose undelete.
     should "refuse a deleted post that was never jailed" do
-      post = create(:post, uploader: @bot, md5: real_md5, tag_string: "scat")
+      # An ordinary deletion. Not "scat" any more, as it was until 2026-09-24:
+      # a live post that gains a banished tag is now jailed by the booru
+      # itself (Post#jail_on_banished_tags), so creating one would make it
+      # exactly the jailed post this test has to be without.
+      post = create(:post, uploader: @bot, md5: real_md5, tag_string: "landscape")
       post.update_columns(is_deleted: true)
 
       post_auth fourier_jail_release_path, @bot, params: { md5: post.md5 }
@@ -92,8 +96,12 @@ class FourierJailControllerTest < ActionDispatch::IntegrationTest
       assert_equal(true, post.reload.is_deleted)
     end
 
+    # The state a retry meets: released (live again) and still carrying the
+    # jail tag, because sampling untags only after the release answers.
     should "be idempotent for a post that is already active" do
-      post = create(:post, uploader: @bot, md5: real_md5, tag_string: "scat #{JAIL_TAG}")
+      post = jailed_post(@bot)
+      post_auth fourier_jail_release_path, @bot, params: { md5: post.md5 }
+      assert_equal(true, response.parsed_body["released"])
 
       post_auth fourier_jail_release_path, @bot, params: { md5: post.md5 }
 

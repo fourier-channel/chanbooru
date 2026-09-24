@@ -8,6 +8,22 @@ require "test_helper"
 # asserted that way -- that the default OUTSIDE test is Modulation -- is
 # asserted directly against the config.
 class ModulationPresetTest < ActionDispatch::IntegrationTest
+  # A LIVE post carrying a banished tag, which since 2026-09-24 exists only as
+  # a released jailing: a post that GAINS a banished tag is jailed on the
+  # spot (Post#jail_on_banished_tags), so creating one with the tag jails it,
+  # and releasing it -- undelete, then take troll_jail off, the order
+  # fourier-sampling's release uses -- leaves the banished tag on a live post.
+  # Built that way here rather than with update_columns, so the fixture is a
+  # state the site can actually reach.
+  def released_post(tag_string, user)
+    post = as(user) { create(:post, tag_string: tag_string) }
+    as(user) do
+      post.update!(is_deleted: false)
+      post.update!(tag_string: (post.tag_array - [Danbooru.config.troll_jail_tag]).join(" "))
+    end
+    post.reload
+  end
+
   context "The Modulation preset" do
     setup do
       @user = travel_to(1.month.ago) { create(:user) }
@@ -302,11 +318,13 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
     context "tag banishment" do
       setup do
         @admin = create(:admin_user)
-        @jailed = as(@admin) { create(:post, tag_string: "gore plaintag") }
+        @released = released_post("gore plaintag", @admin)
       end
 
       should "withhold banished names from the modulation payload by default" do
-        get post_modulation_path(@jailed, format: :json)
+        get post_modulation_path(@released, format: :json)
+
+        assert_response :success
 
         tags = response.parsed_body["tags"].values.flatten
         assert_not_includes(tags, "gore")
@@ -315,11 +333,11 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
 
       should "withhold them from an admin too, until the reveal toggle is on" do
         login_as(@admin)
-        get post_modulation_path(@jailed, format: :json)
+        get post_modulation_path(@released, format: :json)
         assert_not_includes(response.parsed_body["tags"].values.flatten, "gore")
 
         ModulationSetting.record!(@admin, nil, { "reveal_banished" => "true" })
-        get post_modulation_path(@jailed, format: :json)
+        get post_modulation_path(@released, format: :json)
         assert_includes(response.parsed_body["tags"].values.flatten, "gore")
       end
 
@@ -440,7 +458,7 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
       end
 
       should "keep banished names out of the hover category map" do
-        as(@user) { create(:post, tag_string: "gore plaintag") }
+        released_post("gore plaintag", @user)
 
         get posts_path(preset: "modulation", tags: "plaintag")
 
