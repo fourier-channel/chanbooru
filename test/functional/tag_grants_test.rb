@@ -44,10 +44,19 @@ class TagGrantsTest < ActionDispatch::IntegrationTest
 
     context "the view gate" do
       should "open private creator tags on granted-tag posts, and only those" do
+        # Each private tag is ON its post, as it is in production: the uploader
+        # puts the creator's tags in tag_string and records their provenance
+        # beside it. This fixture used to record a creator row for a tag the
+        # post did not carry. Since 3dfa8149b (2026-09-20) such a row is an
+        # orphan -- "a row for a tag the post no longer has is not provenance"
+        # -- and is drawn for nobody, so the grant had nothing to open and the
+        # "only those" half passed without the gate being consulted at all.
+        # With the tag on the post, the other post's private tag reaches the
+        # gate and must be withheld by it.
         as(@creator) do
           create(:tag, name: "kokuma", category: TagCategory::ARTIST)
-          @granted_post = create(:post, tag_string: "kokuma plain")
-          @other_post = create(:post, tag_string: "plain")
+          @granted_post = create(:post, tag_string: "kokuma plain secret_prompt")
+          @other_post = create(:post, tag_string: "plain other_secret")
           FourierTagSource.record_partition!(@granted_post, { creator: ["secret_prompt"] }, @creator)
           FourierTagSource.record_partition!(@other_post, { creator: ["other_secret"] }, @creator)
         end
