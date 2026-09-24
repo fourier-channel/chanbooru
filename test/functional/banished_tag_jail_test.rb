@@ -17,12 +17,16 @@ require "test_helper"
 # Only a banished tag this save ADDED fires.
 class BanishedTagJailTest < ActionDispatch::IntegrationTest
   JAIL = "troll_jail"
+  # The same words whichever banished tag it was: see "not name the banished
+  # tag where anyone can read it" below.
+  REASON = "troll jail: banished tag"
 
   def assert_jailed(post, tag)
     post.reload
     assert post.is_deleted?, "post ##{post.id} should be deleted; tags: #{post.tag_string}"
     assert post.has_tag?(JAIL), "post ##{post.id} should carry #{JAIL}; tags: #{post.tag_string}"
-    assert_equal "troll jail: banished tag #{tag}", deletion_flags(post).last&.reason
+    assert post.has_tag?(tag), "post ##{post.id} should carry #{tag}; tags: #{post.tag_string}"
+    assert_equal REASON, deletion_flags(post).last&.reason
   end
 
   def assert_live(post)
@@ -99,12 +103,21 @@ class BanishedTagJailTest < ActionDispatch::IntegrationTest
       assert_jailed(@post, "gore")
     end
 
-    should "name every banished tag it gained" do
+    # The reason says WHY, not WHICH (review, 2026-09-24). A deletion flag's
+    # reason and the mod log's description are read by anyone, signed in or
+    # not (/post_flags, /mod_actions), and a banished NAME is shown to nobody
+    # but an admin who has switched reveal on (TagBanishment). A reason that
+    # named the tag published the names, and which post carried them.
+    should "not name the banished tag where anyone can read it" do
       put_auth post_path(@post, format: :json), @member, as: :json, params: { post: { tag_string: "landscape scat gore" }}
+      assert_jailed(@post, "gore")
 
-      @post.reload
-      assert @post.is_deleted?
-      assert_equal "troll jail: banished tags gore, scat", deletion_flags(@post).last.reason
+      [post_flags_path(format: :json), mod_actions_path(format: :json)].each do |path|
+        get path
+        assert_response :success
+        assert_includes response.body, "troll jail", "#{path} lists the jailing"
+        assert_no_match(/gore|scat/, response.body, "#{path} names a banished tag")
+      end
     end
 
     should "tag first and delete second, as the booru's own system user, and log it" do
@@ -114,7 +127,7 @@ class BanishedTagJailTest < ActionDispatch::IntegrationTest
       assert_equal [User.system.id], deletion_flags(@post).pluck(:creator_id)
       action = ModAction.where(subject: @post, category: "post_delete").last
       assert_equal User.system, action.creator
-      assert_match(/banished tag gore/, action.description)
+      assert_equal "deleted post ##{@post.id}, reason: #{REASON}", action.description
     end
 
     should "jail exactly once, with one jail tag and one deletion" do
@@ -206,15 +219,39 @@ class BanishedTagJailTest < ActionDispatch::IntegrationTest
       assert_equal 1, deletion_flags(@post).count
     end
 
-    should "be jailed again if the banished tag is taken off and then put back" do
+    # A RELEASE IS FINAL AGAINST THE AUTOMATIC PASS (review, 2026-09-24).
+    # fourier-sampling's jailPolicy keeps the md5s a human released as
+    # `exempt`: "never auto-jailed again, whatever the rules say", because
+    # otherwise the next automatic run silently re-jails what a human just
+    # decided to keep. This jail is an automatic pass too, and the retag
+    # timer pushes hydra's tags onto released posts without consulting that
+    # list -- so a released post that gained a SECOND banished name from it
+    # was jailed again here, undoing the human's decision where sampling
+    # never would. A human can still jail it again by hand (the pill).
+    should "stay released when the retag bot adds a different banished tag" do
+      post_auth fourier_jail_release_path, @bot, params: { md5: @post.md5 }
+      put_auth post_path(@post, format: :json), @bot, as: :json, params: { post: { tag_string: "landscape gore" }}
+      assert_live(@post)
+
+      # fourier-sampling's BooruClient#addTags, paired, over Basic auth
+      put post_path(@post, format: :json), as: :json, headers: basic_auth(@bot), params: { post: { tag_string: "landscape gore feces", old_tag_string: "landscape gore" }}
+
+      assert_response :success
+      assert_live(@post)
+      assert @post.has_tag?("feces")
+      assert_not @post.has_tag?(JAIL)
+      assert_equal 1, deletion_flags(@post).count
+    end
+
+    should "stay released when the banished tag is taken off and then put back" do
       post_auth fourier_jail_release_path, @bot, params: { md5: @post.md5 }
       put_auth post_path(@post, format: :json), @bot, as: :json, params: { post: { tag_string: "landscape" }}
       assert_live(@post)
 
       put_auth post_path(@post, format: :json), @bot, as: :json, params: { post: { tag_string: "landscape gore" }}
 
-      assert_jailed(@post, "gore")
-      assert_equal 2, deletion_flags(@post).count
+      assert_live(@post)
+      assert_equal 1, deletion_flags(@post).count
     end
 
     should "stay released when an admin unjails and undeletes it from the post page pill" do
@@ -230,6 +267,26 @@ class BanishedTagJailTest < ActionDispatch::IntegrationTest
       assert_live(@post)
       assert_not @post.has_tag?(JAIL)
       assert @post.has_tag?("gore")
+
+      # and, released by a human, it is not jailed again by a later gain
+      put_auth post_path(@post, format: :json), @bot, as: :json, params: { post: { tag_string: "landscape gore scat" }}
+      assert_live(@post)
+    end
+  end
+
+  # The exemption is for a RELEASE, not for any post that was ever deleted:
+  # an ordinary deletion a moderator reversed is no human verdict on a
+  # banished tag, and a banished tag it gains afterwards still jails it.
+  context "A post undeleted after an ordinary deletion" do
+    should "still be jailed when it gains a banished tag" do
+      member = create(:user)
+      post = as(member) { create(:post, tag_string: "landscape", uploader: member) }
+      as(create(:admin_user)) { post.delete!("duplicate") }
+      post.reload.update_columns(is_deleted: false)
+
+      put_auth post_path(post, format: :json), member, as: :json, params: { post: { tag_string: "landscape gore" }}
+
+      assert_jailed(post, "gore")
     end
   end
 end

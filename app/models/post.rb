@@ -2045,7 +2045,11 @@ class Post < ApplicationRecord
   # THE BOORU'S OWN JAIL (2026-09-24). A live post that GAINS a banished tag
   # (Danbooru.config.banished_tags) is jailed in the same transaction: the
   # jail tag added, then the post deleted -- the end state fourier-sampling's
-  # jailSync.ts produces, in its order, with a reason naming the tag.
+  # jailSync.ts produces, in its order, with the reason "troll jail: banished
+  # tag". The reason does not NAME the tag: a deletion flag's reason and the
+  # mod log are read by anyone at /post_flags and /mod_actions, signed in or
+  # not, and a banished name is shown to nobody but an admin with reveal on
+  # (TagBanishment). The post's own tags say which, to whoever may see them.
   #
   # Until this, jailing was something only a client did, so it happened only
   # when that client was looking. Measured on production the day this was
@@ -2060,6 +2064,15 @@ class Post < ApplicationRecord
   # leaves the banished tag on, on purpose; a rule keyed on carrying would
   # put it straight back. So only a banished tag a save ADDED fires, and a
   # post that is deleted by the time the save finishes is left alone.
+  #
+  # And a RELEASE IS FINAL against this pass (review, 2026-09-24). A human
+  # who released a jailing has decided about that image, and sampling's
+  # jailPolicy keeps such md5s `exempt`: "never auto-jailed again, whatever
+  # the rules say". This is an automatic pass as well, and the retag timer
+  # pushes hydra's tags onto released posts without consulting that list,
+  # so without this a released post that gained a second banished name was
+  # jailed again here, undoing the release where sampling never would. A
+  # human can still jail it by hand. See released_from_jail?.
   #
   # Noted before the save, acted on after it, because the tag diff is only
   # exact before the write -- after_save callbacks that save again
@@ -2082,10 +2095,10 @@ class Post < ApplicationRecord
     def jail_on_banished_tags
       gained = @banished_tags_gained
       @banished_tags_gained = nil
-      return if gained.blank? || is_deleted?
+      return if gained.blank? || is_deleted? || released_from_jail?
 
       jail = Danbooru.config.troll_jail_tag
-      reason = "troll jail: banished #{"tag".pluralize(gained.size)} #{gained.sort.join(", ")}".truncate(140)
+      reason = "troll jail: banished tag" # why, never which: see above
       # The editor's view of the edit (old_tag_string and friends) is spent;
       # the saves below are the booru's own and must not be merged against it.
       self.old_tag_string = self.old_rating = self.old_source = self.old_parent_id = nil
@@ -2101,6 +2114,18 @@ class Post < ApplicationRecord
         # deletions as routine pruning). A jailing is not routine; log it.
         ModAction.log("deleted post ##{id}, reason: #{reason}", :post_delete, subject: self, user: User.system)
       end
+    end
+
+    # A live post that was once deleted BY A JAILING has been released: only
+    # an undeletion brings a deleted post back, and here that was a human's
+    # (POST /fourier_jail/release from the curation surface, or the post-page
+    # pill). Every jailing's deletion flag says "troll jail..." -- sampling's
+    # jailSync and purge tools, the pill, and this file alike -- and an
+    # ordinary deletion's does not, so a post a moderator merely undeleted is
+    # still jailed when it gains a banished tag. Asked only when a banished
+    # tag was gained, so the query is off every ordinary save.
+    def released_from_jail?
+      flags.succeeded.where("post_flags.reason LIKE ?", "troll jail%").exists?
     end
   end
 
