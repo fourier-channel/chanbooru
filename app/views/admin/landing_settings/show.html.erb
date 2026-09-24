@@ -6,14 +6,18 @@
 
     <h2>The whole carousel</h2>
     <p class="hint">
-      The "new" row's target, and how fast every row moves.
+      How fast every row moves. What each row shows -- the "new" row's board
+      included -- is set on the row itself, under Categories.
     </p>
 
+    <%# ONE CONTROL PER SETTING. This form also offered the "new" row's heading,
+        board and fresh-only toggle, on LandingSetting -- which nothing has read
+        since the rows moved onto LandingCategory (2026-09-17, 8b8f06cee).
+        Saving them flashed "The front page now shows ..." and changed nothing,
+        beside the Categories form below that edits the row the showcase
+        actually reads. Two controls for one setting, one of them dead and
+        saying otherwise, so the dead one went. %>
     <%= edit_form_for(@landing_setting, url: admin_landing_setting_path, method: :patch) do |f| %>
-      <%= f.input :label, label: "Row heading", hint: "What visitors see above the row." %>
-      <%= f.input :board, label: "Board", hint: "The bare slug, so 'b' for /b/ -- which is the DEGEN generals." %>
-      <%= f.input :fresh_only, as: :boolean, label: "Freshly scraped only",
-                  hint: "Hides anything the sampler tagged as archive-sourced." %>
       <%= f.input :advance_ms, label: "Slide speed (ms)",
                   hint: "How long a slide holds before the next one. #{LandingSetting::ADVANCE_MS_RANGE.min} to " \
                         "#{LandingSetting::ADVANCE_MS_RANGE.max}; 6000 is six seconds. Below about a second a slide " \
@@ -22,22 +26,19 @@
       <%= f.submit "Save" %>
     <% end %>
 
-    <h2>What that searches</h2>
-    <p><code><%= @landing_setting.query %></code></p>
-    <p class="hint">
-      Two terms, which is the limit. A logged-out visitor may search two tags
-      and the landing page runs as whoever is looking at it, so a third term
-      would not narrow this row, it would empty it -- and an empty row is
-      dropped from the page silently. That is why this is a set of choices
-      rather than a box you type a search into.
-    </p>
-
     <h2>Categories</h2>
     <p class="hint">
       The rows the carousel switches between, in order. A row with nothing to
       show is dropped rather than rendered blank, so turning one off and
       emptying one look the same to a visitor and only one of them is on
       purpose.
+    </p>
+    <p class="hint">
+      Each row is a set of choices rather than a box you type a search into,
+      and each shows the searches it will run. Two terms is the limit: a
+      logged-out visitor may search two tags and the landing page runs as
+      whoever is looking at it, so a third term would not narrow a row, it
+      would empty it -- and an empty row is dropped from the page silently.
     </p>
 
     <%= form_with url: categories_admin_landing_setting_path, method: :patch, class: "landing-categories" do %>

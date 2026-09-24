@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
 module Admin
-  # The landing carousel's console: the "new" row's target, how fast the slides
-  # move, and every category's own configuration.
+  # The landing carousel's console: how fast the slides move, and every
+  # category's own configuration -- the "new" row's target included, which is
+  # a category like the others (see LandingSetting for when that changed).
   #
   # ONE PAGE, because it is one thing an operator thinks about. The categories
   # live in their own table and save through their own action, but a carousel
@@ -24,8 +25,10 @@ module Admin
       @landing_setting.updated_by_id = CurrentUser.user.id
 
       if @landing_setting.save
+        # Says what was saved. It used to say "The front page now shows ..."
+        # about a board nothing read any more.
         redirect_to admin_landing_setting_path,
-                    notice: "The front page now shows #{@landing_setting.label} (/#{@landing_setting.board}/)."
+                    notice: "Each slide now holds for #{@landing_setting.advance_ms} ms."
       else
         # Re-render rather than redirect: a redirect would drop what they typed
         # and show them the old value with an error about the new one.

@@ -17,39 +17,53 @@ class LandingShowcaseTest < ActiveSupport::TestCase
                    .find { |c| c[:key] == "new" }.to_h[:slides].to_a.pluck(:id)
   end
 
-  context "the setting that drives the row" do
+  # The "new" row as a database with no rows yields it. Class level for the
+  # reason above -- it was written inside its context on 2026-09-17 and every
+  # test that called it raised NameError from then on.
+  def new_row
+    LandingCategory.new(LandingCategory::DEFAULTS.find { |d| d[:key] == "new" })
+  end
+
+  # A board row as the console's Categories form can configure it.
+  def board_row(board: "b", fresh_only: true, label: "x")
+    LandingCategory.new(key: "new", kind: "board", ordering: "new", board: board, fresh_only: fresh_only, label: label)
+  end
+
+  # These were LandingSetting's, which configured the "new" row until the rows
+  # moved onto LandingCategory (8b8f06cee). The rules moved with it, and they
+  # are asserted where they are now enforced -- LandingSetting holds only the
+  # slide speed, and a test of its old #query was a test of code nothing ran.
+  context "a board row's configuration" do
     should "assemble a search of two terms whatever is configured" do
       # The panel offers structured choices precisely so this cannot be broken
       # from the UI. Every combination it can produce is checked here.
       [%w[b true], %w[b false], %w[trash true], %w[d false]].each do |board, fresh|
-        s = LandingSetting.new(board: board, fresh_only: fresh == "true", label: "x")
-        assert_operator s.term_count, :<=, 2, "#{board}/#{fresh} produced #{s.query}"
-        assert_not_includes s.query, "order:", "an order term would spend one of the two for nothing"
+        row = board_row(board: board, fresh_only: fresh == "true")
+        assert_operator row.max_terms, :<=, LandingCategory::MAX_TERMS, "#{board}/#{fresh} produced #{row.queries}"
+        assert_not_includes row.queries.sole, "order:", "an order term would spend one of the two for nothing"
       end
     end
 
     should "refuse a board slug that is really a query" do
-      assert_not LandingSetting.new(board: "b -no_train", label: "x").valid?
-      assert_not LandingSetting.new(board: "/b/", label: "x").valid?
-      assert_not LandingSetting.new(board: "", label: "x").valid?
-      assert LandingSetting.new(board: "b", label: "x").valid?
+      assert_not board_row(board: "b -no_train").valid?
+      assert_not board_row(board: "/b/").valid?
+      assert_not board_row(board: "").valid?
+      assert board_row(board: "b").valid?
     end
 
     should "refuse an empty heading" do
-      assert_not LandingSetting.new(board: "b", label: "").valid?
+      assert_not board_row(label: "").valid?
     end
 
     should "exclude archive-sourced posts only when asked" do
-      assert_includes LandingSetting.new(board: "b", fresh_only: true, label: "x").query, "-no_train"
-      assert_not_includes LandingSetting.new(board: "b", fresh_only: false, label: "x").query, "no_train"
+      assert_includes board_row(fresh_only: true).queries.sole, "-no_train"
+      assert_not_includes board_row(fresh_only: false).queries.sole, "no_train"
     end
   end
 
   # These moved from LandingShowcase.new_row, which is gone: the row's config
   # lives on LandingCategory now, and so does the rule it has to obey.
   context "the new row's query" do
-    def new_row = LandingCategory.new(LandingCategory::DEFAULTS.find { |d| d[:key] == "new" })
-
     should "stay within the two tags an anonymous visitor may search" do
       # The landing page runs as whoever is looking at it, and a logged-out
       # visitor is exactly who it is for. A third term does not narrow the
@@ -174,12 +188,27 @@ class LandingShowcaseTest < ActiveSupport::TestCase
     end
   end
 
+  # This asked LandingShowcase.categories, the class method that built the
+  # specs in code, and wrote LandingSetting to steer it. Both went with
+  # 8b8f06cee: the showcase reads LandingCategory, and a viewer's categories
+  # are an instance method that drops a row with nothing in it. So it now
+  # proves the whole claim on real posts -- the saved row's heading AND its
+  # board, the latter by what the row shows and what it no longer shows.
   context "the showcase" do
     should "take the row from the database, so an admin can change it without a deploy" do
-      LandingSetting.create!(board: "trash", fresh_only: false, label: "From the bin")
-      spec = LandingShowcase.categories.find { |c| c[:key] == "new" }
-      assert_equal "From the bin", spec[:label]
-      assert_equal "source:https://boards.4chan.org/trash/*", spec[:query]
+      new_default = LandingCategory::DEFAULTS.find { |d| d[:key] == "new" }
+      LandingCategory.create!(new_default.merge(board: "trash", fresh_only: false, label: "From the bin"))
+      user = create(:user)
+      binned = as(user) { create(:post, source: "https://boards.4chan.org/trash/thread/1#p2") }
+      degen = as(user) { create(:post, source: BOARD) }
+
+      row = LandingShowcase.new(viewer: User.anonymous).categories.find { |c| c[:key] == "new" }
+
+      assert_not_nil row, "the new row came back empty, so it did not search /trash/"
+      assert_equal "From the bin", row[:label]
+      assert_equal ["source:https://boards.4chan.org/trash/*"], LandingCategory.find_by!(key: "new").queries
+      assert_includes row[:slides].pluck(:id), binned.id
+      assert_not_includes row[:slides].pluck(:id), degen.id, "the default /b/ search is still what ran"
     end
   end
 end

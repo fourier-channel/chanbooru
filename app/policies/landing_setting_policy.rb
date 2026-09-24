@@ -10,7 +10,11 @@ class LandingSettingPolicy < ApplicationPolicy
     show?
   end
 
+  # The slide speed only. board, fresh_only and label were the "new" row's
+  # target before the rows moved onto LandingCategory; nothing reads them now,
+  # so accepting them would only let the console save a setting that does
+  # nothing. See LandingSetting.
   def permitted_attributes
-    %i[board fresh_only label advance_ms]
+    %i[advance_ms]
   end
 end

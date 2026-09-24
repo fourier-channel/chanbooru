@@ -68,8 +68,8 @@ Rails.application.routes.draw do
     resources :signup_tokens, only: [:index, :create] do
       post :revoke, on: :member
     end
-    # fourier: the landing carousel's "new" row, so the front page can be
-    # re-aimed without a deploy.
+    # fourier: the landing carousel's console -- the slide speed, and every
+    # row's configuration -- so the front page can be re-aimed without a deploy.
     resource :landing_setting, only: [:show, :update] do
       # The carousel's categories, saved together. One PATCH for every row,
       # because they are one configuration: a half-applied carousel -- two rows
