@@ -29,10 +29,27 @@ class FormantTokensTest < ActiveSupport::TestCase
 
   DECL = /(--mod-[A-Za-z0-9_-]+)\s*:\s*([^;{}]+?)\s*;/
 
+  # COMMENTS ARE NOT DECLARATIONS. Canon's prose names tokens the way prose
+  # does -- "Pure white rather than --mod-ink: a pill sits on a tinted
+  # ground..." -- and a scan that reads comments takes that sentence as
+  # --mod-ink's value, runs on to the next semicolon, and swallows the real
+  # --mod-tag-ink declaration with it. The later match wins in to_h, so the
+  # comment overwrote the true --mod-ink and this test reported canon and the
+  # fork disagreeing about a colour they both set to #e8e6e0.
+  #
+  # Block comments are CSS; line comments are SCSS, which every file read here
+  # is compiled as. `(?<!:)` spares the `//` of a URL scheme. Replaced with a
+  # space, not removed, so the text either side cannot fuse into a name.
+  COMMENT = %r{/\*.*?\*/|(?<!:)//[^\n]*}m
+
   def parse(path)
     return {} unless File.exist?(path)
 
-    File.read(path).scan(DECL).to_h { |name, value| [name, value.split.join(" ")] }
+    parse_source(File.read(path))
+  end
+
+  def parse_source(source)
+    source.gsub(COMMENT, " ").scan(DECL).to_h { |name, value| [name, value.split.join(" ")] }
   end
 
   # The widest scope wins. A component narrowing a token for itself -- the
@@ -69,6 +86,25 @@ class FormantTokensTest < ActiveSupport::TestCase
         docs/design/formant/, re-run `coherence hydrate`, and never by editing
         the delivered copy -- an edited copy is exactly the copy that drifts.
       MSG
+    end
+
+    # The shape canon actually has (formant tokens.css, the tag-ink note), cut
+    # down. Against the comment-blind parser this read --mod-ink as a sentence
+    # and never saw --mod-tag-ink at all.
+    should "read declarations, never a token named in a comment" do
+      source = <<~SCSS
+        --mod-ink: #e8e6e0;
+        /* Pure white rather than
+         * --mod-ink: a pill sits on a tinted ground and the off-white read as
+         * dim there. */
+        --mod-tag-ink: #ffffff;
+        // structure, and structure is --mod-accent: see above
+        --mod-accent: #0ce92a;
+        --mod-bg: url("https://example.invalid/x.png");
+      SCSS
+
+      assert_equal({ "--mod-ink" => "#e8e6e0", "--mod-tag-ink" => "#ffffff", "--mod-accent" => "#0ce92a",
+                     "--mod-bg" => 'url("https://example.invalid/x.png")' }, parse_source(source))
     end
   end
 end
