@@ -203,7 +203,14 @@ const CENSUS = `(() => {
     .map((a) => { const t = a.effect.target; return (a.animationName || "?") + " on " + t.tagName.toLowerCase() + "." + String(t.className).trim().split(/\\s+/)[0] + (a.effect.pseudoElement || ""); });
   const panel = document.querySelector(".modland-stage-wrap");
   const P = panel ? panel.getBoundingClientRect() : null;
-  const clipped = (cell) => { if (!P) { return false; } const r = cell.getBoundingClientRect(); return r.right <= P.left || r.left >= P.right; };
+  // Judged at rest only. The page starts a video on where its cell is GOING,
+  // so one sliding into view plays before it arrives -- caught mid-slide, it
+  // is outside the panel and playing, correctly.
+  const clipped = (cell) => {
+    if (!P || cell.getAnimations().some((a) => a.playState === "running")) { return false; }
+    const r = cell.getBoundingClientRect();
+    return r.right <= P.left || r.left >= P.right;
+  };
   const videos = Array.from(document.querySelectorAll("video")).map((v) => {
     const cell = v.closest(".mod-cell");
     const where = v.closest(".modland-warm") ? "holder" : !cell ? "elsewhere" : cell.classList.contains("is-offstage") ? "offstage" : cell.classList.contains("is-focus") ? "focus" : clipped(cell) ? "clipped" : "shown";
