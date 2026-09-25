@@ -7,7 +7,7 @@
   <% end %>
 
   <% if newest? %>
-    <span class="modpulse-stat modpulse-stat--live">
+    <span class="modpulse-stat modpulse-stat--live" <%= tag.attributes(data: live_data) %>>
       <span class="modpulse-dot" aria-hidden="true"></span>
       <span class="modpulse-label"><%= newest_phrase %></span>
     </span>

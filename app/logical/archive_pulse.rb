@@ -24,6 +24,23 @@ class ArchivePulse
   # quickly is dropped from the strip rather than allowed to hold the page.
   QUERY_TIMEOUT_MS = 2_000
 
+  # The pace of uploads, for "when is the next one". Nothing schedules the next
+  # upload: sampling's poster runs a pass, sleeps two minutes once it has
+  # drained, and posts whatever the taggers have cleared by then -- measured
+  # 2026-09-25, a pass every 173-210s posting 2-15 -- and the tunnel posts when
+  # someone posts in Matrix. So the next one is read off the rhythm of the last
+  # few. Posts closer together than BURST_GAP are one pass; the pace is the
+  # median gap between pass STARTS over the last CADENCE_PASSES of them.
+  BURST_GAP = 60.seconds
+  CADENCE_WINDOW = 2.hours
+  CADENCE_SAMPLE = 300
+  CADENCE_PASSES = 10
+  CADENCE_MIN_GAPS = 4
+
+  # A pass lasts seconds and comes round in minutes; a two-minute cache would
+  # be most of a cycle stale by the time it was read.
+  CADENCE_TTL = 30.seconds
+
   attr_reader :viewer
 
   # A nil viewer resolves to anonymous rather than raising. Same rule as the
@@ -60,6 +77,22 @@ class ArchivePulse
     end
   end
 
+  # @return [Hash, nil] {last_at:, burst_at:, every:} -- the newest upload, when
+  #   the pass it belongs to began, and the usual seconds between passes -- or
+  #   nil when there are too few recent passes to call it a pace. Read over the
+  #   posts this viewer can reach: the pace of the gated set says as much about
+  #   its volume as a count would.
+  def cadence
+    @cadence ||= cached("cadence", CADENCE_TTL) do
+      times = Post.with_timeout(QUERY_TIMEOUT_MS) do
+        post_query.posts.where(created_at: CADENCE_WINDOW.ago..).reorder(created_at: :desc).limit(CADENCE_SAMPLE).pluck(:created_at)
+      end
+      starts = times.reverse.chunk_while { |a, b| b - a < BURST_GAP }.map(&:first)
+      gaps = starts.each_cons(2).map { |a, b| (b - a).round }.last(CADENCE_PASSES)
+      { last_at: times.first, burst_at: starts.last, every: gaps.sort[gaps.size / 2] } if gaps.size >= CADENCE_MIN_GAPS
+    end
+  end
+
   private
 
   # An empty search, narrowed by the viewer's safe mode and the gating rules.
@@ -79,10 +112,10 @@ class ArchivePulse
   # stranger and a member because the gating does, but they do not differ
   # between two strangers, and a per-user key would make this cache useless for
   # the audience it exists for.
-  def cached(name, &)
+  def cached(name, ttl = CACHE_TTL, &)
     # The reveal toggle too: two admins at one level see different archives
     # when one of them has it off (TagBanishment.withholds_posts_from?).
-    Cache.get("archive-pulse/#{name}/#{viewer.level}/#{TagBanishment.withholds_posts_from?(viewer) ? "withheld" : "all"}", CACHE_TTL, race_condition_ttl: 30.seconds, &)
+    Cache.get("archive-pulse/#{name}/#{viewer.level}/#{TagBanishment.withholds_posts_from?(viewer) ? "withheld" : "all"}", ttl, race_condition_ttl: [ttl, 30.seconds].min, &)
   rescue ActiveRecord::QueryCanceled, ActiveRecord::StatementInvalid
     # A stat that timed out is omitted, not zero. Reporting zero posts because a
     # count was slow would tell the visitor the opposite of the truth.

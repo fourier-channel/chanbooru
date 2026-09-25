@@ -28,21 +28,33 @@
 
 // The only moving thing on the page, and deliberately: a pulse is the one claim
 // here that cannot be faked by a static screenshot.
+//
+// TWO BREATHS, THEN STILL. It breathed forever, and an infinite animation asks
+// the compositor for a frame on every vsync for as long as the page is open --
+// the property does not matter, the frame does. This one animated opacity
+// alone, exactly as the infinite-animation rule asks, and was still the whole
+// of the landing page's cost at rest: 10.8% of a core against 0.7% without it,
+// and 7.1% below the fold where nobody could see it (headless Chromium, GPU
+// compositing, 2026-09-25). Operator, the same day: make it pulse once or
+// twice. So it rests lit, and archive_pulse_component.js plays the breath
+// twice each time the dot comes into view -- the same 0.25-to-1 ease-in-out
+// over 2.4s it always was, now with an end.
 .modpulse-dot {
   width: 0.45rem;
   height: 0.45rem;
   border-radius: 50%;
   background: var(--link-color);
   align-self: center;
-  animation: modpulse-beat 2.4s ease-in-out infinite;
+
+  &.is-beating { animation: modpulse-beat 4.8s ease-in-out 1; }
 }
 
 @keyframes modpulse-beat {
-  0%, 100% { opacity: 0.25; }
-  50% { opacity: 1; }
+  0%, 50%, 100% { opacity: 1; }
+  25%, 75% { opacity: 0.25; }
 }
 
 // Someone who has asked not to see motion is asking about this exactly.
 @media (prefers-reduced-motion: reduce) {
-  .modpulse-dot { animation: none; opacity: 0.8; }
+  .modpulse-dot.is-beating { animation: none; }
 }

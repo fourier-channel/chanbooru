@@ -39,4 +39,19 @@ class ArchivePulseComponent < ApplicationComponent
   def newest_phrase
     "last upload #{time_ago_in_words(pulse.newest_at)} ago"
   end
+
+  # The tooltip's raw material: when the last upload was, and the recent pace
+  # of passes. Timestamps, not phrases -- archive_pulse_component.js words them
+  # at the moment the tooltip is read, because this strip sits on a page left
+  # open for as long as the carousel holds someone, and "2 minutes ago" written
+  # at render is a lie a quarter of an hour later.
+  def live_data
+    cadence = pulse.cadence || {}
+    {
+      newest_at: pulse.newest_at.iso8601,
+      last_at: cadence[:last_at]&.iso8601,
+      burst_at: cadence[:burst_at]&.iso8601,
+      every: cadence[:every],
+    }.compact
+  end
 end
