@@ -102,8 +102,8 @@
     bottom: 3px;
     left: 0;
     border-radius: var(--mod-pill-radius);
-    background: color-mix(in srgb, var(--character-tag-color) 22%, var(--mod-surface));
-    border: 1px solid color-mix(in srgb, var(--character-tag-color) 45%, transparent);
+    background: color-mix(in srgb, var(--mod-accent) 22%, var(--mod-surface));
+    border: 1px solid color-mix(in srgb, var(--mod-accent) 45%, transparent);
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
     pointer-events: none;
   }
@@ -287,14 +287,14 @@
     gap: 0.5rem;
     padding: 0.4rem 1.1rem;
     border-radius: var(--mod-pill-radius);
-    border: 1px solid color-mix(in srgb, var(--character-tag-color) 55%, transparent);
+    border: 1px solid color-mix(in srgb, var(--mod-accent) 55%, transparent);
     background: color-mix(in srgb, var(--mod-surface) 92%, transparent);
     color: var(--mod-ink);
     font-family: inherit;
     font-size: 0.82rem;
     cursor: pointer;
 
-    &:hover { border-color: var(--character-tag-color); }
+    &:hover { border-color: var(--mod-accent); }
   }
 
   // Fills left to right as the pause runs out, driven from the script so an
@@ -304,7 +304,7 @@
     inset: 0;
     transform-origin: left center;
     transform: scaleX(0);
-    background: color-mix(in srgb, var(--character-tag-color) 26%, transparent);
+    background: color-mix(in srgb, var(--mod-accent) 26%, transparent);
   }
 
   .modland-resume-label { position: relative; z-index: 1; }

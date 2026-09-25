@@ -107,4 +107,36 @@ class FormantTokensTest < ActiveSupport::TestCase
                      "--mod-bg" => 'url("https://example.invalid/x.png")' }, parse_source(source))
     end
   end
+
+  # THE TAG CATEGORIES, BY NAME. The check above reads only --mod-* names, and
+  # the five --<cat>-tag-color variables that upstream's own components read
+  # (the search autocomplete, the tag lists, the navbar's Creators pill) are not
+  # --mod-*, so they held hexes it could not see: general was Danbooru's blue,
+  # which canon bans from tags, and character a mint canon had left (found
+  # 2026-09-25 bringing /posts into formant). They are names now; this is what
+  # keeps them names.
+  context "The tag colours upstream's components read" do
+    TAG_CATEGORIES = %w[artist copyright character general meta].freeze
+    COLORS = Rails.root.join("app/javascript/src/styles/base/040_colors.scss")
+    PILL = Rails.root.join("app/javascript/src/styles/modulation/pill.scss").then { |p| p.exist? ? p : p.dirname.join("_pill.scss") }
+
+    should "never be a hex in any preset source" do
+      literal = PRESET_SOURCES.flat_map do |path|
+        File.read(path).gsub(COMMENT, " ").scan(/--(#{TAG_CATEGORIES.join("|")})-tag(?:-hover)?-color\s*:\s*(#[0-9a-fA-F]{3,8})/)
+          .map { |cat, hex| "#{path.basename}: --#{cat}-tag-color is #{hex}" }
+      end
+      assert_empty(literal, "a tag category colour is a value, not canon's name for it")
+    end
+
+    should "be canon's --mod-tag-<cat>-fg in the Modulation preset, for all five" do
+      source = File.read(COLORS).gsub(COMMENT, " ")
+      assert_match(/@each \$cat in #{TAG_CATEGORIES.join(', ')} \{/, source, "the five categories are mapped in one loop")
+      assert_includes(source, "--\#{$cat}-tag-color: var(--mod-tag-\#{$cat}-fg);")
+    end
+
+    should "leave the shared pill naming tokens, never values" do
+      hexes = File.read(PILL).gsub(COMMENT, " ").scan(/#[0-9a-fA-F]{3,8}\b/)
+      assert_empty(hexes, "modulation/_pill.scss carries a colour value; name the token instead")
+    end
+  end
 end
