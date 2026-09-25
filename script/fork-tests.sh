@@ -27,7 +27,16 @@ if ! git rev-parse --verify --quiet upstream/master >/dev/null; then
   exit 2
 fi
 
-mapfile -t FILES < <(git diff --name-only upstream/master...HEAD -- 'test/' | grep '_test\.rb$' || true)
+# THE WORKING TREE COUNTS TOO. The list came from committed history alone, so
+# a test file written for a change -- the gate's whole reason to run before
+# the commit -- was invisible to it until after the commit it was meant to
+# guard (found 2026-09-25: a new functional test sat outside a green gate).
+# Changed and untracked test files are added to what the commits derive.
+mapfile -t FILES < <({
+  git diff --name-only upstream/master...HEAD -- 'test/'
+  git diff --name-only HEAD -- 'test/'
+  git ls-files --others --exclude-standard -- 'test/'
+} | grep '_test\.rb$' | sort -u || true)
 
 # An empty list must never run zero tests and report success. That is the exact
 # shape of the confident green this whole gate exists to prevent.
@@ -49,6 +58,9 @@ fi
 echo "running ${#EXISTING[@]} fork-owned test file(s) of ${#FILES[@]} derived"
 printf '  %s\n' "${EXISTING[@]}"
 echo
+
+# --list: the derivation, without the run.
+[ "${1:-}" = "--list" ] && exit 0
 
 WORKERS="$(nproc --ignore=1)"
 exec docker compose -f docker-compose.dev.yaml exec -T \
