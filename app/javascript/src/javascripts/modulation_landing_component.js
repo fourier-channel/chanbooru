@@ -1,4 +1,5 @@
 import Notice from "./notice";
+import { WHEEL_IDLE, wheelStep } from "./fourier_wheel_step";
 
 // The landing carousel, built on the post view's stage.
 //
@@ -40,7 +41,6 @@ function initLanding(root) {
   let runLeft = 0;
   let advanceTimer = null;
   let resumeTimer = null;
-  let paused = false;
   let busy = false;
 
   const esc = (s) => String(s === null || s === undefined ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -125,8 +125,15 @@ function initLanding(root) {
   const GAP = 18; // px between focus and first neighbour
   const GAP_FALLOFF = 0.78;
 
-  const BASE_MS = 430;
-  const MIN_MS = 130; // floor for a held-down arrow
+  // ONE CLOCK FOR THE WHOLE MOVE. At 430ms, with the size on its own curve and
+  // the border's colour on a 900ms one, a step read as a pop: the cell jumped,
+  // then grew, then changed colour (operator, 2026-09-25: "it kind of pops from
+  // one place to the other. disjointed" -- slow it so the resize happens as the
+  // border changes colour). Position, size and border now share this duration
+  // (the stylesheet points the tint at --belt-move-ms), so they arrive
+  // together. A held arrow still speeds the run up; see step().
+  const BASE_MS = 850;
+  const MIN_MS = 200; // floor for a held-down arrow
   const SETTLE_MS = 180; // quiet time that counts as "the run stopped"
   // Overshoot is part of the travel, not a twitch after it. A back-out curve
   // carries a cell past its slot and brings it back inside one continuous
@@ -144,8 +151,9 @@ function initLanding(root) {
   // fast run the last one covers several slots -- so a curve that is a pleasant
   // nudge on a single step became 225px, or 162% of a cell, after ten. These
   // numbers keep the worst case inside one cell while leaving a single step
-  // clearly springy.
-  const EASE_Y1_BASE = 1.38;
+  // clearly springy. Softened 2026-09-25 with the longer move: at 850ms the
+  // old single-step overshoot read as a bounce, not as weight.
+  const EASE_Y1_BASE = 1.2;
   const EASE_Y1_STEP = 0.22;
   const EASE_Y1_MAX = 2.72;
 
@@ -732,19 +740,35 @@ function initLanding(root) {
     advanceTimer = setInterval(autoAdvance, cfg.advanceMs || 6000);
   }
 
+  // PAUSED FOR AS LONG AS SOMEBODY IS BROWSING. The first touch holds the ride
+  // RESUME_FIRST_MS; every touch after that ADDS time, each a little more than
+  // the last, and the total never runs past the admin's resume setting (10s by
+  // default). It used to pause once and ignore every touch after the first, so
+  // the ride took the wheel back ten seconds into somebody's browsing
+  // (operator, 2026-09-25: "each keypress in any given direction extends the
+  // total restart timer by progressively longer amounts of time, capped at
+  // 10s or so").
+  const RESUME_FIRST_MS = 3000;
+  const RESUME_STEP_MS = 800;
+  const RESUME_GROWTH = 1.5;
+  let resumeAt = 0;
+  let touches = 0;
+  let countdown = null;
+  let fillAnim = null;
+
   function hideResume() {
     const box = region("resume");
-    const fill = region("fill");
     if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; }
-    if (fill) { fill.classList.remove("is-filling"); }
+    if (countdown) { clearInterval(countdown); countdown = null; }
+    if (fillAnim) { fillAnim.cancel(); fillAnim = null; }
     if (box) { box.hidden = true; }
+    touches = 0;
   }
 
   // A shove backwards before going forward, so the restart reads as picking up
   // where it left off rather than as the page twitching.
   function resume() {
     hideResume();
-    paused = false;
     ride.classList.add("is-lurching");
     setTimeout(() => {
       ride.classList.remove("is-lurching");
@@ -754,28 +778,42 @@ function initLanding(root) {
     }, 260);
   }
 
+  // The countdown is the pill's fill and its seconds: the fill stands for the
+  // whole cap, so an extension visibly pushes it back, and it runs to full as
+  // the ride comes back.
   function showResume() {
     const box = region("resume");
     const fill = region("fill");
+    const left = region("left");
     if (!box || !fill) { return; }
-
     box.hidden = false;
-    // Replay the fill from zero. Removing the class and forcing a reflow is what
-    // makes it restart when the reader interacts again mid-fill; without the
-    // reflow the browser coalesces the change and nothing happens.
-    fill.classList.remove("is-filling");
-    void fill.offsetWidth;
-    fill.style.animationDuration = `${cfg.resumeMs || 10000}ms`;
-    fill.classList.add("is-filling");
+
+    const cap = cfg.resumeMs || 10000;
+    const remaining = Math.max(0, resumeAt - Date.now());
+    if (fillAnim) { fillAnim.cancel(); fillAnim = null; }
+    // Somebody who asked for less motion gets the seconds without the sweep.
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      fillAnim = fill.animate(
+        [{ transform: `scaleX(${1 - (remaining / cap)})` }, { transform: "scaleX(1)" }],
+        { duration: remaining, easing: "linear", fill: "forwards" },
+      );
+    }
+
+    const paint = () => { if (left) { left.textContent = `${Math.max(1, Math.ceil((resumeAt - Date.now()) / 1000))}s`; } };
+    paint();
+    if (!countdown) { countdown = setInterval(paint, 250); }
 
     if (resumeTimer) { clearTimeout(resumeTimer); }
-    resumeTimer = setTimeout(resume, cfg.resumeMs || 10000);
+    resumeTimer = setTimeout(resume, remaining);
   }
 
   function pause() {
-    if (paused) { return; }
-    paused = true;
     stopTimer();
+    const now = Date.now();
+    const cap = cfg.resumeMs || 10000;
+    const add = touches === 0 ? RESUME_FIRST_MS : RESUME_STEP_MS * Math.pow(RESUME_GROWTH, touches - 1);
+    touches += 1;
+    resumeAt = Math.min(now + cap, Math.max(resumeAt, now) + add);
     showResume();
   }
 
@@ -871,6 +909,21 @@ function initLanding(root) {
     if (e.target.closest("input, textarea, select, [contenteditable]")) { return; }
     if (e.key === "ArrowLeft") { step(-1); pause(); } else if (e.key === "ArrowRight") { step(1); pause(); } else if (e.key === "ArrowUp") { e.preventDefault(); shiftAxis(-1); pause(); } else if (e.key === "ArrowDown") { e.preventDefault(); shiftAxis(1); pause(); }
   });
+
+  // The wheel steps the belt, one notch one slide, by Technetium's rule
+  // (fourier_wheel_step.js), and counts as browsing like any key. Over the
+  // panel only, and the page does not scroll under it there: a wheel that
+  // moved the belt AND the page would be two things for one gesture.
+  const panel = root.querySelector(".modland-stage-wrap");
+  let wheelState = WHEEL_IDLE;
+  if (panel) {
+    panel.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const r = wheelStep(wheelState, { dx: e.deltaX, dy: e.deltaY, mode: e.deltaMode, t: e.timeStamp });
+      wheelState = r.state;
+      if (r.step) { step(r.step); pause(); }
+    }, { passive: false });
+  }
 
   window.addEventListener("resize", () => { positionThumb(); if (root.classList.contains("is-hero-max")) { scheduleRender(); } });
 

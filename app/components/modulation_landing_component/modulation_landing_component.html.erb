@@ -55,11 +55,14 @@
             coloured so the eye lands on them and not on "and posted on". %>
         <p class="modland-credit" data-region="credit"></p>
 
-        <%# The resume control. Only ever present after a manual interaction. %>
+        <%# The resume control. Only ever present after a manual interaction,
+            and it says how long until the ride takes over again: every touch
+            pushes that back, up to the resume setting. %>
         <div class="modland-resume" data-region="resume" hidden>
-          <button type="button" class="modland-resume-btn" data-act="resume">
+          <button type="button" class="modland-resume-btn" data-act="resume" title="Resume now">
             <span class="modland-resume-fill" data-region="fill" aria-hidden="true"></span>
             <span class="modland-resume-label">The ride never ends.</span>
+            <span class="modland-resume-left" data-region="left"></span>
           </button>
         </div>
 

@@ -74,6 +74,7 @@
     }
     .modland-hero-toggle { right: 1.5rem; }
     .modland-tabs { z-index: 13; }
+
     // The arrows come back inside the screen: the band overhangs the
     // viewport by 1.5rem a side on purpose, and an arrow parked on the
     // band's edge would be parked off the screen. Measured: the next arrow
@@ -265,14 +266,16 @@
   }
 
   // --- the resume control ------------------------------------------------
-  // Obvious, and out of the way: top-centre, clear of the arrows at the sides
-  // and the credit along the bottom, and never over the middle of the image.
+  // ABOVE THE BELT, IN THE CORNER. It sat top-centre under z-index 5, and the
+  // focus cell is z-index 10 and the full height of the band, so for as long
+  // as it existed it was underneath the picture (operator, 2026-09-25:
+  // "buried under the center image"). Top-left of the panel is clear of the
+  // arrows (mid-height), the credit (bottom) and the focus (centred).
   .modland-resume {
     position: absolute;
     top: 0.6rem;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 5;
+    left: 0.6rem;
+    z-index: 12;
   }
 
   .modland-resume-btn {
@@ -281,6 +284,7 @@
     overflow: hidden;
     display: inline-flex;
     align-items: center;
+    gap: 0.5rem;
     padding: 0.4rem 1.1rem;
     border-radius: var(--mod-pill-radius);
     border: 1px solid color-mix(in srgb, var(--character-tag-color) 55%, transparent);
@@ -293,19 +297,25 @@
     &:hover { border-color: var(--character-tag-color); }
   }
 
-  // Fills left to right over the countdown, then the ride restarts. The button
-  // is still a button: clicking it restarts immediately.
+  // Fills left to right as the pause runs out, driven from the script so an
+  // extension can push it back; clicking restarts the ride at once.
   .modland-resume-fill {
     position: absolute;
     inset: 0;
     transform-origin: left center;
     transform: scaleX(0);
     background: color-mix(in srgb, var(--character-tag-color) 26%, transparent);
-
-    &.is-filling { animation: modland-fill linear forwards; }
   }
 
   .modland-resume-label { position: relative; z-index: 1; }
+
+  .modland-resume-left {
+    position: relative;
+    z-index: 1;
+    font-family: var(--mod-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--mod-ink-dim);
+  }
 
   // --- creator of the month ---------------------------------------------
 
@@ -325,6 +335,7 @@
     border-radius: var(--mod-radius);
     background: var(--mod-surface-2);
     padding: 0.5rem;
+
     // THE RAISE (canon --mod-raise-*): the same hover every clickable picture
     // wears. overflow: hidden clips the sweep to the card.
     position: relative;
@@ -342,6 +353,7 @@
       opacity: 0;
       transform: translateX(-40%);
     }
+
     &:hover, &:focus-visible {
       transform: scale(var(--mod-raise-scale));
       z-index: 4;
@@ -413,15 +425,8 @@
   }
 }
 
-// Named outside the component block: keyframes are global regardless of nesting,
-// and pretending otherwise is how two components end up sharing one by accident.
-@keyframes modland-fill {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
-}
-
-// Reduced motion: the lurch and the slide crossfade are decorative, and the fill
-// is a countdown whose meaning survives being instant.
+// Reduced motion: the lurch and the slide crossfade are decorative. The fill is
+// not animated at all there (see showResume); the seconds carry the countdown.
 @media (prefers-reduced-motion: reduce) {
   .modland .modland-ride.is-lurching { transform: none; }
 

@@ -49,8 +49,8 @@
     mask-image: linear-gradient(
       to bottom,
       transparent,
-      #000 clamp(1.25rem, 9%, 3rem),
-      #000 calc(100% - clamp(1.25rem, 9%, 3rem)),
+      #000000 clamp(1.25rem, 9%, 3rem),
+      #000000 calc(100% - clamp(1.25rem, 9%, 3rem)),
       transparent
     );
     mask-repeat: no-repeat;
@@ -93,6 +93,7 @@
       opacity: 0;
       transform: translateX(-40%);
     }
+
     &:hover, &:focus-visible {
       opacity: 1; z-index: 4;
       transform: translate(-50%, -50%) translateY(calc(var(--rank, 0) * var(--stack-gap))) scale(calc(var(--flank-scale) * var(--mod-raise-scale)));
@@ -141,6 +142,7 @@
       opacity: 0.85;
     }
   }
+
   .mod-trailcap-label {
     font-family: ui-monospace, monospace;
     font-size: 0.56rem;
@@ -226,7 +228,7 @@
 // is special-cased for travelling -- the belt just has a new set of numbers.
 @mixin modulation-stage-conveyor {
   --belt-h: clamp(300px, 46vh, 460px);
-  --belt-move-ms: 430ms;
+  --belt-move-ms: 850ms; // BASE_MS in modulation_landing_component.js
 
   // Overshoot lives in the MOVE, not after it. A cell is carried past its slot
   // and comes back inside one continuous travel, which is what inertia looks
@@ -234,10 +236,11 @@
   // stronger curve the longer the run has been, and back on rest.
   --belt-ease: cubic-bezier(0.32, 1.25, 0.62, 1);
 
-  // Longer than the move on purpose: the operator's ask is that the incoming
-  // cell "keeps its green border while moving as it slowly gradients to
-  // orange", so the colour must still be resolving after the travel has landed.
-  --belt-tint-ms: 900ms;
+  // The border's colour moves on the same clock as the cell, so the cell grows
+  // into the focus AS its border turns from green to orange (operator,
+  // 2026-09-25). It ran 900ms against a 430ms move, and colour arriving after
+  // position and size was the "disjointed" half of the pop.
+  --belt-tint-ms: var(--belt-move-ms);
 
   .mod-belt {
     position: relative;
@@ -330,6 +333,7 @@
     transition: font-size var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--belt-move-ms) ease;
   }
   .mod-cell.is-focus .mod-cell-tag { opacity: 0; }
+
   // One formula for everything written on or under a cell, read from the
   // cell's own height: the label above and the name below both use it.
   .mod-cell, .mod-cell-name {
@@ -376,6 +380,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .mod-cell-name { transition-duration: 1ms; transition-timing-function: linear; }
+
     .mod-cell {
       transition-duration: 1ms;
 
