@@ -1,0 +1,325 @@
+#!/usr/bin/env node
+// Where does the landing page's CPU go? Measured, not guessed.
+//
+//   bin/landing-cpu                          chromium, the dev payload
+//   bin/landing-cpu --engine firefox
+//   bin/landing-cpu --gpu                    chromium on the real GPU (Vulkan), not SwiftShader
+//   bin/landing-cpu --live-html FILE         production's payload, from a saved copy of its front page
+//   bin/landing-cpu --seconds 20             length of each measuring window
+//
+// WHAT IT MEASURES is what a person watching a task manager sees: CPU time
+// burned by the browser's own processes, utime+stime summed from /proc over
+// every descendant of this script, across a window. Not a frame counter, not
+// a main-thread profile -- a compositor running a frame every vsync costs
+// nothing on the main thread, and that was the largest thing on this page.
+//
+// THE PAGE is the dev stack's landing page with its carousel payload swapped
+// for a real one (--live-html) when given. The front page is behind a
+// Cloudflare challenge, so a script cannot fetch it; save it from the origin
+// or from a signed-in browser and pass the file. Media is repointed at things
+// this box can serve: the dev stack's own images for images, upstream's VP9
+// test clip for every video, its animated gif for every gif. What is being
+// measured is whether a thing is PLAYING, so a stand-in clip answers it.
+//
+// THE WINDOWS, on one page load, so they compare the same page:
+//   auto              the carousel as a visitor sees it, advancing
+//   rest              belt stopped where no video or gif is in its window
+//   rest -infinite    ... with every infinite CSS animation paused
+//   rest -video       belt stopped with a video in its window, then paused
+//   advance           rest vs auto with nothing else moving: the belt's own cost
+//
+// HEADLESS CHROMIUM COMPOSITES IN SOFTWARE unless told otherwise, which
+// charges every frame and every raster to the CPU. --gpu passes the Vulkan
+// flags that put a desktop GPU under it, where one is reachable. Numbers from
+// the two are not comparable; say which one a number came from.
+//
+// IT FAILS (exit 1) when a video plays where nobody can see it -- in an
+// offstage cell, a shown cell the panel has clipped, or the off-screen
+// prewarm holder. One looping clip at opacity
+// 0 measured 31.7% of a core against 13.0% paused (GPU, 2026-09-25), and
+// nothing on the page shows it.
+//
+// NEEDS playwright-core with its browsers installed. Found by require(), or
+// set PLAYWRIGHT_CORE to its directory.
+"use strict";
+
+const fs = require("fs");
+const http = require("http");
+const path = require("path");
+
+const ROOT = path.resolve(__dirname, "..");
+const args = process.argv.slice(2);
+const opt = (name, fallback) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : fallback; };
+const ENGINE = opt("--engine", "chromium");
+const LIVE_HTML = opt("--live-html", null);
+const SECS = Number(opt("--seconds", "20"));
+const LOCAL = opt("--local", "http://127.0.0.1:3000/");
+const GPU = args.includes("--gpu") ? ["--use-angle=vulkan", "--enable-features=Vulkan", "--enable-gpu-rasterization", "--ignore-gpu-blocklist"] : [];
+
+function loadPlaywright() {
+  const where = process.env.PLAYWRIGHT_CORE || "playwright-core";
+  try {
+    return require(where);
+  } catch {
+    console.error(`FAIL: cannot load playwright-core from ${JSON.stringify(where)}.`);
+    console.error("fix:  set PLAYWRIGHT_CORE=/path/to/node_modules/playwright-core (any checkout that has it),");
+    console.error("      with its browsers installed: npx playwright install chromium firefox");
+    process.exit(2);
+  }
+}
+
+// --- media stand-ins, served with Range support (a looping video needs it) --
+const MEDIA = {
+  "clip.webm": [path.join(ROOT, "test/files/webm/test-gbrp-vp9.webm"), "video/webm"],
+  "anim.gif": [path.join(ROOT, "test/files/gif/test-animated-400x281.gif"), "image/gif"],
+};
+
+function serveMedia() {
+  const srv = http.createServer((req, res) => {
+    const entry = MEDIA[path.basename(new URL(req.url, "http://x").pathname)];
+    if (!entry) { res.writeHead(404); res.end(); return; }
+    const [file, type] = entry;
+    const size = fs.statSync(file).size;
+    const range = /bytes=(\d*)-(\d*)/.exec(req.headers.range || "");
+    const start = range && range[1] ? Number(range[1]) : 0;
+    const end = range && range[2] ? Number(range[2]) : size - 1;
+    const head = { "Content-Type": type, "Accept-Ranges": "bytes", "Content-Length": end - start + 1, "Cache-Control": "max-age=3600", "Access-Control-Allow-Origin": "*" };
+    if (range) { head["Content-Range"] = `bytes ${start}-${end}/${size}`; }
+    res.writeHead(range ? 206 : 200, head);
+    fs.createReadStream(file, { start, end }).pipe(res);
+  });
+  return new Promise((resolve) => srv.listen(0, "127.0.0.1", () => resolve(srv)));
+}
+
+// --- the payload -------------------------------------------------------------
+const CONFIG = /data-config="([^"]*)"/;
+const unesc = (s) => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const isGif = (s) => /\.gif(\?|$)/.test(s.src || "");
+
+// Every slide becomes a distinct URL, so each new cell pays its own fetch and
+// decode as it would on the live site.
+function payload(devCfg, mediaBase) {
+  const images = devCfg.categories.flatMap((c) => c.slides).filter((s) => s.kind !== "video" && !isGif(s));
+  if (!images.length) { throw new Error("the dev landing page has no image slides to stand in for the live ones -- seed a post"); }
+  let cfg = devCfg;
+  if (LIVE_HTML) {
+    const m = CONFIG.exec(fs.readFileSync(LIVE_HTML, "utf8"));
+    if (!m) { throw new Error(`${LIVE_HTML} holds no carousel payload (no data-config) -- is it the front page?`); }
+    cfg = { ...devCfg, ...JSON.parse(unesc(m[1])) };
+  }
+  cfg.categories.forEach((c) => {
+    c.slides = c.slides.map((s, i) => {
+      if (s.kind === "video") { const u = `${mediaBase}/clip.webm?i=${i}`; return { ...s, thumb: u, src: u }; }
+      if (isGif(s)) { const u = `${mediaBase}/anim.gif?i=${i}`; return { ...s, thumb: u, src: u }; }
+      const d = images[i % images.length];
+      const q = (u) => `${u}${u.includes("?") ? "&" : "?"}i=${i}`;
+      return { ...s, thumb: q(d.thumb || d.src), src: q(d.src) };
+    });
+  });
+  // Never pull a fresh set: it would replace this payload with the dev one.
+  return { ...cfg, slidesUrl: null };
+}
+
+// --- process CPU ---------------------------------------------------------------
+function descendants(root) {
+  const kids = new Map();
+  fs.readdirSync("/proc").filter((d) => /^\d+$/.test(d)).forEach((d) => {
+    try {
+      const st = fs.readFileSync(`/proc/${d}/stat`, "utf8");
+      const ppid = Number(st.slice(st.lastIndexOf(")") + 2).split(" ")[1]);
+      kids.set(ppid, [...(kids.get(ppid) || []), Number(d)]);
+    } catch { /* exited */ }
+  });
+  const walk = (p) => (kids.get(p) || []).flatMap((c) => [c, ...walk(c)]);
+  return walk(root);
+}
+
+function kind(pid) {
+  try {
+    const cmd = fs.readFileSync(`/proc/${pid}/cmdline`, "utf8").replace(/\0/g, " ");
+    const t = /--type=(\S+)/.exec(cmd);
+    if (t) { return t[1]; }
+    if (/-contentproc/.test(cmd)) { return "content"; }
+    return "browser";
+  } catch { return "?"; }
+}
+
+function ticks() {
+  return new Map(descendants(process.pid).map((pid) => {
+    try {
+      const f = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
+      const x = f.slice(f.lastIndexOf(")") + 2).split(" ");
+      return [pid, { t: Number(x[11]) + Number(x[12]), k: kind(pid) }];
+    } catch { return [pid, { t: 0, k: "?" }]; }
+  }));
+}
+
+async function measure(label, secs, cdp) {
+  const a = ticks();
+  const m0 = cdp ? (await cdp.send("Performance.getMetrics")).metrics : null;
+  await new Promise((r) => setTimeout(r, secs * 1000));
+  const b = ticks();
+  const m1 = cdp ? (await cdp.send("Performance.getMetrics")).metrics : null;
+  const by = {};
+  b.forEach((v, pid) => { by[v.k] = (by[v.k] || 0) + v.t - (a.has(pid) ? a.get(pid).t : 0); });
+  const pct = (t) => Math.round((t / 100 / secs) * 1000) / 10; // CLK_TCK = 100
+  const total = pct(Object.values(by).reduce((s, t) => s + t, 0));
+  const parts = Object.entries(by).filter(([, t]) => t > 0).sort((x, y) => y[1] - x[1]).map(([k, t]) => `${k} ${pct(t)}`).join(", ");
+  let main = "";
+  if (m0 && m1) {
+    const get = (ms, n) => ms.find((m) => m.name === n).value;
+    const d = (n) => get(m1, n) - get(m0, n);
+    main = `  main thread ${Math.round((d("TaskDuration") / secs) * 1000) / 10}%, ${d("LayoutCount")} layouts, ${d("RecalcStyleCount")} style recalcs`;
+  }
+  console.log(`${label.padEnd(22)} ${String(total).padStart(6)}% of a core   [${parts}]${main}`);
+  return total;
+}
+
+// --- hooks installed before the page's own script ------------------------------
+// The advance timer is captured by its function's name so the belt can be
+// stopped and stepped with the page's own code. Video suppression intercepts
+// play() itself, since the page starts shown videos on every render.
+const INIT = `(() => {
+  const SI = window.setInterval.bind(window), CI = window.clearInterval.bind(window);
+  window.__auto = null;
+  window.setInterval = function (fn, ms, ...a) {
+    const id = SI(fn, ms, ...a);
+    if (fn && fn.name === "autoAdvance") { window.__auto = { fn, ms, id }; }
+    return id;
+  };
+  window.__stopAuto = () => { if (window.__auto && window.__auto.id) { CI(window.__auto.id); window.__auto.id = null; } };
+  window.__startAuto = () => { if (window.__auto && !window.__auto.id) { window.__auto.id = SI(window.__auto.fn, window.__auto.ms); } };
+  window.__noVideo = false;
+  const PLAY = HTMLMediaElement.prototype.play;
+  HTMLMediaElement.prototype.play = function () { if (window.__noVideo) { this.pause(); return Promise.resolve(); } return PLAY.call(this); };
+  window.__setNoVideo = (on) => { window.__noVideo = on; document.querySelectorAll("video").forEach((v) => (on ? v.pause() : null)); };
+})();`;
+
+// What is live on the page right now: every animation that never ends, and
+// every video with whether it plays and whether it can be seen.
+const CENSUS = `(() => {
+  const infinite = document.getAnimations().filter((a) => a.effect && a.effect.getTiming().iterations === Infinity && a.playState === "running")
+    .map((a) => { const t = a.effect.target; return (a.animationName || "?") + " on " + t.tagName.toLowerCase() + "." + String(t.className).trim().split(/\\s+/)[0] + (a.effect.pseudoElement || ""); });
+  const panel = document.querySelector(".modland-stage-wrap");
+  const P = panel ? panel.getBoundingClientRect() : null;
+  const clipped = (cell) => { if (!P) { return false; } const r = cell.getBoundingClientRect(); return r.right <= P.left || r.left >= P.right; };
+  const videos = Array.from(document.querySelectorAll("video")).map((v) => {
+    const cell = v.closest(".mod-cell");
+    const where = v.closest(".modland-warm") ? "holder" : !cell ? "elsewhere" : cell.classList.contains("is-offstage") ? "offstage" : cell.classList.contains("is-focus") ? "focus" : clipped(cell) ? "clipped" : "shown";
+    return { where, playing: !v.paused };
+  });
+  return { infinite, videos };
+})()`;
+
+async function main() {
+  const pw = loadPlaywright();
+  const srv = await serveMedia();
+  const mediaBase = `http://127.0.0.1:${srv.address().port}`;
+  const browser = await pw[ENGINE].launch({
+    headless: true,
+    args: ENGINE === "chromium" ? ["--autoplay-policy=no-user-gesture-required", ...GPU] : [],
+    firefoxUserPrefs: ENGINE === "firefox" ? { "media.autoplay.default": 0 } : undefined,
+  });
+  const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
+  await context.addInitScript(INIT);
+  const page = await context.newPage();
+  let cfg = null;
+  await page.route(LOCAL, async (route) => {
+    const resp = await route.fetch();
+    const body = await resp.text();
+    const m = CONFIG.exec(body);
+    if (!m) { await route.fulfill({ response: resp, body }); return; }
+    cfg = payload(JSON.parse(unesc(m[1])), mediaBase);
+    await route.fulfill({ response: resp, body: body.replace(CONFIG, `data-config="${esc(JSON.stringify(cfg))}"`) });
+  });
+
+  const idle = await measure("browser, blank", 5, null);
+  await page.goto(LOCAL, { waitUntil: "load" });
+  if (!cfg) { throw new Error(`${LOCAL} rendered no carousel (no data-config) -- is the dev stack up, and is the landing page the front page?`); }
+  const cdp = ENGINE === "chromium" ? await context.newCDPSession(page) : null;
+  if (cdp) { await cdp.send("Performance.enable"); }
+  await page.waitForTimeout(6000);
+  if (!(await page.evaluate("Boolean(window.__auto)"))) { throw new Error("the carousel's advance timer was not found -- was autoAdvance renamed? The hooks here key on it."); }
+
+  const cat = cfg.categories[0];
+  const moving = (s) => s.kind === "video" || isGif(s);
+  const reach = Math.ceil(((cat.visible || 7) - 1) / 2) + 2;
+  const n = cat.slides.length;
+  const near = (p, test) => Array.from({ length: (2 * reach) + 1 }, (_, k) => cat.slides[(((p + k - reach) % n) + n) % n]).some(test);
+  const clean = cat.slides.findIndex((_, p) => !near(p, moving));
+  const video = cat.slides.findIndex((s) => s.kind === "video");
+  const stepTo = (target) => page.evaluate(async (t) => {
+    const urls = JSON.parse(document.querySelector("[data-modland]").dataset.config).categories[0].slides.map((x) => x.url);
+    const here = () => { const f = document.querySelector(".mod-belt .mod-cell.is-focus"); return f ? urls.indexOf(f.getAttribute("href")) : -1; };
+    for (let i = 0; here() !== t && i < urls.length + 1; i++) { window.__auto.fn(); await new Promise((r) => setTimeout(r, 40)); }
+    await new Promise((r) => setTimeout(r, 2500));
+    return here();
+  }, target);
+  const census = () => page.evaluate(CENSUS);
+  // Resume only what this paused: play() through the API overrides the
+  // stylesheet's animation-play-state for good, which would switch off the
+  // pulse's own off-screen pause for the rest of the run.
+  const pauseInfinite = (on) => page.evaluate((p) => {
+    if (p) { window.__pausedHere = document.getAnimations().filter((a) => a.effect && a.effect.getTiming().iterations === Infinity && a.playState === "running"); window.__pausedHere.forEach((a) => a.pause()); } else { (window.__pausedHere || []).forEach((a) => a.play()); window.__pausedHere = []; }
+  }, on);
+
+  console.log(`\n${ENGINE}${GPU.length ? " (gpu)" : ""}, ${cat.label}: ${n} slides, ${cat.slides.filter((s) => s.kind === "video").length} video, ${cat.slides.filter(isGif).length} gif, ${reach} built either side of the focus; ${SECS}s windows\n`);
+  let invisible = [];
+  const watch = async (label) => {
+    const c = await census();
+    const bad = c.videos.filter((v) => v.playing && ["offstage", "clipped", "holder"].includes(v.where));
+    const place = { offstage: "in an offstage cell", clipped: "in a cell the panel clips", holder: "in the prewarm holder" };
+    invisible = invisible.concat(bad.map((v) => `${label}: a video plays ${place[v.where]}`));
+    console.log(`  ${label}: infinite animations [${c.infinite.join("; ") || "none"}]; videos [${c.videos.map((v) => `${v.where} ${v.playing ? "PLAYING" : "paused"}`).join(", ") || "none"}]`);
+  };
+
+  await watch("as loaded");
+  await measure("auto", SECS * 1.5, cdp);
+  await page.evaluate("window.__stopAuto()");
+  await stepTo(clean);
+  await watch("rest");
+  const restInfinite = (await census()).infinite.length;
+  const rest = await measure("rest", SECS, cdp);
+  await pauseInfinite(true);
+  const bare = await measure("rest -infinite", SECS, cdp);
+  await pauseInfinite(false);
+  if (video >= 0) {
+    // A video in a cell that is shown but outside the panel: walk it outward
+    // until the panel clips it. Which rank that is depends on the focus
+    // picture's width, so it is found, not assumed.
+    for (let k = 3; k <= reach - 2; k++) {
+      await stepTo((video + k) % n);
+      if ((await census()).videos.some((v) => v.where === "clipped")) {
+        await watch("video clipped");
+        await measure("video clipped", SECS, cdp);
+        break;
+      }
+    }
+    for (const [label, at] of [["video offstage", video + reach], ["video focus", video]]) {
+      await stepTo(((at % n) + n) % n);
+      await watch(label);
+      await measure(label, SECS, cdp);
+      await page.evaluate("window.__setNoVideo(true)");
+      await measure(`${label} -video`, SECS, cdp);
+      await page.evaluate("window.__setNoVideo(false)");
+    }
+  }
+  await stepTo(clean);
+  await pauseInfinite(true);
+  await page.evaluate("window.__startAuto()");
+  const advance = await measure("advance", SECS * 1.5, cdp);
+  await page.evaluate("window.__stopAuto()");
+
+  const inf = restInfinite ? `of which infinite animations ${Math.round((rest - bare) * 10) / 10}` : "no infinite animation running";
+  console.log(`\nidle browser ${idle}%; the page at rest ${rest}%, ${inf}; the belt advancing ${Math.round((advance - bare) * 10) / 10} over rest`);
+  await browser.close();
+  srv.close();
+  if (invisible.length) {
+    console.log(`\nFAIL: ${invisible.join("; ")}.`);
+    console.log("fix:  a belt video must play only while its cell is shown and inside the panel -- see mediaEl and render() in modulation_landing_component.js");
+    process.exit(1);
+  }
+}
+
+main().catch((e) => { console.error(`FAIL: ${e.message}`); process.exit(2); });
