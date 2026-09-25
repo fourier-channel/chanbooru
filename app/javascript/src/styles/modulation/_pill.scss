@@ -1,0 +1,155 @@
+// THE TAG PILL, ONCE. Included by the post view (.modulation) and the gallery
+// (.modgal), which is every Modulation surface that draws a tag.
+//
+// There were two copies, and every way /posts fell out of formant came from
+// the second one falling behind the first (operator, 2026-09-25: "get /posts's
+// tag elements into formant compliance"): category-coloured words where canon
+// says white, provenance dots where canon says the model's lamp, a tint read
+// from Danbooru's old colour variables instead of canon's tokens. A mixin
+// rather than a shared selector, like _stage.scss and for the same reason:
+// each surface includes it under its own root, so specificity is the same as
+// writing it there and neither page can style the other. It lives in this
+// repo, not in canon: formant's README keeps the pill TREATMENT in consumers
+// and shares only the names it is built from.
+//
+// What the pill obeys, all of it canon (formant tokens, by NAME, never value):
+//   - the words are --mod-tag-ink, white, on every pill (ruling 2026-09-20);
+//   - provenance paints an unidentified pill: creator, auto, both, pending,
+//     unsourced (the autotagger's orange with a white lamp), meta;
+//   - the identifying categories -- artist, copyright, character -- paint
+//     border and tint from --mod-tag-<cat>-fg, never the words;
+//   - the dot is the LAMP, which model put the tag here: spectrum, hydra, both
+//     (a swirl), or a person (white). The lamp class is on the dot itself, and
+//     nothing here outranks it -- the buckets used to restate a dot colour of
+//     their own at three classes deep and won, so a hydra tag showed the
+//     autotagger's orange;
+//   - the hover is THE RAISE (--mod-raise-*, mod-sweep).
+@mixin modulation-pill {
+  .mod-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.22rem 0.7rem;
+    border-radius: var(--mod-pill-radius);
+    font-size: 0.82rem;
+    line-height: 1.2;
+    text-decoration: none;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    color: var(--mod-tag-ink);
+
+    // THE RAISE, canon's one tag hover: the pill scales on its own layer with
+    // an orange ring and a lift, its edge brightens, a static gradient sweeps
+    // across it on transform alone, and -- for a pill not painted by category
+    // -- the ground goes slate. overflow: hidden clips the sweep to the pill;
+    // a hyped pill opts out of that because its sparkle sits on the edge.
+    position: relative;
+    overflow: hidden;
+    transition: transform var(--mod-raise-ease), box-shadow var(--mod-raise-ease),
+      background-color var(--mod-raise-ease), color var(--mod-raise-ease), border-color var(--mod-raise-ease);
+    will-change: transform;
+
+    &::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -60%;
+      width: 220%;
+      pointer-events: none;
+      background: var(--mod-sweep);
+      opacity: 0;
+      transform: translateX(-40%);
+    }
+
+    &:hover, &:focus-visible {
+      transform: scale(var(--mod-raise-scale));
+      z-index: 3;
+      box-shadow: var(--mod-raise-ring), var(--mod-raise-lift);
+      background: var(--mod-raise-bg);
+      color: var(--mod-raise-fg);
+      border-color: color-mix(in srgb, currentcolor var(--mod-raise-edge), transparent);
+
+      &::before { opacity: 1; animation: mod-sweep var(--mod-sweep-period) ease-in-out infinite; }
+    }
+  }
+
+  .mod-pill-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentcolor;
+    opacity: 0.9;
+  }
+
+  // THE LAMP IS VISIBLE PROVENANCE (operator ruling 2026-09-20): spectrum
+  // orange, hydra green -- so green appears only where hydra has been -- both
+  // a swirl, a person white.
+  .mod-pill-dot--spectrum { background: var(--mod-lamp-spectrum); opacity: 1; }
+  .mod-pill-dot--hydra { background: var(--mod-lamp-hydra); opacity: 1; }
+  .mod-pill-dot--manual { background: var(--mod-lamp-manual); opacity: 1; }
+
+  // The swirl: a conic gradient painted once and ROTATED. Transform-only, on
+  // its own layer, which is the one infinite animation canon permits.
+  .mod-pill-dot--both {
+    background: var(--mod-lamp-swirl);
+    opacity: 1;
+    animation: mod-lamp-swirl var(--mod-lamp-swirl-period) linear infinite;
+    will-change: transform;
+  }
+
+  // Provenance, for a pill no category paints.
+  .mod-pill--creator { background: var(--mod-creator-bg); border-color: color-mix(in srgb, var(--mod-creator-fg) 35%, transparent); }
+  .mod-pill--auto { background: var(--mod-auto-bg); border-color: color-mix(in srgb, var(--mod-auto-fg) 30%, transparent); }
+
+  .mod-pill--both {
+    background: linear-gradient(100deg, var(--mod-auto-bg), var(--mod-creator-bg));
+    border-color: var(--mod-both-outline);
+  }
+
+  .mod-pill--pending {
+    background: transparent;
+    border: 1px dashed color-mix(in srgb, var(--mod-pending-fg) 55%, transparent);
+
+    .mod-pill-dot { opacity: 0.5; }
+  }
+
+  // Unsourced is a general tag whose ORIGIN was unrecorded -- a tag added by
+  // hand from Matrix, a moderator's edit -- not a doubtful one: the
+  // autotagger's orange, white words, white lamp (operator ruling 2026-09-20).
+  .mod-pill--unsourced {
+    background: var(--mod-auto-bg);
+    border-color: color-mix(in srgb, var(--mod-auto-fg) 30%, transparent);
+  }
+
+  .mod-pill--meta {
+    background: var(--mod-surface-2);
+    border-color: var(--mod-line);
+  }
+
+  // THE IDENTIFYING CATEGORIES paint border and tint, never the words.
+  // Compound on purpose -- three classes -- so a category outranks the
+  // provenance rules above whatever order they land in (a two-class tie broke
+  // toward provenance once and the fix read correct while doing nothing).
+  // Species is a category the booru may grow; it wears general's token.
+  @each $cat, $token in (artist: --mod-tag-artist-fg,
+                         copyright: --mod-tag-copyright-fg,
+                         character: --mod-tag-character-fg,
+                         species: --mod-tag-general-fg) {
+    .mod-pill--cat.mod-pill--cat-#{$cat} {
+      color: var(--mod-tag-ink);
+      border-color: color-mix(in srgb, var(#{$token}) 40%, transparent);
+      background: color-mix(in srgb, var(#{$token}) 12%, var(--mod-surface));
+
+      // Raised, an identifying pill keeps its tint; only the edge brightens.
+      &:hover, &:focus-visible {
+        color: var(--mod-tag-ink);
+        background: color-mix(in srgb, var(#{$token}) 12%, var(--mod-surface));
+        border-color: color-mix(in srgb, var(#{$token}) var(--mod-raise-edge), transparent);
+      }
+    }
+  }
+
+  // A count beside a name (the gallery's hover panel) is quieter than it.
+  .mod-pill-count { color: var(--mod-ink-dim); }
+}

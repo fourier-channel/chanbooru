@@ -297,10 +297,14 @@ class FourierTagSource < ApplicationRecord
   # A creator tag the autotagger also found lights the MODEL's lamp: the
   # question the lamp answers is which model saw it, and one did. White is for
   # a tag no model produced at all.
-  def lamp
-    return :both if spectrum? && hydra?
-    return :hydra if hydra?
-    return :spectrum if spectrum? || auto? || meta?
+  def lamp = self.class.lamp_of(source)
+
+  # The same rule for a bare source value -- the gallery's bit_or over a page,
+  # which has no row behind it.
+  def self.lamp_of(source)
+    return :both if source & SPECTRUM > 0 && source & HYDRA > 0
+    return :hydra if source & HYDRA > 0
+    return :spectrum if source & (SPECTRUM | AUTO | META) > 0
 
     :manual
   end

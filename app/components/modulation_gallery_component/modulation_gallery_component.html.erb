@@ -60,9 +60,9 @@
             on both morphs into its new position while one that is only on one
             of them pops. A sanitised name would collide; the ID cannot. %>
         <% unitag_list.each do |tag, key| %>
-          <%= link_to posts_path(tags: tag.name), class: pill_classes(tag), rel: "nofollow",
+          <%= link_to posts_path(tags: tag.name), class: pill_classes(tag), rel: "nofollow", data: { tag: tag.name },
                       style: "view-transition-name: tag-#{tag.id}; view-transition-class: modgal-tagpill" do %>
-            <span class="mod-pill-dot" aria-hidden="true"></span><%= tag.name.tr("_", " ") %>
+            <span class="<%= dot_classes(tag) %>" aria-hidden="true"></span><%= tag.name.tr("_", " ") %>
           <% end %>
         <% end %>
       </div>
@@ -73,7 +73,10 @@
             <span class="mod-group-label"><%= key %></span>
             <div class="mod-group-pills">
               <% tags.each do |tag| %>
-                <%= link_to tag.name.tr("_", " "), posts_path(tags: tag.name), class: pill_classes(tag), style: "view-transition-name: gtag-#{tag.id}; view-transition-class: modgal-tagpill", rel: "nofollow" %>
+                <%= link_to posts_path(tags: tag.name), class: pill_classes(tag), rel: "nofollow", data: { tag: tag.name },
+                            style: "view-transition-name: gtag-#{tag.id}; view-transition-class: modgal-tagpill" do %>
+                  <span class="<%= dot_classes(tag) %>" aria-hidden="true"></span><%= tag.name.tr("_", " ") %>
+                <% end %>
               <% end %>
             </div>
           </div>

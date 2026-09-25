@@ -57,6 +57,25 @@ class FourierTagSourceTest < ActiveSupport::TestCase
       assert_equal :manual,   FourierTagSource.new(source: FourierTagSource::HUMAN, status: FourierTagSource::PENDING).lamp
     end
 
+    # The gallery lights a lamp from a page's bit_or(source), which is a source
+    # value with no row behind it -- so the rule takes a value, and #lamp
+    # delegates to it. Checked against the rule as the row's own predicates
+    # state it, for every combination of the six bits: comparing lamp_of with
+    # #lamp would compare the method with itself.
+    should "light the lamp from a bare source value exactly as the predicates say" do
+      (0..63).each do |source|
+        row = FourierTagSource.new(source: source)
+        expected =
+          if row.spectrum? && row.hydra? then :both
+          elsif row.hydra? then :hydra
+          elsif row.spectrum? || row.auto? || row.meta? then :spectrum
+          else :manual
+          end
+        assert_equal expected, FourierTagSource.lamp_of(source), "source #{source}"
+        assert_equal expected, row.lamp, "source #{source}, through the row"
+      end
+    end
+
     should "report which model saw each tag, beside the buckets" do
       @post.update!(tag_string: "a b m")
       FourierTagSource.record_partition!(

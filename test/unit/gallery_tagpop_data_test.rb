@@ -35,6 +35,33 @@ class GalleryTagpopDataTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # The panel's pills are formant pills (operator, 2026-09-25): provenance
+  # paints them and the dot is the model's lamp, so each card carries its own
+  # tags' [bucket, lamp] -- a separate attribute, not a new key inside the
+  # category map, whose readers flatten its values without looking.
+  context "a card's marks" do
+    setup do
+      @user = create(:user)
+      %w[marked_hydra marked_none].each { |n| create(:tag, name: n) }
+      @post = as(@user) { create(:post, tag_string: "marked_hydra marked_none") }
+      FourierTagSource.create!(post: @post, tag: "marked_hydra", source: FourierTagSource::AUTO | FourierTagSource::HYDRA,
+                               status: FourierTagSource::APPROVED, public: true, created_at: Time.zone.now)
+      get posts_path(preset: "modulation", tags: "marked_none")
+      assert_response :success
+    end
+
+    should "give a tag with a row its bucket and its model's lamp" do
+      card = css_select(".modgal-grid [data-id='#{@post.id}']").first
+      marks = JSON.parse(card["data-tag-marks"] || "{}")
+      assert_equal %w[auto hydra], marks["marked_hydra"]
+    end
+
+    should "leave out a tag no row speaks for, which the panel draws unsourced" do
+      card = css_select(".modgal-grid [data-id='#{@post.id}']").first
+      assert_not JSON.parse(card["data-tag-marks"] || "{}").key?("marked_none")
+    end
+  end
+
   context "all five together on one page" do
     setup do
       @user = create(:user)

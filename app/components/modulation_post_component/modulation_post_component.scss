@@ -1,4 +1,5 @@
 @use "../../javascript/src/styles/modulation/stage" as *;
+@use "../../javascript/src/styles/modulation/pill" as *;
 
 // "Modulation" -- redesigned single-cell post page. Everything here is driven by
 // CSS custom properties so an experience preset is just a bundle of token
@@ -47,6 +48,7 @@ body:has(.modulation) {
     font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
     font-size: 0.78rem;
   }
+
   .mod-meta-fields {
     display: flex;
     flex-wrap: wrap;
@@ -55,6 +57,7 @@ body:has(.modulation) {
     color: var(--mod-ink-dim);
   }
   .mod-meta-field { white-space: nowrap; }
+
   .mod-meta-field + .mod-meta-field::before {
     content: "\00b7";
     margin-right: 0.85rem;
@@ -62,6 +65,7 @@ body:has(.modulation) {
     color: var(--mod-line);
   }
   .mod-link { color: var(--mod-ink); text-decoration: none; border-bottom: 1px dotted var(--mod-ink-dim); }
+
   .mod-gate {
     flex: none;
     padding: 0.15rem 0.5rem;
@@ -75,12 +79,14 @@ body:has(.modulation) {
 
   // --- metadata right cluster (sort switch + gate) -----------------------
   .mod-meta-right { display: flex; align-items: center; gap: 0.75rem; }
+
   .mod-sort-switch {
     display: inline-flex; align-items: center; gap: 0.3rem;
-    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
     font-size: 0.72rem; color: var(--mod-ink-dim);
     b { color: var(--mod-ink); font-weight: 600; margin-left: 0.25rem; }
   }
+
   .mod-sort-arrow {
     appearance: none; border: 1px solid var(--mod-line); background: var(--mod-surface-2);
     color: var(--mod-ink-dim); border-radius: 5px; cursor: pointer; line-height: 1;
@@ -89,6 +95,7 @@ body:has(.modulation) {
     &:disabled { opacity: 0.3; cursor: default; }
   }
   .mod-sort-label { white-space: nowrap; }
+
   // Random's history control: quiet, mono like the mode switch it sits by,
   // and only present on random. The count is how long the trail is.
   .mod-random-clear {
@@ -97,7 +104,7 @@ body:has(.modulation) {
     background: var(--mod-surface-2);
     color: var(--mod-ink-dim);
     border-radius: var(--mod-pill-radius);
-    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
     font-size: 0.68rem;
     padding: 0.15rem 0.6rem;
     cursor: pointer;
@@ -130,6 +137,7 @@ body:has(.modulation) {
     gap: 0.5rem;
     flex-wrap: wrap;
   }
+
   .mod-action {
     padding: 0.4rem 0.8rem;
     border-radius: var(--mod-radius);
@@ -156,11 +164,12 @@ body:has(.modulation) {
     border-radius: var(--mod-pill-radius);
     overflow: hidden;
     background: var(--mod-surface-2);
-    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
     font-size: 0.72rem;
     letter-spacing: 0.04em;
 
     &.is-busy { opacity: 0.6; pointer-events: none; }
+
     &.is-refused::after {
       content: attr(data-refused);
       position: absolute; inset: 0;
@@ -172,6 +181,7 @@ body:has(.modulation) {
       font-size: 0.66rem;
     }
   }
+
   .mod-modpill-seg {
     appearance: none;
     border: 0;
@@ -194,6 +204,7 @@ body:has(.modulation) {
       background: var(--mod-alarm-bg);
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mod-alarm-fg) 35%, transparent);
     }
+
     &--deleted.is-lit {
       filter: none;
       color: var(--mod-active-fg);
@@ -215,13 +226,15 @@ body:has(.modulation) {
     background: var(--mod-surface-2);
     border: 1px solid var(--mod-line);
   }
+
   .mod-score-num {
     min-width: 1.6rem;
     text-align: center;
-    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
     font-size: 0.82rem;
     color: var(--mod-ink);
   }
+
   .mod-vote {
     appearance: none;
     border: 0;
@@ -249,8 +262,9 @@ body:has(.modulation) {
 
     &.is-on { color: var(--mod-auto-fg); border-color: color-mix(in srgb, var(--mod-auto-fg) 40%, transparent); }
   }
+
   .mod-fav-count {
-    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
     font-size: 0.78rem;
     color: var(--mod-ink-dim);
   }
@@ -262,6 +276,7 @@ body:has(.modulation) {
     align-items: center;
     gap: 0.35rem;
   }
+
   .mod-caret {
     display: inline-block;
     transition: transform 0.14s ease;
@@ -284,14 +299,16 @@ body:has(.modulation) {
     border: 1px solid var(--mod-line);
   }
   .mod-more-group { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; }
+
   .mod-more-label {
-    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
     font-size: 0.66rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--mod-ink-faint, var(--mod-ink-dim));
     margin-right: 0.15rem;
   }
+
   .mod-more-link {
     font-size: 0.8rem;
     color: var(--mod-ink);
@@ -302,6 +319,7 @@ body:has(.modulation) {
     background: var(--mod-surface);
     &:hover { border-color: var(--mod-accent); color: var(--mod-accent); }
   }
+
   // The image-size buttons borrow the link chrome; is-active marks the cap in
   // force the same way the view toggle marks its side.
   .mod-capbtn {
@@ -323,12 +341,14 @@ body:has(.modulation) {
     border-radius: var(--mod-radius);
     padding: 1rem;
   }
+
   .mod-comments-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 0.85rem;
   }
+
   .mod-comments-title {
     font-size: 0.72rem;
     font-weight: 500;
@@ -337,6 +357,7 @@ body:has(.modulation) {
     color: var(--mod-ink-dim);
     margin: 0;
   }
+
   .mod-comments-body {
     font-size: 0.88rem;
 
@@ -365,6 +386,7 @@ body:has(.modulation) {
 
     &[hidden] { display: none; }
   }
+
   .mod-notice {
     display: flex;
     align-items: center;
@@ -377,23 +399,27 @@ body:has(.modulation) {
     font-size: 0.82rem;
     color: var(--mod-ink);
   }
+
   .mod-notice-link {
     color: var(--mod-accent);
     text-decoration: none;
     border-bottom: 1px dotted currentcolor;
     font-size: 0.8rem;
   }
+
   .mod-notice--pending {
     background: var(--mod-auto-bg);
     border-color: color-mix(in srgb, var(--mod-auto-fg) 35%, transparent);
     .mod-notice-text { color: var(--mod-auto-fg); }
   }
+
   .mod-notice--deleted,
   .mod-notice--banned {
     background: color-mix(in srgb, var(--mod-tag-artist-fg) 14%, var(--mod-surface));
     border-color: color-mix(in srgb, var(--mod-tag-artist-fg) 35%, transparent);
     .mod-notice-text { color: var(--mod-tag-artist-fg); }
   }
+
   // jailed: the same severity family as deleted, with a bar so the two are
   // told apart at a glance -- they appear together, and they say different
   // things (why it was removed, and that it was).
@@ -403,6 +429,7 @@ body:has(.modulation) {
     border-left: 3px solid #ff6b7a;
     .mod-notice-text { color: #ff6b7a; font-weight: 600; }
   }
+
   .mod-notice--parent,
   .mod-notice--child {
     background: var(--mod-creator-bg);
@@ -425,6 +452,7 @@ body:has(.modulation) {
       outline-offset: 2px;
     }
   }
+
   // The veil is a wrapper so the blur has somewhere to bleed. `overflow: hidden`
   // on the parent then crops the soft edge back to the frame, which a filter on
   // the <img> could not do -- it would leave a sharp outline around a blurred
@@ -434,6 +462,7 @@ body:has(.modulation) {
     transform: scale(1.06); // hides the transparent margin the blur pulls in
     pointer-events: none;
   }
+
   .mod-spoiler-label {
     position: absolute;
     inset-inline: 0;
@@ -466,6 +495,7 @@ body:has(.modulation) {
 
     &.is-dragging { cursor: grabbing; }
   }
+
   .mod-lightbox-img {
     position: absolute;
     top: 0;
@@ -475,6 +505,7 @@ body:has(.modulation) {
     user-select: none;
     -webkit-user-drag: none;
   }
+
   .mod-lightbox-hud {
     position: absolute;
     inset-inline: 0;
@@ -487,12 +518,14 @@ body:has(.modulation) {
     background: linear-gradient(to top, rgb(8 8 7 / 85%), transparent);
     cursor: default;
   }
+
   .mod-lightbox-help {
-    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
     font-size: 0.72rem;
     color: var(--mod-ink-dim);
     text-align: center;
   }
+
   .mod-lightbox-save {
     flex: none;
     padding: 0.3rem 0.9rem;
@@ -505,6 +538,7 @@ body:has(.modulation) {
 
     &:hover { border-color: var(--mod-accent); }
   }
+
   .mod-lightbox-close {
     appearance: none;
     border: 1px solid var(--mod-line);
@@ -518,12 +552,14 @@ body:has(.modulation) {
 
     &:hover { border-color: var(--mod-ink-dim); }
   }
+
   // The centre image advertises the viewer -- and, since it is a thing you can
   // click, it wears the raise (canon --mod-raise-*, measured from sampling's
   // published thread): the FRAME scales on its own layer with a ring, a lift
   // and the sweep, and nothing around it moves. Only a still image: a video's
   // controls should not slide away under the pointer.
   .mod-stage-center .mod-frame img { cursor: zoom-in; }
+
   .mod-stage-center .mod-frame:has(> img) {
     position: relative;
     transition: transform var(--mod-raise-ease), box-shadow var(--mod-raise-ease), border-color var(--mod-raise-ease);
@@ -539,6 +575,7 @@ body:has(.modulation) {
       opacity: 0;
       transform: translateX(-40%);
     }
+
     &:hover {
       transform: scale(var(--mod-raise-scale));
       z-index: 4;
@@ -556,17 +593,20 @@ body:has(.modulation) {
     border-radius: var(--mod-radius);
     padding: 1rem;
   }
+
   .mod-tags-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 0.85rem;
   }
+
   .mod-tags-controls {
     display: flex;
     align-items: center;
     gap: 0.85rem;
   }
+
   // ---- editing the pool --------------------------------------------------
   //
   // The same controls Technetium's media panel has, in the same tokens, because
@@ -587,6 +627,7 @@ body:has(.modulation) {
     cursor: pointer;
 
     &:hover, &:focus-visible { color: var(--mod-ink); border-color: var(--mod-tag-general-fg); }
+
     &.is-active {
       color: var(--mod-tag-ink);
       background: var(--mod-auto-bg);
@@ -604,6 +645,7 @@ body:has(.modulation) {
     max-width: 100%;
   }
   .mod-tagrow > .mod-pill { min-width: 0; }
+
   .mod-tagrow-x {
     appearance: none;
     font: inherit;
@@ -629,6 +671,7 @@ body:has(.modulation) {
     align-items: center;
     margin-top: 0.6rem;
   }
+
   .mod-tagedit-input {
     flex: 1 1 auto;
     min-width: 0;
@@ -643,6 +686,7 @@ body:has(.modulation) {
     &:focus-visible { outline: none; border-color: var(--mod-tag-general-fg); }
     &:disabled { opacity: 0.6; }
   }
+
   .mod-tagedit-add {
     appearance: none;
     font: inherit;
@@ -659,6 +703,7 @@ body:has(.modulation) {
     &:hover, &:focus-visible { border-style: solid; border-color: var(--mod-tag-general-fg); }
     &:disabled { opacity: 0.6; cursor: default; }
   }
+
   // A refusal names the fix, per the org ruling on errors. It has to be
   // readable, so it wraps rather than being clipped to the pill flow.
   .mod-tagedit-error {
@@ -694,6 +739,7 @@ body:has(.modulation) {
       padding-bottom: 0;
     }
   }
+
   .mod-tags-title {
     margin: 0;
     font-size: 0.8rem;
@@ -701,11 +747,13 @@ body:has(.modulation) {
     text-transform: uppercase;
     color: var(--mod-ink-dim);
   }
+
   .mod-view-toggle {
     display: inline-flex;
     border: 1px solid var(--mod-line);
     border-radius: var(--mod-pill-radius);
     overflow: hidden;
+
     button {
       appearance: none;
       border: 0;
@@ -752,11 +800,13 @@ body:has(.modulation) {
 
     @media (width <= 560px) { grid-template-columns: minmax(0, 1fr); }
   }
+
   .mod-cats-cell {
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
   }
+
   // The right cell mirrors the left: labels and pills gravitate to the outer
   // edge, so the bucket reads as one shelf with two ends rather than two
   // stacked lists.
@@ -771,64 +821,10 @@ body:has(.modulation) {
       .mod-cat-pills { justify-content: flex-start; }
     }
   }
-  // CATEGORY PAINTS THE PILL. Declared after the provenance pills so it wins
-  // on specificity order without !important -- .mod-pill--auto and friends are
-  // single classes too, and these rules come later in the same file.
-  //
-  // IT NAMES THE HEADER'S OWN VARIABLE. --artist-tag-color is what the
-  // "Creators" pill in the navbar resolves through, so "closer to the red used
-  // in the header" is answered by naming that exact variable rather than a
-  // parallel token holding the same hex today. formant's --mod-tag-artist-fg
-  // would work equally well -- see the correction below -- but it would be a
-  // second name for the thing the request pointed at.
-  //
-  // A CORRECTION WORTH KEEPING, because it will otherwise be re-derived.
-  // An earlier version of this comment claimed formant/_tokens.scss is
-  // "imported by nothing" and that --mod-* names therefore do not resolve at
-  // runtime. That is FALSE. Nothing @imports or @uses it, which is all a grep
-  // for those keywords can see, but app/javascript/packs/application.js does
-  //     importAll(require.context('../src/styles', true, /\.s?css(?:\.erb)?$/))
-  // which pulls in every stylesheet under src/styles, the formant partial
-  // included. Proof that does not depend on reading the bundler: --mod-lamp-unlit
-  // and --mod-alarm-ink are declared in that file and nowhere else in this
-  // repo, and both appear in the built bundle.
-  //
-  // The lesson is the one this estate keeps paying for: a grep for @import
-  // measures import STATEMENTS, not what reaches the browser. The question was
-  // "is this token file served", and the only thing that answers it is the
-  // build output.
-  //
-  // THE SELECTOR IS COMPOUND ON PURPOSE. `.mod-pill--cat-artist` alone ties
-  // with `.mod-pill--auto` on specificity -- one class each under
-  // `.modulation` -- and the provenance pills are declared further down this
-  // same file, so the tie breaks toward provenance and the pill stays orange.
-  // Compiled and checked: the category rule landed at line 718 and
-  // .mod-pill--auto at 815, so the first cut of this fix did exactly nothing
-  // while reading as correct. Matching .mod-pill--cat too makes it three
-  // classes and wins on specificity, which does not depend on what order a
-  // future edit leaves these blocks in.
-  @each $cat, $token in (artist: --artist-tag-color,
-                         character: --character-tag-color,
-                         copyright: --copyright-tag-color,
-                         species: --general-tag-color) {
-    .mod-pill--cat.mod-pill--cat-#{$cat} {
-      // WHITE TEXT (operator ruling 2026-09-20, formant --mod-tag-ink): the
-      // category paints the border, the tint and the dot, never the words.
-      color: var(--mod-tag-ink);
-      border-color: color-mix(in srgb, var(#{$token}) 40%, transparent);
-      background: color-mix(in srgb, var(#{$token}) 12%, var(--mod-surface));
 
-      // Raised, an identifying pill keeps its tint (measured: the artist
-      // pill on sampling's page kept red while the general pills went slate);
-      // only the edge brightens to the raise edge.
-      &:hover, &:focus-visible {
-        color: var(--mod-tag-ink);
-        background: color-mix(in srgb, var(#{$token}) 12%, var(--mod-surface));
-        border-color: color-mix(in srgb, var(#{$token}) var(--mod-raise-edge), transparent);
-      }
-    }
-  }
-
+  // THE CATEGORY PILLS are the shared pill's (modulation/_pill.scss): canon's
+  // --mod-tag-<cat>-fg on border and tint, white words. Only the creator's
+  // activity lamp below is this page's own.
   // THE CREATOR'S LAMP. On an artist pill the dot is not the provenance dot
   // but a lamp: lit (--mod-lamp-live, with its static halo) while that creator
   // is ACTIVE -- a post of theirs, direct or attributed through sample or the
@@ -846,41 +842,27 @@ body:has(.modulation) {
     opacity: 1;
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
   }
+
   .mod-pill.mod-pill--cat.mod-pill--cat-artist.is-live .mod-pill-dot {
     background: var(--mod-lamp-live);
     box-shadow: var(--mod-lamp-live-glow);
   }
 
-  // PROVENANCE KEEPS THE DOT, which is the whole reason the pill can afford to
-  // change colour: "who put this here" is still on the pill, just no longer
-  // competing with "what kind of thing is it". The dot inherits the pill's
-  // colour by default, so each bucket restates its own.
-  .mod-pill--cat {
-    .mod-pill-dot { background: currentcolor; }
-
-    &.mod-pill--creator .mod-pill-dot { background: var(--mod-creator-fg); }
-    &.mod-pill--both .mod-pill-dot { background: var(--mod-both-fg); }
-    &.mod-pill--auto .mod-pill-dot { background: var(--mod-auto-fg); }
-    &.mod-pill--pending .mod-pill-dot { background: var(--mod-pending-fg); }
-    // unsourced is manual: no row means no model, and the lamp says so in
-    // white. Named here rather than left to the lamp class because this
-    // selector is three classes deep and would otherwise win the tie.
-    &.mod-pill--unsourced .mod-pill-dot { background: var(--mod-lamp-manual); }
-  }
-
   .mod-cat-label {
-    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
     font-size: 0.62rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--mod-ink-dim);
     margin-bottom: 0.3rem;
   }
+
   .mod-cat-pills {
     display: flex;
     flex-wrap: wrap;
     gap: 0.4rem;
   }
+
   // Same hue, more presence: the pill's provenance class still paints it.
   .mod-pill--cat {
     font-size: 0.92rem;
@@ -894,117 +876,17 @@ body:has(.modulation) {
     flex-wrap: wrap;
     gap: 0.4rem;
   }
-  .mod-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.22rem 0.7rem;
-    border-radius: var(--mod-pill-radius);
-    font-size: 0.82rem;
-    line-height: 1.2;
-    text-decoration: none;
-    border: 1px solid transparent;
-    white-space: nowrap;
 
-    // THE RAISE, canon's one tag hover (formant --mod-raise-*, mod-sweep):
-    // the pill scales on its own layer with an orange ring and a lift, its
-    // edge brightens, a static gradient sweeps across it on transform alone,
-    // and -- for a pill not painted by category -- the ground goes slate and
-    // the ink white. overflow: hidden clips the sweep to the pill; a hyped
-    // pill opts out of that below because its sparkle sits on the edge.
-    position: relative;
-    overflow: hidden;
-    transition: transform var(--mod-raise-ease), box-shadow var(--mod-raise-ease),
-      background-color var(--mod-raise-ease), color var(--mod-raise-ease), border-color var(--mod-raise-ease);
-    will-change: transform;
+  // THE PILL ITSELF -- base, raise, lamp, provenance and category -- is
+  // shared with the gallery (modulation/_pill.scss).
+  @include modulation-pill;
 
-    &::before {
-      content: "";
-      position: absolute;
-      top: 0; bottom: 0; left: -60%; width: 220%;
-      pointer-events: none;
-      background: var(--mod-sweep);
-      opacity: 0;
-      transform: translateX(-40%);
-    }
-    &:hover, &:focus-visible {
-      transform: scale(var(--mod-raise-scale));
-      z-index: 3;
-      box-shadow: var(--mod-raise-ring), var(--mod-raise-lift);
-      background: var(--mod-raise-bg);
-      color: var(--mod-raise-fg);
-      border-color: color-mix(in srgb, currentcolor var(--mod-raise-edge), transparent);
-
-      &::before { opacity: 1; animation: mod-sweep var(--mod-sweep-period) ease-in-out infinite; }
-    }
-  }
-  .mod-pill-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: currentColor;
-    opacity: 0.9;
-  }
-  // THE LAMP IS VISIBLE PROVENANCE (operator ruling 2026-09-20). Which MODEL
-  // put the tag here: spectrum orange, hydra green -- so green appears only
-  // where hydra has been -- both a swirl, a person white. Tokens are canon
-  // (formant --mod-lamp-*), so Technetium's dots are these dots.
-  //
-  // Declared with the lamp class on the DOT itself and !important-free: three
-  // classes on the pill above cannot outrank a class on the dot for the dot's
-  // own background, so ordering does not decide this one.
-  .mod-pill-dot--spectrum { background: var(--mod-lamp-spectrum); opacity: 1; }
-  .mod-pill-dot--hydra    { background: var(--mod-lamp-hydra); opacity: 1; }
-  .mod-pill-dot--manual   { background: var(--mod-lamp-manual); opacity: 1; }
-  // The swirl: a conic gradient painted once and ROTATED. Transform-only, on
-  // its own layer, which is the one infinite animation canon permits.
-  .mod-pill-dot--both {
-    background: var(--mod-lamp-swirl);
-    opacity: 1;
-    animation: mod-lamp-swirl var(--mod-lamp-swirl-period) linear infinite;
-    will-change: transform;
-  }
-
-  // creator: bright green pill+text on dark green
-  .mod-pill--creator { background: var(--mod-creator-bg); color: var(--mod-tag-ink); border-color: color-mix(in srgb, var(--mod-creator-fg) 35%, transparent); }
-  // auto: bright orange pill+text on dark orange
-  .mod-pill--auto { background: var(--mod-auto-bg); color: var(--mod-tag-ink); border-color: color-mix(in srgb, var(--mod-auto-fg) 30%, transparent); }
-  // both: green outline, orange text, dark-orange <-> dark-green gradient
-  .mod-pill--both {
-    background: linear-gradient(100deg, var(--mod-auto-bg), var(--mod-creator-bg));
-    color: var(--mod-tag-ink);
-    border-color: var(--mod-both-outline);
-  }
-  // pending: greyed, dashed
-  .mod-pill--pending {
-    background: transparent;
-    color: var(--mod-tag-ink);
-    border: 1px dashed color-mix(in srgb, var(--mod-pending-fg) 55%, transparent);
-    .mod-pill-dot { opacity: 0.5; }
-  }
-  // unsourced: a tag on the post with no provenance row -- a tag added by hand
-  // from Matrix, a moderator's edit, an upload-time tag, troll_jail.
-  //
-  // Operator ruling 2026-09-20, on seeing `1girl` arrive from Matrix and render
-  // grey: it looks like what it IS, a general tag -- the autotagger's orange,
-  // white words -- and its lamp is white, because no model put it there. The
-  // greyed treatment said "we are unsure this tag belongs", which was never the
-  // claim; the tag is really there and only its ORIGIN was unrecorded, and the
-  // white lamp is the honest way to say that.
-  .mod-pill--unsourced {
-    background: var(--mod-auto-bg);
-    color: var(--mod-tag-ink);
-    border-color: color-mix(in srgb, var(--mod-auto-fg) 30%, transparent);
-  }
   // meta: quietest of all
-  .mod-pill--meta {
-    background: var(--mod-surface-2);
-    color: var(--mod-tag-ink);
-    border-color: var(--mod-line);
-    font-size: 0.76rem;
-  }
+  .mod-pill--meta { font-size: 0.76rem; }
 
   // --- grouped view -------------------------------------------------------
   .mod-group { margin-bottom: 0.85rem; &:last-child { margin-bottom: 0; } }
+
   .mod-group-label {
     display: block;
     font-size: 0.7rem;
@@ -1016,6 +898,7 @@ body:has(.modulation) {
 
   // --- quality & meta collapsible ----------------------------------------
   .mod-meta-section { margin-top: 1rem; border-top: 1px solid var(--mod-line); padding-top: 0.75rem; }
+
   .mod-meta-toggle {
     appearance: none;
     border: 0;
@@ -1029,6 +912,7 @@ body:has(.modulation) {
     padding: 0;
   }
   .mod-meta-caret { transition: transform 0.12s ease; display: inline-block; &.is-open { transform: rotate(90deg); } }
+
   .mod-meta-count {
     background: var(--mod-surface-2);
     border-radius: var(--mod-pill-radius);
@@ -1113,6 +997,7 @@ body:has(.modulation) {
   &.is-spinning-down {
     animation: mod-hype-spin-down var(--mod-hype-spin-down) cubic-bezier(0.16, 1, 0.3, 1) 1 both;
   }
+
   &.is-spinning {
     animation: mod-hype-spin var(--mod-hype-spin-period) linear infinite;
   }
@@ -1126,8 +1011,8 @@ body:has(.modulation) {
     height: var(--mod-hype-sparkle-size);
     pointer-events: none;
     background:
-      linear-gradient(to bottom, transparent 42%, currentColor 42%, currentColor 58%, transparent 58%),
-      linear-gradient(to right, transparent 42%, currentColor 42%, currentColor 58%, transparent 58%);
+      linear-gradient(to bottom, transparent 42%, currentcolor 42%, currentcolor 58%, transparent 58%),
+      linear-gradient(to right, transparent 42%, currentcolor 42%, currentcolor 58%, transparent 58%);
     animation: mod-hype-sparkle var(--mod-hype-period) ease-in-out infinite;
   }
 }

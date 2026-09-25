@@ -10,27 +10,22 @@
 //
 // A browser without view transitions ignores all of this and navigates exactly
 // as before, which is the behaviour being improved on rather than depended on.
+@use "../../javascript/src/styles/modulation/pill" as *;
+
 @view-transition {
   navigation: auto;
 }
 
 // A tag on only one of the two pages: pop, rather than the default cross-fade.
-@keyframes modgal-tag-pop-in {
-  from { opacity: 0; transform: scale(0.6); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-@keyframes modgal-tag-pop-out {
-  from { opacity: 1; transform: scale(1); }
-  to { opacity: 0; transform: scale(0.6); }
-}
-
+// Canon's TAG POP (formant mod-tag-pop-*, --mod-tag-pop-*): this file carried
+// a hand copy that had drifted -- no overshoot on the way in, 180ms out where
+// canon says 160.
 ::view-transition-new(.modgal-tagpill):only-child {
-  animation: modgal-tag-pop-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  animation: mod-tag-pop-in var(--mod-tag-pop-in-dur) var(--mod-tag-pop-ease);
 }
 
 ::view-transition-old(.modgal-tagpill):only-child {
-  animation: modgal-tag-pop-out 180ms cubic-bezier(0.55, 0.06, 0.68, 0.19);
+  animation: mod-tag-pop-out var(--mod-tag-pop-out-dur) ease-in;
 }
 
 // Someone who asked for less motion gets the navigation without the choreography.
@@ -51,19 +46,6 @@ body:has(.modgal) {
 
 .modgal {
   --mod-col: 1120px;
-  --mod-radius: 10px;
-  --mod-pill-radius: 999px;
-  // The category palette is canon's (formant --mod-tag-*-fg). These are the
-  // names this file was written with, kept as ALIASES of the tokens rather
-  // than as values: the values were a copy, and the copy is how this page
-  // kept Danbooru's blue for general tags and the mint for characters after
-  // the vocabulary had moved on (operator, 2026-09-19: "the /posts page is
-  // using danbooru historic colors, not modulation").
-  --cat-artist: var(--mod-tag-artist-fg);
-  --cat-copyright: var(--mod-tag-copyright-fg);
-  --cat-character: var(--mod-tag-character-fg);
-  --cat-general: var(--mod-tag-general-fg);
-  --cat-meta: var(--mod-tag-meta-fg);
 
   box-sizing: border-box;
   max-width: var(--mod-col);
@@ -83,6 +65,7 @@ body:has(.modgal) {
     align-items: stretch;
     padding-top: 1rem;
   }
+
   .modgal-search-input {
     flex: 1;
     min-width: 0;
@@ -91,11 +74,12 @@ body:has(.modgal) {
     border-radius: var(--mod-radius);
     color: var(--mod-ink);
     padding: 0.55rem 0.85rem;
-    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
     font-size: 0.9rem;
     &:focus { outline: none; border-color: var(--mod-accent); }
     &::placeholder { color: var(--mod-ink-dim); }
   }
+
   .modgal-sort, .modgal-search-go {
     background: var(--mod-surface-2);
     border: 1px solid var(--mod-line);
@@ -114,21 +98,26 @@ body:has(.modgal) {
     border-radius: var(--mod-radius);
     padding: 0.85rem 1rem;
   }
+
   .modgal-tags-head {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 0.7rem;
   }
+
   .modgal-tags-title {
     font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mod-ink-dim);
   }
+
   .mod-view-toggle {
     display: inline-flex; border: 1px solid var(--mod-line); border-radius: var(--mod-pill-radius); overflow: hidden;
+
     button {
       appearance: none; border: 0; background: transparent; color: var(--mod-ink-dim);
       font-size: 0.75rem; padding: 0.25rem 0.7rem; cursor: pointer;
       &.is-active { background: var(--mod-surface-2); color: var(--mod-ink); }
     }
   }
+
   // Board filter: one segmented control in the same language as the tag-view
   // toggle above it, so the panel reads as one set of controls rather than two
   // unrelated widgets. Borders live on the segments, not between them, so the
@@ -138,6 +127,7 @@ body:has(.modgal) {
     border: 1px solid var(--mod-line); border-radius: var(--mod-pill-radius);
     overflow: hidden;
   }
+
   .modgal-board {
     font-size: 0.75rem; line-height: 1.2; padding: 0.28rem 0.85rem;
     text-decoration: none; white-space: nowrap;
@@ -149,103 +139,16 @@ body:has(.modgal) {
   }
   .mod-unitag, .mod-group-pills { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .mod-group { margin-bottom: 0.7rem; &:last-child { margin-bottom: 0; } }
+
   .mod-group-label {
     display: block; font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mod-ink-dim); margin-bottom: 0.35rem;
   }
-  .mod-pill {
-    display: inline-flex; align-items: center; gap: 0.35rem;
-    padding: 0.2rem 0.65rem; border-radius: var(--mod-pill-radius);
-    font-size: 0.8rem; line-height: 1.2; text-decoration: none;
-    border: 1px solid transparent; white-space: nowrap;
-    background: var(--mod-surface-2);
 
-    // THE RAISE (canon --mod-raise-*, mod-sweep) -- the same hover the post
-    // page's pills wear; see modulation_post_component.scss for the recipe.
-    position: relative;
-    overflow: hidden;
-    transition: transform var(--mod-raise-ease), box-shadow var(--mod-raise-ease),
-      background-color var(--mod-raise-ease), color var(--mod-raise-ease), border-color var(--mod-raise-ease);
-    will-change: transform;
-
-    &::before {
-      content: "";
-      position: absolute;
-      top: 0; bottom: 0; left: -60%; width: 220%;
-      pointer-events: none;
-      background: var(--mod-sweep);
-      opacity: 0;
-      transform: translateX(-40%);
-    }
-    &:hover, &:focus-visible {
-      transform: scale(var(--mod-raise-scale));
-      z-index: 3;
-      box-shadow: var(--mod-raise-ring), var(--mod-raise-lift);
-      background: var(--mod-raise-bg);
-      color: var(--mod-raise-fg);
-      border-color: color-mix(in srgb, currentcolor var(--mod-raise-edge), transparent);
-
-      &::before { opacity: 1; animation: mod-sweep var(--mod-sweep-period) ease-in-out infinite; }
-    }
-  }
-  .mod-pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.9; }
-
-  // PROVENANCE PAINTS THE PILL, CATEGORY ONLY THE IDENTIFYING KINDS -- the
-  // post page's rule, and now this page's. A general tag on this page used to
-  // be blue because blue is Danbooru's general-category colour; Modulation
-  // never paints a general tag by category, it paints it by who put it there.
-  // The provenance is real: one query over the posts on this page
-  // (ModulationGalleryComponent#page_tag_provenance) says whether a name was
-  // the autotagger's, a creator's, both, or nobody's on record.
-  .mod-pill--creator { background: var(--mod-creator-bg); color: var(--mod-creator-fg); border-color: color-mix(in srgb, var(--mod-creator-fg) 35%, transparent); }
-  .mod-pill--auto { background: var(--mod-auto-bg); color: var(--mod-auto-fg); border-color: color-mix(in srgb, var(--mod-auto-fg) 30%, transparent); }
-  .mod-pill--both {
-    background: linear-gradient(100deg, var(--mod-auto-bg), var(--mod-creator-bg));
-    color: var(--mod-both-fg);
-    border-color: var(--mod-both-outline);
-  }
-  .mod-pill--pending {
-    background: transparent; color: var(--mod-tag-ink);
-    border: 1px dashed color-mix(in srgb, var(--mod-pending-fg) 55%, transparent);
-    .mod-pill-dot { opacity: 0.5; }
-  }
-  // Unsourced is a general tag whose ORIGIN was unrecorded, not a doubtful
-  // tag: orange pill, white words, white lamp, exactly as on the post page
-  // (operator ruling 2026-09-20). This copy is the gallery's own and was
-  // still grey after the post page's was fixed -- the two blocks have to move
-  // together or a tag changes colour when you click it.
-  .mod-pill--unsourced {
-    background: var(--mod-auto-bg); color: var(--mod-tag-ink);
-    border-color: color-mix(in srgb, var(--mod-auto-fg) 30%, transparent);
-  }
-  // White words here too: the 2026-09-20 ruling was for tags generally, and
-  // only the post page had been carried over.
-  .mod-pill--meta { background: var(--mod-surface-2); color: var(--mod-tag-ink); border-color: var(--mod-line); }
-
-  // Compound on purpose: three classes, so category outranks the two-class
-  // provenance rules above whatever order a future edit leaves them in.
-  @each $cat in artist, copyright, character {
-    .mod-pill--cat.mod-pill--cat-#{$cat} {
-      color: var(--cat-#{$cat});
-      border-color: color-mix(in srgb, var(--cat-#{$cat}) 30%, transparent);
-      background: color-mix(in srgb, var(--cat-#{$cat}) 12%, var(--mod-surface));
-
-      // Raised, an identifying pill keeps its colour; only the edge brightens.
-      &:hover, &:focus-visible {
-        color: var(--cat-#{$cat});
-        background: color-mix(in srgb, var(--cat-#{$cat}) 12%, var(--mod-surface));
-        border-color: color-mix(in srgb, var(--cat-#{$cat}) var(--mod-raise-edge), transparent);
-      }
-    }
-  }
-  // Provenance keeps the dot on a category-painted pill.
-  .mod-pill--cat {
-    &.mod-pill--creator .mod-pill-dot { background: var(--mod-creator-fg); }
-    &.mod-pill--both .mod-pill-dot { background: var(--mod-both-fg); }
-    &.mod-pill--auto .mod-pill-dot { background: var(--mod-auto-fg); }
-    &.mod-pill--pending .mod-pill-dot { background: var(--mod-pending-fg); }
-    // No row means no model put it there, which is what a white lamp says.
-    &.mod-pill--unsourced .mod-pill-dot { background: var(--mod-lamp-manual); }
-  }
+  // THE PILL -- base, raise, lamp, provenance and category -- is the post
+  // view's, shared (modulation/_pill.scss). This page kept a copy of it, and
+  // the copy is how /posts fell out of formant (operator, 2026-09-25): words
+  // in the category colour, bucket dots instead of the model's lamp.
+  @include modulation-pill;
 
   // --- search subject -----------------------------------------------------
   // The wiki/artist/pool summary for a search that IS a subject. Sits between
@@ -253,22 +156,25 @@ body:has(.modgal) {
   .modgal-excerpt {
     background: var(--mod-surface);
     border: 1px solid var(--mod-line);
-    border-left: 2px solid var(--cat-general);
+    border-left: 2px solid var(--mod-tag-general-fg);
     border-radius: var(--mod-radius);
     padding: 0.8rem 1rem;
   }
-  .modgal-excerpt--artist { border-left-color: var(--cat-artist); }
-  .modgal-excerpt--pool { border-left-color: var(--cat-copyright); }
+  .modgal-excerpt--artist { border-left-color: var(--mod-tag-artist-fg); }
+  .modgal-excerpt--pool { border-left-color: var(--mod-tag-copyright-fg); }
   .modgal-excerpt-head { display: flex; align-items: baseline; gap: 0.6rem; }
+
   .modgal-excerpt-kind {
-    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
     font-size: 0.64rem; letter-spacing: 0.09em; text-transform: uppercase;
     color: var(--mod-ink-dim);
   }
+
   .modgal-excerpt-title {
     color: var(--mod-ink); text-decoration: none; font-size: 0.95rem; font-weight: 600;
     &:hover { color: var(--mod-accent); }
   }
+
   .modgal-excerpt-body {
     margin: 0.45rem 0 0;
     font-size: 0.85rem;
@@ -280,11 +186,13 @@ body:has(.modgal) {
   .modgal-related {
     display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem;
   }
+
   .modgal-related-label {
-    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
     font-size: 0.64rem; letter-spacing: 0.09em; text-transform: uppercase;
     color: var(--mod-ink-dim); margin-right: 0.2rem;
   }
+
   // The deleted toggle wears its remembered state: is-active is the panel
   // saying "this is still on", which is also where you turn it off.
   .modgal-related-link.is-active {
@@ -328,13 +236,14 @@ body:has(.modgal) {
     gap: 0.6rem;
   }
 
-  @media (min-width: 640px) {
+  @media (width >= 640px) {
     .modgal-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   }
 
-  @media (min-width: 1024px) {
+  @media (width >= 1024px) {
     .modgal-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   }
+
   // The blacklist hides cards by class, and its selector
   // (.blacklisted-hidden.blacklisted-hidden) TIES the display rule below on
   // specificity -- bundle order decided the winner, and the card won: a
@@ -353,6 +262,7 @@ body:has(.modgal) {
     background: var(--mod-surface);
     border: 1px solid var(--mod-line);
     text-decoration: none;
+
     // THE RAISE (canon --mod-raise-*): the card is a picture you can click,
     // so it scales on its own layer with the ring, the lift and the sweep,
     // and the grid around it does not move. Replaces a 2px nudge.
@@ -369,6 +279,7 @@ body:has(.modgal) {
       opacity: 0;
       transform: translateX(-40%);
     }
+
     &:hover, &:focus-visible {
       transform: scale(var(--mod-raise-scale));
       z-index: 4;
@@ -394,7 +305,7 @@ body:has(.modgal) {
     padding: 0.1rem 0.35rem;
     font-family: ui-monospace, monospace;
     font-size: 0.62rem;
-    color: var(--cat-artist, var(--mod-ink));
+    color: var(--mod-tag-artist-fg, var(--mod-ink));
     background: color-mix(in srgb, var(--mod-surface) 82%, transparent);
     border-top-left-radius: var(--mod-radius);
   }
@@ -409,7 +320,7 @@ body:has(.modgal) {
     z-index: 61;
     height: 3px;
     pointer-events: none;
-    background: var(--mod-line, rgba(255, 255, 255, 0.14));
+    background: var(--mod-line, rgb(255 255 255 / 14%));
     border-radius: 2px;
     overflow: hidden;
 
@@ -437,6 +348,7 @@ body:has(.modgal) {
 
     &[hidden] { display: none; }
   }
+
   .modgal-tagpop-label {
     display: block;
     font-family: ui-monospace, monospace;
@@ -446,11 +358,13 @@ body:has(.modgal) {
     color: var(--mod-ink-dim);
     margin-bottom: 0.3rem;
   }
+
   .modgal-tagpop-pills {
     display: flex;
     flex-wrap: wrap;
     gap: 0.3rem;
   }
+
   // A deleted post's thumbnail: desaturated and blurred, and it stays that way
   // -- the card is a link, so the reveal belongs on the post view where the
   // choice is about one image. The card already crops with overflow: hidden,
@@ -466,11 +380,13 @@ body:has(.modgal) {
       color: var(--mod-tag-artist-fg);
     }
   }
+
   .modgal-thumb--gated {
     display: grid; place-items: center; width: 100%; height: 100%;
     color: var(--mod-ink-dim); font-family: ui-monospace, monospace; font-size: 0.72rem;
     background: repeating-linear-gradient(45deg, var(--mod-surface) 0 6px, var(--mod-surface-2) 6px 12px);
   }
+
   .modgal-card-id {
     position: absolute; left: 0; bottom: 0;
     padding: 0.1rem 0.4rem;
@@ -485,6 +401,7 @@ body:has(.modgal) {
     display: flex; align-items: center; justify-content: center; gap: 1rem;
     padding-top: 0.5rem;
   }
+
   .modgal-page {
     padding: 0.35rem 0.85rem; border-radius: var(--mod-radius);
     background: var(--mod-surface-2); border: 1px solid var(--mod-line);
@@ -492,6 +409,7 @@ body:has(.modgal) {
     &:hover { border-color: var(--mod-ink-dim); }
     &.is-disabled { opacity: 0.35; pointer-events: none; }
   }
+
   .modgal-page-cur {
     display: inline-flex; align-items: baseline; gap: 0.6rem;
     color: var(--mod-ink-dim); font-family: ui-monospace, monospace; font-size: 0.8rem;

@@ -163,7 +163,22 @@ class ModulationGalleryComponent < ApplicationComponent
       "data-flags" => post.status_flags,
       "data-score" => post.score,
       "data-uploader-id" => post.uploader_id,
+      "data-tag-marks" => card_tag_marks.fetch(post.id, {}).to_json,
     }
+  end
+
+  # Each card's tags, for the hover panel: name -> [bucket, lamp], the same
+  # two answers the facet pills get, per post rather than per page. Public
+  # rows, one pluck for the page. A tag with no row is left out -- the panel
+  # draws it unsourced with a white lamp, which is what no row means.
+  def card_tag_marks
+    @card_tag_marks ||= FourierTagSource.publicly_visible
+      .where(post_id: posts.map(&:id))
+      .pluck(:post_id, :tag, :source, :status)
+      .group_by(&:first)
+      .transform_values do |rows|
+        rows.to_h { |_, tag, source, status| [tag, [provenance_bucket(source, status == FourierTagSource::PENDING), FourierTagSource.lamp_of(source).to_s]] }
+      end
   end
 
   def blacklist_tags
@@ -322,6 +337,10 @@ class ModulationGalleryComponent < ApplicationComponent
   # aggregates the page. Public rows only -- the sidebar's names come from
   # tag_string, which never holds a private creator tag, so a private row
   # could only ever add information this viewer may not have.
+  #
+  # And THE LAMP, from the same bit_or: which model put the name there
+  # anywhere on the page (FourierTagSource.lamp_of) -- the pill's dot, per
+  # formant. name -> [bucket, lamp]; a name with no row is unsourced, manual.
   def page_tag_provenance
     @page_tag_provenance ||= begin
       names = page_tag_categories.keys
@@ -332,7 +351,7 @@ class ModulationGalleryComponent < ApplicationComponent
           .where(post_id: posts.map(&:id), tag: names)
           .group(:tag)
           .pluck(:tag, Arel.sql("bit_or(source)"), Arel.sql("bool_and(status = #{FourierTagSource::PENDING})"))
-          .to_h { |tag, source, pending| [tag, provenance_bucket(source, pending)] }
+          .to_h { |tag, source, pending| [tag, [provenance_bucket(source, pending), FourierTagSource.lamp_of(source)]] }
       end
     end
   end
@@ -350,7 +369,12 @@ class ModulationGalleryComponent < ApplicationComponent
   # identifying kinds (the post page's rule; the stylesheet's compound
   # category selector is what makes artist/character/copyright win).
   def pill_classes(tag)
-    "mod-pill mod-pill--#{page_tag_provenance[tag.name] || 'unsourced'} mod-pill--cat mod-pill--cat-#{category_key(tag)}"
+    "mod-pill mod-pill--#{page_tag_provenance.dig(tag.name, 0) || 'unsourced'} mod-pill--cat mod-pill--cat-#{category_key(tag)}"
+  end
+
+  # The dot's lamp class. No row: no model, a person's white lamp.
+  def dot_classes(tag)
+    "mod-pill-dot mod-pill-dot--#{page_tag_provenance.dig(tag.name, 1) || :manual}"
   end
 
   def category_key(tag)

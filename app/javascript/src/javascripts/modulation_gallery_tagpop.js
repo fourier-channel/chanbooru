@@ -7,6 +7,7 @@
 // server left out of it -- a banished name -- is matching data for the
 // blacklist and nothing else, so the client skips it rather than defaulting
 // it into view.
+import { isHype } from "./modulation_hype";
 
 const ORDER = ["artist", "copyright", "character", "general", "meta"];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -74,7 +75,20 @@ function boot() {
     meter.hidden = true;
   }
 
+  // A card's own [bucket, lamp] per tag (ModulationGalleryComponent
+  // #card_tag_marks), so the panel's pills are the page's pills: provenance
+  // paints them, the category tints the identifying kinds, the dot is the
+  // model's lamp, the words are white. A tag with no mark is unsourced.
+  function marksOf(card) {
+    try {
+      return JSON.parse(card.getAttribute("data-tag-marks") || "{}");
+    } catch {
+      return {};
+    }
+  }
+
   function show(card) {
+    const marks = marksOf(card);
     const groups = {};
     (card.getAttribute("data-tags") || "").split(/\s+/).forEach((tag) => {
       const key = cats[tag];
@@ -85,7 +99,12 @@ function boot() {
     });
     const html = ORDER.filter((key) => groups[key]).map((key) =>
       `<div class="modgal-tagpop-group"><span class="modgal-tagpop-label">${key}</span><div class="modgal-tagpop-pills">` +
-      groups[key].map((tag) => `<span class="mod-pill mod-pill--cat-${key}"><span class="mod-pill-dot"></span>${esc(tag.replace(/_/g, " "))}${countOf(tag)}</span>`).join("") +
+      groups[key].map((tag) => {
+        const [bucket, lamp] = marks[tag] || ["unsourced", "manual"];
+        const hype = isHype(tag) ? " mod-pill--hype" : "";
+        return `<span class="mod-pill mod-pill--${esc(bucket)} mod-pill--cat mod-pill--cat-${key}${hype}" data-tag="${esc(tag)}">` +
+          `<span class="mod-pill-dot mod-pill-dot--${esc(lamp)}"></span>${esc(tag.replace(/_/g, " "))}${countOf(tag)}</span>`;
+      }).join("") +
       "</div></div>").join("");
     if (!html) {
       return;

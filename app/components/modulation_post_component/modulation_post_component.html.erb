@@ -184,12 +184,9 @@
       region("sort-label").textContent = active().label || "";
     }
 
-    // Tags worth being pleased about. The MOTION is canon (formant
-    // mod-hype-*), so this list is the only local decision -- which names wear
-    // it -- and it is the same list Technetium keeps, so a tag behaves
-    // identically wherever it is read.
-    const HYPE = new Set(["butthole"]);
-    const hypeOf = (t) => (HYPE.has(String(t).trim().toLowerCase()) ? " mod-pill--hype" : "");
+    // Tags worth being pleased about: the list and the spin are
+    // modulation_hype.js, shared with /posts (window.FourierHype).
+    const hypeOf = (t) => (window.FourierHype && window.FourierHype.isHype(t) ? " mod-pill--hype" : "");
     // ALPHABETICAL within every bucket (operator ruling 2026-09-19). The payload
     // arrives in tag-string order, which is whatever order the taggers and the
     // editors happened to write things in, and a list a reader cannot predict
@@ -710,50 +707,8 @@
       }).catch(() => { window.location.href = nb.url; }); // network failure: fall back to a real load
     }
 
-    // THE HYPED TAG'S STATE MACHINE. Not :hover -- see the stylesheet. The
-    // spin goes on at pointer-enter and is never touched by hover again: one
-    // continuous spin. While a pill spins, a 100ms poll asks whether the
-    // pointer is still over the pill's LAYOUT box (offsetLeft/offsetTop against
-    // the offsetParent, which a transform does not move), and only after the
-    // pointer has been away for --mod-hype-grace does the wind-down start.
-    // That grace is what absorbs the pill rotating out from under a still
-    // pointer, and what the operator asked for by name. The poll runs only
-    // while something is spinning; nothing ticks on an idle page.
-    const hypeGrace = parseFloat(getComputedStyle(root).getPropertyValue("--mod-hype-grace")) || 800;
-    const pointer = { x: -1, y: -1 };
-    document.addEventListener("pointermove", e => { pointer.x = e.clientX; pointer.y = e.clientY; }, { passive: true });
-    document.addEventListener("pointerout", e => { if (!e.relatedTarget) { pointer.x = -1; pointer.y = -1; } });
-    const overLayoutBox = (el) => {
-      const op = el.offsetParent || document.body, pr = op.getBoundingClientRect(), pad = 6;
-      const l = pr.left + el.offsetLeft, t = pr.top + el.offsetTop;
-      return pointer.x >= l - pad && pointer.x <= l + el.offsetWidth + pad && pointer.y >= t - pad && pointer.y <= t + el.offsetHeight + pad;
-    };
-    const spinning = new Map();   // pill -> { away: ms since the pointer left, or null; timer }
-    function windDown(pill) {
-      const st = spinning.get(pill); if (st) clearTimeout(st.timer); spinning.delete(pill);
-      pill.classList.remove("is-spinning");
-      if (pill.isConnected) pill.classList.add("is-spinning-down");
-    }
-    function startSpin(pill) {
-      if (spinning.has(pill)) return;                       // already spinning: never restart
-      pill.classList.remove("is-spinning-down"); pill.classList.add("is-spinning");
-      const st = { away: null, timer: null }; spinning.set(pill, st);
-      const tick = () => {
-        if (!pill.isConnected) { windDown(pill); return; }  // the panel re-rendered under it
-        if (overLayoutBox(pill)) st.away = null;
-        else if (st.away === null) st.away = performance.now();
-        if (st.away !== null && performance.now() - st.away >= hypeGrace) { windDown(pill); return; }
-        st.timer = setTimeout(tick, 100);
-      };
-      tick();
-    }
-    root.addEventListener("pointerenter", e => {
-      const pill = e.target && e.target.closest && e.target.closest(".mod-pill--hype");
-      if (pill) startSpin(pill);
-    }, true);
-    root.addEventListener("animationend", e => {
-      if (e.animationName === "mod-hype-spin-down") e.target.classList.remove("is-spinning-down");
-    });
+    // The hyped pill's spin: modulation_hype.js, the same machine /posts runs.
+    if (window.FourierHype) window.FourierHype.bindSpin(root);
     root.addEventListener("click", e => {
       if (e.target.closest("[data-act='lightbox-close']")) { closeLightbox(); return; }
       // The centre image opens the fullscreen viewer. Spoilered and gated
