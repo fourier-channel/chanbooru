@@ -4,6 +4,7 @@
 #   bin/landing-preview            then open /tmp/landing-preview/index.html
 #   bin/landing-preview --out DIR
 #   bin/landing-preview --live URL --local URL
+#   bin/landing-preview --live-html FILE   a saved copy of the front page
 #
 # The dev database holds a handful of synthetic gradients: all the same shape,
 # all loading. Production has neither property, and the carousel's behaviour
@@ -13,9 +14,15 @@
 #
 # So: the page, its stylesheet and its script come from the LOCAL dev stack, so
 # an unreleased change can be looked at. The carousel payload comes from the
-# live front page, which is public HTML -- the same bytes any visitor gets. The
-# media keeps its live URLs, so production answers for it exactly as it would
-# for a stranger. Nothing is built on or written to the serving box.
+# live front page -- the same bytes any visitor gets. The media keeps its live
+# URLs, so production answers for it exactly as it would for a stranger.
+# Nothing is built on or written to the serving box.
+#
+# The front page sits behind a Cloudflare challenge (since 2026-09-12), which a
+# script cannot pass: a plain GET gets a 403 and "Just a moment...", not the
+# page. So fetching it is tried and, when challenged, refused with that said --
+# save the page some other way (the origin, or a browser that has cleared the
+# challenge) and hand it over with --live-html.
 #
 # Two things this does NOT cover.
 #
@@ -33,10 +40,12 @@ set -uo pipefail
 LIVE="https://booru.41chan.net/"
 LOCAL="http://127.0.0.1:3000/"
 OUT="/tmp/landing-preview"
+LIVE_HTML=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --live)  LIVE="$2"; shift 2 ;;
+    --live-html) LIVE_HTML="$2"; shift 2 ;;
     --local) LOCAL="$2"; shift 2 ;;
     --out)   OUT="$2"; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -45,7 +54,18 @@ done
 
 mkdir -p "$OUT"
 
-curl -sfL --max-time 30 "$LIVE"  -o "$OUT/live.html"  || { echo "cannot reach $LIVE" >&2; exit 1; }
+if [[ -n "$LIVE_HTML" ]]; then
+  cp "$LIVE_HTML" "$OUT/live.html" || { echo "cannot read $LIVE_HTML" >&2; exit 1; }
+else
+  STATUS="$(curl -sL --max-time 30 -o "$OUT/live.html" -D "$OUT/live.headers" -w '%{http_code}' "$LIVE")" || { echo "cannot reach $LIVE" >&2; exit 1; }
+  if grep -qi '^cf-mitigated: *challenge' "$OUT/live.headers"; then
+    echo "$LIVE answered $STATUS with a Cloudflare challenge, not the page: a script cannot fetch it." >&2
+    echo "fix:  save the front page another way (from the origin, or a browser past the challenge) and pass it:" >&2
+    echo "      bin/landing-preview --live-html saved.html" >&2
+    exit 1
+  fi
+  [[ "$STATUS" == 2* ]] || { echo "$LIVE answered $STATUS" >&2; exit 1; }
+fi
 curl -sfL --max-time 30 "$LOCAL" -o "$OUT/local.html" || { echo "cannot reach $LOCAL -- is the dev stack up? (bin/dev up -d)" >&2; exit 1; }
 
 OUT="$OUT" LIVE="$LIVE" LOCAL="$LOCAL" node - <<'JS'
