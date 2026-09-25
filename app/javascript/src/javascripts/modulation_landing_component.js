@@ -189,11 +189,23 @@ function initLanding(root) {
     // larger, and a run of identical "401" cards reads as a locked archive --
     // which is exactly what it is.
     el.className = "mod-image";
+    // A VIDEO PLAYS ONLY WHILE IT CAN BE SEEN. render() starts it when its
+    // cell is shown AND inside the panel, and stops it otherwise; nothing here
+    // starts it. It used to autoplay from the moment it was built, and a cell
+    // is built two ranks before it is shown and kept two ranks after -- at
+    // opacity 0, still in the viewport, so the browser kept decoding a picture
+    // nobody could see: one offstage loop measured 31.7% of a core against
+    // 13.0% paused, same page, headless Chromium with GPU compositing
+    // (2026-09-25). "Shown" is not enough on its own: the panel clips the run,
+    // and with a wide picture in focus only two ranks either side are inside
+    // it (measured: 5 of the 13 shown cells at 1600px).
+    // preload="auto" is what keeps the rule above: the first frame is fetched
+    // and decoded while the cell waits, so it arrives as a picture, not a hole.
     if (slide.kind === "video") {
       el.muted = true;
       el.playsInline = true;
       el.loop = true;
-      el.autoplay = true;
+      el.preload = "auto";
     } else {
       el.alt = "";
     }
@@ -451,6 +463,10 @@ function initLanding(root) {
     const ranks = ranksFor(axis);
 
     const reach = reachFor(axis);
+    // The panel clips at its padding box, and the belt is centred in it, so a
+    // cell is inside it while its near edge is within half the panel's width.
+    const panel = root.querySelector(".modland-stage-wrap");
+    const halfPanel = panel ? panel.clientWidth / 2 : Infinity;
     placed.forEach(({ slide, d }) => {
       const k = Math.abs(d);
       // Outside the window: not built, and released if it was.
@@ -484,6 +500,13 @@ function initLanding(root) {
       retuneCard(cell, w);
 
       cell.classList.toggle("is-offstage", !shown);
+      // See mediaEl: a video plays while its cell is shown and overlaps the
+      // panel, judged on where the cell is going, so one sliding into view
+      // starts as it arrives. play() on a playing video is a no-op, and its
+      // rejection (a file that will not load) is already an error card by way
+      // of the error listener.
+      const video = cell.querySelector("video");
+      if (video && shown && Math.abs(x) - (w / 2) < halfPanel) { video.play().catch(() => null); } else if (video) { video.pause(); }
       cell.classList.toggle("is-focus", d === 0);
       if (d === 0) { promoteMedia(cell, slide); }
       cell.classList.toggle("is-incoming", k === 1);
