@@ -937,6 +937,21 @@
     stage.addEventListener("touchstart", e => { tx = e.changedTouches[0].clientX; }, { passive: true });
     stage.addEventListener("touchend", e => { if (tx == null) return; const dx = e.changedTouches[0].clientX - tx; tx = null; if (Math.abs(dx) > 45) navigate(dx < 0 ? "next" : "prev"); });
 
+    // The wheel walks the axis like the arrows: one notch, one post, by
+    // Technetium's rule (fourier_wheel_step.js, on window for this script).
+    // Over the stage only, and it does not scroll the page there -- the tags
+    // and comments below still scroll everywhere else. The fullscreen viewer
+    // keeps its own wheel, which zooms.
+    let wheelState = null;
+    stage.addEventListener("wheel", e => {
+      const W = window.FourierWheel;
+      if (!W || lbOpen) return;
+      e.preventDefault();
+      const r = W.wheelStep(wheelState || W.WHEEL_IDLE, { dx: e.deltaX, dy: e.deltaY, mode: e.deltaMode, t: e.timeStamp });
+      wheelState = r.state;
+      if (r.step) navigate(r.step > 0 ? "next" : "prev");
+    }, { passive: false });
+
     window.addEventListener("popstate", () => {
       const m = location.pathname.match(/\/posts\/(\d+)/); if (!m) return;
       const search = new URLSearchParams(location.search).get("q") || "";
