@@ -8,6 +8,8 @@
 #   #=> <set of posts>
 #
 class PostQueryBuilder
+  RANDOM_SORT_CEILING = 10_000
+
   extend Memoist
 
   # How many tags a `blah*` search should match.
@@ -168,6 +170,22 @@ class PostQueryBuilder
 
   def paginated_posts(post_query, page, count:, small_search_threshold: Danbooru.config.small_search_threshold.to_i, includes: :media_asset, **options)
     posts = posts(post_query, includes: includes).paginate(page, count: count, **options)
+    # A LARGE SEARCH SORTED order:random IS SAMPLED, not sorted: ORDER BY
+    # random() evaluates every matching post, 2.1-2.6s a page for a 300k-post
+    # tag on production data (2026-09-26) and tens of seconds with the posts
+    # table out of cache, while Post.random -- the random:N metatag, the
+    # gallery's Random button -- seeks along the md5 index in 6-71ms. A search
+    # within the ceiling keeps the true shuffle, because the md5 seek is biased
+    # on a small one (12 of a 24-post tag's posts in 200 draws) and a small
+    # sort is cheap (6ms). A search too slow to count is large. The page asked
+    # for stays the pager's page; its posts are a fresh sample, which is all
+    # page 3 of a random order ever was (test/unit/random_order_pagination_test.rb).
+    # Drawn with some to spare and trimmed to the page: two draws can land on
+    # one post, and 200 draws over 369k posts gave 199.
+    if post_query.find_metatag(:order)&.downcase == "random" && !post_query.has_metatag?(:random) && (count.nil? || count > RANDOM_SORT_CEILING)
+      per_page = posts.records_per_page
+      posts = posts(post_query, includes: includes).random(per_page + (per_page / 10) + 2).paginate(page, count: count, **options).offset(0)
+    end
     posts = optimize_search(posts, count, small_search_threshold)
     posts.load
   end
