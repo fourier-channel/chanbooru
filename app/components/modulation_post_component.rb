@@ -488,15 +488,27 @@ class ModulationPostComponent < ApplicationComponent
   # seen in that direction -- is rolled, once, and remembered. Re-rolling
   # both sides on every payload, which is what this did, made "back" a
   # different random post than the one just left.
+  #
+  # A ROLL IS DANBOORU'S OWN Post.random -- a random md5, then the nearest
+  # matching post along the md5 index -- never ORDER BY random() over the whole
+  # search. That sort evaluates the enforced blacklist against every visible
+  # post: 44 seconds for one roll on production data (2026-09-26), paid by
+  # every signed-in post view whatever its mode. Every roll excludes what was
+  # already rolled -- the trail passes its ids, and the trail-less branch
+  # passes prev -- which keeps the two sides different AND keeps their SQL
+  # different: a request caches identical SQL, and twenty cached rolls of one
+  # query came back as one post twenty times
+  # (test/unit/modulation_random_neighbours_test.rb).
   def random_neighbours
-    roll = ->(taken) { Post.user_tag_match(base_tags.to_s, viewer).where.not(id: taken + [post.id]).reorder(Arel.sql("random()")).limit(1).pick(:id) }
+    roll = ->(taken) { Post.user_tag_match(base_tags.to_s, viewer).where.not(id: taken + [post.id]).random(1).pick(:id) }
     trail = random_trail
     if trail
       found = trail.neighbours_for(post, &roll)
       trail.save!
       found.merge(history: trail.size)
     else
-      { prev_id: roll.call([]), next_id: roll.call([]), history: 0 }
+      prev_id = roll.call([])
+      { prev_id: prev_id, next_id: roll.call([prev_id].compact), history: 0 }
     end
   rescue StandardError
     { prev_id: nil, next_id: nil, history: 0 }
