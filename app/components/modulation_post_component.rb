@@ -45,7 +45,7 @@ class ModulationPostComponent < ApplicationComponent
 
   # The preset matching the sort the viewer arrived with (default: by number).
   def active_preset_key
-    @active_preset_key ||= (nav_presets.find { _1[:active] } || nav_presets.first)&.fetch(:key)
+    @active_preset_key ||= (nav_presets.find { it[:active] } || nav_presets.first)&.fetch(:key)
   end
 
   # ------------------------------------------------------------------------
@@ -183,7 +183,7 @@ class ModulationPostComponent < ApplicationComponent
       total: post.score,
       up: post.up_score,
       down: post.down_score,
-      vote: (vote.nil? ? nil : (vote.is_positive? ? "up" : "down")),
+      vote: vote && (vote.is_positive? ? "up" : "down"),
       vote_id: vote&.id,
       can_vote: !anonymous?,
     }
@@ -460,15 +460,15 @@ class ModulationPostComponent < ApplicationComponent
     end
 
     # One batched load for every neighbour thumbnail, not a query per preview.
-    ids = resolved.flat_map { [_1[:prev_id], _1[:next_id]] }.compact.uniq
+    ids = resolved.flat_map { [it[:prev_id], it[:next_id]] }.compact.uniq
     posts_by_id = Post.where(id: ids).includes(:media_asset).index_by(&:id)
 
-    active_key = if incoming_order == "random"
-      "random"
+    if incoming_order == "random"
+      active_key = "random"
     elsif base_tags.present?
-      "search"
+      active_key = "search"
     else
-      "all"
+      active_key = "all"
     end
 
     resolved.map do |d|
