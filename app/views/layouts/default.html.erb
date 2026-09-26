@@ -2,6 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <%# THE PAGE IS DARK BEFORE ITS STYLESHEET SAYS SO. Three parser-blocking
+      scripts load ahead of the stylesheet, and until it lands the browser
+      paints its default canvas: every navigation flashed one fully white frame
+      in Firefox (2026-09-26). Declared here, ahead of every script, the canvas
+      is dark from the first paint. A scheme, not a colour: the skin's colours
+      stay the formant tokens'. The historical preset is upstream's light
+      interface and is not told otherwise (test/functional/modulation_color_scheme_test.rb). %>
+  <% if modulation? %>
+    <meta name="color-scheme" content="dark">
+  <% end %>
   <title><%= page_title %></title>
 
   <%= tag.link href: "#{main_app.root_path}favicon.ico", rel: "icon", sizes: "16x16", type: "image/x-icon" %>
