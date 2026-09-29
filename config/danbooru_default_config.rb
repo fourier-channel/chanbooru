@@ -741,6 +741,43 @@ module Danbooru
       !Rails.env.test?
     end
 
+    # The booru accounts that post ON SOMEONE ELSE'S BEHALF, by the names they
+    # have on production (read 2026-09-29): `sample`, fourier-sampling's, and
+    # `tunnel`, fourier-tunnel's. Matched on the account name,
+    # case-insensitively. Read by FourierCreatorPrivacy: a post has a creator,
+    # who alone sees its private creator tags and generation data (operator
+    # ruling 2026-09-29), and when no creator was recorded for a post its
+    # uploader is the creator -- unless the uploader is one of these. A
+    # posting bot is never anybody's creator, so a bot-uploaded post with no
+    # recorded creator has private data NOBODY sees.
+    #
+    # A NAME, SO A RENAME TURNS A BOT INTO A PERSON. The tunnel's account was
+    # `bridge` until 2026-08-13, and `bmb` names the tunnel's repo and
+    # container, never its booru login. A list naming either would make the
+    # real `tunnel` account the "creator" of every post it uploaded with no
+    # recorded creator (round-two finding 4). Rename a bot and change this in
+    # the same breath; script/fourier_backfill_post_creators.rb warns about a
+    # name here that matches no account.
+    #
+    # HERE and not in danbooru_local_config.rb for the reason
+    # banished_posts_need_reveal? gives: that file is untracked, and the code
+    # cannot run without this. A deployment whose bots are named otherwise
+    # overrides it there.
+    #
+    # The SAME list under test: the user factory's names are random, so no
+    # upstream test posts as either, and the fork's tests create accounts
+    # named `tunnel` and `sample` to ask the real list rather than a stub.
+    def fourier_posting_bot_names
+      %w[sample tunnel]
+    end
+
+    # The Matrix homeserver whose users fourier-tunnel mints `41chan_<localpart>`
+    # poster tags for. The creator backfill proposes @<localpart>:<this> for a
+    # post's poster tag; a remote @alice:elsewhere is not 41chan_alice.
+    def fourier_matrix_server_name
+      "41chan.net"
+    end
+
     # Whether to enable comments.
     def comments_enabled?
       true

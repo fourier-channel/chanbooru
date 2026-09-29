@@ -19,6 +19,16 @@ Rails.application.routes.draw do
   get  "posts/:post_id/tag_sources", to: "fourier_tag_sources#show"
   # which MODEL reported each tag, for posts already recorded: OR-only, many posts a call.
   post "posts/tag_source_models",    to: "fourier_tag_sources#models", as: :fourier_tag_source_models
+  # fourier: AI generation data the tunnel stripped from an upload, and who made
+  # each post -- both private to the post's creator (FourierCreatorPrivacy).
+  # The BOT routes are under /fourier/, which nginx hands to fourier-auth, so
+  # only a caller on the danbooru container itself (the bots) reaches them.
+  # The BROWSER read is not: it must reach Rails through nginx's `/` location,
+  # which is where the verified Matrix identity is attached.
+  post "fourier/posts/:post_id/creator",           to: "fourier_post_creators#create",       as: :fourier_post_creator
+  post "fourier/generation_metadata",              to: "fourier_generation_metadata#create", as: :fourier_generation_metadata_index
+  get  "fourier/generation_metadata/raw/:raw_md5", to: "fourier_generation_metadata#raw",    as: :fourier_generation_metadata_raw
+  get  "posts/:post_id/generation_data",           to: "fourier_generation_metadata#show",   as: :post_generation_data, defaults: { format: :json }
   get  "posts/:post_id/modulation",  to: "modulation#show", as: :post_modulation # client-side nav payload
   patch "modulation/settings",       to: "modulation_settings#update", as: :modulation_settings # server-held view state
   get  "modulation/session_status",  to: "modulation_session#status", as: :modulation_session_status # the session bar's monitors

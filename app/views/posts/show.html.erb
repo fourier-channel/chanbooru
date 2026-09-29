@@ -9,7 +9,7 @@
     post page below is retained as the hidden "historical" preset; see
     ExperiencePreset for how a page picks between them. %>
 <% if modulation? %>
-  <%= render ModulationPostComponent.new(post: @post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session) %>
+  <%= render ModulationPostComponent.new(post: @post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session, request: request) %>
 
   <%# THE EDIT FORM LIVES HERE TOO, so Modulation's "contribute" links can be
       plain #edit anchors instead of a detour through ?preset=historical.
@@ -104,6 +104,24 @@
       </li>
     </ul>
   </section>
+
+  <%# fourier: generation data the tunnel took out of this image -- the
+      creator's alone (FourierCreatorPrivacy; not admins), and only the record
+      this post's creator owns (FourierGenerationMetadata.for_post). The same
+      record and the same gate as the Modulation page's section. %>
+  <% generation = FourierGenerationMetadata.for_post(@post) %>
+  <% if generation && FourierCreatorPrivacy.visible_to?(@post, CurrentUser.user, request) %>
+    <section id="post-generation-data">
+      <h2>Generation data</h2>
+      <details>
+        <summary><%= pluralize(generation.fields.size, "field") %>, private to the creator</summary>
+        <% generation.fields.sort.each do |key, text| %>
+          <h3><%= key %></h3>
+          <pre class="whitespace-pre-wrap break-words"><%= text %></pre>
+        <% end %>
+      </details>
+    </section>
+  <% end %>
 
   <section id="post-options">
     <h2>Options</h2>

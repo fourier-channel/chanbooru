@@ -178,23 +178,33 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       assert_equal :both, row(@post, "a").lamp
     end
 
-    should "leave a creator's private row private and the creator's" do
+    # Round-two finding 5: this route is builder+, so every moderator reaches
+    # it, and "updated" for a creator's private tag against "skipped" for a
+    # wrong guess confirmed the guess -- while rewriting the private row. A
+    # private row is now neither answered for nor written: its tag reads
+    # exactly as a tag the post does not have. Both shapes: the tunnel's
+    # (the private tag is not in tag_string) and the 2026-08-04..06 one
+    # (it is, and the insert path must not reach its row either).
+    should "neither touch nor reveal a creator's private row, to a moderator guessing" do
       creator = create(:user)
-      @post.update!(tag_string: "a b m secret")
+      moderator = create(:moderator_user)
       FourierTagSource.record_partition!(@post, { creator: %w[secret] }, creator)
-      before = row(@post, "secret")
+      legacy = create(:post, tag_string: "a legacy_secret")
+      FourierTagSource.record_partition!(legacy, { creator: %w[legacy_secret] }, creator)
+      before = [row(@post, "secret").attributes, row(legacy, "legacy_secret").attributes]
 
-      models(@bot, [{ post_id: @post.id, hydra: %w[secret] }])
+      answers = [
+        [@post, "secret"], [@post, "wrong_guess"], [legacy, "legacy_secret"], [legacy, "another_wrong_guess"],
+      ].map do |post, guess|
+        models(moderator, [{ post_id: post.id, spectrum: [guess], hydra: [guess] }])
+        assert_response :success
+        response.parsed_body
+      end
 
-      after = row(@post, "secret")
-      assert_equal before.source | FourierTagSource::HYDRA, after.source
-      assert after.creator?
-      assert_not after.auto?, "a model bit is not the AUTO bit: the tag stays in the creator bucket"
-      assert_equal :creator, after.bucket
-      assert_equal false, after.public
-      assert_equal creator.id, after.added_by
-      assert_equal before.status, after.status
-      assert_equal before.created_at, after.created_at
+      skipped = { "updated" => 0, "inserted" => 0, "skipped" => 1, "missing_posts" => [] }
+      assert_equal [skipped] * 4, answers, "a right guess and a wrong one must read the same"
+      assert_equal before, [row(@post, "secret").attributes, row(legacy, "legacy_secret").attributes]
+      assert_nil row(legacy, "another_wrong_guess")
     end
 
     should "report an unknown post and still do the rest" do

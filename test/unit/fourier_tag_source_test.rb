@@ -5,8 +5,12 @@ require "test_helper"
 class FourierTagSourceTest < ActiveSupport::TestCase
   context "FourierTagSource" do
     setup do
-      @post = create(:post)
       @user = create(:user)
+      # @user is this post's CREATOR by the uploader rule: a person uploaded it
+      # and no creator is recorded (FourierCreatorPrivacy). Until 2026-09-29
+      # the creator was whoever the private rows named as added_by -- which,
+      # for every tunnel post, is the posting bot.
+      @post = create(:post, uploader: @user)
     end
 
     should "map source/status to the right UI bucket" do
@@ -141,12 +145,116 @@ class FourierTagSourceTest < ActiveSupport::TestCase
       end
     end
 
+    # THE TUNNEL'S SHAPE since 37270f5 (2026-08-06): a creator-only tag is its
+    # private row and nothing else -- it is NOT in tag_string. Round two drew
+    # rows only for tags in tag_string, so every real creator got an empty
+    # creator bucket while the privacy rule said yes, and every test passed
+    # because each fixture put the private tag in tag_string as well
+    # (round-two finding 1).
+    should "draw a creator's private rows for the creator though tag_string does not carry them" do
+      @post.update!(tag_string: "a")
+      FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => ["a"] }, @user)
+      refute_includes @post.reload.tag_array, "secret", "the fixture must be the tunnel's shape"
+
+      mine = FourierTagSource.for_viewer(@post, @user)
+      assert_equal ["secret"], mine[:creator]
+      assert_empty mine[:unsourced]
+      live = FourierTagSource.live_read(@post, @user)
+      assert_includes live[:tag_string].split, "secret"
+      assert_includes live[:categories].values.flatten, "secret"
+      _buckets, lamps = FourierTagSource.buckets_and_lamps_for(@post, @user)
+      assert_includes lamps[:manual], "secret"
+      assert_includes FourierTagSource.blacklist_tags_for([@post], @user)[@post], "secret"
+
+      [nil, User.anonymous, create(:user), create(:moderator_user), create(:admin_user)].each do |viewer|
+        label = viewer&.level_string.inspect
+        assert_empty FourierTagSource.for_viewer(@post, viewer).values.flatten.grep(/secret/), label
+        refute_includes FourierTagSource.live_read(@post, viewer)[:tag_string].split, "secret", label
+        refute_includes FourierTagSource.blacklist_tags_for([@post], viewer)[@post], "secret", label
+      end
+    end
+
+    # The 2026-09-20 fix stands for PUBLIC rows: a tag removed from tag_string
+    # leaves its row behind, and that row is drawn for nobody -- the creator
+    # included. Only the creator's PRIVATE rows are exempt from the
+    # intersection, because their tags are never in tag_string to begin with.
+    should "still drop a public row whose tag has left tag_string, for the creator too" do
+      @post.update!(tag_string: "a b")
+      FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => %w[a b] }, @user)
+      @post.update!(tag_string: "a")
+
+      mine = FourierTagSource.for_viewer(@post, @user)
+      refute_includes mine.values.flatten, "b"
+      assert_includes mine[:creator], "secret"
+      refute_includes FourierTagSource.for_viewer(@post, nil).values.flatten, "b"
+    end
+
+    # The shape of posts from 2026-08-04..06 (fourier-tunnel e5e7e19), when the
+    # tunnel put creator tags into tag_string as well. Production still holds
+    # one (script/fourier_remove_private_tags_from_tag_string.rb takes it out).
     should "surface private tags to the creator but not to anonymous viewers" do
       @post.update!(tag_string: "secret a")
       FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => ["a"] }, @user)
       assert_includes FourierTagSource.for_viewer(@post, @user)[:creator], "secret"
       assert_empty FourierTagSource.for_viewer(@post, nil)[:creator]
       assert_includes FourierTagSource.for_viewer(@post, nil)[:auto], "a"
+    end
+
+    # Operator ruling 2026-09-29: the creator decides, and nobody holds a role
+    # that overrides that. The account that RECORDED the rows is not the
+    # creator either -- for a tunnel post that account is the posting bot.
+    # In the 2026-08-04..06 shape, where tag_string carries the private tag and
+    # blacklist_tags_for has to take it OUT for everyone but the creator.
+    should "withhold private tags from a moderator, an admin and the account that recorded them" do
+      @post.update!(tag_string: "secret a")
+      recorder = create(:builder_user)
+      FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => ["a"] }, recorder)
+      assert_equal recorder.id, FourierTagSource.find_by!(post_id: @post.id, tag: "secret").added_by
+
+      [recorder, create(:moderator_user), create(:admin_user)].each do |viewer|
+        assert_empty FourierTagSource.for_viewer(@post, viewer)[:creator], viewer.level_string
+        refute_includes FourierTagSource.live_read(@post, viewer)[:tag_string].split, "secret", viewer.level_string
+        refute_includes FourierTagSource.blacklist_tags_for([@post], viewer)[@post], "secret", viewer.level_string
+      end
+      assert_includes FourierTagSource.blacklist_tags_for([@post], @user)[@post], "secret"
+    end
+
+    should "show private tags to the recorded creator by verified identity, and pass the request through" do
+      @post.update!(tag_string: "a")
+      FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => ["a"] }, @user)
+      FourierPostCreator.create!(post: @post, mxid: "@alice:41chan.net", recorded_by: @user.id)
+      creator = ActionDispatch::TestRequest.create("HTTP_X_FOURIER_IDENTITY" => "@alice:41chan.net")
+
+      assert_empty FourierTagSource.for_viewer(@post, @user)[:creator], "a recorded creator replaces the uploader"
+      assert_includes FourierTagSource.for_viewer(@post, nil, request: creator)[:creator], "secret"
+      assert_includes FourierTagSource.live_read(@post, nil, request: creator)[:tag_string].split, "secret"
+      assert_includes FourierTagSource.blacklist_tags_for([@post], nil, request: creator)[@post], "secret"
+    end
+
+    # record_models! reads which rows exist and then writes; the poster writes
+    # this table the whole time. A private row that lands between the read and
+    # the write meets the insert's ON CONFLICT and falls through to the OR
+    # update -- which must not reach it (round-two finding 5). The concurrent
+    # writer is played by the insert itself, writing the row just before it.
+    should "not rewrite a private row written between record_models!'s read and its write" do
+      @post.update!(tag_string: "a secret")
+      FourierTagSource.record_partition!(@post, { "auto" => ["a"] }, @user)
+      post = @post
+      user = @user
+      FourierTagSource.singleton_class.define_method(:insert_all) do |*args, **kwargs|
+        FourierTagSource.create!(post: post, tag: "secret", source: FourierTagSource::CREATOR, status: FourierTagSource::APPROVED,
+                                 public: false, added_by: user.id, created_at: 1.day.ago)
+        super(*args, **kwargs)
+      end
+
+      result = FourierTagSource.record_models!([{ post_id: @post.id, hydra: ["secret"] }], @user)
+
+      row = FourierTagSource.find_by!(post_id: @post.id, tag: "secret")
+      assert_equal FourierTagSource::CREATOR, row.source, "the late private row was rewritten"
+      assert_equal false, row.public
+      assert_equal({ updated: 0, inserted: 0, skipped: 1, missing_posts: [] }, result)
+    ensure
+      FourierTagSource.singleton_class.send(:remove_method, :insert_all) if FourierTagSource.singleton_class.method_defined?(:insert_all, false)
     end
 
     should "show a tag that has no provenance row instead of dropping it" do

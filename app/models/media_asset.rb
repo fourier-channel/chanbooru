@@ -36,7 +36,7 @@ class MediaAsset < ApplicationRecord
   has_many :dtext_links, -> { embedded_media_asset }, foreign_key: :link_target
   has_many :embedding_wiki_pages, through: :dtext_links, source: :model, source_type: "WikiPage"
 
-  delegate :frame_delays, :metadata, to: :media_metadata, allow_nil: true
+  delegate :frame_delays, :metadata, :visible_metadata, to: :media_metadata, allow_nil: true
   delegate :is_non_repeating_animation?, :is_greyscale?, :is_rotated?, :is_ai_generated?, :has_sound?, to: :metadata
 
   scope :public_only, -> { where(is_public: true) }
@@ -230,7 +230,13 @@ class MediaAsset < ApplicationRecord
         end
       end
 
+      # fourier: an exif: term on a generation key (a prompt, a workflow)
+      # finds nothing, for everyone -- a search spans every creator's images
+      # at once. See FourierGenerationFilter. Reached from post, media asset
+      # and upload searches alike.
       def exif_matches(string)
+        return none if FourierGenerationFilter.exif_term?(string)
+
         # string = File:ColorComponents=3
         if string.include?("=")
           key, value = string.split("=", 2)

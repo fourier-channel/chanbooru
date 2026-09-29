@@ -668,10 +668,13 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
       end
 
       # The other side of the same gate: withholding a creator's own tags from
-      # them would make the feature useless rather than private.
-      should "publish a private tag back to the creator who added it" do
+      # them would make the feature useless rather than private. The creator
+      # is who made the post -- here the person who uploaded it, with no
+      # creator recorded (FourierCreatorPrivacy) -- not whoever added the row.
+      should "publish a private tag back to the creator who uploaded it" do
         FourierTagSource.create!(post: @post, tag: "secret_prompt_tag", source: FourierTagSource::CREATOR, status: FourierTagSource::APPROVED, public: false, added_by: @user.id)
         @post.update!(tag_string: "aaaa bbbb secret_prompt_tag")
+        @post.update_columns(uploader_id: @user.id)
 
         get_auth post_modulation_path(post_id: @post.id, format: :json), @user
 

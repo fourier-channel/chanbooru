@@ -199,7 +199,11 @@
               <% end %>
             <% end %>
 
-            <% @media_asset.metadata.to_h.group_by { |key, value| key.split(":").first }.sort.each do |group, pairs| %>
+            <%# fourier: visible_metadata, not metadata -- generation data (prompts,
+                settings, workflows) is withheld from everyone but the creator of
+                the post carrying this image, admins included. See
+                FourierGenerationFilter. %>
+            <% @media_asset.visible_metadata(CurrentUser.user, request).to_h.group_by { |key, value| key.split(":").first }.sort.each do |group, pairs| %>
               <tr>
                 <th colspan="2" class="text-center"><%= group.split(/[ _-]/).map(&:upcase_first).join(" ") %></th>
               </tr>

@@ -78,8 +78,9 @@ class FourierTagSourcesController < ApplicationController
     render json: FourierTagSource.record_models!(parsed, CurrentUser.user), status: 200
   end
 
-  # Read the tag buckets for a post. Default is the identity-gated view (creator/mod
-  # see private creator tags, everyone else sees public only). `?scope=public`
+  # Read the tag buckets for a post. Default is the identity-gated view (the
+  # post's creator sees its private creator tags -- FourierCreatorPrivacy --
+  # and everyone else, moderators and admins included, sees public only). `?scope=public`
   # returns the machine-facing public projection whoever asks -- used by a bot to
   # refresh a duplicate image's Matrix state without leaking private tags -- for
   # any post the caller may see at all (below).
@@ -100,7 +101,7 @@ class FourierTagSourcesController < ApplicationController
                 # reader indexes by key rather than flattening values. Buckets,
                 # lamps, categories, rating and a VIEWER-SAFE tag_string, so a
                 # client can draw and edit a pool from this one request.
-                FourierTagSource.live_read(post, CurrentUser.user)
+                FourierTagSource.live_read(post, CurrentUser.user, request: request)
               end
     render json: payload, status: :ok
   end

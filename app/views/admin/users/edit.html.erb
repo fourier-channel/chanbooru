@@ -101,12 +101,14 @@
       <% end %>
     </div>
 
-    <%# Per-tag grants: the whitelist a creator's tag maintains, assigned
-        here. "view" opens the private creator tags on posts carrying the
-        tag; "edit" confers what an approved artist claim does over that one
-        artist. This is where "permissions only deny" and "access is only
-        granted" meet -- a grant row is the sole way access opens, and
-        revoking it closes it again. %>
+    <%# Per-tag grants, assigned here. "edit" confers what an approved artist
+        claim does over that one artist. "view" is no longer offered: it
+        opened a creator's private tags, and a moderator could grant it to
+        themselves, while only the creator decides who sees those (operator
+        ruling 2026-09-29; FourierCreatorPrivacy reads no grant). A view row
+        already on record still lists and revokes. This is where
+        "permissions only deny" and "access is only granted" meet -- a grant
+        row is the sole way access opens, and revoking it closes it again. %>
     <% if policy(@user).promote? %>
       <h2 class="my-4">Tag grants</h2>
 
@@ -129,9 +131,10 @@
         <%= form_tag admin_tag_grants_path, method: :post, class: "card-outlined p-2 flex items-center gap-2" do %>
           <%= hidden_field_tag :user_id, @user.id %>
           <%= text_field_tag :tag, "", placeholder: "tag name", "data-autocomplete": "tag", class: "flex-grow-1" %>
-          <%= select_tag :ability, options_for_select(TagGrant::ABILITIES), class: "h-fit" %>
+          <%= select_tag :ability, options_for_select(TagGrant::GRANTABLE), class: "h-fit" %>
           <%= submit_tag "Grant", class: "button-primary h-fit" %>
         <% end %>
+        <p class="fineprint">Sharing a creator's private tags or generation data needs a control the creator uses, which does not exist yet, so "view" is not granted here.</p>
       </div>
     <% end %>
 

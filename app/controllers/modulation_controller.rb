@@ -23,7 +23,7 @@ class ModulationController < ApplicationController
     # troll jail exists so that there is nothing to point at.
     raise ActiveRecord::RecordNotFound if post.hidden_from_anonymous?(CurrentUser.user)
     raise ActiveRecord::RecordNotFound if post.hidden_as_deleted?(CurrentUser.user)
-    component = ModulationPostComponent.new(post: post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session)
+    component = ModulationPostComponent.new(post: post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session, request: request)
     render json: component.payload.merge(comments_html: comments_html(post)), status: :ok
   end
 

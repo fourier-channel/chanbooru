@@ -22,13 +22,26 @@ class ModulationPostComponent < ApplicationComponent
   # `session` is only for random mode's trail (RandomTrail): an anonymous
   # viewer's history lives in it. Absent, random still renders -- fresh picks,
   # remembered nowhere -- so the component stays renderable anywhere.
-  def initialize(post:, viewer:, query: nil, settings: nil, session: nil)
+  # `request` is for the creator check (FourierCreatorPrivacy): the viewer's
+  # VERIFIED Matrix identity rides on it (FourierIdentity), and the post's
+  # creator alone sees its private creator tags and generation data. Absent,
+  # the current request is used, and outside one no Matrix identity matches.
+  # Held under its own name because ViewComponent owns `request` and answers
+  # it only once rendering has begun, and the navigation endpoint builds the
+  # payload without rendering at all.
+  def initialize(post:, viewer:, query: nil, settings: nil, session: nil, request: nil)
     super
     @post = post
     @viewer = viewer
     @query = query
     @settings = settings || ModulationSetting.defaults
     @session = session
+    @identity_request = request
+  end
+
+  # The request the creator check reads the viewer's Matrix identity from.
+  def identity_request
+    @identity_request || CurrentUser.request
   end
 
   # --- gallery navigation -------------------------------------------------
@@ -67,7 +80,7 @@ class ModulationPostComponent < ApplicationComponent
 
   def tag_view
     @tag_view ||= begin
-      raw = FourierTagSource.buckets_and_lamps_for(post, viewer)
+      raw = FourierTagSource.buckets_and_lamps_for(post, viewer, request: identity_request)
       if TagBanishment.revealed_to?(viewer)
         raw
       else
@@ -151,7 +164,7 @@ class ModulationPostComponent < ApplicationComponent
   end
 
   def blacklist_tags
-    @blacklist_tags ||= FourierTagSource.blacklist_tags_for([post], viewer).fetch(post, [])
+    @blacklist_tags ||= FourierTagSource.blacklist_tags_for([post], viewer, request: identity_request).fetch(post, [])
   end
 
   # --- parity with the upstream post page ---------------------------------
@@ -365,7 +378,26 @@ class ModulationPostComponent < ApplicationComponent
       # deleted, deleted does not imply jailed -- is enforced by
       # ModulationModerationController; the pill only shows it.
       moderation: { can: policy.moderate?, jailed: jailed?, deleted: post.is_deleted? },
+      # The prompt, settings and workflow the tunnel took out of this image
+      # (operator ruling 2026-09-28), or nil. nil for everyone but the creator
+      # (ruling 2026-09-29), and nil when there is nothing -- the two are not
+      # told apart.
+      generation: generation_payload,
     }
+  end
+
+  # This post's generation data, if a record is served for this post
+  # (FourierGenerationMetadata.for_post: its owner is the post's recorded
+  # creator) AND this viewer may read it (FourierCreatorPrivacy: the post's
+  # creator -- not an admin). The whole decision is made here; the client
+  # only draws what it is handed, as escaped text.
+  def generation_payload
+    record = FourierGenerationMetadata.for_post(post)
+    return nil unless record && FourierCreatorPrivacy.visible_to?(post, viewer, identity_request)
+
+    # Sorted by key: jsonb keeps its own key order (shortest first), not the
+    # order the tunnel sent, so any order shown has to be chosen here.
+    { source: record.source, fields: record.fields.sort }
   end
 
   # Rails' route helpers, for the payload builders above. Kept as one reader so

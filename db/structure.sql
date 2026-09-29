@@ -973,6 +973,74 @@ ALTER SEQUENCE public.forum_topics_id_seq OWNED BY public.forum_topics.id;
 
 
 --
+-- Name: fourier_generation_metadata; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.fourier_generation_metadata (
+    id bigint NOT NULL,
+    md5 character varying NOT NULL,
+    source character varying NOT NULL,
+    poster character varying,
+    fields jsonb NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    raw_md5 character varying
+);
+
+
+--
+-- Name: fourier_generation_metadata_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.fourier_generation_metadata_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: fourier_generation_metadata_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.fourier_generation_metadata_id_seq OWNED BY public.fourier_generation_metadata.id;
+
+
+--
+-- Name: fourier_post_creators; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.fourier_post_creators (
+    id bigint NOT NULL,
+    post_id bigint NOT NULL,
+    mxid character varying NOT NULL,
+    recorded_by bigint NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: fourier_post_creators_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.fourier_post_creators_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: fourier_post_creators_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.fourier_post_creators_id_seq OWNED BY public.fourier_post_creators.id;
+
+
+--
 -- Name: fourier_tag_sources; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3263,6 +3331,20 @@ ALTER TABLE ONLY public.forum_topics ALTER COLUMN id SET DEFAULT nextval('public
 
 
 --
+-- Name: fourier_generation_metadata id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fourier_generation_metadata ALTER COLUMN id SET DEFAULT nextval('public.fourier_generation_metadata_id_seq'::regclass);
+
+
+--
+-- Name: fourier_post_creators id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fourier_post_creators ALTER COLUMN id SET DEFAULT nextval('public.fourier_post_creators_id_seq'::regclass);
+
+
+--
 -- Name: fourier_tag_sources id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3767,6 +3849,22 @@ ALTER TABLE ONLY public.forum_topic_visits
 
 ALTER TABLE ONLY public.forum_topics
     ADD CONSTRAINT forum_topics_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: fourier_generation_metadata fourier_generation_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fourier_generation_metadata
+    ADD CONSTRAINT fourier_generation_metadata_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: fourier_post_creators fourier_post_creators_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fourier_post_creators
+    ADD CONSTRAINT fourier_post_creators_pkey PRIMARY KEY (id);
 
 
 --
@@ -5071,6 +5169,27 @@ CREATE INDEX index_forum_topics_on_title_tsvector ON public.forum_topics USING g
 --
 
 CREATE INDEX index_forum_topics_on_updated_at ON public.forum_topics USING btree (updated_at);
+
+
+--
+-- Name: index_fourier_generation_metadata_on_md5; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_fourier_generation_metadata_on_md5 ON public.fourier_generation_metadata USING btree (md5);
+
+
+--
+-- Name: index_fourier_generation_metadata_on_raw_md5; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_fourier_generation_metadata_on_raw_md5 ON public.fourier_generation_metadata USING btree (raw_md5) WHERE (raw_md5 IS NOT NULL);
+
+
+--
+-- Name: index_fourier_post_creators_on_post_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_fourier_post_creators_on_post_id ON public.fourier_post_creators USING btree (post_id);
 
 
 --
@@ -7463,6 +7582,14 @@ ALTER TABLE ONLY public.comments
 
 
 --
+-- Name: fourier_post_creators fk_rails_570c6b3d9a; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fourier_post_creators
+    ADD CONSTRAINT fk_rails_570c6b3d9a FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE CASCADE;
+
+
+--
 -- Name: forum_posts fk_rails_5badbb08d8; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7887,6 +8014,14 @@ ALTER TABLE ONLY public.upload_media_assets
 
 
 --
+-- Name: fourier_post_creators fk_rails_f8c86fdbc7; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fourier_post_creators
+    ADD CONSTRAINT fk_rails_f8c86fdbc7 FOREIGN KEY (recorded_by) REFERENCES public.users(id);
+
+
+--
 -- Name: user_upgrades fk_rails_f9349ed07b; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7909,6 +8044,9 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260929000001'),
+('20260929000000'),
+('20260928000000'),
 ('20260919000002'),
 ('20260919000001'),
 ('20260919000000'),

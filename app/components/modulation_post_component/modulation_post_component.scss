@@ -920,6 +920,55 @@ body:has(.modulation) {
     font-size: 0.7rem;
   }
   .mod-meta-tags { margin-top: 0.6rem; }
+
+  // --- generation data (private: the post's creator) ----------------------
+  // Present in the page only for a viewer the server admitted; collapsed until
+  // asked for. The text is the image's own, untouched, so it is shown as
+  // preformatted and wraps rather than widening the page.
+  .mod-generation {
+    background: var(--mod-surface);
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius);
+    padding: 1rem;
+  }
+
+  .mod-gen-summary {
+    cursor: pointer;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mod-ink-dim);
+  }
+
+  .mod-gen-note {
+    text-transform: none;
+    letter-spacing: normal;
+    font-size: 0.72rem;
+    margin-left: 0.4rem;
+  }
+
+  .mod-gen-field { margin-top: 0.75rem; }
+
+  .mod-gen-key {
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+    font-size: 0.72rem;
+    color: var(--mod-ink-dim);
+    margin-bottom: 0.25rem;
+  }
+
+  .mod-gen-text {
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+    font-size: 0.78rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 24rem;
+    overflow: auto;
+    margin: 0;
+    padding: 0.6rem 0.75rem;
+    background: var(--mod-surface-2);
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius);
+  }
 }
 
 [x-cloak] { display: none !important; }

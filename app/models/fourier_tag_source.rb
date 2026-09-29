@@ -122,8 +122,19 @@ class FourierTagSource < ApplicationRecord
   #
   # Never clears a bit, never touches bucket bits, public, status, added_by
   # or created_at, and never fans out: the lamp is not part of the public
-  # projection. So a creator's private tag that hydra also found keeps its
-  # creator bucket and its privacy and gains only the lamp.
+  # projection.
+  #
+  # NEVER A PRIVATE ROW (round-two finding 5). This route is builder+, which
+  # is every moderator and admin, and the creator-only ruling (2026-09-29)
+  # excludes every one of them. Answering "updated" for a creator's private
+  # tag and "skipped" for a wrong guess confirmed, one guess per call, which
+  # prompt tags a creator's post carries -- and rewrote the private row's bits
+  # as it did. So the OR update is scoped to public rows: a private row is an
+  # existing row that is never written, and its tag counts as skipped exactly
+  # like a tag the post does not have. It is never inserted over either --
+  # the insert only fills tags with no row at all, and one written between
+  # the read and the insert meets ON CONFLICT and then the same public-only
+  # update. A creator's private tag that a model also found keeps no lamp.
   #
   # Every (post, tag) asked about lands in exactly one count: `updated` if its
   # bits changed, `inserted` if its row is new, `skipped` otherwise -- not on
@@ -168,7 +179,7 @@ class FourierTagSource < ApplicationRecord
       end
 
       existing.group_by { |t| bits[t] }.each do |b, tags|
-        changed = where(post_id: post_id, tag: tags).where("source & ? <> ?", b, b).update_all(["source = source | ?", b])
+        changed = where(post_id: post_id, tag: tags, public: true).where("source & ? <> ?", b, b).update_all(["source = source | ?", b])
         result[:updated] += changed
         result[:skipped] += tags.size - changed
       end
@@ -309,20 +320,23 @@ class FourierTagSource < ApplicationRecord
     :manual
   end
 
-  # Can `viewer` see this post's PRIVATE (creator-only) tags? The creator (the
-  # user attributed on the private rows), a moderator, or a holder of a view
-  # TagGrant on one of the post's tags -- the whitelist a creator's tag
-  # maintains. Nil viewer => no.
-  def self.private_visible_to?(post, viewer)
-    return false if viewer.nil?
-    return true if viewer.respond_to?(:is_moderator?) && viewer.is_moderator?
-    return true if TagGrant.granted?(viewer, post.tag_string.to_s.split, "view")
-
-    where(post_id: post.id, public: false).where.not(added_by: nil).pluck(:added_by).uniq.include?(viewer.id)
+  # Can `viewer`, on `request`, see this post's PRIVATE (creator-only) tags?
+  # The post's creator, and nobody else -- FourierCreatorPrivacy, the one rule
+  # for these tags and for generation data alike (operator ruling 2026-09-29:
+  # "It's essentially the same data"). Not a moderator, not an admin, not the
+  # account attributed on the rows (added_by is the posting bot for every
+  # tunnel post), and not the holder of any TagGrant: a grant is a
+  # moderator's row, and the creator decides.
+  #
+  # `request` carries the viewer's verified Matrix identity, which is how a
+  # tunnel post's creator is recognised. It defaults to the current request;
+  # outside one (a job, a console) no Matrix identity matches.
+  def self.private_visible_to?(post, viewer, request: CurrentUser.request)
+    FourierCreatorPrivacy.visible_to?(post, viewer, request)
   end
 
   # Tag buckets visible to `viewer` (identity-gated read): public rows always,
-  # private rows only if the viewer is the creator/mod.
+  # private rows only if the viewer is the creator (private_visible_to?).
   #
   # Tags with NO row here land in :unsourced rather than vanishing. This table
   # is a sidecar, not the tag list -- rows are written by exactly one endpoint
@@ -357,19 +371,30 @@ class FourierTagSource < ApplicationRecord
   # still taken before the visibility filter, only now from the rows for tags
   # the post actually carries. Pruning the orphans themselves is a separate,
   # write-side task and is not attempted here.
-  def self.for_viewer(post, viewer)
-    buckets, = buckets_and_lamps_for(post, viewer)
+  def self.for_viewer(post, viewer, request: CurrentUser.request)
+    buckets, = buckets_and_lamps_for(post, viewer, request: request)
     buckets
   end
 
   # Buckets AND lamps from one pass over one query, for the caller that needs
   # both -- the post page. Returned as a pair rather than one merged hash for
   # the reason lamps_for gives.
-  def self.buckets_and_lamps_for(post, viewer)
+  #
+  # A CREATOR'S PRIVATE ROWS ARE NOT INTERSECTED WITH tag_string (round-two
+  # finding 1). The intersection above is for PUBLIC rows, whose tags live in
+  # tag_string and can be removed from it. A private creator tag never enters
+  # tag_string at all: fourier-tunnel has kept creator-only tags out of it
+  # since 37270f5 (2026-08-06), so the row IS the tag, and intersecting it
+  # away handed every real creator an empty creator bucket while
+  # private_visible_to? said yes. So the creator gets every private row the
+  # post has, in tag_string or not; everyone else gets none of them, and no
+  # private row is even read for them.
+  def self.buckets_and_lamps_for(post, viewer, request: CurrentUser.request)
     current = post.tag_string.to_s.split
-    rows = where(post_id: post.id, tag: current)
+    scoped = where(post_id: post.id)
+    rows = scoped.where(tag: current)
     known = rows.pluck(:tag)
-    rows = rows.publicly_visible unless private_visible_to?(post, viewer)
+    rows = private_visible_to?(post, viewer, request: request) ? rows.or(scoped.where(public: false)) : rows.publicly_visible
     rows = rows.to_a
     unsourced = current - known
     # An unsourced tag has no row, so no model claimed it -- which is exactly
@@ -400,10 +425,16 @@ class FourierTagSource < ApplicationRecord
   # same reason: Danbooru applies only the DIFFERENCE between the two strings,
   # so a tag in neither is untouched. Private tags stay put and unmentioned.
   #
+  # For the creator that union includes their private tags, which are not in
+  # the post's tag_string. Sent back as old_tag_string they are harmless for
+  # the same reason: a tag in both strings is no difference, so an edit never
+  # ADDS a private tag to tag_string; one the creator drops from the new
+  # string is "removed" from a tag_string that does not carry it.
+  #
   # Categories are intersected against that same visible set, so a category
   # cannot smuggle back a name the buckets withheld.
-  def self.live_read(post, viewer)
-    buckets, lamp = buckets_and_lamps_for(post, viewer)
+  def self.live_read(post, viewer, request: CurrentUser.request)
+    buckets, lamp = buckets_and_lamps_for(post, viewer, request: request)
     visible = buckets.values.flatten.uniq
     cats = Tag.categories_for(visible)
     names = TagCategory.reverse_mapping
@@ -434,32 +465,30 @@ class FourierTagSource < ApplicationRecord
   #
   # Posts with no rows here are unaffected: nothing about them is private, so
   # they keep their full tag string and blacklist exactly as they did before.
-  def self.blacklist_tags_for(posts, viewer)
+  #
+  # Who may see a post's private rows is private_visible_to?'s rule, asked for
+  # the whole page at once (FourierCreatorPrivacy.readable_post_ids) and only
+  # for the posts that have private rows at all.
+  #
+  # The creator's own private tags are ADDED for the creator, as
+  # buckets_and_lamps_for draws them: they are not in tag_string (see there),
+  # so "the tag string, unfiltered" would withhold them from the one viewer
+  # who may see them. Everyone else gets tag_string less any private tag it
+  # still carries -- the posts from before 37270f5 that have one there.
+  def self.blacklist_tags_for(posts, viewer, request: CurrentUser.request)
     posts = Array(posts)
     return {} if posts.empty?
 
-    private_rows = where(post_id: posts.map(&:id), public: false).pluck(:post_id, :tag, :added_by)
-    by_post = private_rows.group_by(&:first)
-    moderator = viewer.respond_to?(:is_moderator?) && viewer.is_moderator?
-
-    # viewer.id is nil for an anonymous viewer, and added_by is nil for any row
-    # recorded without an attributed creator -- so a bare `added_by == viewer.id`
-    # is nil == nil, and every unattributed private tag is disclosed to exactly
-    # the viewer who should never see one. private_visible_to? guards this with
-    # `.where.not(added_by: nil)`; the same guard has to be here.
-    viewer_id = viewer.respond_to?(:id) ? viewer.id : nil
-    # One query for the viewer's view grants, matched per post below -- the
-    # bulk twin of the grant check in private_visible_to?.
-    granted_tags = viewer_id.present? ? TagGrant.tags_for(viewer, "view") : []
+    by_post = where(post_id: posts.map(&:id), public: false).pluck(:post_id, :tag).group_by(&:first)
+    readable = FourierCreatorPrivacy.readable_post_ids(posts.select { |post| by_post.key?(post.id) }, viewer, request)
 
     posts.index_with do |post|
       tags = post.tag_string.to_s.split
       rows = by_post[post.id]
-      next tags if rows.blank? || moderator
-      next tags if granted_tags.any? && (tags & granted_tags).any?
-      next tags if viewer_id.present? && rows.any? { |(_, _, added_by)| added_by.present? && added_by == viewer_id }
+      next tags if rows.blank?
 
-      tags - rows.map { |(_, tag, _)| tag }
+      private_tags = rows.map { |(_, tag)| tag }
+      readable.include?(post.id) ? tags | private_tags : tags - private_tags
     end
   end
 

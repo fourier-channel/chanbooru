@@ -11,7 +11,8 @@
   <% t.column :file_ext %>
 
   <% t.column "Metadata" do |media_asset| %>
-    <%= link_to pluralize(media_asset.metadata.size, "tags"), media_asset %>
+    <%# fourier: the count of what this viewer will find on the page it links to %>
+    <%= link_to pluralize(media_asset.visible_metadata(CurrentUser.user, request).to_h.size, "tags"), media_asset %>
   <% end %>
 
   <% t.column "Created" do |media_asset| %>

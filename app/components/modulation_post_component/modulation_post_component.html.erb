@@ -48,6 +48,13 @@
 
   <section class="mod-tags" data-region="tags"></section>
 
+  <%# Generation data: the prompt, settings and workflow the tunnel took out of
+      this image (operator ruling 2026-09-28). The payload carries it only for
+      the post's creator (ModulationPostComponent#generation_payload,
+      FourierCreatorPrivacy), so for everyone else -- admins included -- this
+      region stays empty and hidden. %>
+  <section class="mod-generation" data-region="generation" hidden></section>
+
   <%# Comments were upstream-only. The section is server-rendered on first load
       and swapped from the navigation payload afterwards; CommentSectionComponent
       is upstream's own, so nothing about posting or moderating a comment is
@@ -481,7 +488,26 @@
       Object.keys(bl).forEach(k => el.setAttribute(k, bl[k] == null ? "" : bl[k]));
       if (el.post) { el.post.applyRules(); el.post.update(); }
     }
-    function renderAll() { renderMeta(); renderNotices(); renderCenter(); renderFlanks(); renderTags(); renderActions(); renderComments(); renderBlacklist(); sizeStage(); }
+    // Generation data. The server decides who gets it (the post's creator)
+    // and sends nothing to anyone else, so an absent key is the whole answer
+    // here. Every string is the image's own text and goes through esc().
+    // Redrawn only when the POST changes: a vote or a tag edit re-renders
+    // everything, and must not snap an open panel shut.
+    function renderGeneration() {
+      const el = region("generation");
+      if (!el) return;
+      const id = String(cur.id);
+      if (el.dataset.post === id) return;
+      el.dataset.post = id;
+      const g = cur.generation, fields = (g && g.fields) || [];
+      el.hidden = !fields.length;
+      el.innerHTML = fields.length ?
+        '<details class="mod-gen"><summary class="mod-gen-summary">Generation data <span class="mod-meta-count">' + fields.length + "</span>" +
+          '<span class="mod-gen-note">private to the creator</span></summary>' +
+          fields.map(f => '<div class="mod-gen-field"><div class="mod-gen-key">' + esc(f[0]) + '</div><pre class="mod-gen-text">' + esc(f[1]) + "</pre></div>").join("") +
+        "</details>" : "";
+    }
+    function renderAll() { renderMeta(); renderNotices(); renderCenter(); renderFlanks(); renderTags(); renderGeneration(); renderActions(); renderComments(); renderBlacklist(); sizeStage(); }
 
     // ---- image sizing (the image_cap setting) ----
     // "Fill the page to the exact point the collapsed Tags panel is visible."
