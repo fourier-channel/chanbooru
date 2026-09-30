@@ -141,7 +141,15 @@ x-base-template: &base-template
     PUMA_WORKERS: "6"
     DANBOORU_REDIS_URL: redis://redis:6379
     DANBOORU_IQDB_URL: http://iqdb:5588
-    DANBOORU_AUTOTAGGER_URL: http://autotagger:5000
+    # The autotagger is OFF in production (operator, 2026-09-30). It ran a CPU
+    # tagging model on 41chan for every upload -- about one core, sustained --
+    # and nothing read what it wrote: its ai_tags feed only the upload page's
+    # suggested-tags column, the ai: search and Discord /tagme. Every post's
+    # real tags come from fourier-spectrum and fourier-hydra (fourier_tag_sources).
+    # Blank, AutotaggerClient skips the call; set but unreachable, it FAILS every
+    # upload (media_asset.rb task1.wait!) -- so uncomment this line AND the
+    # service below together, never one alone.
+    # DANBOORU_AUTOTAGGER_URL: http://autotagger:5000
     DANBOORU_IMAGE_STORAGE_PATH: /images
 
   tmpfs:
@@ -228,8 +236,9 @@ services:
     volumes:
       - "/mnt/storage/danbooru-images:/images"
 
-  autotagger:
-    image: ghcr.io/danbooru/autotagger:latest
+  # Off in production; see DANBOORU_AUTOTAGGER_URL above for why and how to restore.
+  # autotagger:
+  #   image: ghcr.io/danbooru/autotagger:latest
 
   sqs:
     image: softwaremill/elasticmq-native
