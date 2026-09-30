@@ -90,10 +90,16 @@ class FourierGenerationMetadata < ApplicationRecord
   # or a post with no recorded creator at all -- and every caller answers nil
   # exactly as it answers "nothing was filed". Who may then READ it is
   # FourierCreatorPrivacy's question, asked separately.
+  #
+  # A post made BEFORE stripping existed carries the unstripped original, so its
+  # md5 is a record's raw_md5, not its md5 -- 330 tunnel posts on 2026-09-30,
+  # whose creators were answered "nothing was filed" while their record sat
+  # one column across. The post's own md5 is asked first and wins; the
+  # ownership check applies to either.
   def self.for_post(post)
     return nil unless valid_md5?(post&.md5)
 
-    record = find_by(md5: post.md5)
+    record = find_by(md5: post.md5) || find_by(raw_md5: post.md5)
     record if record&.owned_by?(FourierPostCreator.where(post_id: post.id).pick(:mxid))
   end
 

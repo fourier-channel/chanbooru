@@ -364,6 +364,35 @@ class FourierGenerationMetadataControllerTest < ActionDispatch::IntegrationTest
       refute body.key?("raw_md5")
     end
 
+    # A tunnel post made before stripping existed carries the unstripped
+    # original, so its md5 is the record's raw_md5 (330 posts, 2026-09-30).
+    should "answer the creator of a pre-strip post, whose md5 is the record's raw_md5" do
+      old_asset = create(:media_asset)
+      old_post = create(:post, uploader: @bot, md5: old_asset.md5, media_asset: old_asset)
+      FourierPostCreator.create!(post: old_post, mxid: CREATOR, recorded_by: @bot.id)
+      FourierGenerationMetadata.create!(md5: SecureRandom.hex(16), raw_md5: old_post.md5, source: "matrix", poster: CREATOR,
+                                        fields: { "png:parameters" => "an older prompt" })
+
+      get post_generation_data_path(old_post), headers: { "X-Fourier-Identity" => CREATOR }
+      assert_response :success
+      assert_equal({ "png:parameters" => "an older prompt" }, response.parsed_body["fields"])
+
+      [create(:admin_user), create(:user)].each do |user|
+        get_auth post_generation_data_path(old_post), user
+        assert_response 404, user.level_string
+        refute_includes response.body, "older prompt"
+      end
+    end
+
+    should "serve the record filed under the post's own md5 before one whose raw_md5 matches it" do
+      FourierGenerationMetadata.create!(md5: SecureRandom.hex(16), raw_md5: @post.md5, source: "matrix", poster: CREATOR,
+                                        fields: { "png:parameters" => "the wrong record" })
+
+      get post_generation_data_path(@post), headers: { "X-Fourier-Identity" => CREATOR }
+      assert_response :success
+      assert_equal({ "png:parameters" => "a secret prompt" }, response.parsed_body["fields"])
+    end
+
     should "give an admin, a moderator, a member and the bot the not-found answer" do
       [create(:admin_user), create(:moderator_user), create(:user), @bot].each do |user|
         get_auth post_generation_data_path(@post), user

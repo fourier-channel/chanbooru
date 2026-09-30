@@ -70,8 +70,10 @@
               <hr class="border">
             <% end %>
 
-            <% menu.with_item do %>
-              <%= link_to "Untagged posts", ai_tags_path(search: { tag_name: tag.name, post_tags_match: "-#{tag.name}", is_posted: true, order: "score_desc" }) %>
+            <% unless Danbooru.config.retired_sections.include?("ai_tags") %>
+              <% menu.with_item do %>
+                <%= link_to "Untagged posts", ai_tags_path(search: { tag_name: tag.name, post_tags_match: "-#{tag.name}", is_posted: true, order: "score_desc" }) %>
+              <% end %>
             <% end %>
 
             <% menu.with_item do %>

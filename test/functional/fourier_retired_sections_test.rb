@@ -11,8 +11,8 @@ require "test_helper"
 # 404, specifically, and for the same reason a hidden post is a 404: a 403 would
 # confirm there is something behind the door.
 class FourierRetiredSectionsTest < ActionDispatch::IntegrationTest
-  RETIRED_HTML = %w[/comments /notes /forum_topics /forum_posts /comment_votes /note_versions].freeze
-  RETIRED_JSON = %w[/comments.json /notes.json /forum_topics.json].freeze
+  RETIRED_HTML = %w[/comments /notes /forum_topics /forum_posts /comment_votes /note_versions /media_assets /ai_tags].freeze
+  RETIRED_JSON = %w[/comments.json /notes.json /forum_topics.json /media_assets.json /ai_tags.json].freeze
 
   # Danbooru.config.retired_sections is EMPTY under Rails.env.test?, so the
   # inherited suite keeps measuring upstream's behaviour -- forum_posts_controller_test
@@ -24,6 +24,7 @@ class FourierRetiredSectionsTest < ActionDispatch::IntegrationTest
     comments comment_votes
     forum_topics forum_posts forum_post_votes forum_topic_visits
     notes note_versions
+    media_assets ai_tags
   ].freeze
 
   def retire!
@@ -76,6 +77,24 @@ class FourierRetiredSectionsTest < ActionDispatch::IntegrationTest
 
       get_auth "/forum_topics", owner
       assert_response :success
+
+      get_auth "/media_assets", owner
+      assert_response :success
+
+      get_auth "/ai_tags", owner
+      assert_response :success
+    end
+
+    # media_assets (2026-09-30): a file's page and its bytes route are the same
+    # section, so knowing an id is no way in either.
+    should "404 a media asset's own page and image route for anyone but the owner" do
+      asset = create(:media_asset)
+      [nil, create(:user), create(:moderator_user)].each do |viewer|
+        [media_asset_path(asset), media_asset_path(asset, format: :json), media_asset_image_path(asset, "original")].each do |path|
+          viewer ? get_auth(path, viewer) : get(path)
+          assert_response 404, "expected #{path} to 404 for #{viewer&.name || "anonymous"}"
+        end
+      end
     end
   end
 
@@ -95,6 +114,14 @@ class FourierRetiredSectionsTest < ActionDispatch::IntegrationTest
     # controller list is matched on controller_name and the near-miss is easy.
     should "leave artist commentary alone" do
       get "/artist_commentaries"
+      assert_response :success
+    end
+
+    # upload_media_assets is not media_assets: an uploader's own upload page
+    # must keep working. Named for the same near-miss reason as commentary.
+    should "leave a member's own uploads alone" do
+      user = create(:user)
+      get_auth user_uploads_path(user), user
       assert_response :success
     end
   end

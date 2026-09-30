@@ -14,7 +14,12 @@ class MediaAssetPolicy < ApplicationPolicy
   end
 
   def can_see_image?
-    !record.removed? && (record.post.blank? || record.post.visible?(user))
+    return false if record.removed?
+    return record.post.visible?(user) if record.post.present?
+    # Fork: an unposted asset is not public -- see
+    # Danbooru.config.unposted_media_assets_restricted?.
+    return true unless Danbooru.config.unposted_media_assets_restricted?
+    user.is_admin? || (!user.is_anonymous? && record.uploads.exists?(uploader_id: user.id))
   end
 
   def rate_limit_for_image(**_options)

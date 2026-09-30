@@ -26,7 +26,9 @@
 
       <% if @wiki_page.tag.present? && !@wiki_page.tag.is_deprecated? && !@wiki_page.tag.meta? && !@wiki_page.tag.artist? %>
         <li><%= link_to "Mistagged Posts", posts_path(tags: "#{@wiki_page.tag.name} ai:#{@wiki_page.tag.name},0%") %></li>
-        <li><%= link_to "Untagged Posts", ai_tags_path(search: { tag_name: @wiki_page.tag.name, post_tags_match: "-#{@wiki_page.tag.name}", is_posted: true, order: "score_desc" }) %></li>
+        <% unless Danbooru.config.retired_sections.include?("ai_tags") %>
+          <li><%= link_to "Untagged Posts", ai_tags_path(search: { tag_name: @wiki_page.tag.name, post_tags_match: "-#{@wiki_page.tag.name}", is_posted: true, order: "score_desc" }) %></li>
+        <% end %>
       <% end %>
     </ul>
   <% end %>

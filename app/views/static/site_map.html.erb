@@ -44,7 +44,9 @@
         <li><%= link_to("History", tag_versions_path) %></li>
         <li><%= link_to("Aliases", tag_aliases_path) %></li>
         <li><%= link_to("Implications", tag_implications_path) %></li>
-        <li><%= link_to("AI Tags", ai_tags_path) %></li>
+        <% unless Danbooru.config.retired_sections.include?("ai_tags") %>
+          <li><%= link_to("AI Tags", ai_tags_path) %></li>
+        <% end %>
         <li><%= link_to("Related Tags", related_tag_path) %></li>
         <%# Moved out of the Forum block, which is retired. Bulk update requests
             are not forum content and answer 200; they operate on tags. %>

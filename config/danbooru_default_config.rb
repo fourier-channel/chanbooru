@@ -741,6 +741,22 @@ module Danbooru
       !Rails.env.test?
     end
 
+    # A media asset with no post has not been published, so it is not public:
+    # only an admin and the account that uploaded it see it (fork rule,
+    # 2026-09-30). Upstream shows an unposted asset to everyone
+    # (MediaAssetPolicy#can_see_image?: post.blank? || post.visible?), and here
+    # every image fourier-sampling ingests is uploaded BEFORE the taggers and
+    # the troll jail judge it -- so /media_assets.json handed anyone the md5 and
+    # variant URLs of ~163,000 unposted images, jailed ones included, and the
+    # media gate serves bytes by md5 to anyone (imageboard media is gated by
+    # the booru's own visibility, ruling 2026-09-18). Measured: the 180x180
+    # variant of jailed image 5b67da1e... fetched with no session. Off under
+    # test (the fork restriction pattern); unposted_media_asset_visibility_test
+    # stubs it on and asserts every door.
+    def unposted_media_assets_restricted?
+      !Rails.env.test?
+    end
+
     # The booru accounts that post ON SOMEONE ELSE'S BEHALF, by the names they
     # have on production (read 2026-09-29): `sample`, fourier-sampling's, and
     # `tunnel`, fourier-tunnel's. Matched on the account name,
