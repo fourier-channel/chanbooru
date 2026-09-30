@@ -273,10 +273,27 @@ for _ in $(seq 1 30); do
 done
 
 [[ -n "$RUNNING" ]] || die "container never reported a revision. docker compose logs danbooru"
-if [[ "$RUNNING" != "$TARGET" ]]; then
+if [[ "$RUNNING" == "$TARGET" ]]; then
+  echo "   revision  ${RUNNING:0:12}  matches HEAD"
+elif (( BUILD )); then
   die "running ${RUNNING:0:12}, expected ${TARGET:0:12}. The new image did not take."
+else
+  # --no-build ships no code, so the image keeps the revision it was built
+  # from and HEAD may be ahead of it. That is right ONLY when nothing between
+  # the two is in the image. Comparing against HEAD regardless made every
+  # compose-only deploy report FAILED while it had done exactly what it was for
+  # (2026-09-30, the autotagger switch-off) -- and a check that is always red
+  # there teaches the reader to skip it on the day a code change really is
+  # missing. So: the running revision must be HEAD's ancestor, and the diff may
+  # touch only the compose files and this script, which the image never runs.
+  git merge-base --is-ancestor "$RUNNING" "$TARGET" 2>/dev/null \
+    || die "running ${RUNNING:0:12}, which is not an ancestor of HEAD ${TARGET:0:12}. Deploy without --no-build."
+  IN_IMAGE="$(git diff --name-only "$RUNNING" "$TARGET" -- . ':!docker-compose*.yaml' ':!bin/chanbooru-deploy')"
+  [[ -z "$IN_IMAGE" ]] || die "--no-build restarted the image built at ${RUNNING:0:12}, but HEAD changes files that image carries:
+$(sed 's/^/     /' <<< "$IN_IMAGE")
+   Those changes are NOT running. Deploy again without --no-build."
+  echo "   revision  ${RUNNING:0:12}  image not rebuilt; HEAD ${TARGET:0:12} changes only compose/deploy files"
 fi
-echo "   revision  ${RUNNING:0:12}  matches HEAD"
 
 # db:prepare runs on container start, so the app answering at all is also the
 # migration having succeeded.
