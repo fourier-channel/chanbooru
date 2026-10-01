@@ -19,9 +19,15 @@ module Clockwork
   # (operator), and thirty single-tag searches every five minutes is nothing.
   # Read from config, not from LandingShowcaseCache: an app class is not
   # loadable from an initializer and referencing one here raised NameError at
-  # boot, on dev, before this ever shipped.
+  # boot, on dev, before this ever shipped. (Inside the block is fine: it runs
+  # at each tick, long after boot.)
+  #
+  # The Blog row's read of the blog index rides the same tick as a separate
+  # job, so the carousel has one clock and a blog outage cannot stop the
+  # creator rows refreshing.
   every(Danbooru.config.landing_refresh_every, "landing-showcase") do
     LandingShowcaseRefreshJob.perform_later
+    LandingBlogRefreshJob.perform_later
   end
 
   every(1.day, "daily", at: "00:00") do

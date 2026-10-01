@@ -232,6 +232,48 @@ function initLanding(root) {
     cell.className = "mod-cell";
     cell.href = slide.url || "#";
     cell.title = cats[a].label;
+
+    // A BLOG CARD: the post's picture with its title, byline and blurb over
+    // it, all the card there is -- it has no creator name beneath and no
+    // credit line, because the words on it already say who wrote it. The
+    // stylesheet decides how much of the text each rank shows.
+    //
+    // The picture is NOT .mod-image: a failure there would be swapped for an
+    // error card under the text and would mark the cell failed. A blog
+    // picture that does not load just leaves the words on a plain card.
+    // LAZY, because prewarm builds cells for every other axis at page load,
+    // and a blog picture is the blog's full-size original.
+    // A new tab, because the post is on another site, and the booru is often
+    // framed inside Technetium.
+    if (slide.kind === "blog") {
+      cell.classList.add("mod-cell--blog");
+      cell.title = slide.title || cats[a].label;
+      cell.target = "_blank";
+      cell.rel = "noopener";
+      if (slide.src) {
+        const cover = document.createElement("img");
+        cover.className = "mod-blog-cover";
+        cover.alt = slide.alt || "";
+        cover.loading = "lazy";
+        cover.decoding = "async";
+        cover.addEventListener("error", () => cover.remove(), { once: true });
+        cover.src = slide.src;
+        cell.appendChild(cover);
+      }
+      const words = document.createElement("span");
+      words.className = "mod-blog-words";
+      const byline = [slide.author && `by ${slide.author}`, slide.date].filter(Boolean).join(", ");
+      [["mod-blog-title", slide.title], ["mod-blog-byline", byline], ["mod-blog-blurb", slide.blurb]].forEach(([cls, text]) => {
+        if (!text) { return; }
+        const line = document.createElement("span");
+        line.className = cls;
+        line.textContent = text;
+        words.appendChild(line);
+      });
+      cell.appendChild(words);
+      return cell;
+    }
+
     if (slide.src && !failed.has(String(slide.id))) { cell.appendChild(mediaEl(slide)); } else { cell.classList.add("is-failed"); }
 
     const tag = document.createElement("span");
@@ -309,6 +351,10 @@ function initLanding(root) {
   // thumbnail's card at full size, and one demoted keeps an unreadable essay.
   // The card has to follow the box it is in.
   const CARD_RATIO = 640 / 362; // the full error card's own viewBox
+  // A focused blog card is landscape whatever its picture is: it holds a
+  // title and a blurb, which read in lines, and the picture is cropped to fit.
+  const BLOG_RATIO = 16 / 10;
+  const BLOG_MIN_W = 280; // px; see cellWidth
   const CARD_SRC = /^\/errors\/(\d+)\.svg/;
   const COMPACT_BELOW = 320; // matches error_card.js
 
@@ -363,12 +409,17 @@ function initLanding(root) {
     // reader is served the thumbnail-sized card on the one cell that exists to
     // be read. So a failed cell takes the CARD's shape instead. The box should
     // fit what it actually contains, and what it contains is a sentence.
-    const ratio = failed.has(String(slide.id))
-      ? CARD_RATIO
-      : (slide.w > 0 && slide.h > 0 ? slide.w / slide.h : 0);
+    let ratio = slide.w > 0 && slide.h > 0 ? slide.w / slide.h : 0;
+    if (failed.has(String(slide.id))) { ratio = CARD_RATIO; }
+    if (slide.kind === "blog") { ratio = BLOG_RATIO; }
     if (!ratio) { return h * THUMB_RATIO; }
     const belt = region("belt");
-    const maxW = (belt ? belt.clientWidth : 800) * 0.62;
+    const beltW = belt ? belt.clientWidth : 800;
+    let maxW = beltW * 0.62;
+    // A blog card is words as well as a picture, and on a phone 62% of the
+    // belt is about 150px -- a column a title cannot fit in. It may take most
+    // of a narrow belt; on a wide one the 62% cap is already more than enough.
+    if (slide.kind === "blog") { maxW = Math.max(maxW, Math.min(beltW * 0.86, BLOG_MIN_W)); }
     return Math.min(h * ratio, maxW);
   }
 

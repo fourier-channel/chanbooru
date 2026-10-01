@@ -47,13 +47,40 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
       # The blacklist matches on ELEMENTS. The carousel draws from the payload,
       # so every slide also exists as a hidden element for the blacklist to mark
       # -- without it the filter simply would not apply to this page.
-      should "expose every slide to the blacklist" do
+      #
+      # A blog post is not a booru post and has no tags, so it has no pool
+      # element: an element with empty tags would be hidden by any rule that
+      # only excludes ("-foo"), which every blog card would match.
+      should "expose every post slide to the blacklist, and no blog slide" do
+        seed_blog
+
         get root_path
 
         config = JSON.parse(css_select(".modland").first["data-config"])
-        expected = config["categories"].sum { it["slides"].size }
-
+        assert_equal 1, config["categories"].count { it["key"] == "blog" }
+        expected = config["categories"].reject { it["key"] == "blog" }.sum { it["slides"].size }
         assert_select ".modland-poolitem[data-tags][data-rating]", expected
+        assert_select ".modland-poolitem[data-cat=blog]", 0
+      end
+
+      should "offer the blog as the second tab once the blog has been read" do
+        seed_blog
+        as(@user) { create(:post, source: "https://boards.4chan.org/b/thread/953493575#p953493576") }
+
+        get root_path
+
+        assert_equal "Blog", css_select(".modland-tab").map { it.text.strip }.second
+        config = JSON.parse(css_select(".modland").first["data-config"])
+        slide = config["categories"].find { it["key"] == "blog" }["slides"].first
+        assert_equal "blog", slide["kind"]
+        assert_equal "Aggregating a community.", slide["title"]
+      end
+
+      should "leave the blog off the page until it has been read, and ask for a read" do
+        assert_enqueued_with(job: LandingBlogRefreshJob) { get root_path }
+
+        assert_response :success
+        assert_select ".modland-tab", text: "Blog", count: 0
       end
 
       # Present but hidden: it must never be on screen until the reader has
@@ -133,6 +160,8 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
 
     context "slides action" do
       should "return the categories as JSON" do
+        seed_blog
+
         get landing_slides_path(format: :json)
 
         assert_response :success
@@ -144,7 +173,11 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
         assert(slides.all? { |s| s.key?("url") && s.key?("src") })
         # Same blacklist contract as the gallery cards; a showcase is the worst
         # place to be shown something the viewer asked never to see.
-        assert(slides.all? { |s| s.key?("tags") && s.key?("rating") })
+        post_slides = categories.reject { it["key"] == "blog" }.flat_map { it["slides"] }
+        assert(post_slides.all? { |s| s.key?("tags") && s.key?("rating") })
+        blog_slides = categories.find { it["key"] == "blog" }["slides"]
+        assert(blog_slides.all? { it["kind"] == "blog" && it["title"].present? })
+        assert_no_match(/data-cat="blog"/, response.parsed_body["pool"])
       end
 
       should "name a creator and a platform where it can" do

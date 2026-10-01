@@ -8044,6 +8044,7 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260930000000'),
 ('20260929000001'),
 ('20260929000000'),
 ('20260928000000'),

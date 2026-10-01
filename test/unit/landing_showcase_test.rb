@@ -233,4 +233,50 @@ class LandingShowcaseTest < ActiveSupport::TestCase
       assert_equal [], LandingShowcase.new(viewer: User.anonymous).categories
     end
   end
+
+  # The blog is fourier-domain's, read from its index by LandingBlogCache.
+  context "the blog row" do
+    should "show the blog's posts as their own kind of slide" do
+      seed_blog
+
+      row = LandingShowcase.new(viewer: User.anonymous).categories.find { it[:key] == "blog" }
+      assert_not_nil row, "the blog row is missing although the blog has been read"
+      assert_equal "Blog", row[:label]
+      slide = row[:slides].first
+      assert_equal "blog-aggregating-a-community", slide[:id]
+      assert_equal "blog", slide[:kind]
+      assert_equal "https://41chan.net/blog/aggregating-a-community.html", slide[:url]
+      assert_equal "https://41chan.net/blog/aggregating-a-community/cover.png", slide[:src]
+      assert_equal ["Aggregating a community.", "Saber", "Why every platform fails it.", "2026-06-07", "A crowd"],
+                   slide.values_at(:title, :author, :blurb, :date, :alt)
+      assert_nil row[:slides].second[:src]
+    end
+
+    should "be left off while the blog has not been read" do
+      assert_nil LandingShowcase.new(viewer: User.anonymous).categories.find { it[:key] == "blog" }
+    end
+
+    should "leave every other row's slides in the shape they had" do
+      seed_blog
+      as(create(:user)) { create(:post, source: BOARD) }
+
+      categories = LandingShowcase.new(viewer: User.anonymous).categories
+      post_slides = categories.reject { it[:key] == "blog" }.flat_map { it[:slides] }
+      blog_slides = categories.find { it[:key] == "blog" }[:slides]
+      assert_operator post_slides.size, :>, 0
+      assert(post_slides.all? { it[:id].is_a?(Integer) && it.key?(:tags) && it.key?(:rating) && it.key?(:creator) })
+      assert(blog_slides.all? { it[:id].start_with?("blog-") && !it.key?(:tags) })
+    end
+
+    # "Secondary" (operator, 2026-09-30): shown, but not the row the carousel
+    # opens on. The carousel opens on the first row, so the blog is second.
+    should "sit second, after the row the carousel opens on" do
+      assert_equal %w[new blog favorites promoted featured], LandingCategory.configured.map(&:key)
+
+      seed_blog
+      as(create(:user)) { create(:post, source: BOARD) }
+
+      assert_equal %w[new blog], LandingShowcase.new(viewer: User.anonymous).categories.pluck(:key).first(2)
+    end
+  end
 end

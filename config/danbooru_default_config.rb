@@ -711,6 +711,17 @@ module Danbooru
       5.minutes
     end
 
+    # Where the landing carousel's Blog row reads the blog's posts: the index
+    # fourier-domain's tools/render-docs.py publishes beside the blog itself.
+    # The booru is one more reader of that file, on the same refresh clock as
+    # the creator rows (LandingBlogCache). Links and pictures in the index are
+    # root-relative and are resolved against THIS address, so the row's links
+    # point wherever the index came from. A string, so DANBOORU_LANDING_BLOG_INDEX_URL
+    # overrides it safely (a dev stack points it at a local copy of the site).
+    def landing_blog_index_url
+      "https://41chan.net/blog/index.json"
+    end
+
     # How recently a creator must have posted to be "active" -- the lamp on an
     # artist pill (operator, 2026-09-19: "lit up green when that creator is
     # 'active' -- i.e. has within the past 5 minutes made a post directly to

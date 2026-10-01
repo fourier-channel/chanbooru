@@ -73,6 +73,60 @@ class Admin::LandingSettingsControllerTest < ActionDispatch::IntegrationTest
       assert_includes row[:slides].pluck(:id), binned.id
     end
 
+    should "show the blog row with the address it reads, and no search controls" do
+      get_auth admin_landing_setting_path, @admin
+
+      assert_select "fieldset[data-key=blog]", 1
+      assert_select "[name='landing_categories[blog][enabled]'][type=checkbox]", 1
+      assert_select "[name='landing_categories[blog][label]']", 1
+      assert_select "[name='landing_categories[blog][ordering]']", 0
+      assert_select "[name='landing_categories[blog][tags_string]']", 0
+      assert_select "fieldset[data-key=blog] code", text: LandingBlogCache.index_url
+      assert_select "fieldset[data-key=blog] [data-blog-status=never]", 1
+    end
+
+    should "say what the last read of the blog found" do
+      seed_blog
+
+      get_auth admin_landing_setting_path, @admin
+
+      assert_select "fieldset[data-key=blog] [data-blog-status=ok]", text: /2 posts/
+    end
+
+    should "say when the last read of the blog failed, and what is still shown" do
+      seed_blog(now: 1.hour.ago)
+      stub_blog_index("oops", status: 500, content_type: "text/plain")
+      assert_raises(LandingBlogCache::Error) { LandingBlogCache.refresh! }
+
+      get_auth admin_landing_setting_path, @admin
+
+      assert_select "fieldset[data-key=blog] [data-blog-status=failed]", text: /500/
+      assert_select "fieldset[data-key=blog] [data-blog-status=failed]", text: /still showing 2 posts/
+    end
+
+    # An unmeasured read must not render as a healthy one: an ok status that
+    # is far older than the refresh clock means nothing has tried since.
+    should "say when the blog has not been read for longer than the clock allows" do
+      seed_blog(now: 1.hour.ago)
+
+      get_auth admin_landing_setting_path, @admin
+
+      assert_select "fieldset[data-key=blog] [data-blog-status=stalled]", 1
+    end
+
+    should "turn the blog row off" do
+      seed_blog
+
+      login_as(@admin)
+      patch categories_admin_landing_setting_path, params: {
+        landing_categories: { blog: { enabled: "0", label: "Blog" }},
+      }
+
+      assert_redirected_to admin_landing_setting_path
+      assert_not LandingCategory.find_by!(key: "blog").enabled?
+      assert_nil LandingShowcase.new(viewer: User.anonymous).categories.find { it[:key] == "blog" }
+    end
+
     should "refuse a board slug that is really a search, and say so" do
       login_as(@admin)
       patch categories_admin_landing_setting_path, params: {

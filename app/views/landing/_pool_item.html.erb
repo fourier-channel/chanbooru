@@ -3,7 +3,13 @@
     every slide the belt can show needs a hidden element here. The landing page
     renders these at load and /landing/slides.json renders MORE of them when the
     carousel pulls a fresh set -- from this same partial, so a field added for
-    one surface cannot go missing on the other. %>
+    one surface cannot go missing on the other.
+
+    A BLOG slide gets none. It is not a booru post and has no tags, and an
+    element with empty tags is hidden by any rule that only excludes ("-foo"),
+    which would take every blog card off the page for that viewer. With no
+    element, the carousel treats it as not blocked. %>
+<% unless slide[:kind] == "blog" %>
 <span class="modland-poolitem"
       data-slide
       data-cat="<%= slide[:category] %>"
@@ -13,3 +19,4 @@
       data-flags="<%= slide[:flags] %>"
       data-score="<%= slide[:score] %>"
       data-uploader-id="<%= slide[:uploader_id] %>"></span>
+<% end %>

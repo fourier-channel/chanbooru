@@ -24,7 +24,9 @@ class LandingCategory < ApplicationRecord
   # nothing extra, so this is excluded rather than required.
   ARCHIVE_TAG = "no_train"
 
-  KINDS = %w[board tags galleries].freeze
+  # "blog" is the blog's posts, read from the blog's own index by
+  # LandingBlogCache. It runs no search, so #queries is empty for it.
+  KINDS = %w[board tags galleries blog].freeze
   # A FIXED MAP, not free text, so the panel can only offer orderings that
   # cannot break a row.
   #
@@ -60,11 +62,15 @@ class LandingCategory < ApplicationRecord
   # which is every fresh dev and test database -- db:prepare loads structure.sql
   # and marks every migration already-run, so a migration-only seed never fires
   # there and the carousel would come up empty.
+  #
+  # In POSITION ORDER, and the array order is the order on the page. The blog
+  # is second (20260930000000): shown, but not the row the carousel opens on.
   DEFAULTS = [
     { key: "new",       label: "Fresh from DEGEN",    enabled: true,  position: 0, kind: "board", board: "b", fresh_only: true, tags: [], ordering: "new" },
-    { key: "favorites", label: "Community Favorites", enabled: true,  position: 1, kind: "tags",  board: nil, fresh_only: true, tags: [], ordering: "favcount" },
-    { key: "promoted", label: "Promoted Creators", enabled: true, position: 2, kind: "galleries", board: nil, fresh_only: true, tags: [], ordering: "new" },
-    { key: "featured", label: "Featured Creators", enabled: false, position: 3, kind: "tags", board: nil, fresh_only: true, tags: [], ordering: "new" },
+    { key: "blog",      label: "Blog",                enabled: true,  position: 1, kind: "blog",  board: nil, fresh_only: true, tags: [], ordering: "new" },
+    { key: "favorites", label: "Community Favorites", enabled: true,  position: 2, kind: "tags",  board: nil, fresh_only: true, tags: [], ordering: "favcount" },
+    { key: "promoted", label: "Promoted Creators", enabled: true, position: 3, kind: "galleries", board: nil, fresh_only: true, tags: [], ordering: "new" },
+    { key: "featured", label: "Featured Creators", enabled: false, position: 4, kind: "tags", board: nil, fresh_only: true, tags: [], ordering: "new" },
   ].freeze
 
   belongs_to :creator_gallery, optional: true

@@ -91,16 +91,72 @@
                 chosen order.
               </span>
             </div>
-          <% else %>
+          <% elsif category.kind == "galleries" %>
             <p class="hint">
               This row shows the galleries of PROMOTED creators, newest promotion
               first, one slide each before anyone gets a second. It is set by
               promoting a gallery, not from here -- the flag is
               <code>promoted_at</code> on the gallery.
             </p>
+          <% elsif category.kind == "blog" %>
+            <p class="hint">
+              This row shows the blog's newest posts -- title, author, blurb and
+              picture, each card linking to the post on the blog. It reads the
+              blog's own index, <code><%= LandingBlogCache.index_url %></code>, in
+              the background every <%= LandingBlogCache::STALE_AFTER.inspect %>:
+              to put a post here, publish it on the blog. A different index is
+              <code>landing_blog_index_url</code> in the booru's config.
+            </p>
+            <%# THE LAST READ, in one of four states, because an unread or failing
+                index looks exactly like an empty blog from the front page -- the
+                row is simply absent. Read from LandingBlogCache, which records
+                every attempt; never rendered as healthy unless a recent read was. %>
+            <% blog_status = LandingBlogCache.status %>
+            <% blog_posts = LandingBlogCache.posts %>
+            <% if blog_status.nil? %>
+              <p class="hint" data-blog-status="never">
+                <strong>Not read yet.</strong> The first visit to the front page,
+                or the next scheduled refresh, reads it. If this stays, the
+                background worker (the jobs and cron containers) is not running.
+              </p>
+            <% elsif !blog_status[:ok] %>
+              <p class="hint" data-blog-status="failed">
+                <strong>The last read failed</strong>, <%= time_ago_in_words(Time.zone.at(blog_status[:at])) %> ago:
+                <%= blog_status[:error] %>.
+                <% if blog_posts.any? %>
+                  The row is still showing <%= pluralize(blog_posts.size, "post") %> from the last read that
+                  worked, for up to <%= LandingBlogCache::TTL.inspect %> after it.
+                <% else %>
+                  Nothing is left to show, so the row is off the front page until a read succeeds.
+                <% end %>
+              </p>
+            <% elsif Time.zone.now.to_i - blog_status[:at] > 2 * LandingBlogCache::STALE_AFTER.to_i %>
+              <p class="hint" data-blog-status="stalled">
+                <strong>Last read <%= time_ago_in_words(Time.zone.at(blog_status[:at])) %> ago</strong>,
+                though it is read every <%= LandingBlogCache::STALE_AFTER.inspect %>: nothing has tried
+                since, so the background worker (the jobs and cron containers) may be down.
+                That read found <%= pluralize(blog_status[:count], "post") %>.
+              </p>
+            <% else %>
+              <p class="hint" data-blog-status="ok">
+                <strong>Read <%= time_ago_in_words(Time.zone.at(blog_status[:at])) %> ago:</strong>
+                <%= pluralize(blog_status[:count], "post") %> of the <%= blog_status[:listed] %> the index lists
+                (<%= blog_posts.count { it[:image] } %> with a picture, <%= blog_posts.count { it[:author] } %> naming an author).
+                <% if blog_status[:count].zero? %>
+                  With nothing to show, the row is off the front page.
+                <% end %>
+              </p>
+            <% end %>
+            <% if blog_status.present? && blog_status[:problems].present? %>
+              <ul class="hint list-bulleted" data-blog-problems>
+                <% blog_status[:problems].each do |problem| %>
+                  <li><%= problem %></li>
+                <% end %>
+              </ul>
+            <% end %>
           <% end %>
 
-          <% if category.kind == "tags" %>
+          <% if category.kind.in?(%w[tags blog]) %>
             <div class="input">
               <%= label_tag "landing-#{category.key}-slides", "Slides on screen" %>
               <%= number_field_tag name.call(:slides), category.slides,
@@ -110,12 +166,12 @@
               <span class="hint">
                 How many slides this row shows at once. <strong>Presentation
                 only</strong> -- it does not change which posts the row holds
-                or how far it advances before repeating. That is the creator
-                list and the order, below. Leave it empty for the belt's own
-                default.
+                or how far it advances before repeating. That is
+                <%= category.kind == "blog" ? "the blog itself" : "the creator list and the order, below" %>.
+                Leave it empty for the belt's own default.
                 <%= LandingCategory::SLIDES_RANGE.min %> to <%= LandingCategory::SLIDES_RANGE.max %>.
                 The belt is symmetric about the focused slide, so an even number
-                rounds up to the next odd one rather than hiding a creator. The
+                rounds up to the next odd one rather than hiding a slide. The
                 belt is as wide as the page: on a wide run the outer slides
                 shrink and thin toward the edges, and what does not fit is off
                 screen until the run advances.
@@ -123,7 +179,7 @@
             </div>
           <% end %>
 
-          <% if category.kind != "galleries" %>
+          <% if category.kind.in?(%w[board tags]) %>
             <div class="input">
               <%= label_tag "landing-#{category.key}-ordering", "Order" %>
               <%= select_tag name.call(:ordering),
@@ -140,6 +196,7 @@
             </div>
           <% end %>
 
+          <% unless category.kind == "blog" %>
           <p class="hint">
             <%# safe_join with a tag per query, NOT a joined string marked html_safe.
                 The queries are assembled from a validated board slug and validated
@@ -153,6 +210,7 @@
               (none)
             <% end %>
           </p>
+          <% end %>
         </fieldset>
       <% end %>
 
@@ -207,6 +265,14 @@
         so a quiet site does not go cold and a busy one is never searched more
         often than that. A stored list is kept for
         <%= LandingShowcaseCache::TTL.inspect %> at most if every refresh fails.
+      </li>
+      <li>
+        <strong>The blog row</strong> runs no search. It reads the blog's index on the
+        same clock as the tag rows, as its own job: a visit that finds the read missing
+        or older than <%= LandingBlogCache::STALE_AFTER.inspect %> is served what is there
+        and queues a read, and the scheduled job reads it every
+        <%= LandingShowcaseCache::REFRESH_EVERY.inspect %>. A failed read never replaces
+        a good one; the last good read is kept for <%= LandingBlogCache::TTL.inspect %>.
       </li>
       <li>
         Editing a row's tags or order changes its cache key, so the next visit

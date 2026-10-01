@@ -36,13 +36,19 @@ class LandingShowcase
   #   a segment that switches to a blank panel is worse than one that is absent.
   def categories
     @categories ||= specs.filter_map do |spec|
-      posts = category_posts[spec.key]
-      next if posts.blank?
+      # A blog row's slides are the blog's posts, not booru posts; they never
+      # pass through category_posts, whose posts the artist and blacklist
+      # projections below load in bulk and would choke on.
+      slides = if spec.kind == "blog"
+        LandingBlogCache.posts.first(spec.wanted_posts).map { |post| blog_slide_for(post) }
+      else
+        category_posts[spec.key].to_a.map { |post| slide_for(post) }
+      end
+      next if slides.blank?
 
       # `visible` is how many the belt should show at once, or nil for its own
       # default -- see LandingCategory#visible_slides for what nil means.
-      { key: spec.key, label: spec.label, visible: spec.visible_slides,
-        slides: posts.map { |post| slide_for(post) }}
+      { key: spec.key, label: spec.label, visible: spec.visible_slides, slides: slides }
     end
   end
 
@@ -73,14 +79,15 @@ class LandingShowcase
     LandingCategory::DEFAULTS.map { |d| LandingCategory.new(d) }.select(&:enabled)
   end
 
-  # Posts per category, fetched once.
+  # Posts per category, fetched once. Blog rows hold no booru posts and are
+  # not here.
   #
   # Deliberately separate from slide building. Slides need the blacklist tag
   # projection, which needs every post on the page in ONE query -- so if slide
   # building were what produced the posts, asking for the tags would re-enter
   # this method and recurse. Gather first, then render.
   def category_posts
-    @category_posts ||= specs.to_h do |spec|
+    @category_posts ||= specs.reject { |spec| spec.kind == "blog" }.to_h do |spec|
       # A creators row takes at least one per creator; see LandingCategory#wanted_posts.
       [spec.key, posts_for_spec(spec).uniq(&:id).first(spec.wanted_posts)]
     end
@@ -268,6 +275,30 @@ class LandingShowcase
       flags: post.status_flags,
       score: post.score,
       uploader_id: post.uploader_id,
+    }
+  end
+
+  # A blog post as a slide. A DIFFERENT SHAPE from #slide_for, on purpose and
+  # marked by `kind: "blog"`: no tags, rating, score or uploader, because it
+  # is not a booru post, and so no blacklist pool item (_pool_item skips it).
+  # The id is a string -- "blog-" and a slug held to [a-z0-9-] -- so it can
+  # never equal a post id, and it is safe inside the selector the carousel
+  # builds from it. Links are absolute (LandingBlogCache made them so): the
+  # blog is another origin, and a root-relative link would land on the booru.
+  def blog_slide_for(post)
+    {
+      id: "blog-#{post[:slug]}",
+      kind: "blog",
+      url: post[:url],
+      src: post[:image],
+      thumb: nil,
+      w: nil,
+      h: nil,
+      title: post[:title],
+      author: post[:author],
+      blurb: post[:blurb],
+      date: post[:date],
+      alt: post[:image_alt],
     }
   end
 
