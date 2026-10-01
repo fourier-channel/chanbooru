@@ -16,6 +16,23 @@ class MediaMetadata < ApplicationRecord
   attribute :metadata
   belongs_to :media_asset
 
+  # fork: the metadata of an asset the viewer may not see is not theirs to
+  # read either. MediaAssetPolicy#can_see_image? hides an UNPOSTED asset from
+  # everyone but an admin and its uploader (unposted_media_assets_restricted?),
+  # and /media_metadata.json went on listing every asset's ExifTool output to
+  # anyone, unposted ones included. Every Matrix image has an unposted asset
+  # (fourier-tunnel canon.js, 2026-10-01), DM pictures among them, and a phone
+  # photo's metadata is its camera, its timestamps and, where the phone wrote
+  # one, its GPS position. A posted asset is unchanged here.
+  def self.visible(user)
+    return all unless Danbooru.config.unposted_media_assets_restricted?
+    return all if user.is_admin?
+
+    posted = MediaAsset.where(md5: Post.select(:md5)).select(:id)
+    uploaded = UploadMediaAsset.joins(:upload).where(uploads: { uploader_id: user.id }).select(:media_asset_id)
+    where(media_asset_id: posted).or(where(media_asset_id: uploaded))
+  end
+
   def self.search(params, current_user)
     q = search_attributes(params, [:id, :created_at, :updated_at, :media_asset, :metadata], current_user: current_user)
     # fourier: a search naming a generation key (a prompt, a workflow) finds
@@ -46,6 +63,11 @@ class MediaMetadata < ApplicationRecord
   # the verified Matrix identity it carries, and serializable_hash, below,
   # is reached from serializers that are handed no request.
   def visible_metadata(user = CurrentUser.user, request = CurrentUser.request)
+    # fork: nothing of an asset the viewer may not see. The listing is scoped
+    # by MediaMetadata.visible; this covers the includes that reach a row from
+    # an upload a moderator can list (?only=media_assets[media_metadata]).
+    return {} if media_asset.present? && !MediaAssetPolicy.new(user, media_asset).can_see_image?
+
     FourierGenerationFilter.visible(metadata, media_asset&.post, user, request)
   end
 
