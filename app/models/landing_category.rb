@@ -64,10 +64,14 @@ class LandingCategory < ApplicationRecord
   # there and the carousel would come up empty.
   #
   # In POSITION ORDER, and the array order is the order on the page. The blog
-  # is second (20260930000000): shown, but not the row the carousel opens on.
+  # is second (20260930000000), so when it is on it is not the row the
+  # carousel opens on -- and it ships OFF, turned on with "Show this row" in
+  # the landing console once its posts have been reviewed (operator,
+  # 2026-10-01: "so we're not prevented from deploying due to me not having
+  # time to review UI").
   DEFAULTS = [
     { key: "new",       label: "Fresh from DEGEN",    enabled: true,  position: 0, kind: "board", board: "b", fresh_only: true, tags: [], ordering: "new" },
-    { key: "blog",      label: "Blog",                enabled: true,  position: 1, kind: "blog",  board: nil, fresh_only: true, tags: [], ordering: "new" },
+    { key: "blog",      label: "Blog",                enabled: false, position: 1, kind: "blog",  board: nil, fresh_only: true, tags: [], ordering: "new" },
     { key: "favorites", label: "Community Favorites", enabled: true,  position: 2, kind: "tags",  board: nil, fresh_only: true, tags: [], ordering: "favcount" },
     { key: "promoted", label: "Promoted Creators", enabled: true, position: 3, kind: "galleries", board: nil, fresh_only: true, tags: [], ordering: "new" },
     { key: "featured", label: "Featured Creators", enabled: false, position: 4, kind: "tags", board: nil, fresh_only: true, tags: [], ordering: "new" },

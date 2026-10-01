@@ -22,4 +22,9 @@ module LandingBlogHelper
     stub_blog_index(index)
     LandingBlogCache.refresh!(now: now)
   end
+
+  # The Blog row ships OFF; this is "Show this row" ticked in the console.
+  def turn_on_blog_row
+    LandingCategory.create!(LandingCategory::DEFAULTS.find { it[:key] == "blog" }.merge(enabled: true))
+  end
 end

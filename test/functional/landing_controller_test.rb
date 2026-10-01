@@ -52,6 +52,7 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
       # element: an element with empty tags would be hidden by any rule that
       # only excludes ("-foo"), which every blog card would match.
       should "expose every post slide to the blacklist, and no blog slide" do
+        turn_on_blog_row
         seed_blog
 
         get root_path
@@ -64,6 +65,7 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
       end
 
       should "offer the blog as the second tab once the blog has been read" do
+        turn_on_blog_row
         seed_blog
         as(@user) { create(:post, source: "https://boards.4chan.org/b/thread/953493575#p953493576") }
 
@@ -77,6 +79,7 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
       end
 
       should "leave the blog off the page until it has been read, and ask for a read" do
+        turn_on_blog_row
         assert_enqueued_with(job: LandingBlogRefreshJob) { get root_path }
 
         assert_response :success
@@ -160,6 +163,7 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
 
     context "slides action" do
       should "return the categories as JSON" do
+        turn_on_blog_row
         seed_blog
 
         get landing_slides_path(format: :json)

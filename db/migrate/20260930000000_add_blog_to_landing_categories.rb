@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
-# The carousel's Blog row, seeded SECOND: shown, but not the row the carousel
-# opens on (operator, 2026-09-30: "This should default to 'secondary' during
-# testing"). The carousel opens on the first row by position, so the blog
-# takes position 1 and every row at 1 or later moves down one, keeping its
-# order. LandingCategory::DEFAULTS carries the same order for a database that
+# The carousel's Blog row, seeded SECOND, so that once it is on it is not the
+# row the carousel opens on (operator, 2026-09-30: "This should default to
+# 'secondary' during testing") -- and seeded OFF, so a deploy shows nothing
+# new until it is turned on in the landing console (operator, 2026-10-01).
+# The carousel opens on the first row by position, so the blog takes
+# position 1 and every row at 1 or later moves down one, keeping its order. LandingCategory::DEFAULTS carries the same order for a database that
 # never runs this (db:prepare loads structure.sql and marks it run).
 #
 # Raw SQL and no model, for the reason the first landing migration gives.
@@ -22,7 +23,7 @@ class AddBlogToLandingCategories < ActiveRecord::Migration[8.1]
     execute(<<~SQL.squish)
       INSERT INTO landing_categories
         (key, label, enabled, "position", kind, board, fresh_only, tags, ordering, created_at, updated_at)
-      SELECT 'blog', 'Blog', true, 1, 'blog', NULL, true, '{}'::text[], 'new', now(), now()
+      SELECT 'blog', 'Blog', false, 1, 'blog', NULL, true, '{}'::text[], 'new', now(), now()
        WHERE EXISTS (SELECT 1 FROM landing_categories)
       ON CONFLICT (key) DO NOTHING
     SQL

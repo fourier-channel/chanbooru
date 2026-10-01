@@ -114,15 +114,17 @@ class Admin::LandingSettingsControllerTest < ActionDispatch::IntegrationTest
       assert_select "fieldset[data-key=blog] [data-blog-status=stalled]", 1
     end
 
-    should "turn the blog row off" do
+    # It ships off; "Show this row" is the switch, as for every row.
+    should "turn the blog row on, and off again" do
       seed_blog
-
       login_as(@admin)
-      patch categories_admin_landing_setting_path, params: {
-        landing_categories: { blog: { enabled: "0", label: "Blog" }},
-      }
 
+      patch categories_admin_landing_setting_path, params: { landing_categories: { blog: { enabled: "1", label: "Blog" }}}
       assert_redirected_to admin_landing_setting_path
+      assert LandingCategory.find_by!(key: "blog").enabled?
+      assert_not_nil LandingShowcase.new(viewer: User.anonymous).categories.find { it[:key] == "blog" }
+
+      patch categories_admin_landing_setting_path, params: { landing_categories: { blog: { enabled: "0", label: "Blog" }}}
       assert_not LandingCategory.find_by!(key: "blog").enabled?
       assert_nil LandingShowcase.new(viewer: User.anonymous).categories.find { it[:key] == "blog" }
     end

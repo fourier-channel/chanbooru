@@ -237,6 +237,7 @@ class LandingShowcaseTest < ActiveSupport::TestCase
   # The blog is fourier-domain's, read from its index by LandingBlogCache.
   context "the blog row" do
     should "show the blog's posts as their own kind of slide" do
+      turn_on_blog_row
       seed_blog
 
       row = LandingShowcase.new(viewer: User.anonymous).categories.find { it[:key] == "blog" }
@@ -253,10 +254,19 @@ class LandingShowcaseTest < ActiveSupport::TestCase
     end
 
     should "be left off while the blog has not been read" do
+      turn_on_blog_row
+      assert_nil LandingShowcase.new(viewer: User.anonymous).categories.find { it[:key] == "blog" }
+    end
+
+    # Operator, 2026-10-01: deploying must not depend on reviewing the row.
+    should "ship off: read, but not shown until it is turned on" do
+      seed_blog
+      assert_not LandingCategory.configured.find { it.key == "blog" }.enabled?
       assert_nil LandingShowcase.new(viewer: User.anonymous).categories.find { it[:key] == "blog" }
     end
 
     should "leave every other row's slides in the shape they had" do
+      turn_on_blog_row
       seed_blog
       as(create(:user)) { create(:post, source: BOARD) }
 
@@ -268,11 +278,12 @@ class LandingShowcaseTest < ActiveSupport::TestCase
       assert(blog_slides.all? { it[:id].start_with?("blog-") && !it.key?(:tags) })
     end
 
-    # "Secondary" (operator, 2026-09-30): shown, but not the row the carousel
+    # "Secondary" (operator, 2026-09-30): once on, not the row the carousel
     # opens on. The carousel opens on the first row, so the blog is second.
     should "sit second, after the row the carousel opens on" do
       assert_equal %w[new blog favorites promoted featured], LandingCategory.configured.map(&:key)
 
+      turn_on_blog_row
       seed_blog
       as(create(:user)) { create(:post, source: BOARD) }
 
