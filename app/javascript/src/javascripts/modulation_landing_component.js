@@ -347,9 +347,15 @@ function initLanding(root) {
 
   // Promote a cell's image to the full sample. Once, and only for the focus:
   // reassigning src to the value it already holds would restart the fetch.
+  // NOT ONCE IT HAS FAILED. A thumbnail that failed has already been swapped
+  // for an error card (error_card.js marks it errorCarded), and promoting it
+  // set src back to the full picture -- overwriting the card, and leaving a
+  // blank hatched cell when that failed too, because the card is only ever
+  // made once per image.
   function promoteMedia(cell, slide) {
     const el = cell.querySelector("img.mod-image");
     if (!el || !slide.thumb || cell.dataset.promoted === "1") { return; }
+    if (failed.has(String(slide.id)) || el.dataset.errorCarded) { return; }
     cell.dataset.promoted = "1";
     el.src = slide.src;
   }
