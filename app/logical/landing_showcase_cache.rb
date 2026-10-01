@@ -82,6 +82,8 @@ class LandingShowcaseCache
   # 30 x 3s is fine and an outage in a request.
   QUERY_TIMEOUT_SECONDS = 3
 
+  class Error < StandardError; end
+
   class << self
     # The ids to render, and an enqueue if they are missing or old.
     #
@@ -146,12 +148,25 @@ class LandingShowcaseCache
     # trade for a landing carousel, whose whole job is to show a stranger what
     # the site has, and it means the shared list can never be a way to learn
     # that a restricted post exists.
+    #
+    # EVERY SEARCH FAILING IS NOT AN EMPTY ROW. A failed search used to count
+    # as "found nothing", so when all of them failed at once -- a load spike
+    # timing every one out -- the refresh stored an empty list with a fresh
+    # timestamp, blanked the row and threw away a good list. It raises instead,
+    # before anything is written, and the stored list stands until TTL.
     def gather_ids(spec)
       viewer = User.anonymous
       groups = spec.queries.map { |query| ids_for(query, viewer) }
-      interleave(groups).first(MAX_CANDIDATES)
+      # NOT groups.any?, which tests truthiness and is false for [nil, nil].
+      if !groups.empty? && groups.all?(&:nil?)
+        raise Error, "every search for the #{spec.key} row failed (#{groups.length} of them; each is in the log) -- " \
+                     "the stored list is kept; if this repeats, check the database's load and statement timeouts"
+      end
+      interleave(groups.compact).first(MAX_CANDIDATES)
     end
 
+    # The ids one search found, or nil when it failed -- nil and not [], so a
+    # failure is never mistaken for a creator with nothing to show.
     def ids_for(query, viewer)
       PostQuery.new(query, current_user: viewer)
                .posts_with_timeout(PER_TAG, timeout: QUERY_TIMEOUT_SECONDS * 1_000,
@@ -160,9 +175,12 @@ class LandingShowcaseCache
     rescue StandardError => e
       # One bad tag must not cost the other nineteen. Reported, never swallowed:
       # a row quietly short by one creator is the failure this whole class is
-      # written against.
-      DanbooruLogger.log(e, context: "landing_showcase_cache", query: query)
-      []
+      # written against. DanbooruLogger.log keeps only the exception, so the
+      # query goes in a line of its own -- at error level, the level
+      # production logs at.
+      Rails.logger.error("landing showcase search failed: #{query}")
+      DanbooruLogger.log(e)
+      nil
     end
 
     # ROUND-ROBIN, the same rule LandingShowcase#interleave applies to promoted

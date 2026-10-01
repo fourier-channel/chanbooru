@@ -17,14 +17,21 @@
 class LandingShowcaseRefreshJob < ApplicationJob
   # @param key [String, nil] one category, or nil for every visible one that
   #   needs more than a single search.
+  #
+  # One row whose every search failed does not stop the others refreshing;
+  # its failure is raised once they have run, so the job queue shows it.
   def perform(key = nil)
-    specs_for(key).each do |spec|
+    failures = specs_for(key).filter_map do |spec|
       stored = LandingShowcaseCache.refresh!(spec)
       DanbooruLogger.info(
         "landing showcase refreshed #{spec.key}: #{spec.queries.length} queries, #{stored} candidates",
         context: "landing_showcase_refresh", category: spec.key,
       )
+      nil
+    rescue LandingShowcaseCache::Error => e
+      e.message
     end
+    raise LandingShowcaseCache::Error, failures.join("; ") if failures.any?
   end
 
   private
