@@ -203,11 +203,23 @@
 // flanks while the post stays put, because the post IS the thing being sorted.
 // A carousel's axes hold different images, so moving between them has to move
 // the centre too, and it should read as the same kind of motion turned 90 degrees.
+//
+// It moves the BELT. It used to name .mod-stage-center, which only the
+// flank-column stage has; the landing carousel -- the one caller -- is a
+// conveyor whose stage holds a .mod-belt, so the classes goToAxis sets for
+// NAV_MS matched nothing and a change of row was a 260ms pause, then a cut.
+// The belt carries no transform of its own, so this one is free to use.
 @mixin modulation-stage-vertical {
-  &.is-axis-up .mod-stage-center { transform: translateY(-40%) scale(0.4); opacity: 0; }
-  &.is-axis-down .mod-stage-center { transform: translateY(40%) scale(0.4); opacity: 0; }
-  &.is-enter-up .mod-stage-center { transform: translateY(40%) scale(0.4); opacity: 0; transition: none; }
-  &.is-enter-down .mod-stage-center { transform: translateY(-40%) scale(0.4); opacity: 0; transition: none; }
+  .mod-belt { transition: transform 260ms cubic-bezier(0.4, 0, 0.2, 1), opacity 260ms ease; } // NAV_MS in modulation_landing_component.js
+
+  &.is-axis-up .mod-belt { transform: translateY(-40%) scale(0.4); opacity: 0; }
+  &.is-axis-down .mod-belt { transform: translateY(40%) scale(0.4); opacity: 0; }
+  &.is-enter-up .mod-belt { transform: translateY(40%) scale(0.4); opacity: 0; transition: none; }
+  &.is-enter-down .mod-belt { transform: translateY(-40%) scale(0.4); opacity: 0; transition: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mod-belt { transition-duration: 1ms; }
+  }
 }
 
 // A conveyor: one run of cells along a single axis, magnified in the middle.
