@@ -415,6 +415,14 @@ function initLanding(root) {
     if (!thumb || !active) { return; }
     thumb.style.width = `${active.offsetWidth}px`;
     thumb.style.transform = `translateX(${active.offsetLeft}px)`;
+    // On a narrow screen the pill scrolls sideways (see the stylesheet), so
+    // the active tab is brought into the middle of it -- by setting the pill's
+    // own scroll, never scrollIntoView, which would also scroll the PAGE each
+    // time the ride changes row under someone reading further down.
+    const tabs = thumb.parentElement;
+    if (tabs.scrollWidth > tabs.clientWidth) {
+      tabs.scrollTo({ left: active.offsetLeft - ((tabs.clientWidth - active.offsetWidth) / 2), behavior: "smooth" });
+    }
   }
 
   function renderTabs() {

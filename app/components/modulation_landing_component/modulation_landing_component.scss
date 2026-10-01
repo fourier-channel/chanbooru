@@ -90,6 +90,16 @@
     position: relative;
     align-self: center;
     display: inline-flex;
+
+    // Four or five rows do not fit across a phone. The pill scrolls sideways
+    // inside the column instead of spilling past both edges, where the first
+    // and last tabs could not be reached; the script keeps the active one in
+    // view (positionThumb). The thumb is inside the pill, so it scrolls too.
+    // Narrower than the column by the hero toggle's width (1.9rem plus a gap)
+    // on BOTH sides, so the centred pill never runs under it.
+    max-width: calc(100% - 4.6rem);
+    overflow-x: auto;
+    scrollbar-width: none;
     padding: 3px;
     border-radius: var(--mod-pill-radius);
     border: 1px solid var(--mod-line);
