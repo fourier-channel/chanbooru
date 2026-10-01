@@ -118,6 +118,13 @@ class LandingBlogCacheTest < ActiveSupport::TestCase
       assert_equal 2, LandingBlogCache.posts.size
     end
 
+    should "treat an index of nothing but nulls as unusable, not as an empty blog" do
+      stub_blog_index([nil, nil])
+
+      assert_raises(LandingBlogCache::Error) { LandingBlogCache.refresh! }
+      assert_equal 2, LandingBlogCache.posts.size
+    end
+
     should "name a Cloudflare challenge when that is what answered" do
       stub_blog_index("<!DOCTYPE html><title>Just a moment...</title>", status: 403, content_type: "text/html")
       assert_match(/Cloudflare/, assert_raises(LandingBlogCache::Error) { LandingBlogCache.refresh! }.message)

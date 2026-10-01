@@ -79,7 +79,9 @@ class LandingBlogCache
       problems = []
       rows = fetch
       posts = rows.each_with_index.filter_map { |row, index| project(row, index, problems) }.first(MAX_POSTS)
-      if rows.any? && posts.empty?
+      # NOT rows.any?, which tests truthiness: an index of nothing but nulls
+      # would read as an empty blog instead of an unusable one.
+      if !rows.empty? && posts.empty?
         raise Error, "none of the #{rows.length} posts in #{index_url} could be shown (#{problems.first(3).join("; ")}) -- " \
                      "fix those rows; fourier-domain's tools/render-docs.py writes them"
       end
