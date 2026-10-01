@@ -50,24 +50,24 @@ class LandingShowcase
 
   private
 
-  # THE CATEGORIES, FROM THE DATABASE, ONCE.
+  # THE CATEGORIES, ONCE: the rows the landing console shows, enabled ones only.
+  #
+  # LandingCategory.configured, the same list the console edits, so the page
+  # and the console cannot disagree. This read only the database rows, which
+  # disagreed twice: a default row with no record yet was on the console and
+  # missing from the page, and an admin who turned EVERY row off was shown the
+  # defaults instead of nothing. Ties now break by key on both.
   #
   # Memoized because this is read twice per render -- here and in
-  # #category_posts -- and each read used to reach LandingSetting.current for
-  # a fresh SELECT. Reading four configurable rows is a query FEWER than
-  # reading one configurable row twice.
+  # #category_posts.
   #
   # The fallback is the same bargain the "new" row's used to strike: the front
   # page staying UP matters more than it being current, and a boot that reaches
   # traffic before the migration has run must not serve a blank site. The
-  # failure is logged rather than swallowed. LandingCategory::DEFAULTS is what
-  # a database with no rows yields, so the fallback and the empty case are the
-  # same code path.
+  # failure is logged rather than swallowed. A database with no rows yields
+  # the defaults through `configured` itself, so the empty case needs no branch.
   def specs
-    @specs ||= begin
-      rows = LandingCategory.visible.to_a
-      rows.presence || LandingCategory::DEFAULTS.map { |d| LandingCategory.new(d) }.select(&:enabled)
-    end
+    @specs ||= LandingCategory.configured.select(&:enabled?)
   rescue StandardError => e
     DanbooruLogger.log(e, context: "landing_categories")
     LandingCategory::DEFAULTS.map { |d| LandingCategory.new(d) }.select(&:enabled)

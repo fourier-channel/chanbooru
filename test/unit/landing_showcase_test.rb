@@ -211,4 +211,26 @@ class LandingShowcaseTest < ActiveSupport::TestCase
       assert_not_includes row[:slides].pluck(:id), degen.id, "the default /b/ search is still what ran"
     end
   end
+
+  # The page reads LandingCategory.configured, the same list the console
+  # edits. It read only the database rows, so a row with no record vanished
+  # from the page while the console showed it, and an admin who turned every
+  # row off was shown the defaults instead.
+  context "the rows the page reads" do
+    should "be the rows the console shows, a row with no record being its default" do
+      LandingCategory.create!(LandingCategory::DEFAULTS.find { it[:key] == "new" })
+      as(create(:user)) { create(:post, source: BOARD) }
+
+      keys = LandingShowcase.new(viewer: User.anonymous).categories.pluck(:key)
+      assert_includes keys, "new"
+      assert_includes keys, "favorites", "a row with no record was dropped instead of taking its default"
+    end
+
+    should "show nothing when an admin has turned every row off" do
+      LandingCategory::DEFAULTS.each { LandingCategory.create!(it.merge(enabled: false)) }
+      as(create(:user)) { create(:post, source: BOARD) }
+
+      assert_equal [], LandingShowcase.new(viewer: User.anonymous).categories
+    end
+  end
 end
