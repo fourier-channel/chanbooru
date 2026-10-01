@@ -7,7 +7,7 @@ class FavoritesController < ApplicationController
     post_id = params[:post_id] || params[:search][:post_id]
     user_id = params[:user_id] || params[:search][:user_id]
     user_name = params[:search][:user_name]
-    @post = Post.find(post_id) if post_id
+    @post = Post.find_visible!(post_id) if post_id
     @user = User.find(user_id) if user_id
     @user = User.find_by_name(user_name) if user_name
 

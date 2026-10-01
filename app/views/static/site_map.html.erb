@@ -126,10 +126,14 @@
       <ul>
         <li><h2>Site</h2></li>
         <li><%= link_to("Site Status", status_path) %></li>
-        <li><%= link_to("Site Statistics", statistics_path) %></li>
+        <% unless Danbooru.config.retired_sections.include?("metrics") %>
+          <li><%= link_to("Site Statistics", statistics_path) %></li>
+        <% end %>
         <li><%= link_to("Source Code", Danbooru.config.source_code_url) %></li>
         <li><%= link_to("Keyboard Shortcuts", keyboard_shortcuts_path) %></li>
-        <li><%= link_to("Background Jobs", jobs_path) %></li>
+        <% unless Danbooru.config.retired_sections.include?("jobs") %>
+          <li><%= link_to("Background Jobs", jobs_path) %></li>
+        <% end %>
       </ul>
     </section>
 

@@ -15,7 +15,10 @@ class MediaAssetPolicy < ApplicationPolicy
 
   def can_see_image?
     return false if record.removed?
-    return record.post.visible?(user) if record.post.present?
+    # Fork: a posted asset is hidden wherever its post is (Post#hidden_from?)
+    # -- deleted, jailed, or gated from a signed-out visitor. Upstream asks
+    # only Post#visible?, which never consults is_deleted.
+    return !record.post.hidden_from?(user) && record.post.visible?(user) if record.post.present?
     # Fork: an unposted asset is not public -- see
     # Danbooru.config.unposted_media_assets_restricted?.
     return true unless Danbooru.config.unposted_media_assets_restricted?

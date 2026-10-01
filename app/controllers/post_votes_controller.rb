@@ -6,7 +6,7 @@ class PostVotesController < ApplicationController
   def index
     @post_votes = authorize PostVote.visible(CurrentUser.user).paginated_search(params)
     @post_votes = @post_votes.includes(:user, post: [:uploader, :media_asset]) if request.format.html?
-    @post = Post.find(params.dig(:search, :post_id)) if params.dig(:search, :post_id).present?
+    @post = Post.find_visible!(params.dig(:search, :post_id)) if params.dig(:search, :post_id).present?
 
     respond_with(@post_votes) do |format|
       format.html.tooltip { render layout: false }

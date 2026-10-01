@@ -22,7 +22,7 @@ class IqdbClient
 
   concerning :QueryMethods do
     # Search for an image by file, URL, hash, or post ID.
-    def search(post_id: nil, media_asset_id: nil, file: nil, hash: nil, url: nil, image_url: nil, file_url: nil, limit: 20)
+    def search(post_id: nil, media_asset_id: nil, file: nil, hash: nil, url: nil, image_url: nil, file_url: nil, limit: 20, user: CurrentUser.user)
       limit = limit.to_i.clamp(1, 1000)
       target_url = url.presence || file_url.presence || image_url.presence
 
@@ -31,9 +31,14 @@ class IqdbClient
       elsif target_url.present?
         file = download_file(target_url)
       elsif post_id.present?
-        file = Post.find(post_id).file(:"180x180")
+        # Fork: a post or asset the searcher may not see is "not found", as a
+        # missing one is -- IQDB took any id and searched with its image.
+        file = Post.find_visible!(post_id, user).file(:"180x180")
       elsif media_asset_id.present?
-        file = MediaAsset.find(media_asset_id).variant("360x360").open_file
+        media_asset = MediaAsset.find(media_asset_id)
+        raise ActiveRecord::RecordNotFound unless Pundit.policy!(user, media_asset).can_see_image?
+
+        file = media_asset.variant("360x360").open_file
       end
 
       if hash.present?
@@ -44,7 +49,7 @@ class IqdbClient
         results = []
       end
 
-      process_results(results)
+      process_results(results, user: user)
     ensure
       file.try(:close)
     end
@@ -73,8 +78,11 @@ class IqdbClient
     #
     # @param matches [Array<Hash>] the array of IQDB matches
     # @return [Array<Hash>] the array of IQDB matches with `post:` keys added
-    def process_results(matches)
-      posts = Post.includes(:media_asset).where(id: matches.pluck("post_id")).index_by(&:id)
+    # Fork: a match the searcher may not see (Post#hidden_from?) is dropped,
+    # as a missing post is. Upstream returned every match, hidden posts
+    # included, with their tags, source and uploader.
+    def process_results(matches, user: CurrentUser.user)
+      posts = Post.includes(:media_asset).where(id: matches.pluck("post_id")).reject { |post| post.hidden_from?(user) }.index_by(&:id)
 
       matches = matches.filter_map do |match|
         post = posts[match["post_id"]]

@@ -752,6 +752,21 @@ module Danbooru
       !Rails.env.test?
     end
 
+    # Whether an error response carries its backtrace for everyone, rather
+    # than for admins only. Upstream sends it to anyone: the JSON error body's
+    # "backtrace" and the error page's file:line list. Here that named the
+    # line that raised, so a hidden post (posts_controller.rb:50) and a
+    # missing one (the find) answered differently -- an existence oracle for
+    # every jailed post (leak audit 2026-10-01) -- and it publishes the code's
+    # layout to whoever asks.
+    #
+    # TRUE outside production: a dev box wants its traces, and the inherited
+    # suite renders errors as upstream does. hidden_post_doors_test stubs it
+    # false and asserts the production shape.
+    def error_backtraces_public?
+      !Rails.env.production?
+    end
+
     # A media asset with no post has not been published, so it is not public:
     # only an admin and the account that uploaded it see it (fork rule,
     # 2026-09-30). Upstream shows an unposted asset to everyone

@@ -5,7 +5,7 @@ class PostEventsController < ApplicationController
 
   def index
     if (post_id = params[:post_id] || params.dig(:search, :post_id))
-      @post = Post.find(post_id)
+      @post = Post.find_visible!(post_id)
     end
 
     @post_events = authorize PostEvent.paginated_search(params, defaults: { post_id: @post&.id }, count_pages: @post.present?)

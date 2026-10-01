@@ -72,7 +72,91 @@ class PostVersion < ApplicationRecord
         q = q.where("version != 1")
       end
 
-      q.apply_default_order(params)
+      # Fork: a search over tags must not find a private creator tag in the
+      # history of a post whose creator is not asking -- see
+      # private_history_post_ids_hidden_from.
+      if searches_tags?(params)
+        hidden = private_history_post_ids_hidden_from(current_user, CurrentUser.request)
+        q = q.where.not(post_id: hidden) if hidden.present?
+      end
+
+      q.apply_default_order(params).redacting_private_tags_for(current_user, CurrentUser.request)
+    end
+
+    TAG_SEARCH_PARAMS = %w[changed_tags all_changed_tags any_changed_tags tag_matches].freeze
+
+    def searches_tags?(params)
+      params.to_h.any? do |key, value|
+        value.present? && (key.to_s.in?(TAG_SEARCH_PARAMS) || key.to_s.match?(/\A(tags|added_tags|removed_tags)(_|\z)/))
+      end
+    end
+  end
+
+  # PRIVATE CREATOR TAGS IN HISTORY (fork, F-B10 of the 2026-10-01 leak audit).
+  # A private creator tag is shown to the post's creator and nobody else --
+  # no admin or moderator bypass (FourierCreatorPrivacy, operator ruling
+  # 2026-09-29). Posts from 2026-08-04..06 carried such tags in tag_string,
+  # and FourierPrivateTagCleanup took them out with an ORDINARY edit, so the
+  # versions before that edit still hold them -- and /post_versions is
+  # upstream's, open to anyone. These two methods withhold them there:
+  # redact_private_tags takes them out of the rows a page shows, and a tag
+  # search skips the posts whose history could match one.
+  concerning :PrivateCreatorTagMethods do
+    class_methods do
+      # The posts whose versions ever ADDED one of their private creator tags
+      # (a version that holds a tag added it, or a predecessor did) and that
+      # this viewer may not read. A superset is safe: it only narrows a tag
+      # search over those posts' histories.
+      def private_history_post_ids_hidden_from(user, request)
+        rows = FourierTagSource.where(public: false).distinct.pluck(:post_id, :tag)
+        return [] if rows.empty?
+
+        candidates = where(post_id: rows.map(&:first).uniq).where_array_includes_any(:added_tags, rows.map(&:last).uniq).distinct.pluck(:post_id)
+        return [] if candidates.empty?
+
+        readable = FourierCreatorPrivacy.readable_post_ids(Post.where(id: candidates).to_a, user, request)
+        candidates.reject { |id| readable.include?(id) }
+      end
+
+      # A relation whose rows have redact_private_tags applied when it loads.
+      # On the relation rather than in the controller, because the API's
+      # respond_with re-derives the relation (it adds the ?only= includes)
+      # and loads it afresh -- a redaction applied to the controller's copy
+      # never reached the JSON.
+      def redacting_private_tags_for(user, request)
+        extending(Module.new do
+          define_method(:load) do |&block|
+            fresh = !loaded?
+            super(&block)
+            PostVersion.redact_private_tags(@records, user, request) if fresh
+            self
+          end
+        end)
+      end
+
+      # Take each version's post's private creator tags out of the loaded
+      # rows, unless the viewer is that post's creator. In memory only: the
+      # rows are marked readonly and never saved.
+      def redact_private_tags(versions, user, request)
+        versions = versions.to_a
+        private_tags = FourierTagSource.where(post_id: versions.map(&:post_id).uniq, public: false).pluck(:post_id, :tag)
+                                       .group_by(&:first).transform_values { |pairs| pairs.map(&:last) }
+        return versions if private_tags.empty?
+
+        readable = FourierCreatorPrivacy.readable_post_ids(Post.where(id: private_tags.keys).to_a, user, request)
+        versions.each do |version|
+          names = private_tags[version.post_id]
+          version.withhold_tags!(names) if names.present? && readable.exclude?(version.post_id)
+        end
+      end
+    end
+
+    def withhold_tags!(names)
+      self.tags = (tags.to_s.split - names).join(" ")
+      self.added_tags = Array(added_tags) - names
+      self.removed_tags = Array(removed_tags) - names
+      flush_cache
+      readonly!
     end
   end
 

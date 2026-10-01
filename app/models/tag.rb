@@ -48,15 +48,21 @@ class Tag < ApplicationRecord
   # a signed-in viewer below the threshold still sees those names, because they
   # already see the listings. The BANISHED list is universal -- see TagBanishment.
   scope :visible_to, ->(user) {
-    # Banished names are absent for EVERYONE -- admins included -- unless the
-    # admin has switched reveal_banished on. See TagBanishment.
-    scope = all
-    scope = scope.where.not(name: TagBanishment.list) if TagBanishment.list.present? && !TagBanishment.revealed_to?(user)
-    next scope unless user.nil? || user.is_anonymous?
-    next scope if Danbooru.config.restricted_tags.blank?
-
-    scope.where.not(name: Danbooru.config.restricted_tags)
+    hidden = hidden_names_for(user)
+    hidden.empty? ? all : where.not(name: hidden)
   }
+
+  # The tag names `user` may not be shown -- visible_to's rule, as a list, for
+  # a surface that holds names rather than a relation (RelatedTagQuery).
+  # Banished names are absent for EVERYONE -- admins included -- unless the
+  # admin has switched reveal_banished on (TagBanishment); restricted names
+  # are absent for a signed-out visitor.
+  def self.hidden_names_for(user)
+    names = []
+    names += TagBanishment.list if TagBanishment.list.present? && !TagBanishment.revealed_to?(user)
+    names += Danbooru.config.restricted_tags if (user.nil? || user.is_anonymous?) && Danbooru.config.restricted_tags.present?
+    names
+  end
 
   scope :empty, -> { where("tags.post_count <= 0") }
   scope :nonempty, -> { where("tags.post_count > 0") }

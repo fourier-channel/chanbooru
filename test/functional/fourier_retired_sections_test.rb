@@ -11,8 +11,8 @@ require "test_helper"
 # 404, specifically, and for the same reason a hidden post is a 404: a 403 would
 # confirm there is something behind the door.
 class FourierRetiredSectionsTest < ActionDispatch::IntegrationTest
-  RETIRED_HTML = %w[/comments /notes /forum_topics /forum_posts /comment_votes /note_versions /media_assets /ai_tags].freeze
-  RETIRED_JSON = %w[/comments.json /notes.json /forum_topics.json /media_assets.json /ai_tags.json].freeze
+  RETIRED_HTML = %w[/comments /notes /forum_topics /forum_posts /comment_votes /note_versions /media_assets /ai_tags /statistics /jobs].freeze
+  RETIRED_JSON = %w[/comments.json /notes.json /forum_topics.json /media_assets.json /ai_tags.json /media_metadata.json /metrics.json /metrics/instance.json /jobs.json].freeze
 
   # Danbooru.config.retired_sections is EMPTY under Rails.env.test?, so the
   # inherited suite keeps measuring upstream's behaviour -- forum_posts_controller_test
@@ -25,6 +25,7 @@ class FourierRetiredSectionsTest < ActionDispatch::IntegrationTest
     forum_topics forum_posts forum_post_votes forum_topic_visits
     notes note_versions
     media_assets ai_tags
+    media_metadata metrics jobs
   ].freeze
 
   def retire!
@@ -83,6 +84,23 @@ class FourierRetiredSectionsTest < ActionDispatch::IntegrationTest
 
       get_auth "/ai_tags", owner
       assert_response :success
+
+      ["/media_metadata.json", "/metrics.json", "/metrics/instance.json", "/statistics", "/jobs.json"].each do |path|
+        get_auth path, owner
+        assert_response :success, path
+      end
+    end
+
+    # media_metadata, metrics and jobs (2026-10-01, leak audit F-B5/F-B7/F-B8):
+    # /metrics answers in Prometheus text by default, which the .json list
+    # above does not exercise.
+    should "404 the metrics text endpoints for anyone but the owner" do
+      [nil, create(:user), create(:moderator_user), create(:admin_user)].each do |viewer|
+        ["/metrics", "/metrics/instance"].each do |path|
+          viewer ? get_auth(path, viewer) : get(path)
+          assert_response 404, "expected #{path} to 404 for #{viewer&.level_string || "anonymous"}"
+        end
+      end
     end
 
     # media_assets (2026-09-30): a file's page and its bytes route are the same

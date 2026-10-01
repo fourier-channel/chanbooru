@@ -11,8 +11,15 @@ class RelatedTagQuery
 
   def initialize(query:, media_asset: nil, user: User.anonymous, categories: nil, search_sample_size: nil, tag_sample_size: nil, order: nil, limit: nil)
     @user = user
-    @post_query = PostQuery.normalize(query, current_user: user) # XXX This query does not include implicit metatags (rating:s, -status:deleted)
+    @post_query = PostQuery.normalize(query, current_user: user)
     @query = @post_query.to_s
+    # Fork: the posts sampled are the ones this viewer may see -- with the
+    # implicit metatags (gated tags, deleted and jailed posts) the post index
+    # applies. Upstream sampled without them, so /related_tag.json?query=
+    # troll_jail listed what jailed posts carry, to anyone (leak audit
+    # 2026-10-01). @post_query stays the query as typed: it names the tag and
+    # the wiki page.
+    @sample_query = @post_query.with_implicit_metatags
     @media_asset = media_asset
     @categories = categories
     @categories = @categories.to_s.split(/[[:space:],]/) unless categories.is_a?(Array)
@@ -27,7 +34,7 @@ class RelatedTagQuery
   end
 
   def related_tags
-    tags = related_tag_calculator.frequent_tags_for_search
+    tags = without_hidden_names(related_tag_calculator.frequent_tags_for_search)
 
     case order.to_s.downcase
     when "cosine"
@@ -44,22 +51,35 @@ class RelatedTagQuery
   end
 
   memoize def related_tag_calculator
-    RelatedTagCalculator.new(post_query, categories: categories, search_sample_size: search_sample_size, tag_sample_size: tag_sample_size)
+    RelatedTagCalculator.new(@sample_query, categories: categories, search_sample_size: search_sample_size, tag_sample_size: tag_sample_size)
+  end
+
+  # Fork: tag names this viewer may not be shown (Tag.hidden_names_for) are
+  # dropped from every list this answers with, as /tags and autocomplete
+  # drop them.
+  memoize def hidden_tag_names
+    Tag.hidden_names_for(user).to_set
+  end
+
+  def without_hidden_names(tags)
+    return tags if hidden_tag_names.empty?
+
+    tags.reject { |t| hidden_tag_names.include?(t.name) }
   end
 
   def results_present?
-    related_tag_calculator.frequent_tags_for_search.present? || wiki_page_tags.present?
+    without_hidden_names(related_tag_calculator.frequent_tags_for_search).present? || wiki_page_tags.present?
   end
 
   def frequent_tags(categories: [])
-    tags = related_tag_calculator.frequent_tags_for_search
+    tags = without_hidden_names(related_tag_calculator.frequent_tags_for_search)
     tags = tags.select { |t| t.category.in?(categories) } if categories.present?
     tags = sort_by_category(tags) if categories.present?
     tags.take(limit)
   end
 
   def similar_tags(categories: related_categories, category_top_n: 4)
-    tags = related_tag_calculator.similar_tags_for_search
+    tags = without_hidden_names(related_tag_calculator.similar_tags_for_search)
     tags = tags.select { |t| t.category.in?(categories) } if categories.present?
     tags = sort_by_category(tags) if categories.present?
 
@@ -77,6 +97,7 @@ class RelatedTagQuery
 
     tags = media_asset.ai_tags.includes(:tag, :aliased_tag)
     tags = tags.reject(&:is_deprecated?).reject { |t| t.empty? && !t.metatag? }
+    tags = without_hidden_names(tags)
     tags = tags.sort_by { |t| [TagCategory.canonical_mapping.keys.index(t.category_name), -t.score, t.name] }
     tags.take(limit)
   end
@@ -107,7 +128,7 @@ class RelatedTagQuery
 
   # The list of tags mentioned in the wiki page of the queried tag. General tags aren't included when looking up characters.
   memoize def wiki_page_tags
-    tags = wiki_page&.tags.to_a
+    tags = without_hidden_names(wiki_page&.tags.to_a)
 
     if tag&.category == TagCategory::CHARACTER
       tags.reject { |t| t.category == TagCategory::GENERAL }
@@ -119,7 +140,7 @@ class RelatedTagQuery
   def serializable_hash(options = {})
     {
       query: query,
-      post_count: post_query.post_count,
+      post_count: @sample_query.post_count,
       tag: tag,
       related_tags: related_tags,
       wiki_page_tags: wiki_page_tags,
@@ -127,7 +148,8 @@ class RelatedTagQuery
   end
 
   memoize def tag
-    post_query.tag
+    found = post_query.tag
+    found unless found && hidden_tag_names.include?(found.name)
   end
 
   def related_categories
@@ -139,8 +161,11 @@ class RelatedTagQuery
     4.hours
   end
 
+  # Fork: only a signed-out answer is shared. The sample depends on who asks
+  # (implicit metatags), so a publicly cached answer built for an admin
+  # could be served to anyone.
   def cache_publicly?
-    !post_query.is_user_dependent_search?
+    !post_query.is_user_dependent_search? && (user.nil? || user.is_anonymous?)
   end
 
   protected

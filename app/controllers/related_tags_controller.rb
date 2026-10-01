@@ -14,6 +14,9 @@ class RelatedTagsController < ApplicationController
     tag_sample_size = search_params[:tag_sample_size]
     limit = params[:limit]
     media_asset = MediaAsset.find(params[:media_asset_id]) if params[:media_asset_id].present?
+    # Fork: an asset the viewer may not see is "not found" here too -- its AI
+    # tags would otherwise describe an unposted or jailed image to anyone.
+    raise ActiveRecord::RecordNotFound if media_asset && !Pundit.policy!(CurrentUser.user, media_asset).can_see_image?
 
     @query = RelatedTagQuery.new(query:, media_asset:, categories:, search_sample_size:, tag_sample_size:, order:, limit:, user: CurrentUser.user)
     authorize @query

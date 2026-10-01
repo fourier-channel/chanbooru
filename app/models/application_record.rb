@@ -34,7 +34,10 @@ class ApplicationRecord < ActiveRecord::Base
         search_params = defaults.merge(search_params).with_indifferent_access
 
         max_limit = (params[:format] == "sitemap") ? 10_000 : 1_000
-        search(search_params, current_user).paginate(page, limit: limit, max_limit: max_limit, count: count, search_count: count_pages)
+        # Fork: rows about a post the searcher may not see are not results --
+        # see without_hidden_posts. Here, at the one place every index door
+        # passes through, so the count and paginator never include them.
+        search(search_params, current_user).without_hidden_posts(current_user).paginate(page, limit: limit, max_limit: max_limit, count: count, search_count: count_pages)
       end
     end
   end
@@ -43,6 +46,48 @@ class ApplicationRecord < ActiveRecord::Base
     class_methods do
       def visible(_user)
         all
+      end
+
+      # Fork: rows that belong to a post `user` may not see (Post.hidden_from)
+      # are removed -- a hidden post's versions, commentary, flags, events,
+      # favorites and votes answer nothing, as the post itself does. Applies
+      # to every model with `belongs_to :post`; a model that names posts
+      # another way overrides this (ModAction). Rows with no post are kept.
+      def without_hidden_posts(user)
+        column = hidden_post_column
+        return all if column.nil?
+
+        hidden = Post.hidden_from(user)
+        return all if hidden.nil?
+
+        # A correlated NOT EXISTS when the rows and the posts share a
+        # database: Postgres then checks only the posts the page actually
+        # visits. NOT IN over the whole hidden set was measured on production
+        # (2026-10-01) at 9-11 s for a signed-out visitor -- 124,660 live
+        # posts carry a gated tag, and finding them is a sequential scan of
+        # every tag_string. Otherwise (PostVersion can live in an archive
+        # database) the ids themselves.
+        if shares_database_with?(Post)
+          where.not(hidden.where(Post.arel_table[:id].eq(arel_table[column])).arel.exists)
+        else
+          where(arel_table[column].eq(nil).or(arel_table[column].not_in(hidden.pluck(:id))))
+        end
+      end
+
+      # The column naming the post a row belongs to, or nil.
+      def hidden_post_column
+        reflection = reflect_on_association(:post)
+        return nil unless reflection&.belongs_to? && !reflection.polymorphic? && reflection.klass == Post
+
+        reflection.foreign_key.to_s
+      end
+
+      def shares_database_with?(other)
+        return true if connection_pool.equal?(other.connection_pool)
+
+        mine = connection_db_config.configuration_hash
+        theirs = other.connection_db_config.configuration_hash
+        mine[:database].present? && mine.values_at(:host, :port, :database) == theirs.values_at(:host, :port, :database)
       end
 
       def visible_for_search(attribute, current_user)
@@ -56,6 +101,15 @@ class ApplicationRecord < ActiveRecord::Base
 
     def policy(current_user)
       Pundit.policy(current_user, self)
+    end
+
+    # Fork: whether this record names a post `user` may not see. Asked of a
+    # single record by ApplicationController#authorize; see
+    # without_hidden_posts for the listing half.
+    def hidden_by_post_from?(user)
+      return false if self.class.hidden_post_column.nil?
+
+      post.present? && post.hidden_from?(user)
     end
   end
 

@@ -1,4 +1,4 @@
 <% content_for(:secondary_links) do %>
   <%= subnav_link_to "Site status", status_path %>
-  <%= subnav_link_to "Statistics", statistics_path %>
+  <%= subnav_link_to "Statistics", statistics_path unless Danbooru.config.retired_sections.include?("metrics") %>
 <% end %>

@@ -2042,6 +2042,61 @@ class Post < ApplicationRecord
     tag_array.intersect?(TagBanishment.post_tags) && TagBanishment.withholds_posts_from?(user)
   end
 
+  # Whether this post does not exist for `user`: gated from a signed-out
+  # visitor, or deleted/jailed past what they may see. The two predicates
+  # above, as the one question a door asks about a post it is about to name.
+  def hidden_from?(user = CurrentUser.user)
+    hidden_from_anonymous?(user) || hidden_as_deleted?(user)
+  end
+
+  # The same rule for a SET of posts: the posts hidden_from? is true of, as a
+  # relation -- or nil when nothing is hidden from `user`, so a caller can
+  # skip the filter rather than run an empty one.
+  #
+  # WHY A RELATION (2026-10-01). The post's own doors asked hidden_from? one
+  # post at a time and were shut; every other record that NAMES a post was
+  # not. A leak audit read jailed post 413157 anonymously through
+  # /post_versions (its whole tag history and 4chan source), the artist
+  # commentary ("Posted by X in /trash/ thread N"), flags and the mod log
+  # ("troll jail: shock"), post events, favorites, /counts (id:N answered 1)
+  # and IQDB matches -- while /posts/413157.json was a 404. A listing cannot
+  # ask a predicate per row without breaking its own count and paginator, so
+  # the rule has to exist as SQL. ApplicationRecord.without_hidden_posts
+  # applies it to every model that belongs_to a post, from paginated_search,
+  # and ApplicationController#authorize asks hidden_from? of a single record
+  # -- so a door added later gets the rule without knowing there is one.
+  #
+  # Must agree with hidden_from? row for row; hidden_post_doors_test holds
+  # both to the same fixtures.
+  def self.hidden_from(user)
+    tags = "string_to_array(posts.tag_string, ' ')"
+    terms = []
+
+    if (user.nil? || user.is_anonymous?) && Danbooru.config.restricted_tags.present?
+      terms << where_array_includes_any(tags, Danbooru.config.restricted_tags)
+    end
+
+    terms << where_array_includes_any(tags, TagBanishment.post_tags) if TagBanishment.withholds_posts_from?(user)
+
+    if user.nil? || !user.can_see_deleted_posts?
+      deleted = where(is_deleted: true)
+      deleted = deleted.where.not(uploader_id: user.id) unless user.nil? || user.is_anonymous?
+      terms << deleted
+    end
+
+    terms.reduce(:or)
+  end
+
+  # Post.find for a door that names a post on the caller's behalf: a hidden
+  # post is "not found", exactly as a missing one is, so the answer cannot be
+  # used to tell them apart.
+  def self.find_visible!(id, user = CurrentUser.user)
+    post = find(id)
+    raise ActiveRecord::RecordNotFound if post.hidden_from?(user)
+
+    post
+  end
+
   # THE BOORU'S OWN JAIL (2026-09-24). A live post that GAINS a banished tag
   # (Danbooru.config.banished_tags) is jailed in the same transaction: the
   # jail tag added, then the post deleted -- the end state fourier-sampling's

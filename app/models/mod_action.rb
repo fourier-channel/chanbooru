@@ -109,6 +109,22 @@ class ModAction < ApplicationRecord
     end
   end
 
+  # Fork: a mod action whose subject is a post the viewer may not see is not
+  # shown -- "deleted post #N, reason: troll jail: shock" names the post and
+  # why it went. The ApplicationRecord rule keys on belongs_to :post; a mod
+  # action names its post through the polymorphic subject instead.
+  def self.without_hidden_posts(user)
+    hidden = Post.hidden_from(user)
+    return all if hidden.nil?
+
+    # Correlated, for the reason ApplicationRecord.without_hidden_posts gives.
+    where.not(hidden.where(Post.arel_table[:id].eq(arel_table[:subject_id])).where(arel_table[:subject_type].eq("Post")).arel.exists)
+  end
+
+  def hidden_by_post_from?(user)
+    subject_type == "Post" && subject.present? && subject.hidden_from?(user)
+  end
+
   def self.search(params, current_user)
     q = search_attributes(params, [:id, :created_at, :updated_at, :category, :description, :creator, :subject], current_user: current_user)
 

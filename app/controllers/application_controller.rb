@@ -195,10 +195,14 @@ class ApplicationController < ActionController::Base
       @exception = exception
       @expected = status < 500
       @message = message.to_s.encode("utf-8", invalid: :replace, undef: :replace)
-      @backtrace = Rails.backtrace_cleaner.clean(@exception.backtrace) if @exception
+      # Fork: the backtrace is for whoever runs the site. It names files and
+      # lines, and so it told callers which of two raise sites answered --
+      # "hidden" from "no such post" (/posts/413157.json carried
+      # posts_controller.rb:50, 2026-10-01). See error_backtraces_public?.
+      @backtrace = Rails.backtrace_cleaner.clean(@exception.backtrace) if @exception && show_error_backtrace?
       format = :html unless format.in?(%i[html json xml js atom])
 
-      @api_response = { success: false, error: @exception.class.to_s, message: @message, backtrace: @backtrace }
+      @api_response = { success: false, error: @exception.class.to_s, message: @message, backtrace: @backtrace }.compact
 
       # if InvalidAuthenticityToken was raised, CurrentUser isn't set so we have to use the blank layout.
       layout = "blank" if CurrentUser.user.nil?
@@ -217,6 +221,10 @@ class ApplicationController < ActionController::Base
       render template, layout: layout, status: status, formats: format
     rescue ActionView::MissingTemplate
       render "static/error", layout: layout, status: status, formats: format
+    end
+
+    def show_error_backtrace?
+      Danbooru.config.error_backtraces_public? || CurrentUser.user&.is_admin? || false
     end
   end
 
@@ -243,9 +251,23 @@ class ApplicationController < ActionController::Base
     # @raise [Pundit::NotAuthorizedError] If the user is not authorized to perform the action.
     # @see https://github.com/varvet/pundit
     def authorize(record, action = nil, policy_class: nil)
+      reject_hidden_post_record(record)
       super
       check_rate_limit(record, policy_class: policy_class)
       record
+    end
+
+    # Fork: a record that names a post the viewer may not see is "not found"
+    # on a read -- the commentary, a flag, a version of a jailed post answers
+    # as the post's own page does, with the 404 a missing record gets
+    # (Post#hidden_from?). Before the policy, so a hidden post's record can
+    # never answer 403 where a missing one answers 404. Reads only: writes
+    # carry their own policies, and the bots that jail a post still act on it.
+    def reject_hidden_post_record(record)
+      return unless request.get? || request.head?
+      return unless record.is_a?(ApplicationRecord)
+
+      raise ActiveRecord::RecordNotFound if record.hidden_by_post_from?(CurrentUser.user)
     end
 
     # Checks the rate limit for the current controller action. Looks up the corresponding policy class and calls
