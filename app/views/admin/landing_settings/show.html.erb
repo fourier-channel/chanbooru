@@ -70,19 +70,52 @@
               <%= label_tag "landing-#{category.key}-fresh", "Freshly scraped only" %>
             </div>
           <% elsif category.kind == "tags" %>
-            <div class="input">
-              <%= label_tag "landing-#{category.key}-tags", "Tags" %>
-              <%# data-autocomplete="tag-edit" is the site's multi-tag completer, so
-                  the featured creators are PICKED rather than spelled from memory.
-                  A mistyped artist tag does not error -- it finds nothing, and the
-                  row silently loses that creator. %>
-              <%= text_field_tag name.call(:tags_string), category.tags_string,
-                                 id: "landing-#{category.key}-tags", size: 60,
-                                 data: { autocomplete: "tag-edit" } %>
+            <%# THE CREATORS AS THEMSELVES: each listed tag is drawn as its pill --
+                an artist as the site's artist pill with its activity lamp, lit
+                while they have posted inside the creator window -- with a remove
+                control beside it, and an input that adds one, picked from the
+                site's tag completer. The hidden field is what the form sends,
+                the same space-separated list the text box sent, so nothing
+                server-side changed. A tag that does not exist is named in a
+                warning, because it does not error -- it finds nothing, and the
+                row silently loses that creator. %>
+            <% categories_by_name = Tag.where(name: category.tags).pluck(:name, :category).to_h.transform_values { |c| TagCategory.reverse_mapping[c] } %>
+            <% live = CreatorActivity.active(category.tags.select { |t| categories_by_name[t] == "artist" }) %>
+            <% missing = category.tags.reject { |t| categories_by_name.key?(t) } %>
+            <div class="input landing-creators" data-landing-creators
+                 data-live="<%= live.to_json %>" data-window="<%= Danbooru.config.creator_active_window.to_i %>">
+              <%= label_tag "landing-#{category.key}-add", category.key == "featured" ? "Creators" : "Tags" %>
+              <%= hidden_field_tag name.call(:tags_string), category.tags_string, id: "landing-#{category.key}-tags", data: { creators_value: true } %>
+              <span class="landing-creator-pills" data-creators-list>
+                <% category.tags.each do |tag_name| %>
+                  <% kind = categories_by_name[tag_name] %>
+                  <span class="landing-creator" data-name="<%= tag_name %>">
+                    <% if kind.nil? %>
+                      <span class="mod-pill mod-pill--pending" title="No tag by this name exists, so this search finds nothing"><%= tag_name.tr("_", " ") %></span>
+                    <% elsif kind.in?(%w[artist copyright character]) %>
+                      <%= link_to posts_path(tags: tag_name), class: "mod-pill mod-pill--cat mod-pill--cat-#{kind}#{" is-live" if live.include?(tag_name)}",
+                                  data: { tag: tag_name }, target: "_blank" do %>
+                        <% if kind == "artist" %><span class="mod-pill-dot"></span><% end %>
+                        <%= tag_name.tr("_", " ") %>
+                      <% end %>
+                    <% else %>
+                      <%= link_to tag_name.tr("_", " "), posts_path(tags: tag_name), class: "mod-pill mod-pill--meta", title: "a #{kind} tag, not a creator", target: "_blank" %>
+                    <% end %>
+                    <button type="button" class="landing-creator-x" data-act="creator-remove" title="remove <%= tag_name %>" aria-label="remove <%= tag_name %>">&times;</button>
+                  </span>
+                <% end %>
+              </span>
+              <% if missing.any? %>
+                <p class="hint landing-creators-missing">
+                  <strong>No such tag:</strong> <%= missing.join(", ") %> -- these find nothing. Remove them, or correct the spelling.
+                </p>
+              <% end %>
+              <%= text_field_tag nil, nil, id: "landing-#{category.key}-add", class: "landing-creator-add",
+                                 placeholder: "add #{category.key == "featured" ? "a creator" : "a tag"}, then Enter",
+                                 autocomplete: "off", data: { autocomplete: "tag", creators_add: true } %>
               <span class="hint">
                 <strong><span data-tag-count="landing-<%= category.key %>-tags"><%= category.tags.length %></span>
-                of <%= LandingCategory::MAX_TAGS %></strong> listed.
-                Space separated.
+                of <%= LandingCategory::MAX_TAGS %></strong> listed; an added one is saved with "Save carousel".
                 <strong>Each tag is searched on its own</strong>, not all together:
                 twenty creators is twenty one-term searches, run in the background
                 and cached, because an anonymous visitor may search only
@@ -217,24 +250,77 @@
       <%= submit_tag "Save carousel" %>
     <% end %>
 
-    <%# The count beside each tag field follows what is typed, so an admin
-        pasting a list sees "48 of 50" before saving rather than an error after.
-        Counts whitespace-separated tokens, which is exactly how the model
-        splits the field. Server-rendered first, so it is right with no JS. %>
+    <%# THE CREATOR EDITOR (see the tags row above). Removing a pill or adding
+        a name rewrites the hidden field the form sends and the "N of 50"
+        count, so the admin sees the count before saving rather than an error
+        after. A name added here is drawn as an UNSAVED pill: its category and
+        lamp are the server's to say, on the next render after Save. The lamps
+        of the saved pills are re-read while the page is open (creator_lamps.js).
+        The slides placeholder no longer follows the count: slides on screen is
+        a presentation value and is not derived from the creator list
+        (operator ruling 2026-09-22), so its default is the belt's own. %>
     <script>
-      document.querySelectorAll("[data-tag-count]").forEach(function (out) {
-        var field = document.getElementById(out.dataset.tagCount);
-        if (!field) return;
-        var slides = document.getElementById(out.dataset.tagCount.replace(/-tags$/, "-slides"));
-        var update = function () {
-          var n = field.value.trim().split(/\s+/).filter(Boolean).length;
-          out.textContent = String(n);
-          // The slides field's placeholder IS the default -- one per creator --
-          // so it follows the count rather than showing the count at page load.
-          if (slides) slides.placeholder = n ? String(n) : "belt default";
+      document.querySelectorAll("[data-landing-creators]").forEach(function (box) {
+        var value = box.querySelector("[data-creators-value]");
+        var list = box.querySelector("[data-creators-list]");
+        var add = box.querySelector("[data-creators-add]");
+        var count = document.querySelector('[data-tag-count="' + value.id + '"]');
+        var names = function () {
+          return Array.from(list.querySelectorAll(".landing-creator")).map(function (el) { return el.dataset.name; });
         };
-        field.addEventListener("input", update);
-        field.addEventListener("change", update);
+        var sync = function () {
+          var all = names();
+          value.value = all.join(" ");
+          if (count) count.textContent = String(all.length);
+        };
+        var addName = function (raw) {
+          var name = String(raw || "").trim().toLowerCase().replace(/\s+/g, "_");
+          add.value = "";
+          if (!name || names().indexOf(name) !== -1) return;
+          var row = document.createElement("span");
+          row.className = "landing-creator";
+          row.dataset.name = name;
+          var pill = document.createElement("span");
+          pill.className = "mod-pill mod-pill--pending";
+          pill.title = "Added -- saved when you press Save carousel";
+          pill.textContent = name.replace(/_/g, " ");
+          var x = document.createElement("button");
+          x.type = "button";
+          x.className = "landing-creator-x";
+          x.dataset.act = "creator-remove";
+          x.setAttribute("aria-label", "remove " + name);
+          x.innerHTML = "&times;";
+          row.append(pill, x);
+          list.appendChild(row);
+          sync();
+        };
+        list.addEventListener("click", function (e) {
+          var x = e.target.closest("[data-act='creator-remove']");
+          if (!x) return;
+          x.closest(".landing-creator").remove();
+          sync();
+        });
+        // Enter adds what is typed and never submits the whole form -- unless
+        // the completer's menu is choosing, in which case its pick is added.
+        add.addEventListener("keydown", function (e) {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          var ac = window.jQuery && window.jQuery(add).data("ui-autocomplete");
+          if (ac && ac.menu && ac.menu.active) return;
+          addName(add.value);
+        });
+        if (window.jQuery) {
+          window.jQuery(add).on("autocompleteselect", function (e, ui) {
+            addName(ui.item.value);
+            setTimeout(function () { add.value = ""; }, 0);
+          });
+        }
+        if (window.Danbooru && window.Danbooru.CreatorLamps) {
+          new window.Danbooru.CreatorLamps(box, {
+            live: JSON.parse(box.dataset.live || "[]"),
+            windowSeconds: Number(box.dataset.window) || 300,
+          }).start();
+        }
       });
     </script>
 

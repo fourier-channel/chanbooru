@@ -20,6 +20,11 @@
 # page with one.
 module CreatorActivity
   TUNNEL_PREFIX = "41chan_"
+  # How many names one ask may carry. The cost above does not grow with the
+  # count -- it is a set lookup per name -- so the cap only bounds the request
+  # itself. 100 fits the landing carousel, whose rows can name fifty featured
+  # creators and more besides; the post page asks about a handful.
+  MAX_NAMES = 100
 
   def self.window
     Danbooru.config.creator_active_window

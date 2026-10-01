@@ -1,4 +1,5 @@
 @use "../../javascript/src/styles/modulation/stage" as *;
+@use "../../javascript/src/styles/modulation/pill" as *;
 
 // The landing page. Same surfaces, radii and mono labels as everything else --
 // a stranger's first screen should look like the site they are about to enter.
@@ -256,6 +257,32 @@
   }
 
   .modland-credit-creator { color: var(--artist-tag-color); font-weight: 600; }
+
+  // THE CREATOR PILL, under a card and in the credit line: the site's own
+  // artist pill and its activity lamp (modulation/_pill.scss), not a coloured
+  // name. Under a card it shrinks and fades with the card, sized from the same
+  // --cell-text as the label it replaced; in the credit line it is the one
+  // thing there that takes a click, through to the creator's posts.
+  @include modulation-pill;
+  @include modulation-creator-lamp;
+
+  .mod-pill-label { overflow: hidden; text-overflow: ellipsis; }
+
+  .mod-cell-name .mod-pill {
+    max-width: 100%;
+    gap: 0.3em;
+    padding: 0.06em 0.55em;
+    font-size: inherit;
+  }
+
+  .mod-cell-name .mod-pill-dot { flex: none; width: 0.55em; height: 0.55em; }
+
+  .modland-credit .mod-pill {
+    pointer-events: auto;
+    vertical-align: baseline;
+    padding: 0.08rem 0.55rem;
+    font-size: inherit;
+  }
 
   .modland-credit-platform {
     color: var(--meta-tag-color);

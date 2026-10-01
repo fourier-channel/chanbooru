@@ -234,6 +234,25 @@ class LandingShowcaseTest < ActiveSupport::TestCase
     end
   end
 
+  # The carousel draws the creator as their artist pill with its lamp, so the
+  # slide names the TAG, not only the words.
+  context "a slide's creator" do
+    should "carry the artist tag the carousel draws as a pill" do
+      create(:artist_tag, name: "pill_artist")
+      as(create(:user)) { create(:post, source: BOARD, tag_string: "pill_artist scenery") }
+
+      slide = LandingShowcase.new(viewer: User.anonymous).categories.find { it[:key] == "new" }[:slides].sole
+      assert_equal({ name: "pill artist", tag: "pill_artist" }, slide[:creator].slice(:name, :tag))
+    end
+
+    should "be the uploader, with no tag, when the post names no artist" do
+      post = as(create(:user)) { create(:post, source: BOARD, tag_string: "scenery") }
+
+      slide = LandingShowcase.new(viewer: User.anonymous).categories.find { it[:key] == "new" }[:slides].sole
+      assert_equal({ name: post.uploader.name, tag: nil }, slide[:creator].slice(:name, :tag))
+    end
+  end
+
   # The blog is fourier-domain's, read from its index by LandingBlogCache.
   context "the blog row" do
     should "show the blog's posts as their own kind of slide" do

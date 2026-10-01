@@ -43,7 +43,7 @@ class ModulationController < ApplicationController
   # a call, one range scan however many are asked.
   def creator_activity
     skip_authorization
-    names = params[:tags].to_s.split(",").map(&:strip).reject(&:blank?).first(20)
+    names = params[:tags].to_s.split(",").map(&:strip).reject(&:blank?).first(CreatorActivity::MAX_NAMES)
     render json: { active: CreatorActivity.active(names), window: Danbooru.config.creator_active_window.to_i }, status: :ok
   end
 

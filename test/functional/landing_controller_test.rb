@@ -86,6 +86,17 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
         assert_select ".modland-tab", text: "Blog", count: 0
       end
 
+      should "say which credited creators are active, so their lamps are right on first paint" do
+        create(:artist_tag, name: "busy_artist")
+        as(@user) { create(:post, tag_string: "busy_artist", source: "https://boards.4chan.org/b/thread/1#p2") }
+
+        get root_path
+
+        config = JSON.parse(css_select(".modland").first["data-config"])
+        assert_includes config["liveCreators"], "busy_artist"
+        assert_equal Danbooru.config.creator_active_window.to_i, config["liveWindow"]
+      end
+
       # Blacklisted posts are never visible (operator, 2026-10-01); the carousel
       # skips what the page's Blacklist marks, so the page must carry one.
       should "carry the viewer's blacklist, hidden, for the carousel to obey" do

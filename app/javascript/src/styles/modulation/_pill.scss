@@ -153,3 +153,29 @@
   // A count beside a name (the gallery's hover panel) is quieter than it.
   .mod-pill-count { color: var(--mod-ink-dim); }
 }
+
+// THE CREATOR'S LAMP. On an artist pill the dot is not the provenance dot but
+// a lamp: lit (--mod-lamp-live, with its static halo) while that creator is
+// ACTIVE -- a post of theirs, direct or attributed through sample or the
+// tunnel, within Danbooru.config.creator_active_window -- and unlit otherwise.
+// A surface marks a live pill `.is-live`: the post page from its payload and
+// its own poll, the landing carousel and console through creator_lamps.js.
+// Its own mixin, not part of modulation-pill, so the gallery -- which draws
+// artist pills with provenance dots -- is untouched.
+//
+// Four classes under the surface's root: the provenance dot rules
+// (.mod-pill--cat.mod-pill--auto .mod-pill-dot) are four as well and can land
+// later, and at three this lost the tie and an unlit lamp was painted in the
+// autotagger's orange (measured on the dev post page).
+@mixin modulation-creator-lamp {
+  .mod-pill.mod-pill--cat.mod-pill--cat-artist .mod-pill-dot {
+    background: var(--mod-lamp-unlit);
+    opacity: 1;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .mod-pill.mod-pill--cat.mod-pill--cat-artist.is-live .mod-pill-dot {
+    background: var(--mod-lamp-live);
+    box-shadow: var(--mod-lamp-live-glow);
+  }
+}

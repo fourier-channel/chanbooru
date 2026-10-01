@@ -129,6 +129,24 @@ class Admin::LandingSettingsControllerTest < ActionDispatch::IntegrationTest
       assert_nil LandingShowcase.new(viewer: User.anonymous).categories.find { it[:key] == "blog" }
     end
 
+    should "draw a row's creators as their artist pills, lit while active, and name a tag that does not exist" do
+      create(:artist_tag, name: "lit_artist")
+      create(:artist_tag, name: "quiet_artist")
+      as(@user) { create(:post, tag_string: "lit_artist") }
+      travel_to(1.day.ago) { as(@user) { create(:post, tag_string: "quiet_artist") } }
+      LandingCategory.create!(LandingCategory::DEFAULTS.find { it[:key] == "featured" }.merge(tags: %w[lit_artist quiet_artist no_such_artist]))
+
+      get_auth admin_landing_setting_path, @admin
+
+      featured = "fieldset[data-key=featured]"
+      assert_select "#{featured} input[type=hidden][name='landing_categories[featured][tags_string]'][value='lit_artist quiet_artist no_such_artist']", 1
+      assert_select "#{featured} input[type=text][name='landing_categories[featured][tags_string]']", 0
+      assert_select "#{featured} .mod-pill--cat-artist.is-live[data-tag=lit_artist] .mod-pill-dot", 1
+      assert_select "#{featured} .mod-pill--cat-artist[data-tag=quiet_artist]:not(.is-live)", 1
+      assert_select "#{featured} .mod-pill--pending", text: "no such artist"
+      assert_select "#{featured} .landing-creators-missing", text: /no_such_artist/
+    end
+
     should "refuse a board slug that is really a search, and say so" do
       login_as(@admin)
       patch categories_admin_landing_setting_path, params: {

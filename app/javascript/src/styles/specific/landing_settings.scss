@@ -1,0 +1,47 @@
+@use "../modulation/pill" as *;
+
+// The landing console (/admin/landing_setting). A row's creators are drawn as
+// the creators themselves -- the site's artist pill with its activity lamp --
+// not as a box of names (operator, 2026-10-01: "make that entire page more
+// coherent ... replace the textbox of names in row with the creator's actual
+// artist tag pill, complete with activity light"). The pill and the lamp are
+// the shared ones (modulation/_pill.scss), so they are the same pill the post
+// page and the carousel draw.
+#c-admin-landing-settings {
+  @include modulation-pill;
+  @include modulation-creator-lamp;
+
+  .landing-creator-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.35rem 0 0.5rem;
+  }
+
+  .landing-creator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+  }
+
+  // The remove control sits BESIDE the pill, never inside its link, like the
+  // post page's tag rows.
+  .landing-creator-x {
+    appearance: none;
+    border: 0;
+    padding: 0 0.3rem;
+    background: transparent;
+    color: var(--mod-ink-dim);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover { color: var(--mod-ink); }
+  }
+
+  .landing-creator-add { min-width: 16rem; }
+
+  .landing-creators-missing {
+    color: var(--mod-warn-fg);
+  }
+}

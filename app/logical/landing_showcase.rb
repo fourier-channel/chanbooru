@@ -305,11 +305,15 @@ class LandingShowcase
   # Who made it. The artist tag is what this site calls a Creator, so it is the
   # answer when there is one; the uploader is the fallback, because "created by
   # nobody" is not a sentence worth rendering.
+  #
+  # `tag` is the artist tag itself, so the carousel can draw the creator as
+  # their artist pill with its activity lamp; nil for the uploader fallback,
+  # which is an account, not a tag, and stays a plain name.
   def creator_for(post)
     artist = post.tag_array.find { |name| artist_names.include?(name) }
-    return { name: artist.tr("_", " "), url: routes.posts_path(tags: artist) } if artist
+    return { name: artist.tr("_", " "), url: routes.posts_path(tags: artist), tag: artist } if artist
 
-    { name: post.uploader.name, url: routes.user_path(post.uploader_id) }
+    { name: post.uploader.name, url: routes.user_path(post.uploader_id), tag: nil }
   end
 
   # WHICH TAG NAMES ON THIS PAGE ARE ARTISTS, IN ONE QUERY FOR THE WHOLE PAGE.

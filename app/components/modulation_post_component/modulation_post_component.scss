@@ -823,30 +823,10 @@ body:has(.modulation) {
   }
 
   // THE CATEGORY PILLS are the shared pill's (modulation/_pill.scss): canon's
-  // --mod-tag-<cat>-fg on border and tint, white words. Only the creator's
-  // activity lamp below is this page's own.
-  // THE CREATOR'S LAMP. On an artist pill the dot is not the provenance dot
-  // but a lamp: lit (--mod-lamp-live, with its static halo) while that creator
-  // is ACTIVE -- a post of theirs, direct or attributed through sample or the
-  // tunnel, within Danbooru.config.creator_active_window -- and unlit
-  // otherwise. The payload says which are live at render; the page polls
-  // /modulation/creator_activity while visible so a lamp does not stay lit
-  // for an hour on a page left open. Four classes so it outranks the
-  // provenance dot rules below whatever order they land in.
-  // Five classes on the unlit rule, not four: the provenance dot rules below
-  // are four (.mod-pill--cat.mod-pill--auto .mod-pill-dot under .modulation)
-  // and come later, so at four this rule lost the tie and an unlit lamp was
-  // painted in the autotagger's orange. Measured on the dev post page.
-  .mod-pill.mod-pill--cat.mod-pill--cat-artist .mod-pill-dot {
-    background: var(--mod-lamp-unlit);
-    opacity: 1;
-    transition: background-color 0.3s ease, box-shadow 0.3s ease;
-  }
-
-  .mod-pill.mod-pill--cat.mod-pill--cat-artist.is-live .mod-pill-dot {
-    background: var(--mod-lamp-live);
-    box-shadow: var(--mod-lamp-live-glow);
-  }
+  // --mod-tag-<cat>-fg on border and tint, white words. The creator's
+  // activity lamp is shared too now (modulation-creator-lamp), because the
+  // landing carousel and its console show the same pills.
+  @include modulation-creator-lamp;
 
   .mod-cat-label {
     font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;

@@ -1,5 +1,6 @@
 import Notice from "./notice";
 import { WHEEL_IDLE, wheelStep } from "./fourier_wheel_step";
+import CreatorLamps from "./creator_lamps";
 
 // The landing carousel, built on the post view's stage.
 //
@@ -52,6 +53,32 @@ function initLanding(root) {
     const el = root.querySelector(`.modland-poolitem[data-id="${id}"]`);
     return Boolean(el) && el.classList.contains("blacklisted-active");
   };
+
+  // THE CREATOR, AS THEIR ARTIST PILL. The name under a card and in the credit
+  // line is the creator's artist tag drawn as it is everywhere else on the
+  // site -- the category pill with its activity lamp (operator, 2026-10-01) --
+  // linking to their posts. One watcher for the page: lit at render from the
+  // payload, re-read while the page is visible, for every artist the rows
+  // credit, so a pill built after the last poll is painted from the same answer.
+  const lamps = new CreatorLamps(root, {
+    live: cfg.liveCreators || [],
+    windowSeconds: cfg.liveWindow || 300,
+    names: () => Array.from(new Set(cats.flatMap((c) => (c.slides || []).map((s) => s.creator && s.creator.tag).filter(Boolean)))),
+  });
+  function artistPill(creator) {
+    const pill = document.createElement("a");
+    pill.className = "mod-pill mod-pill--cat mod-pill--cat-artist";
+    pill.href = creator.url;
+    pill.dataset.tag = creator.tag;
+    const dot = document.createElement("span");
+    dot.className = "mod-pill-dot";
+    const label = document.createElement("span");
+    label.className = "mod-pill-label";
+    label.textContent = creator.name;
+    pill.append(dot, label);
+    lamps.paint(pill);
+    return pill;
+  }
 
   const slidesOf = (a) => (cats[a] && cats[a].slides ? cats[a].slides : []).filter((s) => !blocked(s.id));
 
@@ -305,7 +332,7 @@ function initLanding(root) {
     if (creator) {
       const name = document.createElement("span");
       name.className = "mod-cell-name";
-      name.textContent = creator;
+      if (slide.creator.tag) { name.appendChild(artistPill(slide.creator)); } else { name.textContent = creator; }
       cell.nameEl = name;
     }
     return cell;
@@ -470,7 +497,10 @@ function initLanding(root) {
 
     el.hidden = false;
     const parts = [];
-    if (creator) { parts.push(`Created by <span class="modland-credit-creator">${esc(creator)}</span>`); }
+    if (creator) {
+      const who = slide.creator.tag ? artistPill(slide.creator).outerHTML : `<span class="modland-credit-creator">${esc(creator)}</span>`;
+      parts.push(`Created by ${who}`);
+    }
     if (platform) {
       // The slug rides on the element so a per-site logo is later a rule per
       // platform, and the display name never becomes an identifier.
@@ -1033,6 +1063,7 @@ function initLanding(root) {
   function start() {
     if (started) { return; }
     started = true;
+    lamps.start();
     axis = usable(0) ? 0 : nextUsable(0, 1);
     if (axis < 0) { axis = 0; }
     resetRun();
