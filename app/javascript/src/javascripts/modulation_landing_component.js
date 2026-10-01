@@ -581,8 +581,14 @@ function initLanding(root) {
       if (box && box.blacklist) { box.blacklist.rescan(); }
     }
 
+    // ONLY ROWS THIS PAGE HAS. The tabs are fixed for the life of the page, so
+    // a row that was empty at load -- the blog row while the blog has not been
+    // read yet -- and arrives in a later set has no axis to drain into. Queued
+    // anyway, it sat in `pending` forever, and prunePool, which waits for every
+    // queue to empty, never ran again. It appears at the next page load.
+    const onPage = new Set(cats.map((c) => c.key));
     next.forEach((c) => {
-      if (Array.isArray(c.slides) && c.slides.length) { pending.set(c.key, c.slides.slice()); }
+      if (onPage.has(c.key) && Array.isArray(c.slides) && c.slides.length) { pending.set(c.key, c.slides.slice()); }
     });
   }
 
