@@ -219,6 +219,9 @@ class Blacklist {
   // Apply all blacklist rules to all posts.
   apply() {
     this.posts.forEach(post => post.applyRules());
+    // Surfaces that draw from a payload rather than from these elements --
+    // the landing carousel -- skip what the marks say and redraw on this.
+    document.dispatchEvent(new CustomEvent("danbooru:blacklist-applied"));
   }
 
   get enabled() {

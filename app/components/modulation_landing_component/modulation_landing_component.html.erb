@@ -74,6 +74,19 @@
         <div class="modland-pool" hidden aria-hidden="true">
           <%= render partial: "landing/pool_item", collection: all_slides, as: :slide %>
         </div>
+
+        <%# THE BLACKLIST THAT MARKS THEM. The pool above was wired for it from
+            the start, and nothing ever started it: no BlacklistComponent was
+            rendered here, so no pool item was ever marked and a viewer's
+            blacklisted posts rode the carousel like any other (measured
+            2026-10-01: a user blacklisting "sunset" was shown a sunset post).
+            Rendered HIDDEN: blacklisted posts are never visible anywhere
+            (operator, 2026-10-01), so there is no box to switch a rule off
+            from on this page. It applies the viewer's own rules and the
+            enforced ones; the carousel draws nothing until it has. %>
+        <div class="modland-blacklist" hidden aria-hidden="true">
+          <%= render BlacklistComponent.new(user: viewer || User.anonymous) %>
+        </div>
       </div>
     </section>
   <% end %>

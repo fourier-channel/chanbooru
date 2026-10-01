@@ -86,6 +86,14 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
         assert_select ".modland-tab", text: "Blog", count: 0
       end
 
+      # Blacklisted posts are never visible (operator, 2026-10-01); the carousel
+      # skips what the page's Blacklist marks, so the page must carry one.
+      should "carry the viewer's blacklist, hidden, for the carousel to obey" do
+        get_auth root_path, @user
+
+        assert_select ".modland-blacklist[hidden] #blacklist-box", 1
+      end
+
       # Present but hidden: it must never be on screen until the reader has
       # actually taken over, or it is just clutter offering to fix nothing.
       should "keep the resume control hidden until it is needed" do

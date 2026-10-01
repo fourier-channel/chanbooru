@@ -42,6 +42,7 @@ function initLanding(root) {
   let advanceTimer = null;
   let resumeTimer = null;
   let busy = false;
+  let started = false; // see start(): nothing is drawn before the blacklist has applied
 
   const esc = (s) => String(s === null || s === undefined ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -53,6 +54,19 @@ function initLanding(root) {
   };
 
   const slidesOf = (a) => (cats[a] && cats[a].slides ? cats[a].slides : []).filter((s) => !blocked(s.id));
+
+  // A row with nothing left once the blacklist has had its say is not a row:
+  // its tab hides, and moving between rows passes over it. The server drops
+  // rows that are empty for EVERYONE; this is the same rule for the rows a
+  // viewer's own blacklist empties.
+  const usable = (a) => slidesOf(a).length > 0;
+  function nextUsable(from, direction) {
+    for (let i = 1; i <= cats.length; i++) {
+      const a = (((from + (direction * i)) % cats.length) + cats.length) % cats.length;
+      if (usable(a)) { return a; }
+    }
+    return -1;
+  }
 
   // Each axis wraps at its own length, which is what lets categories of
   // different sizes stay lined up under one shared position.
@@ -481,6 +495,7 @@ function initLanding(root) {
       const on = i === axis;
       tab.classList.toggle("is-active", on);
       tab.setAttribute("aria-selected", String(on));
+      tab.hidden = !usable(i);
     });
     positionThumb();
   }
@@ -521,9 +536,16 @@ function initLanding(root) {
 
   function render() {
     const belt = region("belt");
-    if (!belt) { return; }
+    if (!belt || !started) { return; }
     const list = slidesOf(axis);
-    if (!list.length) { return; }
+    // Nothing to show on this row: clear it rather than leave the previous
+    // row's cards standing on the belt, which is what returning early did.
+    if (!list.length) {
+      belt.querySelectorAll(".mod-cell, .mod-cell-name").forEach((el) => el.remove());
+      renderCredit(null);
+      renderTabs();
+      return;
+    }
 
     const placed = list.map((slide, i) => ({ slide, d: ringDelta(i, pos, list.length) }));
     const xs = layout(placed);
@@ -772,11 +794,12 @@ function initLanding(root) {
   }
 
   function selectAxis(a) {
-    goToAxis(a, a > axis ? 1 : -1);
+    if (usable(a)) { goToAxis(a, a > axis ? 1 : -1); }
   }
 
   function shiftAxis(delta) {
-    goToAxis(((((axis + delta) % cats.length) + cats.length) % cats.length), delta);
+    const target = nextUsable(axis, delta < 0 ? -1 : 1);
+    if (target >= 0) { goToAxis(target, delta); }
   }
 
   // --- the ride -----------------------------------------------------------
@@ -791,8 +814,8 @@ function initLanding(root) {
       step(1);
     } else {
       // A full run of this category is done; hand over to the next one.
-      resetRun((axis + 1) % cats.length);
-      shiftAxis(1);
+      const next = nextUsable(axis, 1);
+      if (next >= 0) { resetRun(next); shiftAxis(1); }
     }
   }
 
@@ -992,9 +1015,35 @@ function initLanding(root) {
 
   window.addEventListener("resize", () => { positionThumb(); if (root.classList.contains("is-hero-max")) { scheduleRender(); } });
 
-  resetRun();
-  renderAll();
-  startTimer();
+  // THE BLACKLIST FIRST. A slide is skipped when its pool element carries
+  // the blacklist's mark, and those marks are made by the page's Blacklist
+  // (#blacklist-box), which Alpine starts on its own schedule. Drawing before
+  // it had applied would put a blacklisted picture on screen for as long as
+  // the first slide holds. So nothing is drawn until it says it has applied,
+  // and every later application (a fresh set rescanned, a rule toggled)
+  // redraws. A page with no blacklist at all shows nothing and says why: the
+  // rule is that blacklisted posts are never visible (operator, 2026-10-01),
+  // and a carousel that cannot apply it must not guess.
+  function start() {
+    if (started) { return; }
+    started = true;
+    axis = usable(0) ? 0 : nextUsable(0, 1);
+    if (axis < 0) { axis = 0; }
+    resetRun();
+    renderAll();
+    startTimer();
+  }
+  document.addEventListener("danbooru:blacklist-applied", () => {
+    if (!started) { start(); return; }
+    if (!usable(axis)) { const a = nextUsable(axis, 1); if (a >= 0) { axis = a; resetRun(); } }
+    scheduleRender();
+  });
+  const blacklistBox = document.querySelector("#blacklist-box");
+  if (!blacklistBox) {
+    console.error("landing carousel: this page has no blacklist (#blacklist-box), so the carousel is not drawn -- render BlacklistComponent in ModulationLandingComponent");
+  } else if (blacklistBox.blacklist) {
+    start();
+  }
 }
 
 function initAll() {
