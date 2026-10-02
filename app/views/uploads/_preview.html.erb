@@ -1,8 +1,10 @@
 <% upload_media_asset = upload.upload_media_assets.sort_by(&:id).first %>
 <% media_asset = upload_media_asset&.media_asset %>
 <% link_target = upload.media_asset_count > 1 ? [upload, UploadMediaAsset] : upload %>
+<%# Fork: posts the viewer may not see (Post#hidden_from?) are not named here. %>
+<% posts = upload.posts.reject { |post| post.hidden_from?(CurrentUser.user) } %>
 
-<%= render(MediaAssetPreviewComponent.new(media_asset: media_asset, size: size, link_target: link_target, save_data: CurrentUser.save_data, classes: "upload-preview", html: { **data_attributes_for(upload), "data-is-posted": upload.media_asset_count == upload.posts.length })) do |preview| %>
+<%= render(MediaAssetPreviewComponent.new(media_asset: media_asset, size: size, link_target: link_target, save_data: CurrentUser.save_data, classes: "upload-preview", html: { **data_attributes_for(upload), "data-is-posted": upload.media_asset_count == posts.length })) do |preview| %>
   <% preview.with_missing_image do %>
     <% if upload.is_errored? || upload_media_asset&.failed? %>
       Upload failed
@@ -22,10 +24,10 @@
 
   <% preview.with_footer do %>
     <div class="text-center text-muted text-xs h-4">
-      <% if upload.media_asset_count == 1 && upload.posts.first&.present? %>
-        <%= link_to "post ##{upload.posts.first.id}", upload.posts.first %>
-      <% elsif upload.media_asset_count > 1 && upload.posts.length > 0 %>
-        <%= link_to "#{upload.posts.length}/#{upload.media_asset_count} posted", posts_path(tags: "id:#{upload.posts.map(&:id).join(",")}") %>
+      <% if upload.media_asset_count == 1 && posts.first.present? %>
+        <%= link_to "post ##{posts.first.id}", posts.first %>
+      <% elsif upload.media_asset_count > 1 && posts.length > 0 %>
+        <%= link_to "#{posts.length}/#{upload.media_asset_count} posted", posts_path(tags: "id:#{posts.map(&:id).join(",")}") %>
       <% end %>
     </div>
   <% end %>

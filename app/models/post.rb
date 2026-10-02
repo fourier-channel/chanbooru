@@ -2097,6 +2097,43 @@ class Post < ApplicationRecord
     post
   end
 
+  # Post.find for a door that WRITES to a post (PostsController#update and
+  # its siblings): a post hidden from the writer is "not found" -- unless the
+  # writer is in the moderation tier (approver and up), because the accounts
+  # that jail and release posts act on posts they cannot see, and must keep
+  # doing so. Below that tier, a write to a hidden post both changed it and
+  # answered with its whole JSON, tags and source, to any member who named
+  # its id (2026-10-02).
+  def self.find_writable!(id, user = CurrentUser.user)
+    post = find(id)
+    raise ActiveRecord::RecordNotFound if post.hidden_from?(user) && !user&.is_approver?
+
+    post
+  end
+
+  # Whether an upload of this post's file by `user` is REFUSED, rather than
+  # merged into this post and redirected to it (PostsController#create).
+  #
+  # Upstream answers a taken md5 by merging the uploader's tags and rating
+  # into the post that holds the file and redirecting to it. Found 2026-10-02
+  # from fourier-tunnel's logs: the tunnel uploaded the files of deleted posts
+  # 22, 25 and 164076 (jailed), each create merged its tags into the deleted
+  # post, and each answered 302 to /posts/<id> -- the id of a post that
+  # answers nothing anywhere else.
+  #
+  # Refused when the post is hidden from the uploader (#hidden_from?), and
+  # ALSO when it is deleted and the uploader cannot see deleted posts -- its
+  # own uploader included. The uploader's exemption in #hidden_as_deleted? is
+  # a READ, kept so an appeal is possible; tagging a removed post by
+  # uploading its file again is not an appeal. The tunnel had uploaded all
+  # three of those posts itself, so #hidden_from? alone would have left the
+  # observed case exactly as it was. An account that can see deleted posts
+  # (an admin, and an admin with reveal on for a jailed one) keeps upstream's
+  # merge and redirect.
+  def refuses_duplicate_upload_from?(user = CurrentUser.user)
+    hidden_from?(user) || (is_deleted? && (user.nil? || !user.can_see_deleted_posts?))
+  end
+
   # THE BOORU'S OWN JAIL (2026-09-24). A live post that GAINS a banished tag
   # (Danbooru.config.banished_tags) is jailed in the same transaction: the
   # jail tag added, then the post deleted -- the end state fourier-sampling's

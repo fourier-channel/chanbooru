@@ -60,7 +60,11 @@ class UploadPostComponent < ApplicationComponent
   end
 
   # @return [Array<Post>] The list of pixel-perfect duplicates.
+  #
+  # Fork: only those the uploader may see (Post#hidden_from?). The "Exact
+  # duplicate of post #N" warning linked a deleted or jailed post by id to
+  # whoever uploaded the same pixels.
   memoize def duplicates
-    Post.joins(:media_asset).where("media_assets.pixel_hash": media_asset.pixel_hash).load
+    Post.joins(:media_asset).where("media_assets.pixel_hash": media_asset.pixel_hash).to_a.reject { |post| post.hidden_from?(current_user) }
   end
 end

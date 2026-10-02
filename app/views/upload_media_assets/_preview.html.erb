@@ -1,6 +1,9 @@
 <% media_asset = upload_media_asset.media_asset %>
+<%# Fork: a post the viewer may not see (Post#hidden_from?) is not named here. %>
+<% post = upload_media_asset.post %>
+<% post = nil if post&.hidden_from?(CurrentUser.user) %>
 
-<%= render MediaAssetPreviewComponent.new(media_asset: media_asset, size: size, link_target: [upload_media_asset.upload, upload_media_asset], classes: ["upload-media-asset-preview", ("upload-media-asset-loading" if upload_media_asset.loading?)], html: { **data_attributes_for(upload_media_asset), "data-is-posted": upload_media_asset.post.present? }) do |preview| %>
+<%= render MediaAssetPreviewComponent.new(media_asset: media_asset, size: size, link_target: [upload_media_asset.upload, upload_media_asset], classes: ["upload-media-asset-preview", ("upload-media-asset-loading" if upload_media_asset.loading?)], html: { **data_attributes_for(upload_media_asset), "data-is-posted": post.present? }) do |preview| %>
   <% preview.with_missing_image do %>
     <% if upload_media_asset.failed? %>
       Failed
@@ -11,8 +14,8 @@
 
   <% preview.with_footer do %>
     <div class="text-center text-xs h-8">
-      <% if upload_media_asset.post.present? %>
-        <%= link_to "post ##{upload_media_asset.post.id}", upload_media_asset.post %>
+      <% if post.present? %>
+        <%= link_to "post ##{post.id}", post %>
       <% end %>
     </div>
   <% end %>

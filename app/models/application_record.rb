@@ -173,6 +173,26 @@ class ApplicationRecord < ActiveRecord::Base
       hash = super(options)
       hash.transform_keys { |key| key.delete("?") }
     end
+
+    # Fork: a post the viewer may not see (Post#hidden_from?) is left out
+    # wherever it would be serialized INSIDE another record -- a has-many
+    # drops it, a has-one is absent as if there were none. Every nested
+    # include passes through here, for json and xml alike, whether a
+    # controller asked for it or the caller did with ?only=: an upload's
+    # media_asset[post] (UploadsController#show and #create include it for
+    # every upload), uploads?only=posts, a visible post's parent or children.
+    # Each of those serialized a deleted or jailed post's tags, source and id
+    # to whoever asked, while the post's own page was a 404 (2026-10-02).
+    private def serializable_add_includes(options = {})
+      viewer = CurrentUser.user
+      super do |association, records, opts|
+        if records.respond_to?(:to_ary)
+          yield association, records.to_ary.reject { |record| record.is_a?(Post) && record.hidden_from?(viewer) }, opts
+        elsif !(records.is_a?(Post) && records.hidden_from?(viewer))
+          yield association, records, opts
+        end
+      end
+    end
   end
 
   concerning :SearchMethods do

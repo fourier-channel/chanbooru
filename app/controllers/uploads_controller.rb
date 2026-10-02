@@ -23,9 +23,15 @@ class UploadsController < ApplicationController
     @upload = authorize Upload.find(params[:id])
     @preview_size = params[:size].presence || cookies[:post_preview_size].presence || MediaAssetGalleryComponent::DEFAULT_SIZE
 
-    if request.format.html? && @upload.media_asset_count == 1 && @upload.media_assets.first&.post.present?
-      flash[:notice] = "Duplicate of post ##{@upload.media_assets.first.post.id}"
-      redirect_to @upload.media_assets.first.post
+    # Fork: only to a post the uploader may see. Bytes held by a hidden post
+    # (Post#hidden_from?) get the upload page, as if unposted -- the redirect
+    # and its notice named the post.
+    posted = @upload.media_assets.first&.post if @upload.media_asset_count == 1
+    posted = nil if posted&.hidden_from?(CurrentUser.user)
+
+    if request.format.html? && posted.present?
+      flash[:notice] = "Duplicate of post ##{posted.id}"
+      redirect_to posted
     elsif request.format.html? && @upload.media_asset_count > 1
       redirect_to [@upload, UploadMediaAsset]
     elsif @upload.media_asset_count == 1

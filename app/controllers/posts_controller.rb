@@ -90,6 +90,10 @@ class PostsController < ApplicationController
       respond_with(@post, notice: notice)
     elsif @post.errors.of_kind?(:md5, :taken)
       @original_post = Post.find_by!(md5: @post.md5)
+      # Fork: a post this uploader may not see is neither changed nor named
+      # (Post#refuses_duplicate_upload_from?).
+      return refuse_unpostable_file if @original_post.refuses_duplicate_upload_from?(CurrentUser.user)
+
       @original_post.update(rating: @post.rating.presence || @original_post.rating, parent_id: @post.parent_id || @original_post.parent_id, tag_string: "#{@original_post.tag_string} #{params.dig(:post, :tag_string)}")
       flash[:notice] = "Duplicate of post ##{@original_post.id}; merging tags"
       redirect_to @original_post
@@ -100,7 +104,7 @@ class PostsController < ApplicationController
   end
 
   def update
-    @post = authorize Post.find(params[:id])
+    @post = authorize Post.find_writable!(params[:id])
     @post.update(permitted_attributes(@post))
     @show_votes = (params[:show_votes].presence || cookies[:post_preview_show_votes].presence || "false").truthy?
     @preview_size = params[:size].presence || cookies[:post_preview_size].presence || PostGalleryComponent::DEFAULT_SIZE
@@ -120,7 +124,7 @@ class PostsController < ApplicationController
   end
 
   def revert
-    @post = authorize Post.find(params[:id])
+    @post = authorize Post.find_writable!(params[:id])
     @version = @post.versions.find(params[:version_id])
     @post.revert_to!(@version)
 
@@ -130,8 +134,8 @@ class PostsController < ApplicationController
   end
 
   def copy_notes
-    @post = Post.find(params[:id])
-    @other_post = authorize Post.find(params[:other_post_id].to_i)
+    @post = Post.find_writable!(params[:id])
+    @other_post = authorize Post.find_writable!(params[:other_post_id].to_i)
     @post.copy_notes_to(@other_post)
 
     if @post.errors.any?
@@ -153,12 +157,41 @@ class PostsController < ApplicationController
   end
 
   def mark_as_translated
-    @post = authorize Post.find(params[:id])
+    @post = authorize Post.find_writable!(params[:id])
     @post.mark_as_translated(params[:post])
     respond_with_post_after_update(@post)
   end
 
   private
+
+  # The answer to an upload whose file is held by a post the uploader may not
+  # see (Post#refuses_duplicate_upload_from?). It names no post: no id in the
+  # body, no Location, no "Duplicate of post #N" notice -- upstream's answer
+  # was a 302 to that post, which handed its id to whoever uploaded the
+  # bytes. `reason` is the machine-readable word a client branches on, in the
+  # shape the fork's other refusals use ({ error, fix, reason }); `success`
+  # and `message` are upstream's error-page keys. It says only that THIS FILE
+  # will not be posted, which is all an uploader can be told: the refusal
+  # itself is unavoidable, the post behind it is not.
+  UNPOSTABLE_REASON = "unpostable"
+  UNPOSTABLE_ERROR = "This file cannot be posted."
+  UNPOSTABLE_FIX = "Do not retry: this file will not be posted. Upload a different file."
+
+  def refuse_unpostable_file
+    @post.errors.clear
+    @post.errors.add(:base, UNPOSTABLE_ERROR)
+    @post.tag_string = params.dig(:post, :tag_string)
+    body = { success: false, error: UNPOSTABLE_ERROR, message: UNPOSTABLE_ERROR, fix: UNPOSTABLE_FIX, reason: UNPOSTABLE_REASON }
+
+    respond_to do |format|
+      format.html do
+        flash.now[:notice] = UNPOSTABLE_ERROR
+        render "upload_media_assets/show", status: 422
+      end
+      format.json { render json: body, status: 422 }
+      format.xml { render xml: body.to_xml(root: "result"), status: 422 }
+    end
+  end
 
   def post_set
     @post_set ||= begin

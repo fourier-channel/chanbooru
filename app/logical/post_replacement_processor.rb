@@ -14,7 +14,11 @@ class PostReplacementProcessor
     media_file, image_url = get_file_for_upload(replacement.replacement_url, nil, replacement.replacement_file&.tempfile)
 
     if Post.where.not(id: post.id).exists?(md5: media_file.md5)
-      raise Error, "Duplicate of post ##{Post.find_by_md5(media_file.md5).id}"
+      # Fork: a post the replacer may not see is not named (Post#hidden_from?).
+      duplicate = Post.find_by_md5(media_file.md5)
+      raise Error, "This file cannot be posted." if duplicate.hidden_from?(replacement.creator)
+
+      raise Error, "Duplicate of post ##{duplicate.id}"
     end
 
     if media_file.md5 == post.md5
