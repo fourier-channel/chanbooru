@@ -64,14 +64,14 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
         assert_select ".modland-poolitem[data-cat=blog]", 0
       end
 
-      should "offer the blog as the second tab once the blog has been read" do
+      should "offer the blog as the last tab once the blog has been read" do
         turn_on_blog_row
         seed_blog
         as(@user) { create(:post, source: "https://boards.4chan.org/b/thread/953493575#p953493576") }
 
         get root_path
 
-        assert_equal "Blog", css_select(".modland-tab").map { it.text.strip }.second
+        assert_equal "Blog", css_select(".modland-tab").map { it.text.strip }.last
         config = JSON.parse(css_select(".modland").first["data-config"])
         slide = config["categories"].find { it["key"] == "blog" }["slides"].first
         assert_equal "blog", slide["kind"]

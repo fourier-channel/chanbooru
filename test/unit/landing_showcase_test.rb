@@ -297,16 +297,29 @@ class LandingShowcaseTest < ActiveSupport::TestCase
       assert(blog_slides.all? { it[:id].start_with?("blog-") && !it.key?(:tags) })
     end
 
-    # "Secondary" (operator, 2026-09-30): once on, not the row the carousel
-    # opens on. The carousel opens on the first row, so the blog is second.
-    should "sit second, after the row the carousel opens on" do
-      assert_equal %w[new blog favorites promoted featured], LandingCategory.configured.map(&:key)
+    # "Secondary" (operator, 2026-09-30): once on, never the row the carousel
+    # opens on while another row is on. It came second, which assumed Fresh
+    # from DEGEN leads; production runs Featured Creators ALONE, last in the
+    # order, so ticking Blog made it the opening row. It goes after every row.
+    should "come after every other row" do
+      assert_equal %w[new favorites promoted featured blog], LandingCategory.configured.map(&:key)
 
       turn_on_blog_row
       seed_blog
       as(create(:user)) { create(:post, source: BOARD) }
 
-      assert_equal %w[new blog], LandingShowcase.new(viewer: User.anonymous).categories.pluck(:key).first(2)
+      assert_equal "blog", LandingShowcase.new(viewer: User.anonymous).categories.pluck(:key).last
+    end
+
+    should "follow Featured Creators when that is the one row on, as production runs" do
+      %w[new favorites promoted].each { |key| LandingCategory.create!(LandingCategory::DEFAULTS.find { it[:key] == key }.merge(enabled: false)) }
+      create(:artist_tag, name: "featured_artist")
+      as(create(:user)) { create(:post, tag_string: "featured_artist") }
+      LandingCategory.create!(LandingCategory::DEFAULTS.find { it[:key] == "featured" }.merge(enabled: true, tags: %w[featured_artist]))
+      turn_on_blog_row
+      seed_blog
+
+      assert_equal %w[featured blog], LandingShowcase.new(viewer: User.anonymous).categories.pluck(:key)
     end
   end
 end
