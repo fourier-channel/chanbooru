@@ -49,7 +49,16 @@ class CaptchaService
     token = request.params["cf-turnstile-response"]
     response = request(remoteip: request.remote_ip.to_s, response: token, sitekey: site_key, secret: secret_key)
 
-    raise Error, "Missing or invalid captcha (#{response["error-codes"].join("; ")})" if response["success"] == false
+    # Only an explicit success passes. `request` yields {} when Cloudflare
+    # could not be asked -- a timeout, no connection, an error page -- and
+    # this used to read that missing answer as not-false and let the request
+    # through: a check that cannot run is not a check that passed (fork,
+    # 2026-10-02; found when the captcha login test hung 414s, then logged in).
+    if response.empty?
+      raise Error, "Captcha could not be verified: Cloudflare Turnstile did not answer -- try again in a moment"
+    end
+    raise Error, "Missing or invalid captcha (#{Array(response["error-codes"]).join("; ")})" unless response["success"] == true
+
     true
   end
 
