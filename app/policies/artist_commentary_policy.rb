@@ -22,7 +22,10 @@ class ArtistCommentaryPolicy < ApplicationPolicy
       # on 2026-09-13, and so became the one ceiling holding posting to 24/min
       # with a 165k backlog waiting. The write is a row insert and a version row;
       # the expensive work stayed in uploads:create.
-      { action: "artist_commentaries:write", rate: 60.0 / 1.minute, burst: 60 } # 3600 per hour
+      #
+      # 60 -> 120/min with posts:create (operator, 2026-10-03), for the same
+      # reason: one commentary per post, so the two buckets move together.
+      { action: "artist_commentaries:write", rate: 120.0 / 1.minute, burst: 120 } # 7200 per hour
     elsif user.artist_commentary_versions.exists?(created_at: ..24.hours.ago)
       { action: "artist_commentaries:write", rate: 4.0 / 1.minute, burst: 30 } # 240 per hour, 300 in first hour
     else

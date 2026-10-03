@@ -24,7 +24,13 @@ class UploadPolicy < ApplicationPolicy
       # here is ~1.3s of decode, render and rclone writes, so 48/min is about
       # one core of six with 37 GB free -- and it is verified by asking the
       # running app, not by reading this file back.
-      { action: "uploads:create", rate: 48.0 / 1.minute, burst: 120 } # 2880 per hour
+      #
+      # 48 -> 96/min (operator, 2026-10-03: the tagger moved to their 3090, so
+      # the box's CPU is less contested). Raised LESS than the two posting
+      # buckets because this is where the CPU goes: at ~1.3 s an asset, 96/min
+      # is about two cores of six. Once the posting backlog drains, this is the
+      # steady-state ceiling on posting.
+      { action: "uploads:create", rate: 96.0 / 1.minute, burst: 120 } # 5760 per hour
     elsif user.posts.active.exists?(created_at: ..4.hours.ago)
       { action: "uploads:create", rate: 8.0 / 1.minute, burst: 60 } # 480 per hour, 540 in first hour
     elsif user.posts.exists?(created_at: ..4.hours.ago)

@@ -130,7 +130,15 @@ class PostPolicy < ApplicationPolicy
       # So this is not a relaxation of the measured constraint -- the constraint
       # stayed where the work stayed. 24/min on uploads:create remains the real
       # ingest ceiling and is deliberately NOT touched by this change.
-      { action: "posts:create", rate: 60.0 / 1.minute, burst: 60 } # 3600 per hour
+      #
+      # 60 -> 120/min (operator, 2026-10-03, asking to raise the poster's cap):
+      # "It's been stable at 53/m but I can't tell if it's because that's where it plateaus
+      # naturally ... With my 3090 doing the tagger work, the box's CPU is no longer as
+      # contested as it used to be."
+      # The 53/min was not a plateau: the poster paced itself 1100 ms apart to
+      # stay under this bucket and artist_commentaries:write. Both rise
+      # together, with the uploads:create ceiling, or the bottleneck only moves.
+      { action: "posts:create", rate: 120.0 / 1.minute, burst: 120 } # 7200 per hour
     elsif user.posts.active.exists?(created_at: ..1.hour.ago)
       { action: "posts:create", rate: 2.0 / 1.minute, burst: 30 } # 120 per hour, 150 in first hour
     elsif user.posts.exists?(created_at: ..1.hour.ago)
