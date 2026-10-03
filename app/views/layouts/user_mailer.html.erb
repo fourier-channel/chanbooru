@@ -44,7 +44,7 @@
       <p style="font-size: 12px">
         <%= link_to image_tag(image_url("/images/danbooru-logo-96x96.png", host: root_url), width: 16, height: 16, style: "vertical-align: middle"), root_url %>
         <%= link_to Danbooru.config.canonical_app_name, root_url %> /
-        <%= link_to "Privacy", "https://41chan.net/privacy.html" %> /
+        <%= link_to "https://41chan.net/pip2.html", title: "Policies and Pledges" do %>PIP<sup>2</sup><% end %> /
         <%= link_to "Contact", contact_url %>
         <% if content_for(:footer_links).present? %>
           <%= yield :footer_links %>

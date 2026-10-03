@@ -46,18 +46,23 @@ class StaticControllerTest < ActionDispatch::IntegrationTest
   end
 
   context "the privacy policy" do
-    should "be 41chan's own page, not the one Danbooru shipped" do
+    should "be PIP2, 41chan's one policy page, not the one Danbooru shipped" do
       get privacy_policy_path
       assert_response 302
-      assert_redirected_to "https://41chan.net/privacy.html"
+      assert_redirected_to "https://41chan.net/pip2.html"
     end
 
-    should "be what the footer links to, beside Data Retention, with the fork's source" do
+    should "be the footer's one policy link, beside the fork's source" do
       get posts_path
-      assert_select "#page-footer a[href='https://41chan.net/privacy.html']", text: "Privacy", count: 1
-      assert_select "#page-footer a[href='https://41chan.net/data-retention.html']", text: "Data Retention", count: 1
+      assert_select "#page-footer a[href='https://41chan.net/pip2.html'][title='Policies and Pledges']", text: "PIP2", count: 1
+      assert_select "#page-footer a[href*='privacy.html'], #page-footer a[href*='data-retention.html']", count: 0
       assert_select "#page-footer a[href='https://github.com/fourier-channel/chanbooru']", count: 1
       assert_select "#page-footer a[href*='danbooru/danbooru']", count: 0
+    end
+
+    should "be what the Terms placeholder points to" do
+      get terms_of_service_path
+      assert_select "#a-terms-of-service a[href='https://41chan.net/pip2.html']", count: 1
     end
   end
 
