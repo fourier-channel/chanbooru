@@ -156,8 +156,11 @@
   <div id="tooltips"></div>
 
   <footer id="page-footer" class="text-sm text-center flex-initial mt-4 py-3 w-full border-t flex flex-wrap items-center justify-center gap-1 leading-none">
+    <%# Privacy and Data Retention are 41chan's own pages, one copy for every
+        surface (operator, 2026-10-03). The policy Danbooru shipped is kept
+        there, framed as the base software's, not served here as ours. %>
     <%= link_to "Terms", main_app.terms_of_service_path %>
-    / <%= link_to "Privacy", main_app.privacy_policy_path %>
+    / <%= link_to "Privacy", "https://41chan.net/privacy.html" %>
     / <%= link_to "Data Retention", "https://41chan.net/data-retention.html" %>
     / <%= link_to "About", "https://41chan.net/about.html" %>
     / <%= link_to "Upgrade", main_app.new_user_upgrade_path %>

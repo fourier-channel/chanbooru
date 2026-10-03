@@ -45,10 +45,19 @@ class StaticControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  context "privacy_policy action" do
-    should "work" do
+  context "the privacy policy" do
+    should "be 41chan's own page, not the one Danbooru shipped" do
       get privacy_policy_path
-      assert_response :success
+      assert_response 302
+      assert_redirected_to "https://41chan.net/privacy.html"
+    end
+
+    should "be what the footer links to, beside Data Retention, with the fork's source" do
+      get posts_path
+      assert_select "#page-footer a[href='https://41chan.net/privacy.html']", text: "Privacy", count: 1
+      assert_select "#page-footer a[href='https://41chan.net/data-retention.html']", text: "Data Retention", count: 1
+      assert_select "#page-footer a[href='https://github.com/fourier-channel/chanbooru']", count: 1
+      assert_select "#page-footer a[href*='danbooru/danbooru']", count: 0
     end
   end
 

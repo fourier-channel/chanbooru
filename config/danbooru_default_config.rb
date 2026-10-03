@@ -200,8 +200,10 @@ module Danbooru
       end
     end
 
+    # This fork's source, not upstream's (operator, 2026-10-03): the footer's
+    # link carries the RUNNING commit, which exists only here.
     def source_code_url
-      "https://github.com/danbooru/danbooru"
+      "https://github.com/fourier-channel/chanbooru"
     end
 
     def issues_url

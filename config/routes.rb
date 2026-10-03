@@ -431,7 +431,11 @@ Rails.application.routes.draw do
   get "/up/redis" => "health#redis"
   get "/sitemap" => "static#sitemap_index"
   get "/opensearch" => "static#opensearch", :as => "opensearch"
-  get "/privacy" => "static#privacy_policy", :as => "privacy_policy"
+  # 41chan's privacy policy is one page on 41chan.net (operator, 2026-10-03).
+  # The one Danbooru shipped (static/privacy_policy) is kept there, framed as
+  # the base software's; served here it would read as this site's own. 302,
+  # not 301, so a browser does not remember the move forever.
+  get "/privacy", to: redirect("https://41chan.net/privacy.html", status: 302), as: "privacy_policy"
   get "/terms_of_service" => "static#terms_of_service", :as => "terms_of_service"
   get "/404" => "static#not_found", :as => "not_found"
   get "/2257" => "static#2257", :as => "usc_2257"
