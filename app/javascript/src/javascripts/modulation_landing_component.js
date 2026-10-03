@@ -844,7 +844,21 @@ function initLanding(root) {
     runLeft = Math.max(slidesOf(forAxis).length - 1, 0);
   }
 
+  // NOBODY WATCHING, NOTHING MOVES. Every advance runs 850ms of transitions,
+  // and while any transition runs the browser redraws on every frame --
+  // measured in Firefox (bin/landing-cpu, 2026-10-03): 3% of a core at rest,
+  // ~31% stepping every 2s, and the same ~30% with the belt HIDDEN, so the
+  // cost is the moving, not the drawing. An advance nobody can see is that
+  // cost for nothing: the ride holds while the carousel is scrolled out of
+  // view or the tab is hidden, and carries on from the same slide when it is
+  // seen again. The timer keeps ticking; it simply finds nothing to do.
+  let onScreen = true;
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver((entries) => { onScreen = entries.some((e) => e.isIntersecting); }).observe(ride);
+  }
+
   function autoAdvance() {
+    if (!onScreen || document.hidden) { return; }
     if (runLeft > 0) {
       runLeft -= 1;
       step(1);
