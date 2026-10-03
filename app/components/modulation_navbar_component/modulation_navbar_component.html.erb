@@ -77,32 +77,58 @@
             distinction the no-forced-reflow rule turns on. %>
           <button type="button" id="modnav-session-toggle" class="modnav-pill modnav-pill--session"
                   aria-expanded="<%= session_bar_open? %>" aria-controls="modnav-session">
-            <span class="modnav-pill-dot" data-region="summary-lamp" aria-hidden="true"></span>Manage Session
+            <span class="modnav-pill-dot" data-region="summary-lamp" aria-hidden="true"></span>Manage Session<span class="modnav-pill-cta" data-region="cta"></span>
           </button>
+          <%# THE TOKEN CARD (operator, 2026-10-03): "The life of any given token is
+              displayed at all times while hovering over 'Manage Session', and each
+              of those tokens are copyable individually or as a sorted set directly
+              into your clipboard." Lives and fingerprints show on hover; the VALUES
+              arrive only after "Show tokens" (ruling the same day: real values,
+              after a reveal). Filled by modulation_session_bar.js. %>
+          <div class="modnav-tokens" id="modnav-tokens" role="group" aria-label="Your session tokens" hidden></div>
 
       </div>
     </nav>
 
 
-    <%# RELOAD THIS PANEL, on its own.
+    <%# HARD REFRESH AND PURGE, one rectangle, each half the option (operator,
+        2026-10-03: "a convenient browser purge option and a force-hard-refresh
+        button on every possible surface ... put both the purge and refresh in a
+        shared rectangle"). It replaces the reload arrow, which reloaded but was
+        not a hard reload.
 
         This site is normally read inside Technetium's frame, where the
-        browser's own reload belongs to the parent document -- there was no way
-        to refresh just this panel without leaving the client.
-
-        A plain reload is enough HERE, unlike on the sampling surface: Rails
-        fingerprints its assets, so a changed stylesheet arrives under a new
-        URL on its own and the page itself is never cached. No stamp is added,
-        because a query parameter this app does not expect would ride along
-        into pagination and search links. %>
-    <button type="button" class="modnav-refresh" x-on:click="location.reload()"
-            title="Reload this panel">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M20 12a8 8 0 1 1-2.34-5.66"/>
-        <path d="M20 4v4.5h-4.5"/>
-      </svg>
-      <span class="modnav-refresh-label">Reload this panel</span>
-    </button>
+        browser's own reload belongs to the parent document -- so the refresh
+        here is the only way to reload just this panel, and it fetches the page
+        and every asset past the cache. Purge signs out of the booru and the
+        gate's session on this host and clears what this site stored (ruling:
+        this site only, signed out); it asks first, in place, never with a
+        browser popup. Behaviour: modulation_site_reset.js. %>
+    <div class="modnav-reset" role="group" aria-label="This browser's copy of the booru">
+      <button type="button" class="modnav-reset-half" data-act="hard-refresh"
+              title="Reload this panel, fetching the page and every file it uses from the server again">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M20 12a8 8 0 1 1-2.34-5.66"/>
+          <path d="M20 4v4.5h-4.5"/>
+        </svg>
+        <span>Refresh</span>
+      </button>
+      <button type="button" class="modnav-reset-half" data-act="purge"
+              title="Sign out of the booru and delete everything it stored in this browser">
+        <span>Purge</span>
+      </button>
+      <div class="modnav-reset-confirm" role="alertdialog" aria-labelledby="modnav-reset-q" hidden>
+        <p id="modnav-reset-q">Are you sure you want to do this? While we're confident that our services are
+        configured to work properly regardless of the age of your access token, that token itself is unique, and
+        you are performing an irreversible action.</p>
+        <p class="modnav-reset-what">Purge signs you out of the booru, ends its link to your Matrix session on
+        this site, and deletes everything the booru stored in this browser.</p>
+        <div class="modnav-reset-row">
+          <button type="button" class="modnav-reset-go" data-act="purge-go">Purge it</button>
+          <button type="button" data-act="purge-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
 
     <a class="modnav-burger mobile-only" x-on:click="menuOpen = !menuOpen" aria-label="Menu">
       <%= menu_icon(class: "block w-6", "x-show": "!menuOpen") %>

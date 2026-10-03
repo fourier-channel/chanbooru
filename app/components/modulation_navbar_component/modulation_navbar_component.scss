@@ -60,32 +60,42 @@
     margin-bottom: var(--modnav-session-h);
   }
 
-  // --- reload this panel ---------------------------------------------------
-  // Pinned hard right by an auto margin rather than by ordering, so it stays in
-  // the corner whatever the nav in the middle grows to. Read inside
-  // Technetium's frame this site has no reload of its own: the browser's
-  // belongs to the parent document.
-  .modnav-refresh {
+  // --- hard refresh and purge -----------------------------------------------
+  // One rectangle, each half the option, pinned hard right by an auto margin
+  // (where the reload arrow it replaces stood). The purge question opens UNDER
+  // it as an overlay -- never a browser popup, and never in the flow, so
+  // nothing below moves.
+  .modnav-reset {
+    position: relative;
     margin-left: auto;
     flex: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
+    display: inline-grid;
+    grid-template-columns: auto auto;
     height: 30px;
-    padding: 0;
     border: 1px solid var(--mod-line);
     border-radius: var(--mod-radius-sm);
     background: var(--mod-surface-2);
+  }
+
+  .modnav-reset-half {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0 0.6rem;
+    border: none;
+    background: none;
     color: var(--mod-ink-dim);
+    font: inherit;
+    font-size: 0.76rem;
     cursor: pointer;
 
-    &:hover { color: var(--mod-ink); border-color: var(--mod-line-strong); }
-    &:focus-visible { outline: 2px solid var(--mod-accent); outline-offset: 2px; }
+    & + & { border-left: 1px solid var(--mod-line); }
+    &:hover { color: var(--mod-ink); background: var(--mod-surface-3); }
+    &:focus-visible { outline: 2px solid var(--mod-accent); outline-offset: -2px; }
 
     svg {
-      width: 15px;
-      height: 15px;
+      width: 14px;
+      height: 14px;
       fill: none;
       stroke: currentColor;
       stroke-width: 2;
@@ -94,17 +104,42 @@
     }
   }
 
-  // The icon alone is not a name. Visible to a screen reader, not to the eye.
-  .modnav-refresh-label {
+  .modnav-reset-confirm {
     position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-    border: 0;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 60;
+    width: min(26rem, calc(100vw - 16px));
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--mod-line-strong);
+    border-radius: var(--mod-radius-sm);
+    background: var(--mod-surface-2);
+    box-shadow: var(--mod-raise-lift);
+    color: var(--mod-ink);
+    font-size: 0.8rem;
+    line-height: 1.5;
+
+    &[hidden] { display: none; }
+    p { margin: 0 0 0.45rem; }
+    .modnav-reset-what { color: var(--mod-ink-dim); font-size: 0.74rem; }
+  }
+
+  .modnav-reset-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+
+    button {
+      padding: 0.25rem 0.7rem;
+      border: 1px solid var(--mod-line-strong);
+      border-radius: var(--mod-radius-sm);
+      background: none;
+      color: var(--mod-ink);
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover { background: var(--mod-surface-3); }
+    .modnav-reset-go { color: var(--mod-alarm-ink); border-color: var(--mod-alarm-line); }
   }
 
   // --- the single row ------------------------------------------------------
@@ -535,6 +570,33 @@
     cursor: pointer;
     font: inherit;
 
+    // NOT GREEN IS NOT QUIET (operator, 2026-10-03: make "Manage Session" a
+    // visually distinct and attention-grabbing item while any of: logged out,
+    // yellow or red -- "Users that land on the server for the first time do
+    // not have a booru account and it's not immediately obvious that they need
+    // one"). Amber for signed out or stale, red for a monitor reading the
+    // wrong object. Static colour, and a pulse that runs three times and
+    // stops: an infinite animation costs a core at idle.
+    &[data-state="idle"], &[data-state="unlit"], &[data-state="stale"] {
+      color: var(--mod-warn-fg, #f0b429);
+      border-color: var(--mod-warn-fg, #f0b429);
+      background: var(--mod-warn-bg, #1c1a12);
+      animation: modnav-session-call 1.6s ease-in-out 3;
+    }
+    &[data-state="alarm"] {
+      color: var(--mod-alarm-ink, #ff8b84);
+      border-color: var(--mod-alarm-fg, #ff5f56);
+      background: var(--mod-alarm-bg, #1f1211);
+      animation: modnav-session-call 1.6s ease-in-out 3;
+    }
+
+    .modnav-pill-cta:not(:empty) {
+      margin-left: 0.15rem;
+      padding-left: 0.4rem;
+      border-left: 1px solid currentcolor;
+      font-weight: 600;
+    }
+
     &[data-state="go"] .modnav-pill-dot { background: var(--mod-ok-fg, #35e08d); }
     &[data-state="idle"] .modnav-pill-dot, &[data-state="unlit"] .modnav-pill-dot { background: #5a6472; }
     &[data-state="stale"] .modnav-pill-dot { background: var(--mod-warn-fg, #f0b429); }
@@ -559,4 +621,97 @@
 
     .modnav.is-open .modnav-session, &.is-open .modnav-session { height: auto; }
   }
+
+  @keyframes modnav-session-call {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 10px 1px color-mix(in srgb, currentcolor 45%, transparent); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .modnav-pill--session { animation: none !important; }
+  }
+
+  // --- the token card ------------------------------------------------------
+  // Under the Manage Session pill while it is hovered or focused: each token's
+  // life, its fingerprint, and -- after "Show tokens" -- a copy square. Fixed,
+  // like the monitors' tips, so the header's overflow cannot clip it.
+  .modnav-tokens {
+    position: fixed;
+    z-index: 61;
+    width: min(30rem, calc(100vw - 16px));
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--mod-line-strong);
+    border-radius: var(--mod-radius-sm);
+    background: var(--mod-surface-2);
+    box-shadow: var(--mod-raise-lift);
+    color: var(--mod-ink);
+    font-size: 0.78rem;
+    line-height: 1.45;
+
+    &[hidden] { display: none; }
+  }
+
+  .modnav-token {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.1rem 0.6rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--mod-line);
+
+    &:last-of-type { border-bottom: none; }
+  }
+
+  .modnav-token-name { font-weight: 600; }
+  .modnav-token-life { grid-column: 1; color: var(--mod-ink-dim); }
+  .modnav-token-value {
+    grid-column: 1;
+    font-family: var(--mod-mono);
+    font-size: 0.72rem;
+    color: var(--mod-ink-dim);
+    overflow-wrap: anywhere;
+  }
+
+  // The copy square: dormant, or LIT while the clipboard (as far as this site
+  // can tell) still holds what it copied -- until the next copy anywhere on
+  // the booru, or until the token itself changes.
+  .modnav-copy {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-self: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--mod-line-strong);
+    border-radius: 4px;
+    background: none;
+    color: var(--mod-ink-dim);
+    cursor: pointer;
+
+    svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
+    &:disabled { opacity: 0.35; cursor: not-allowed; }
+    &:not(:disabled):hover { color: var(--mod-ink); border-color: var(--mod-ink-dim); }
+    &.is-lit { color: var(--mod-surface); background: var(--mod-ok-fg); border-color: var(--mod-ok-fg); }
+  }
+
+  .modnav-tokens-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin-top: 0.5rem;
+
+    button {
+      padding: 0.2rem 0.65rem;
+      border: 1px solid var(--mod-line-strong);
+      border-radius: var(--mod-radius-sm);
+      background: none;
+      color: var(--mod-ink);
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover { background: var(--mod-surface-3); }
+    button.is-lit { color: var(--mod-surface); background: var(--mod-ok-fg); border-color: var(--mod-ok-fg); }
+  }
+
+  .modnav-tokens-note { color: var(--mod-ink-dim); font-size: 0.72rem; }
 }

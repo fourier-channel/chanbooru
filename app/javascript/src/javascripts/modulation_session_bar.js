@@ -212,24 +212,131 @@ function boot() {
       .sort((a, b) => rank[b] - rank[a])[0];
     if (toggle) {
       toggle.dataset.state = worst;
+      // Not green says what to do, in the pill itself: a first-time visitor
+      // has no booru account and nothing else tells them they need one.
+      const cta = toggle.querySelector('[data-region="cta"]');
+      if (cta) {
+        cta.textContent = worst === "alarm" ? "Check"
+          : worst === "stale" ? "Re-verify"
+          : !(obs.booru || {}).signed_in ? "Log in" : "";
+      }
     }
   }
 
   function tickNow() {
-    bar.querySelectorAll("[data-tick]").forEach((el) => {
+    (group || bar).querySelectorAll("[data-tick]").forEach((el) => {
       const t = Number(el.dataset.tick);
       el.textContent = fmtDur(el.dataset.dir === "until" ? t - nowEpoch() : nowEpoch() - t);
     });
+  }
+
+  // --- the token card ------------------------------------------------------
+  // Under the pill while it is hovered or focused (operator, 2026-10-03): each
+  // token's life and fingerprint always; its VALUE only after "Show tokens"
+  // (ruling the same day: real values, after a reveal). Values live in this
+  // page's memory only and are never written anywhere.
+  //
+  // The copy square stays LIT while the clipboard still holds what it copied
+  // -- as far as this site can tell. A page cannot read the clipboard without
+  // a browser prompt, so "still holds" means: no other copy has been made on
+  // the booru since (ruling 2026-10-03: lit until the next copy). A copy made
+  // in another app or on another 41chan site is not visible from here.
+  //
+  // The booru re-issues its session cookie on every page, so the value on the
+  // clipboard is soon an EARLIER copy of it -- still a working one until you
+  // sign out. The square stays lit (it is about the clipboard) and says so.
+  const card = document.getElementById("modnav-tokens");
+  const COPIED_KEY = "modulation.copied";
+  let revealed = null; // { cookieName: value }
+  const readCopied = () => { try { return JSON.parse(localStorage.getItem(COPIED_KEY) || "null"); } catch { return null; } };
+  const writeCopied = (v) => {
+    try { if (v) { localStorage.setItem(COPIED_KEY, JSON.stringify(v)); } else { localStorage.removeItem(COPIED_KEY); } } catch { /* storage off: the square just will not survive a reload */ }
+  };
+
+  const cookieName = (m) => (m?.expect || "").replace(/^cookie:/, "");
+  function tokenRows() {
+    const rows = [];
+    const b = obs.booru;
+    if (b) {
+      rows.push({
+        key: cookieName(b),
+        label: "Booru session cookie",
+        digest: b.digest,
+        life: b.digest
+          ? "Lives until you close your browser or sign out; renewed on every page you load."
+          : "None in this browser.",
+      });
+    }
+    const m = obs.matrix;
+    if (m) {
+      rows.push({
+        key: cookieName(m),
+        label: "Matrix link cookie",
+        digest: m.digest,
+        life: !m.digest
+          ? "None in this browser."
+          : m.info?.expires_at
+            ? `Expires in ${tick(m.info.expires_at, "until")}.`
+            : "The gate does not publish this cookie's expiry to this host yet.",
+      });
+      if (m.info?.token_expires_at) {
+        const left = m.info.token_expires_at - Math.floor(Date.now() / 1000);
+        rows.push({
+          key: null,
+          label: "Matrix token",
+          digest: null,
+          life: (left > 0 ? `${tick(m.info.token_expires_at, "until")} left` : `lapsed ${tick(m.info.token_expires_at)} ago`) +
+            (m.info.renewable ? "; the gate renews it on use." : "; it cannot be renewed -- sign out and in.") +
+            " Held by the gate, not by this page, so it cannot be copied here.",
+        });
+      }
+    }
+    return rows;
+  }
+
+  const COPY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>';
+
+  function renderTokens() {
+    if (!card) { return; }
+    const rows = tokenRows();
+    const copied = readCopied();
+    const copyable = rows.filter((r) => r.key && r.digest);
+    const html = rows.map((r) => {
+      const value = revealed && r.key ? revealed[r.key] : null;
+      const lit = Boolean(copied && r.key && copied.key === r.key);
+      const renewed = lit && copied.digest !== r.digest;
+      const square = r.key && r.digest
+        ? `<button type="button" class="modnav-copy${lit ? " is-lit" : ""}" data-copy="${esc(r.key)}"` +
+          `${value ? "" : " disabled"} aria-pressed="${lit ? "true" : "false"}"` +
+          ` title="${!value && !lit ? "Show tokens first"
+            : renewed ? "Copied earlier -- the browser has renewed this cookie since, so your clipboard holds the earlier value"
+              : lit ? "Copied -- still on your clipboard as far as this site can tell" : "Copy this token"}">${COPY_ICON}</button>`
+        : "";
+      return `<div class="modnav-token"><span class="modnav-token-name">${esc(r.label)}${r.digest ? ` ${code(r.digest)}` : ""}</span>${square}` +
+        `<span class="modnav-token-life">${r.life}</span>` +
+        `${value ? `<span class="modnav-token-value">${esc(value.length > 48 ? `${value.slice(0, 48)}...` : value)}</span>` : ""}</div>`;
+    }).join("");
+    const allLit = Boolean(copied && copied.key === "*");
+    const actions = copyable.length
+      ? (revealed
+        ? `<button type="button" data-tokens="copy-all" class="${allLit ? "is-lit" : ""}">Copy all, sorted</button>` +
+          '<button type="button" data-tokens="hide">Hide values</button>'
+        : '<button type="button" data-tokens="show">Show tokens</button>' +
+          '<span class="modnav-tokens-note">Shows the values so they can be copied. Anything running on this page can read them once shown.</span>')
+      : '<span class="modnav-tokens-note">No session tokens in this browser for this site.</span>';
+    card.innerHTML = `${html}<div class="modnav-tokens-row">${actions}</div>`;
+    tickNow();
   }
 
   function renderAll() {
     renderMonitor("booru");
     renderMonitor("matrix");
     renderSummary();
+    renderTokens();
     tickNow();
   }
 
-  setInterval(() => { if (isOpen()) { tickNow(); } }, 1000);
+  setInterval(() => { if (isOpen() || (card && !card.hidden)) { tickNow(); } }, 1000);
 
   let fetching = false;
   function refetch() {
@@ -345,6 +452,81 @@ function boot() {
         }
       });
     });
+  }
+
+  if (card && toggle) {
+    let hideTimer = null;
+    const place = () => {
+      const r = toggle.getBoundingClientRect();
+      const w = card.offsetWidth;
+      card.style.top = `${r.bottom + 6}px`;
+      card.style.left = `${Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))}px`;
+    };
+    const show = () => {
+      clearTimeout(hideTimer);
+      if (!card.hidden) { return; }
+      card.hidden = false;
+      renderTokens();
+      place();
+      window.addEventListener("scroll", place, { passive: true });
+      window.addEventListener("resize", place);
+    };
+    const hideSoon = () => {
+      clearTimeout(hideTimer);
+      // A short grace, so the pointer can travel from the pill into the card.
+      hideTimer = setTimeout(() => {
+        if (card.matches(":hover") || card.contains(document.activeElement) || toggle.matches(":hover")) { return; }
+        card.hidden = true;
+        window.removeEventListener("scroll", place);
+        window.removeEventListener("resize", place);
+      }, 250);
+    };
+    for (const el of [toggle, card]) {
+      el.addEventListener("mouseenter", show);
+      el.addEventListener("mouseleave", hideSoon);
+      el.addEventListener("focusin", show);
+      el.addEventListener("focusout", hideSoon);
+    }
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !card.hidden) { card.hidden = true; toggle.focus(); } });
+
+    const copy = (text, mark) => navigator.clipboard.writeText(text).then(() => {
+      writeCopied(mark);
+      renderTokens();
+    }, () => {
+      Notice.error("The browser refused the clipboard. Select the value in the card and copy it by hand, or allow clipboard access for this site.");
+    });
+    card.addEventListener("click", (e) => {
+      const sq = e.target.closest("[data-copy]");
+      if (sq && revealed) {
+        const row = tokenRows().find((r) => r.key === sq.dataset.copy);
+        if (row && revealed[row.key]) { copy(revealed[row.key], { key: row.key, digest: row.digest }); }
+        return;
+      }
+      const act = e.target.closest("[data-tokens]")?.dataset.tokens;
+      if (act === "show") {
+        fetch("/modulation/session_tokens", { method: "POST", credentials: "same-origin", headers: { "X-CSRF-Token": csrf(), Accept: "application/json" } })
+          .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+          .then((d) => {
+            revealed = {};
+            for (const tk of d.tokens || []) { revealed[tk.name] = tk.value; }
+            renderTokens();
+          })
+          .catch((s) => Notice.error(`The tokens could not be fetched (${s}). Reload the page and try again.`));
+      } else if (act === "hide") {
+        revealed = null;
+        renderTokens();
+      } else if (act === "copy-all") {
+        const rows = tokenRows().filter((r) => r.key && r.digest && revealed[r.key]).sort((a, b) => a.key.localeCompare(b.key));
+        copy(rows.map((r) => `${r.key}=${revealed[r.key]}`).join("\n"),
+          { key: "*", digest: rows.map((r) => r.digest).sort().join(",") });
+      }
+    });
+    // Any other copy on this site means the clipboard no longer holds ours.
+    for (const ev of ["copy", "cut"]) {
+      document.addEventListener(ev, () => { if (readCopied()) { writeCopied(null); renderTokens(); } });
+    }
+    // Another booru tab copied something: follow it.
+    window.addEventListener("storage", (e) => { if (e.key === COPIED_KEY) { renderTokens(); } });
   }
 
   // --- tooltip placement ----------------------------------------------------

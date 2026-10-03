@@ -11,11 +11,21 @@
 # every read, so an object that changes identity mid-session drops the GO
 # instead of coasting on its first impression.
 #
-# Cookie VALUES never leave the server: each is reduced to an 8-hex sha256
-# digest -- enough for a human to see "same token" / "different token" and
-# nothing else.
+# The observation carries no cookie VALUE: each is reduced to an 8-hex sha256
+# digest -- enough for a human to see "same token" / "different token". The
+# values themselves are handed to the page only when the viewer asks for them
+# (ModulationSessionController#tokens, a deliberate "show tokens" step), by
+# operator ruling 2026-10-03: "the data we do hold will be obvious, can be
+# accessed by you at any time". The trade -- once shown, script on the page can
+# read them -- is the viewer's to make, one click at a time, never by default.
 module SessionObservation
   FOURIER_COOKIE = "fourier_session"
+
+  # The cookies the token view may show, in the order it lists them: the two
+  # the monitors read, and nothing else this host happens to carry.
+  def self.token_cookie_names
+    [Danbooru.config.session_cookie_name, FOURIER_COOKIE]
+  end
 
   def self.digest(value)
     return nil if value.blank?

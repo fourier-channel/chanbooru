@@ -36,6 +36,8 @@ Rails.application.routes.draw do
   patch "modulation/posts/:post_id/moderation", to: "modulation_moderation#update", as: :modulation_moderation # the ( jail | delete ) pill
   delete "modulation/random_trail",  to: "modulation#clear_random_trail", as: :modulation_random_trail # Clear 'Random' History
   post "modulation/matrix_logout",   to: "modulation_session#matrix_logout", as: :modulation_matrix_logout # cookie force-delete
+  post "modulation/session_tokens",  to: "modulation_session#tokens", as: :modulation_session_tokens # the card's "show tokens"
+  post "modulation/purge",           to: "modulation_session#purge", as: :modulation_purge # purge, the server's half
   get  "fourier_identity",           to: "fourier_identity#show", as: :fourier_identity # "am I linked yet?" poll
   # fourier: release one image from troll jail (undelete its post). Approver+,
   # and only for a post that is deleted AND carries the jail tag.
