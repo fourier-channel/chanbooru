@@ -49,10 +49,13 @@ function initLanding(root) {
 
   // A slide the viewer's blacklist has marked is skipped. The marks live on the
   // hidden pool elements, because that is what the blacklist can see.
-  const blocked = (id) => {
-    const el = root.querySelector(`.modland-poolitem[data-id="${id}"]`);
-    return Boolean(el) && el.classList.contains("blacklisted-active");
-  };
+  //
+  // Read live, in ONE query per list: a rule toggled on is honoured by the very
+  // next draw, and nothing has to be told. This asked the pool once PER SLIDE --
+  // 213 queries per call, dozens of calls per step (at() and usable() both
+  // filter the whole row) -- and was a quarter of each step's main thread in
+  // Firefox (2026-10-03).
+  const blockedIds = () => new Set(Array.from(root.querySelectorAll(".modland-poolitem.blacklisted-active"), (el) => el.dataset.id));
 
   // THE CREATOR, AS THEIR ARTIST PILL. The name under a card and in the credit
   // line is the creator's artist tag drawn as it is everywhere else on the
@@ -80,7 +83,10 @@ function initLanding(root) {
     return pill;
   }
 
-  const slidesOf = (a) => (cats[a] && cats[a].slides ? cats[a].slides : []).filter((s) => !blocked(s.id));
+  const slidesOf = (a) => {
+    const ids = blockedIds();
+    return (cats[a] && cats[a].slides ? cats[a].slides : []).filter((s) => !ids.has(String(s.id)));
+  };
 
   // A row with nothing left once the blacklist has had its say is not a row:
   // its tab hides, and moving between rows passes over it. The server drops
@@ -141,10 +147,16 @@ function initLanding(root) {
   // a 1440px screen is 1.3 columns, a 2560px one is 2.3 -- so the setting's
   // count still means what the admin set on a band that has not been widened.
   const COLUMN_W = 1120;
+  // THE BELT'S SIZE IS READ ONCE PER DRAW. render() wrote a cell's variables
+  // and then asked the belt's size again for the next cell, and a read after a
+  // write makes the browser lay the page out before it can answer: 22 forced
+  // layouts and 91ms of main thread per step in Firefox (2026-10-03). render()
+  // now measures before it writes anything. A resize redraws the hero band,
+  // the one layout that reads the width between draws.
+  let beltBox = { w: 800, h: 400 };
   function heroScale() {
     if (!root.classList.contains("is-hero-max")) { return 1; }
-    const belt = region("belt");
-    return belt && belt.clientWidth > COLUMN_W ? belt.clientWidth / COLUMN_W : 1;
+    return beltBox.w > COLUMN_W ? beltBox.w / COLUMN_W : 1;
   }
   function ranksFor(a) {
     const cat = cats[a];
@@ -424,15 +436,10 @@ function initLanding(root) {
     return d;
   }
 
-  function beltHeight() {
-    const belt = region("belt");
-    return belt ? belt.clientHeight || 400 : 400;
-  }
-
   // Rank 0 is the focus, at the band's full height; each rank out is a fixed
   // fraction of the one before it, which is what makes the run recede.
   function cellHeight(k) {
-    return k === 0 ? beltHeight() : beltHeight() * HEAD_H * Math.pow(falloffFor(ranksFor(axis)), k - 1);
+    return k === 0 ? beltBox.h : beltBox.h * HEAD_H * Math.pow(falloffFor(ranksFor(axis)), k - 1);
   }
 
   // The focal cell is cut to its picture's own aspect; every other cell is a
@@ -460,8 +467,7 @@ function initLanding(root) {
     if (failed.has(String(slide.id))) { ratio = CARD_RATIO; }
     if (slide.kind === "blog") { ratio = BLOG_RATIO; }
     if (!ratio) { return h * THUMB_RATIO; }
-    const belt = region("belt");
-    const beltW = belt ? belt.clientWidth : 800;
+    const beltW = beltBox.w;
     let maxW = beltW * 0.62;
     // A blog card is words as well as a picture, and on a phone 62% of the
     // belt is about 150px -- a column a title cannot fit in. It may take most
@@ -573,6 +579,7 @@ function initLanding(root) {
   function render() {
     const belt = region("belt");
     if (!belt || !started) { return; }
+    beltBox = { w: belt.clientWidth, h: belt.clientHeight || 400 };
     const list = slidesOf(axis);
     // Nothing to show on this row: clear it rather than leave the previous
     // row's cards standing on the belt, which is what returning early did.
@@ -682,7 +689,7 @@ function initLanding(root) {
   const pending = new Map(); // category key -> slides still to be fed in
 
   // The queued slides' pool elements are added IMMEDIATELY, before any of them
-  // is installed, because blocked() reads those elements and a slide whose
+  // is installed, because blockedIds() reads those elements and a slide whose
   // element is not there yet reads as not-blacklisted. Appended, not replaced:
   // the slides currently on the belt still need theirs.
   function queueFreshSet(next, poolHtml) {
@@ -710,7 +717,7 @@ function initLanding(root) {
   }
 
   // Pool elements for slides nothing refers to any more. Left alone while a
-  // queue is still draining, because a queued slide's element is what blocked()
+  // queue is still draining, because a queued slide's element is what blockedIds()
   // will be asked about.
   function prunePool() {
     if (pending.size) { return; }
@@ -750,10 +757,11 @@ function initLanding(root) {
     // second lap because that is when fed-in slides first reach the eye.
     const present = new Set(cat.slides.map((slide) => String(slide.id)));
 
+    const ids = blockedIds();
     let incoming = null;
     while (queue.length) {
       const candidate = queue.shift();
-      if (blocked(candidate.id)) { continue; }
+      if (ids.has(String(candidate.id))) { continue; }
       // Already on the belt: nothing to gain by moving it, and a hole to pay
       // for putting it in twice.
       if (present.has(String(candidate.id))) { continue; }
