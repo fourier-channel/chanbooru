@@ -646,9 +646,14 @@ function initLanding(root) {
       placeName(cell, belt);
     });
 
-    // Cells belonging to other axes stay built but must not sit on this belt.
+    // Cells belonging to other axes stay built but must not sit on this belt,
+    // and neither may this axis's cells for slides no longer in its list. A
+    // slide the blacklist marked after it was drawn -- a fresh set rescanned, a
+    // rule switched on -- is never visited above, so its cell stayed where it
+    // was, in full view (found 2026-10-03).
+    const listed = new Set(list.map((slide) => `${axis}:${slide.id}`));
     cells.forEach((cell, key) => {
-      if (!key.startsWith(`${axis}:`) && cell.parentNode === belt) { cell.remove(); if (cell.nameEl) { cell.nameEl.remove(); } }
+      if (cell.parentNode === belt && !listed.has(key)) { cell.remove(); if (cell.nameEl) { cell.nameEl.remove(); } }
     });
 
     renderCredit(at(axis, pos));

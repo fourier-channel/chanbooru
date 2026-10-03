@@ -1,6 +1,16 @@
 import { splitWords } from './utility';
 import Cookie from './cookie';
 
+// Surfaces that draw from a payload rather than from the marked elements --
+// the landing carousel -- skip what the marks say and redraw on this. Said
+// after every change to the marks: an apply, and a rule or the whole list
+// switched on or off. Only apply() said it, so a rule switched on left its
+// picture on the carousel until the next slide, and for good while paused
+// (found 2026-10-03).
+function announceMarks() {
+  document.dispatchEvent(new CustomEvent("danbooru:blacklist-applied"));
+}
+
 // A post holds the set of blacklist rules that match the post. The post is blacklisted if any of the matching rules are enabled.
 class Post {
   // @param {HTMLElement} post - The DOM element representing the post.
@@ -112,6 +122,7 @@ class Rule {
     if (this.enforced) { return; }
     localStorage.setItem(`blacklist.enabled:${this.string}`, JSON.stringify(value));
     this.posts.forEach(post => post.update());
+    announceMarks();
   }
 
   get hideMethod() {
@@ -219,9 +230,7 @@ class Blacklist {
   // Apply all blacklist rules to all posts.
   apply() {
     this.posts.forEach(post => post.applyRules());
-    // Surfaces that draw from a payload rather than from these elements --
-    // the landing carousel -- skip what the marks say and redraw on this.
-    document.dispatchEvent(new CustomEvent("danbooru:blacklist-applied"));
+    announceMarks();
   }
 
   get enabled() {
@@ -235,6 +244,7 @@ class Blacklist {
 
     this.visibleRules.forEach(rule => { rule.enabled = Boolean(value) });
     this.posts.forEach(post => post.update());
+    announceMarks();
   }
 
   // @returns {Boolean} - True if some but not all rules are enabled.
