@@ -65,8 +65,11 @@ class ModulationSessionTest < ActionDispatch::IntegrationTest
       get posts_path, params: { preset: "modulation" }
 
       assert_response :success
-      assert_select ".modnav-reset [data-act='hard-refresh']", count: 1
-      assert_select ".modnav-reset [data-act='purge']", count: 1
+      # Symbols, not words: purge (the bin) first, the refresh second, each
+      # named for a screen reader.
+      assert_select ".modnav-reset > button:first-child[data-act='purge'][aria-label='Purge'] svg", count: 1
+      assert_select ".modnav-reset > button:nth-child(2)[data-act='hard-refresh'][aria-label='Hard refresh'] svg", count: 1
+      assert_select ".modnav-reset-half span", count: 0
       assert_select ".modnav-reset .modnav-reset-confirm[hidden]", count: 1
       assert_select ".modnav-reset-confirm", text: /irreversible action/
       assert_select ".modnav-refresh", count: 0

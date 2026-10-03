@@ -100,22 +100,20 @@
         This site is normally read inside Technetium's frame, where the
         browser's own reload belongs to the parent document -- so the refresh
         here is the only way to reload just this panel, and it fetches the page
-        and every asset past the cache. Purge signs out of the booru and the
+        and every asset past the cache. Symbols, not words (operator,
+        2026-10-03): a bin on the left for purge, the recycling mark on the
+        right for the refresh, the same two on every surface. Purge signs out of the booru and the
         gate's session on this host and clears what this site stored (ruling:
         this site only, signed out); it asks first, in place, never with a
         browser popup. Behaviour: modulation_site_reset.js. %>
     <div class="modnav-reset" role="group" aria-label="This browser's copy of the booru">
-      <button type="button" class="modnav-reset-half" data-act="hard-refresh"
-              title="Reload this panel, fetching the page and every file it uses from the server again">
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M20 12a8 8 0 1 1-2.34-5.66"/>
-          <path d="M20 4v4.5h-4.5"/>
-        </svg>
-        <span>Refresh</span>
+      <button type="button" class="modnav-reset-half" data-act="purge" aria-label="Purge"
+              title="Purge: sign out of the booru and delete everything it stored in this browser">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 6.5h17M9 6.5v-2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5.5 6.5l1.2 13a1.6 1.6 0 0 0 1.6 1.5h7.4a1.6 1.6 0 0 0 1.6-1.5l1.2-13M10 10.5v6.5M14 10.5v6.5"/></svg>
       </button>
-      <button type="button" class="modnav-reset-half" data-act="purge"
-              title="Sign out of the booru and delete everything it stored in this browser">
-        <span>Purge</span>
+      <button type="button" class="modnav-reset-half" data-act="hard-refresh" aria-label="Hard refresh"
+              title="Hard refresh: reload this panel, fetching the page and every file it uses from the server again">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8.31 8.78L10.64 4.75Q12 2.4 13.36 4.75L16.07 9.46M16.93 6.27L16.07 9.46L12.89 8.6M18.02 12.81L20.34 16.85Q21.7 19.2 18.98 19.2L13.55 19.19M15.88 21.53L13.55 19.19L15.89 16.87M9.67 19.21L5.02 19.2Q2.3 19.2 3.66 16.85L6.38 12.15M3.19 13L6.38 12.15L7.22 15.33"/></svg>
       </button>
       <div class="modnav-reset-confirm" role="alertdialog" aria-labelledby="modnav-reset-q" hidden>
         <p id="modnav-reset-q">Are you sure you want to do this? While we're confident that our services are

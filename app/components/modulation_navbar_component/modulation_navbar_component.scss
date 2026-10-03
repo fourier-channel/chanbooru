@@ -81,7 +81,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    padding: 0 0.6rem;
+    padding: 0 0.65rem;
     border: none;
     background: none;
     color: var(--mod-ink-dim);
@@ -94,8 +94,8 @@
     &:focus-visible { outline: 2px solid var(--mod-accent); outline-offset: -2px; }
 
     svg {
-      width: 14px;
-      height: 14px;
+      width: 16px;
+      height: 16px;
       fill: none;
       stroke: currentColor;
       stroke-width: 2;
