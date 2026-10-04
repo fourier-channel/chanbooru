@@ -62,7 +62,13 @@ echo
 # --list: the derivation, without the run.
 [ "${1:-}" = "--list" ] && exit 0
 
-WORKERS="$(nproc --ignore=1)"
+# WORKERS=2 for a light run. vesper is the operator's workstation, and a run
+# at every core made it unusable (2026-10-04). `nice` on this script does not
+# reach the tests -- they run inside the container -- so the light run lowers
+# their priority there too.
+WORKERS="${WORKERS:-$(nproc --ignore=1)}"
+LIGHT=()
+[ -n "${LIGHT_RUN:-}" ] && LIGHT=(nice -n 19)
 exec docker compose -f docker-compose.dev.yaml exec -T \
   -e RAILS_ENV=test -e PARALLEL_WORKERS="$WORKERS" \
-  danbooru bin/rails test "${EXISTING[@]}"
+  danbooru "${LIGHT[@]}" bin/rails test "${EXISTING[@]}"
