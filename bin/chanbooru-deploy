@@ -264,7 +264,10 @@ if (( BUILD )); then
   trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT INT TERM
 
   BUILD_STARTED_AT=$(date +%s)
-  bin/build-docker-image danbooru 2>&1 \
+  # Production only: no container on this box runs the development image, and
+  # building it was about two minutes of every deploy plus a 2.4GB image
+  # (2026-10-04). Workstations build both for bin/dev.
+  TARGETS=production bin/build-docker-image danbooru 2>&1 \
     | tee "$LOG" \
     | grep -a --line-buffered -E '^#[0-9]+ (\[|DONE|CACHED|ERROR)|^ERROR:|^#[0-9]+ ERROR'
   BUILD_RC=${PIPESTATUS[0]}

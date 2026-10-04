@@ -25,6 +25,11 @@
 #
 #    # Test out the new image.
 #    $ DANBOORU_IMAGE=danbooru:development bin/dev
+#
+#    # FORK CHANGE: build only some of the images. The serving box runs only
+#    # the production image, and building the development one there cost
+#    # about two minutes and 2.4GB of every deploy (2026-10-04).
+#    $ TARGETS=production bin/build-docker-image danbooru
 
 set -euxo pipefail
 
@@ -32,6 +37,10 @@ ARCH="$(docker info -f '{{ .ClientInfo.Arch }}')"
 CURRENT_PLATFORM="linux/$ARCH"
 
 JOBS="${JOBS:-$(nproc)}"
+TARGETS="${TARGETS:-development production}"
+for target in $TARGETS; do
+  [[ $target == development || $target == production ]] || { echo "FAIL: unknown target '$target' in TARGETS. fix: TARGETS is any of: development production" >&2; exit 2; }
+done
 
 IMAGE="${1:-danbooru}"
 PLATFORM="${2:-$CURRENT_PLATFORM}"
@@ -75,9 +84,12 @@ docker buildx create --use --name nonparallel-builder --config buildkitd.toml 2>
 if [[ $PLATFORM != $CURRENT_PLATFORM && $PLATFORM != *,* ]]; then
   # If we're building for a different platform, and it's not a multi-platform image, then name the image after the platform so it doesn't conflict with images for the native platform.
   TARGET_ARCH="${PLATFORM#*/}" # linux/arm64 -> arm64
-  git archive HEAD | docker buildx build - --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg JOBS=$JOBS --target development --file Dockerfile --output type=docker,name=$IMAGE:development-$TARGET_ARCH
-  git archive HEAD | docker buildx build - --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg JOBS=$JOBS --target production  --file Dockerfile --output type=docker,name=$IMAGE:$TARGET_ARCH
+  DEV_NAME="$IMAGE:development-$TARGET_ARCH"; PROD_NAME="$IMAGE:$TARGET_ARCH"
 else
-  git archive HEAD | docker buildx build - --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg JOBS=$JOBS --target development --file Dockerfile --output type=docker,name=$IMAGE:development
-  git archive HEAD | docker buildx build - --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg JOBS=$JOBS --target production  --file Dockerfile --output type=docker,name=$IMAGE
+  DEV_NAME="$IMAGE:development"; PROD_NAME="$IMAGE"
 fi
+
+for target in $TARGETS; do
+  name=$PROD_NAME; [[ $target == development ]] && name=$DEV_NAME
+  git archive HEAD | docker buildx build - --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg JOBS=$JOBS --target $target --file Dockerfile --output type=docker,name=$name
+done
