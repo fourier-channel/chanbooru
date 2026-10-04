@@ -121,14 +121,16 @@ cmd_install() {
 
   echo "   bootsnap cache for the release's own paths"
   # The containers run BOOTSNAP_READONLY; without a cache built for these paths
-  # every boot compiles all of the app's Ruby again. Built as root in the
-  # runtime image, so it matches that image's Ruby and gems.
-  docker run --rm --user 0 --network none -v "$tmp:/danbooru" -e BOOTSNAP_CACHE_DIR=/danbooru/.bootsnap \
+  # every boot compiles all of the app's Ruby again. Built in the runtime image,
+  # so it matches that image's Ruby and gems, and as the user installing the
+  # release, so the whole release has one owner (the rehearsal as a normal
+  # user found root-owned cache files it could not then lock down).
+  docker run --rm --user "$(id -u):$(id -g)" --network none -v "$tmp:/danbooru" -e BOOTSNAP_CACHE_DIR=/danbooru/.bootsnap \
       --entrypoint bundle "$IMAGE" exec bootsnap precompile --gemfile app test > /dev/null \
-    || fail "bootsnap precompile failed for $name in $IMAGE" "run it by hand to read the error: docker run --rm --user 0 -v $tmp:/danbooru --entrypoint bundle $IMAGE exec bootsnap precompile --gemfile app"
+    || fail "bootsnap precompile failed for $name in $IMAGE" "run it by hand to read the error: docker run --rm --user $(id -u):$(id -g) -v $tmp:/danbooru --entrypoint bundle $IMAGE exec bootsnap precompile --gemfile app"
 
   echo "$sha" > "$tmp/REVISION"
-  chmod -R go-w "$tmp"
+  chmod -R go-w "$tmp" || fail "could not make $tmp writable by its owner alone" "every file in a release must be the installer's; find $tmp ! -user $(id -u)"
   mv -T "$tmp" "$dir" || fail "could not rename $tmp to $dir" "check $RELEASES"
   echo "   release $name installed"
 }
