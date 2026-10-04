@@ -4,6 +4,31 @@
 // The landing page. Same surfaces, radii and mono labels as everything else --
 // a stranger's first screen should look like the site they are about to enter.
 
+// THE BELT'S PER-CARD NUMBERS DO NOT INHERIT. render() writes them on every
+// card and name each step; an ordinary custom property inherits, so every
+// write restyled the whole card -- picture, label, and the ~14 pieces that
+// draw a card in flight -- about 370 elements and ~38ms of style in the frame
+// after each held step (Chromium trace, 2026-10-04). Nothing inside a card
+// reads them: the card and its name (a sibling, with its own copies) do, and
+// the label and blog words have their text size written on themselves.
+// Untyped ("*"), so a value is substituted exactly as written -- registered
+// as a <length> it was computed and rounded, and moved a label's antialiasing
+// at rest -- and with no initial value, so the stylesheet's var() fallbacks
+// still apply before a card is drawn.
+@property --cx { syntax: "*"; inherits: false; }
+
+@property --cw { syntax: "*"; inherits: false; }
+
+@property --ch { syntax: "*"; inherits: false; }
+
+@property --co { syntax: "*"; inherits: false; }
+
+@property --cz { syntax: "*"; inherits: false; }
+
+@property --cell-text { syntax: "*"; inherits: false; }
+
+@property --blog-text { syntax: "*"; inherits: false; }
+
 .modland {
   --modland-col: 1120px;
 
@@ -150,7 +175,15 @@
     // Clip, so a picture leaving the stage disappears at the panel edge rather
     // than sliding out over the page. The travelling row stays inside these
     // bounds -- it moves between two slots that are both within them.
-    overflow: hidden;
+    //
+    // `clip`, NOT `hidden`. Hidden makes the panel a scroll container, and
+    // Firefox will not throttle a running animation on an element scrolled
+    // out of a scroll container's view: every cell travelling beyond the
+    // panel's edge -- most of the run at 1600px -- kept the main thread
+    // restyling every frame of a move it could not see (measured 2026-10-03:
+    // ~115 of ~123 animation ticks restyled, against ~20 with clip). The two
+    // clip the same pixels; nothing scrolls this panel.
+    overflow: clip;
   }
 
   // The post view's stage, from the same mixin it uses. Both axes: left/right

@@ -235,24 +235,14 @@
 // Every cell's position, size and opacity is written by JS as a custom property
 // derived from its signed distance from the centre. That is what makes the
 // whole run move as one object: advancing the position rewrites every cell's
-// variables in the same frame, and the transitions below carry all of them
-// together. Nothing is measured, nothing is destroyed and rebuilt, and no cell
-// is special-cased for travelling -- the belt just has a new set of numbers.
+// variables in the same frame. Nothing here transitions. These rules are the
+// REST; the script plays each cell from where it was seen to it with Web
+// Animations on transform and opacity alone (fly() in
+// modulation_landing_component.js), because a transition on width, height,
+// top, font-size or a colour is a layout and a paint on the main thread every
+// frame of every move.
 @mixin modulation-stage-conveyor {
   --belt-h: clamp(300px, 46vh, 460px);
-  --belt-move-ms: 850ms; // BASE_MS in modulation_landing_component.js
-
-  // Overshoot lives in the MOVE, not after it. A cell is carried past its slot
-  // and comes back inside one continuous travel, which is what inertia looks
-  // like -- the y1 above 1 is what does it. The script swaps this for a
-  // stronger curve the longer the run has been, and back on rest.
-  --belt-ease: cubic-bezier(0.32, 1.25, 0.62, 1);
-
-  // The border's colour moves on the same clock as the cell, so the cell grows
-  // into the focus AS its border turns from green to orange (operator,
-  // 2026-09-25). It ran 900ms against a 430ms move, and colour arriving after
-  // position and size was the "disjointed" half of the pop.
-  --belt-tint-ms: var(--belt-move-ms);
 
   .mod-belt {
     position: relative;
@@ -272,23 +262,13 @@
     margin: 0;
     border: 2px solid var(--mod-line);
     border-radius: var(--mod-radius);
-    background: var(--mod-surface);
+    --cell-bg: var(--mod-surface);
+    background: var(--cell-bg);
     overflow: hidden;
     text-decoration: none;
     opacity: var(--co, 0.3);
     z-index: var(--cz, 1);
     transform: translate(-50%, -50%) translateX(var(--cx, 0));
-
-    // Only transform overshoots. A cell whose WIDTH overshot would bulge past
-    // the size it is settling into, which reads as a wobble rather than as
-    // weight: the box should arrive once and stay arrived while the run rocks
-    // into place around it.
-    transition:
-      transform var(--belt-move-ms) var(--belt-ease),
-      width var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
-      height var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
-      opacity var(--belt-move-ms) ease,
-      border-color var(--belt-tint-ms) ease;
 
     // Cover for the small cells, contain for the one under the microscope. A
     // cropped thumbnail reads as a thumbnail; the focal cell should show the
@@ -306,7 +286,7 @@
     }
 
     // The one arriving next, either side. Green while it travels; the
-    // border-color transition above is what turns it orange as it lands.
+    // flight's tint (below) is what turns it orange as it lands.
     &.is-incoming { border-color: var(--mod-belt-incoming); }
 
     // A hatch BEHIND the failure, not instead of it. The belt lets error cards
@@ -315,13 +295,99 @@
     // Video keeps the old treatment: error_card only handles images, so a
     // broken <video> has nothing to become.
     &.is-failed {
-      background: repeating-linear-gradient(45deg, var(--mod-surface) 0 6px, var(--mod-surface-2) 6px 12px);
+      --cell-bg: repeating-linear-gradient(45deg, var(--mod-surface) 0 6px, var(--mod-surface-2) 6px 12px);
       video { display: none; }
     }
 
     // Past the visible run. Kept in the DOM and kept positioned, so a cell
     // wrapping around the ring travels in rather than appearing.
     &.is-offstage { opacity: 0; pointer-events: none; }
+  }
+
+  // What the cell shows. At rest it is only a box the size of the cell's
+  // inside, clipped by the cell; in flight it is the clip.
+  .mod-cell-clip {
+    position: absolute;
+    inset: 0;
+  }
+
+  // A CELL IN FLIGHT is drawn in pieces that scale without distorting, so it
+  // can change shape on transform alone (fly() in the script). Scaled whole,
+  // its 2px border would thin to a hair as it grew into the focus and its
+  // corners would turn oval. Instead:
+  //   - the straight edges are two bands of border colour behind the clip,
+  //     which sits exactly 2px inside them whatever the size: one spans the
+  //     width between the corners for the left and right edges, the other the
+  //     height for the top and bottom, so neither draws in a corner;
+  //   - the corners are caps the radius of the border, which only move, each
+  //     drawing its arc of border and nothing outside it;
+  //   - a change of colour is a second rim and set of caps fading in on top,
+  //     the same mix the border-color transition made.
+  // Landing puts the cell back to one ordinary bordered box. --cap-r is the
+  // radius, cut down by the script for a box too small for the full one.
+  .mod-cell-rim, .mod-cell-caps {
+    --r: var(--cap-r, var(--mod-radius));
+
+    display: none;
+    position: absolute;
+    inset: -2px; // the border box: they ARE the border
+    pointer-events: none;
+  }
+  .mod-cell-rim { --edge-c: var(--tone-from); }
+  .mod-cell-rim--to { --edge-c: var(--tone-to); }
+  .mod-cell-caps { --cap-c: var(--tone-from); }
+  .mod-cell-caps--to { --cap-c: var(--tone-to); }
+
+  .mod-cell-edge {
+    position: absolute;
+    background: var(--edge-c);
+  }
+  .mod-cell-edge--h { inset: var(--r) 0; }
+  .mod-cell-edge--v { inset: 0 var(--r); }
+
+  .mod-cell-cap {
+    position: absolute;
+    width: var(--r);
+    height: var(--r);
+  }
+
+  @each $corner, $v, $h, $at in (tl, top, left, "100% 100%"), (tr, top, right, "0% 100%"), (bl, bottom, left, "100% 0%"), (br, bottom, right, "0% 0%") {
+    .mod-cell-cap--#{$corner} {
+      #{$v}: 0;
+      #{$h}: 0;
+
+      // A pixel of blend either side of each edge: the antialiasing a border
+      // draws, which a hard gradient stop would not.
+      background: radial-gradient(
+        circle at #{$at},
+        transparent calc(var(--r) - 2.5px),
+        var(--cap-c) calc(var(--r) - 1.5px),
+        var(--cap-c) calc(var(--r) - 0.5px),
+        transparent calc(var(--r) + 0.5px)
+      );
+    }
+  }
+
+  .mod-cell.is-flying {
+    border-color: transparent;
+    border-radius: 0;
+    background: none;
+    overflow: visible;
+
+    // Clicked where it is DRAWN. The link is laid out at its destination
+    // while it flies, so a click on the picture leaving the focus landed on
+    // the box of the one arriving and opened its post (found 2026-10-03).
+    // The clip is the drawn picture; a click on it still reaches the link.
+    pointer-events: none;
+    &:not(.is-offstage) > .mod-cell-clip { pointer-events: auto; }
+
+    > .mod-cell-clip { overflow: hidden; background: var(--cell-bg); }
+    > .mod-cell-rim, > .mod-cell-caps { display: block; }
+    &:not(.is-tinting) > .mod-cell-rim--to, &:not(.is-tinting) > .mod-cell-caps--to { display: none; }
+
+    // An error card fills its cell with its own surface at rest; in flight
+    // the card is laid out at its own size, so the clip carries the surface.
+    > .mod-cell-clip:has(> img.error-card) { background: var(--mod-surface); }
   }
 
   // The label travels WITH its cell, because it is part of the thing moving.
@@ -342,20 +408,21 @@
     letter-spacing: 0.02em;
     color: var(--mod-ink);
     background: linear-gradient(to top, color-mix(in srgb, var(--mod-surface) 88%, transparent), transparent);
-    transition: font-size var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--belt-move-ms) ease;
+    transform-origin: 50% 100%; // in flight it scales from the cell's bottom edge
   }
+  .mod-cell-tag-text { display: block; }
   .mod-cell.is-focus .mod-cell-tag { opacity: 0; }
 
-  // One formula for everything written on or under a cell, read from the
-  // cell's own height: the label above and the name below both use it.
-  .mod-cell, .mod-cell-name {
-    --cell-text: clamp(0.5rem, calc(var(--ch, 150px) * 0.048), 0.86rem);
-  }
+  // --cell-text, the one size for everything written on or under a cell (the
+  // label above and the name below), and a blog card's --blog-text are
+  // written by render() in px from the cell's own size. The script owns the
+  // formula because a move plays between the sizes it gives, and a second
+  // copy here would drift from the one the move draws.
 
   // The creator's name under its card: a sibling positioned by the cell's
   // own variables, so it sits just under the cell's bottom edge, at a size
-  // and an opacity that follow the cell's. Its transition is the cell's, so
-  // it travels with it rather than after it.
+  // and an opacity that follow the cell's. It flies with the cell, on the
+  // cell's clock, so it travels with it rather than after it.
   .mod-cell-name {
     position: absolute;
     top: calc(50% + var(--ch, 150px) / 2 + 0.25rem);
@@ -376,12 +443,7 @@
     z-index: var(--cz, 1);
     pointer-events: none;
     transform: translate(-50%, 0) translateX(var(--cx, 0));
-    transition:
-      transform var(--belt-move-ms) var(--belt-ease),
-      top var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
-      width var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
-      font-size var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1),
-      opacity var(--belt-move-ms) ease;
+    transform-origin: 50% 0; // in flight it scales from its top, under the cell
 
     // Out on the focus card: its name is the credit line's "Created by X",
     // a few pixels below, and the two were printing over each other
@@ -400,11 +462,7 @@
   // the title alone on the two beside it, the picture alone further out --
   // there, text would sit under 8px at a third of full opacity.
   .mod-cell.mod-cell--blog {
-    // From the SMALLER of the card's height and width: on a phone the focused
-    // card is tall and narrow, and text sized from its height alone cut the
-    // title off mid-word.
-    --blog-text: clamp(0.5rem, min(calc(var(--ch, 150px) * 0.04), calc(var(--cw, 120px) * 0.06)), 1rem);
-    background: var(--mod-surface-2);
+    --cell-bg: var(--mod-surface-2);
 
     .mod-blog-cover { object-fit: cover; }
 
@@ -422,7 +480,9 @@
       text-align: left;
       color: var(--mod-ink);
       background: linear-gradient(to top, color-mix(in srgb, var(--mod-surface) 94%, transparent) 55%, transparent);
-      transition: font-size var(--belt-move-ms) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--belt-move-ms) ease;
+      transform-origin: 50% 100%;
+
+      > * { transform-origin: 0 50%; } // in flight each line keeps its left edge
     }
 
     .mod-blog-title {
@@ -456,15 +516,6 @@
     &:not(.is-focus, .is-incoming) .mod-blog-words { opacity: 0; }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .mod-cell-name { transition-duration: 1ms; transition-timing-function: linear; }
-
-    .mod-cell {
-      transition-duration: 1ms;
-
-      // No overshoot either: the request is for less motion, and an overshoot
-      // is motion that goes somewhere it was not asked to go.
-      transition-timing-function: linear;
-    }
-  }
+  // Reduced motion: nothing to say here. The script does not play a move at
+  // all when that is asked for (render()), so a cell is simply at its rest.
 }
