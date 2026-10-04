@@ -45,3 +45,7 @@ config/danbooru_local_config.rb
 docs/WORKING-RULES.md
 docs/VERIFICATION-DOCTRINE.md
 docs/CLAUDE-HEADER.md
+
+# The live creator-prefix list on a deploy box (docker-compose.yaml); canon
+# is fourier-basis ops/hetzner/danbooru/creator_prefixes.yml.
+/fourier-config/

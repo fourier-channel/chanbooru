@@ -10,7 +10,8 @@ class FourierPrivateTagCleanupTest < ActiveSupport::TestCase
 
   context "FourierPrivateTagCleanup" do
     setup do
-      @bot = create(:builder_user)
+      # "tunnel": creator tags are locked to the posting accounts (CreatorPrefixes).
+      @bot = create(:builder_user, name: "tunnel")
       @admin = create(:admin_user)
       as(@bot) do
         # 2026-08-04..06: the private tag is ALSO in tag_string.

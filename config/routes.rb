@@ -39,6 +39,8 @@ Rails.application.routes.draw do
   post "modulation/session_tokens",  to: "modulation_session#tokens", as: :modulation_session_tokens # the card's "show tokens"
   post "modulation/purge",           to: "modulation_session#purge", as: :modulation_purge # purge, the server's half
   get  "fourier_identity",           to: "fourier_identity#show", as: :fourier_identity # "am I linked yet?" poll
+  # fourier: the creator-prefix list (provenance lookup; the tag lock reads it).
+  get  "creator_prefixes",           to: "creator_prefixes#index", as: :creator_prefixes
   # fourier: release one image from troll jail (undelete its post). Approver+,
   # and only for a post that is deleted AND carries the jail tag.
   post "fourier_jail/release",       to: "fourier_jail#create", as: :fourier_jail_release

@@ -275,7 +275,8 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
   context "A visible post whose history holds a private creator tag" do
     setup do
       @first_version = PostVersion.maximum(:id).to_i
-      @bot = create(:builder_user)
+      # "tunnel": creator tags are locked to the posting accounts (CreatorPrefixes).
+      @bot = create(:builder_user, name: "tunnel")
       @admin = create(:admin_user)
       @member = create(:user)
       as(@bot) { @post = create(:post, uploader: @bot, tag_string: "41chan_alice landscape #{SECRET}") }

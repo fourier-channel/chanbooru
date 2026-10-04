@@ -1,0 +1,33 @@
+# Creator-tag prefixes: provenance lookup and the post-tag lock.
+#
+# Operator ruling 2026-10-04. Every post carries a creator tag whose prefix is
+# its provenance. A tag with a listed prefix can be added to or removed from a
+# post only by an admin or one of the `editors` (the posting services). The
+# booru re-reads this file when it changes: adding or changing a prefix is an
+# edit here, live on the next tag edit, never a rebuild.
+#
+# This copy is what development and the tests read. Production reads the file
+# FOURIER_CREATOR_PREFIXES names (docker-compose.yaml), whose canon is
+# fourier-basis ops/hetzner/danbooru/creator_prefixes.yml.
+
+# Booru accounts that post on the pipeline's behalf and may write locked tags.
+editors:
+  - tunnel
+  - sample
+
+prefixes:
+  - prefix: 4chan_
+    provenance: Imageboard/web surface
+    target_kind: site
+    target: www.4chan.org
+    scope: b, d and trash AI threads
+  - prefix: 41chan_
+    provenance: Matrix
+    target_kind: server
+    target: matrix.41chan.net
+    scope: Channels joined by the tunnel
+  - prefix: aichan_
+    provenance: Discord
+    target_kind: server
+    target: AIChan
+    scope: Channels joined by the tunnel

@@ -154,6 +154,10 @@ x-base-template: &base-template
     # The release's own bootsnap cache (bin/chanbooru-release builds it for
     # the release's paths); the image's was built for code it no longer runs.
     BOOTSNAP_CACHE_DIR: /danbooru/.bootsnap
+    # The creator-prefix list (app/logical/creator_prefixes.rb): which tag
+    # prefixes are provenance and locked. Read live from the mount below, so a
+    # prefix is added or changed by editing that file, never by a rebuild.
+    FOURIER_CREATOR_PREFIXES: /fourier-config/creator_prefixes.yml
 
   tmpfs:
     - /tmp
@@ -183,6 +187,21 @@ x-base-template: &base-template
       read_only: true
       bind:
         create_host_path: false
+    # The live creator-prefix list. A DIRECTORY, not the file: a file bind
+    # pins the inode, so an editor that saves by rename would never be seen
+    # inside the container. Outside the release because the release is
+    # read-only and replaced on every deploy; outside the checkout's tracked
+    # tree because the deploy copy must stay clean (gitignored). Canon is
+    # fourier-basis ops/hetzner/danbooru/creator_prefixes.yml.
+    # create_host_path is true on purpose, unlike the two above: a missing
+    # directory costs only tag edits, which are refused with the fix named
+    # (CreatorPrefixes::ConfigError), where false would keep the site down.
+    - type: bind
+      source: ${CHANBOORU_FOURIER_CONFIG:-./fourier-config}
+      target: /fourier-config
+      read_only: true
+      bind:
+        create_host_path: true
 
   configs:
     - source: danbooru_local_config

@@ -1,0 +1,49 @@
+<% page_title "Creator Prefixes" %>
+
+<div id="c-creator-prefixes">
+  <div id="a-index">
+    <h1>Creator Prefixes</h1>
+    <p>Every post's creator tag begins with one of these prefixes, and the prefix
+      says where the post came from. Creator tags are locked: only the posting
+      service or an admin can add or remove one.</p>
+
+    <%= form_tag(creator_prefixes_path, method: :get) do %>
+      <%= text_field_tag :tag, @tag, placeholder: "a creator tag or prefix, e.g. aichan_name" %>
+      <%= submit_tag "Look up", name: nil %>
+    <% end %>
+
+    <% if @tag %>
+      <p>
+        <% if @match %>
+          <strong><%= @tag %></strong> carries <strong><%= @match.prefix %></strong>:
+          <%= @match.provenance %>, <%= @match.target_kind %> <%= @match.target %>.
+        <% else %>
+          <strong><%= @tag %></strong> carries no listed prefix, so it is not a creator tag.
+        <% end %>
+      </p>
+    <% end %>
+
+    <table class="striped" width="100%">
+      <thead>
+        <tr>
+          <th>Prefix</th>
+          <th>Provenance</th>
+          <th>Target</th>
+          <th>Scope</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @prefixes.each do |entry| %>
+          <tr<%= raw(' class="selected"') if @match == entry %>>
+            <td><%= link_to entry.prefix, posts_path(tags: "#{entry.prefix}*") %></td>
+            <td><%= entry.provenance %></td>
+            <td><%= entry.target %> <span class="text-muted">(<%= entry.target_kind %>)</span></td>
+            <td><%= entry.scope %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+
+    <p class="text-muted">Locked-tag editors: <%= @editors.join(", ") %>, and admins.</p>
+  </div>
+</div>

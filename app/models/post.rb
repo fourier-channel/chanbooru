@@ -56,6 +56,7 @@ class Post < ApplicationRecord
   validate :validate_parent_depth
   validate :validate_child_count
   validate :validate_changed_tags
+  validate :validate_creator_prefixed_tags
   validate :validate_tag_count
   validates :md5, uniqueness: { message: ->(post, _data) { "Duplicate of post ##{Post.find_by_md5(post.md5).id}" }}, on: :create
   validates :rating, presence: { message: "not selected" }
@@ -1885,6 +1886,29 @@ class Post < ApplicationRecord
         errors.add(:base, "You can't add or remove more than #{MAX_CHANGED_TAGS.to_i} tags per #{MAX_CHANGED_TAGS_INTERVAL.inspect}. Wait a while and try again")
         throw :abort
       end
+    end
+
+    # Creator-prefixed tags (4chan_, 41chan_, aichan_, ... -- the list is
+    # config, see CreatorPrefixes) are the post's provenance and its poster.
+    # Only an admin, a listed posting service or the system user (approved
+    # aliases and implications) may add or remove one. An unreadable list
+    # refuses every tag change rather than unlocking anything.
+    def validate_creator_prefixed_tags
+      user = CurrentUser.user
+      return if user.nil? || user.name == Danbooru.config.system_user
+
+      changed = (tag_array - tag_array_was) | (tag_array_was - tag_array)
+      return if changed.empty?
+      return if CreatorPrefixes.editor?(user)
+
+      locked = changed.select { |name| CreatorPrefixes.locked?(name) }
+      return if locked.empty?
+
+      errors.add(:base, "#{locked.sort.join(", ")} #{(locked.size == 1) ? "is a creator tag" : "are creator tags"}: " \
+                        "only the posting service or an admin can add or remove #{(locked.size == 1) ? "it" : "them"}. " \
+                        "To correct a post's creator, ask an admin (prefixes are listed at /creator_prefixes)")
+    rescue CreatorPrefixes::ConfigError => e
+      errors.add(:base, "Tag changes are paused: #{e.message}")
     end
 
     def validate_tag_count

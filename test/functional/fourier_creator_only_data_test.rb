@@ -146,10 +146,17 @@ class FourierCreatorOnlyDataTest < ActionDispatch::IntegrationTest
       assert_equal SEES_NONE, ask(@post, user: @member)
     end
 
-    should "show nothing to a member who adds their own poster tag to the post" do
+    # Two layers. A member cannot add a poster tag at all (creator tags are
+    # locked, CreatorPrefixes, 2026-10-04); and were one to get there -- an
+    # admin's edit, a prefix missing from the list -- the data still follows
+    # the recorded creator, never the tags.
+    should "refuse a member who adds their own poster tag, and show them nothing if one gets there" do
       mallory = create(:user)
       put_auth post_path(@post), mallory, params: { post: { old_tag_string: @post.tag_string, tag_string: "#{@post.tag_string} 41chan_mallory" } }
-      assert_includes @post.reload.tag_string.split, "41chan_mallory", "a member could not edit the tags, so this proved nothing"
+      assert_not_includes @post.reload.tag_string.split, "41chan_mallory", "the creator-tag lock let a member write a poster tag"
+
+      put_auth post_path(@post), create(:admin_user), params: { post: { old_tag_string: @post.tag_string, tag_string: "#{@post.tag_string} 41chan_mallory" } }
+      assert_includes @post.reload.tag_string.split, "41chan_mallory", "fixture: the poster tag did not reach the post, so this proved nothing"
 
       assert_equal SEES_NONE, ask(@post, user: mallory, mxid: "@mallory:41chan.net")
       assert_equal SEES_ALL, ask(@post, mxid: CREATOR), "the edit took the post from its creator"
