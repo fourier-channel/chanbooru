@@ -51,6 +51,27 @@ class ArtistClaimTest < ActiveSupport::TestCase
       assert_includes(rival.errors.full_messages.join, "already has an approved claim")
     end
 
+    # Operator ruling 2026-10-04: 41chan_ is the master; 4chan_ and aichan_ are
+    # claimable by it only when identical once the prefix is stripped.
+    should "let a Matrix account claim the 4chan_ and aichan_ tags that strip to its own name" do
+      %w[4chan_maple aichan_maple 41chan_maple].each do |name|
+        artist = create(:artist, name: name)
+        assert(ArtistClaim.new(artist: artist, creator_gallery: @gallery).valid?, name)
+      end
+    end
+
+    should "refuse a prefixed creator tag that strips to someone else's name" do
+      %w[4chan_maplex aichan_rival 41chan_rival].each do |name|
+        claim = ArtistClaim.new(artist: create(:artist, name: name), creator_gallery: @gallery)
+        assert_not(claim.valid?, name)
+        assert_includes(claim.errors.full_messages.join, "identical to the claimant's 41chan_ name", name)
+      end
+    end
+
+    should "leave a tag without a creator prefix to the existing claim flow" do
+      assert(ArtistClaim.new(artist: create(:artist, name: "some_painter"), creator_gallery: @gallery).valid?)
+    end
+
     should "still allow a rejected claimant to ask again" do
       # A rejection that permanently barred someone from re-applying would make
       # a moderator's "not yet" indistinguishable from "never", which is not a

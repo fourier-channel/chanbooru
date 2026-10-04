@@ -16,8 +16,18 @@ class ArtistClaim < ApplicationRecord
   belongs_to :creator_gallery
   belongs_to :approver, class_name: "User", optional: true
 
+  # WHICH CREATOR TAGS A MATRIX ID MAY CLAIM (operator ruling 2026-10-04).
+  # Every post carries a creator tag whose prefix is its provenance:
+  # 4chan_<name> scraped from 4chan, 41chan_<name> posted from Matrix,
+  # aichan_<name> posted from the AIchan Discord. 41chan_<localpart> is the
+  # MASTER creator, linked to the Matrix identity; the other two are claimable
+  # by that identity "only if they are identical once the prefix is stripped."
+  # A tag without one of these prefixes is not covered by the rule.
+  CREATOR_PREFIX = /\A(4chan|41chan|aichan)_(.+)\z/
+
   validates :status, inclusion: { in: STATUSES }
   validate :one_approved_claim_per_artist, if: :approved?
+  validate :creator_tag_matches_claimant
 
   scope :approved, -> { where(status: APPROVED) }
   scope :pending, -> { where(status: PENDING) }
@@ -63,6 +73,20 @@ class ArtistClaim < ApplicationRecord
   end
 
   private
+
+  # The stripped-prefix rule. Compared against the gallery's matrix_id, which
+  # fourier-auth verified when the gallery was made -- never against anything
+  # the request says.
+  def creator_tag_matches_claimant
+    m = CREATOR_PREFIX.match(artist&.name.to_s)
+    return unless m
+
+    localpart = creator_gallery&.matrix_id.to_s[/\A@([^:]+):/, 1]
+    return if localpart.present? && localpart == m[2]
+
+    errors.add(:artist, "#{artist.name} can only be claimed by the Matrix account @#{m[2]}: a #{m[1]}_ creator tag " \
+                        "is claimable only when it is identical to the claimant's 41chan_ name once the prefix is stripped")
+  end
 
   # Belt to the database index's braces. The index refuses the write; this
   # produces a readable error instead of a constraint violation.
