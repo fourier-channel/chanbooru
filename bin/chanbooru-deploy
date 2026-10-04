@@ -20,7 +20,9 @@
 set -uo pipefail
 
 BRANCH="chanbooru"
-LOG="/tmp/chanbooru-build.log"
+# The build log's location is set below, once the checkout's root is known: it
+# lives in a directory this script installs, never at a fixed name in /tmp
+# (script/chanbooru-build-log.sh says why).
 # How long the build may say nothing before the deploy says something.
 HEARTBEAT_SECS="${HEARTBEAT_SECS:-15}"
 PORT="${DANBOORU_PORT:-3000}"
@@ -67,6 +69,11 @@ step() { echo; echo "== $*"; }
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || die "not in a git checkout"
 cd "$ROOT" || die "cannot enter $ROOT"
+
+# shellcheck source=script/chanbooru-build-log.sh
+source script/chanbooru-build-log.sh || die "script/chanbooru-build-log.sh is missing from this checkout."
+LOG_DIR="$(build_log_dir "$ROOT")"
+LOG="$LOG_DIR/build.log"
 
 # --- 0. sanity ----------------------------------------------------------
 # The build ships `git archive HEAD`, so anything uncommitted is silently NOT
@@ -209,6 +216,10 @@ if (( BUILD )); then
   # Last build's log is kept, because it is the only honest source of an
   # estimate. A step that took 209 seconds last time is the difference between
   # "silent for 60s" reading as alarming and reading as halfway.
+  #
+  # The directory is installed (mode 700, ours) and checked right here, before
+  # the first write: no link can be in it that we did not put there.
+  install_build_log_dir "$LOG_DIR" "$(id -u)" || die "the build log directory is not one this deploy can trust (see FAIL and fix above). Nothing was built or restarted."
   [[ -f "$LOG" ]] && mv -f "$LOG" "$LOG.prev"
   : > "$LOG"
   (
@@ -304,10 +315,11 @@ else
   # there teaches the reader to skip it on the day a code change really is
   # missing. So: the running revision must be HEAD's ancestor, and the diff may
   # touch only the compose files and the host-side scripts the deploy runs
-  # (this one and bin/chanbooru-storage), which the image carries but never runs.
+  # (this one, bin/chanbooru-storage, bin/build-watch and the build-log
+  # helper), which the image carries but never runs.
   git merge-base --is-ancestor "$RUNNING" "$TARGET" 2>/dev/null \
     || die "running ${RUNNING:0:12}, which is not an ancestor of HEAD ${TARGET:0:12}. Deploy without --no-build."
-  IN_IMAGE="$(git diff --name-only "$RUNNING" "$TARGET" -- . ':!docker-compose*.yaml' ':!bin/chanbooru-deploy' ':!bin/chanbooru-storage')"
+  IN_IMAGE="$(git diff --name-only "$RUNNING" "$TARGET" -- . ':!docker-compose*.yaml' ':!bin/chanbooru-deploy' ':!bin/chanbooru-storage' ':!bin/build-watch' ':!script/chanbooru-build-log.sh')"
   [[ -z "$IN_IMAGE" ]] || die "--no-build restarted the image built at ${RUNNING:0:12}, but HEAD changes files that image carries:
 $(sed 's/^/     /' <<< "$IN_IMAGE")
    Those changes are NOT running. Deploy again without --no-build."

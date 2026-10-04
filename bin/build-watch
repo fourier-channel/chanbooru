@@ -17,6 +17,10 @@
 #   bin/build-watch --wait               # follow until the build ends, then summarise
 #   bin/build-watch /path/to/build.log   # a different log
 #
+# The default log is tmp/chanbooru-deploy/build.log in this checkout, the
+# directory bin/chanbooru-deploy installs (mode 700, its own). This only reads
+# it: a missing directory is refused with the step that makes it, never made.
+#
 # --wait exists because the obvious way to block until a build finishes --
 #   until ! tmux has-session -t chanbooru-build; do sleep 20; done
 # is a blinking cursor for fifteen minutes. It ends on its own, which is more
@@ -24,7 +28,11 @@
 # is happening. A wait that shows nothing is only half a fix.
 set -uo pipefail
 
-LOG="/tmp/chanbooru-build.log"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=script/chanbooru-build-log.sh
+source "$ROOT/script/chanbooru-build-log.sh" || { echo "FAIL: $ROOT/script/chanbooru-build-log.sh is missing" >&2; exit 1; }
+LOG_DIR="$(build_log_dir "$ROOT")"
+LOG=""
 MODE="follow"
 SESSION="chanbooru-build"
 
@@ -36,7 +44,13 @@ for arg in "$@"; do
   esac
 done
 
-[[ -r "$LOG" ]] || { echo "no readable build log at $LOG" >&2; exit 1; }
+# A path given on the command line is the operator's own choice; the default
+# is the installed directory, and is checked as such.
+if [[ -z "$LOG" ]]; then
+  check_build_log_dir "$LOG_DIR" "$(id -u)" || exit 1
+  LOG="$LOG_DIR/build.log"
+fi
+[[ -r "$LOG" ]] || { echo "FAIL: no readable build log at $LOG" >&2; echo "fix:  run bin/chanbooru-deploy to build, or pass the path of a log that exists" >&2; exit 1; }
 
 # Step lines only.
 #
