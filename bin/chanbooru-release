@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+# A release: one commit's app tree, compiled assets and bootsnap cache, which
+# the containers mount at /danbooru in place of the code baked into the image.
+#
+# Usage, on the serving box (bin/chanbooru-deploy runs these):
+#   cd /opt/danbooru && sudo bin/chanbooru-release install <commit>
+#   cd /opt/danbooru && sudo bin/chanbooru-release activate <commit>
+#   cd /opt/danbooru && bin/chanbooru-release current        # the live commit
+#   cd /opt/danbooru && bin/chanbooru-release previous       # the one before it
+#   cd /opt/danbooru && sudo bin/chanbooru-release prune
+#
+# WHY. Every deploy rebuilt and exported a whole Docker image for every commit,
+# though the app code and its compiled assets are the only parts most commits
+# change. Now the image is the runtime (Ruby, vips, ffmpeg, gems) and is rebuilt
+# only when a runtime file changes; a release carries the code. The design is
+# fourier-basis docs/design/CHANBOORU_RELEASES.md (operator-approved
+# 2026-10-04): Technetium's releases-behind-a-link, the shape D-246054 names.
+#
+# INSTALLED LOCATIONS (fourier-basis docs/design/INSTALLED_LOCATIONS_LAW.md).
+# This script is the only thing that makes RELEASES_ROOT, its releases and the
+# `current` link, and it refuses to use any of them that it did not make: a
+# root or releases directory owned by anyone but root or writable by group or
+# other, a `current` that is not a link, or a link pointing anywhere but one of
+# its own releases. A release becomes a release only when every step that
+# builds it has succeeded -- it is assembled under a .tmp name and renamed.
+#
+# The containers mount `current` read-only; Docker resolves the link when a
+# container starts, so a release goes live when the deploy recreates them.
+set -uo pipefail
+
+# The one statement of where. docker-compose.yaml mounts "$RELEASES_ROOT/current"
+# and test/unit/chanbooru_releases_test.rb fails if the two disagree. The
+# environment override exists for the rehearsal on a workstation only.
+RELEASES_ROOT="${CHANBOORU_RELEASES_ROOT:-/srv/danbooru}"
+RELEASES="$RELEASES_ROOT/releases"
+CURRENT="$RELEASES_ROOT/current"
+HISTORY="$RELEASES_ROOT/history"
+IMAGE="${DANBOORU_IMAGE:-danbooru:latest}"
+KEEP=5
+
+fail() { echo "FAIL: $1" >&2; echo "fix:  $2" >&2; exit 1; }
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || fail "not in a git checkout" "run this from the chanbooru checkout, e.g. cd /opt/danbooru"
+cd "$ROOT" || fail "cannot enter $ROOT" "check the checkout's permissions"
+
+# A directory this script installed: a real directory, root's, writable by
+# root alone. Made here when missing -- this script is its installer.
+installed_dir() {
+  local dir=$1 owner mode
+  if [[ -L "$dir" ]]; then
+    fail "$dir is a symlink (to $(readlink "$dir")). Releases live only in directories bin/chanbooru-release made." "remove the link; the next deploy makes the directory itself"
+  fi
+  if [[ ! -e "$dir" ]]; then
+    mkdir -m 755 "$dir" || fail "cannot make $dir" "run the deploy as root (sudo); it installs $dir"
+    return 0
+  fi
+  [[ -d "$dir" ]] || fail "$dir exists and is not a directory" "move it aside; bin/chanbooru-release makes the directory itself"
+  owner="$(stat -c %u "$dir")"; mode="$(stat -c %a "$dir")"
+  [[ "$owner" == "$(id -u)" ]] || fail "$dir is owned by uid $owner, not by the deploy (uid $(id -u)). Something other than bin/chanbooru-release made or changed it." "inspect it; if nothing there is needed, remove it and let the next deploy install it"
+  (( (8#$mode & 8#022) == 0 )) || fail "$dir is mode $mode: writable by group or other. Anyone who can write here is an author of what the booru runs." "chmod go-w $dir"
+}
+
+# A commit's release directory name: the short sha, at a length fixed here so
+# the name never depends on what else the repository holds.
+release_name() { git rev-parse --verify --quiet "$1^{commit}" | cut -c1-12; }
+
+# The release `current` points at, after checking it is one of ours.
+current_release() {
+  [[ -e "$CURRENT" || -L "$CURRENT" ]] || return 1
+  [[ -L "$CURRENT" ]] || fail "$CURRENT exists and is not a link. Only bin/chanbooru-release writes it, and it writes a link." "move it aside; the next deploy writes the link"
+  local target
+  target="$(readlink "$CURRENT")"
+  case "$target" in
+    "$RELEASES"/*) ;;
+    *) fail "$CURRENT points at $target, outside $RELEASES. Something other than bin/chanbooru-release wrote it." "point it back with: sudo bin/chanbooru-release activate <commit>" ;;
+  esac
+  [[ -d "$target" && -f "$target/REVISION" ]] || fail "$CURRENT points at $target, which is not an installed release (missing, or no REVISION)." "sudo bin/chanbooru-release install <commit> && sudo bin/chanbooru-release activate <commit>"
+  basename "$target"
+}
+
+cmd_install() {
+  local commit=$1 name dir tmp sha
+  name="$(release_name "$commit")" || true
+  [[ -n "$name" ]] || fail "no commit '$commit' in this checkout" "git fetch, then give a commit this checkout has"
+  sha="$(git rev-parse "$commit^{commit}")"
+  installed_dir "$RELEASES_ROOT"
+  installed_dir "$RELEASES"
+  dir="$RELEASES/$name"
+  if [[ -f "$dir/REVISION" && "$(cat "$dir/REVISION")" == "$sha" ]]; then
+    echo "   release $name already installed"
+    return 0
+  fi
+  [[ -e "$dir" ]] && fail "$dir exists but is not a complete release of $sha" "remove it (sudo rm -rf $dir); a release is renamed into place only when complete, so this one was not made by this script"
+  tmp="$RELEASES/.$name.tmp"
+  # A .tmp left by an install that died is ours by its name and place.
+  rm -rf -- "$tmp"
+  mkdir -m 755 "$tmp" || fail "cannot make $tmp" "run as root (sudo)"
+
+  echo "   app tree from $name"
+  git archive "$sha" | tar -x -C "$tmp" || fail "git archive of $name did not unpack into $tmp" "check free space on $RELEASES_ROOT (df -h $RELEASES_ROOT)"
+
+  # The layout the production image's own build gives /danbooru (Dockerfile,
+  # production stage): tmp is /tmp, which every container mounts as a tmpfs
+  # (they run read_only), and the directories Rails expects exist.
+  rm -rf -- "$tmp/tmp"
+  ln -s /tmp "$tmp/tmp"
+  mkdir -p "$tmp/public/data" "$tmp/public/packs-dev"
+  ln -sfn packs "$tmp/public/packs-test"
+
+  echo "   compiled assets (cached unless JS or CSS changed)"
+  mkdir -p "$tmp/public/packs"
+  git archive "$sha" | docker buildx build - --quiet --target packs --file Dockerfile \
+      --output "type=local,dest=$tmp/public/packs" > /dev/null \
+    || fail "the asset build for $name failed" "build it by hand to read the error: git archive $name | docker buildx build - --target packs --output type=local,dest=/tmp/packs-check"
+  [[ -f "$tmp/public/packs/manifest.json" ]] || fail "the asset build for $name produced no public/packs/manifest.json" "inspect $tmp/public/packs; the packs stage copies build-assets' public/packs"
+
+  # The two files compose mounts inside /danbooru need somewhere to land. Made
+  # here, so Docker never creates anything in a release.
+  : > "$tmp/config/danbooru_local_config.rb"
+  : > "$tmp/.env.local"
+
+  echo "   bootsnap cache for the release's own paths"
+  # The containers run BOOTSNAP_READONLY; without a cache built for these paths
+  # every boot compiles all of the app's Ruby again. Built as root in the
+  # runtime image, so it matches that image's Ruby and gems.
+  docker run --rm --user 0 --network none -v "$tmp:/danbooru" -e BOOTSNAP_CACHE_DIR=/danbooru/.bootsnap \
+      --entrypoint bundle "$IMAGE" exec bootsnap precompile --gemfile app test > /dev/null \
+    || fail "bootsnap precompile failed for $name in $IMAGE" "run it by hand to read the error: docker run --rm --user 0 -v $tmp:/danbooru --entrypoint bundle $IMAGE exec bootsnap precompile --gemfile app"
+
+  echo "$sha" > "$tmp/REVISION"
+  chmod -R go-w "$tmp"
+  mv -T "$tmp" "$dir" || fail "could not rename $tmp to $dir" "check $RELEASES"
+  echo "   release $name installed"
+}
+
+cmd_activate() {
+  local commit=$1 name dir link
+  name="$(release_name "$commit")" || true
+  [[ -n "$name" ]] || fail "no commit '$commit' in this checkout" "git fetch, then give a commit this checkout has"
+  installed_dir "$RELEASES_ROOT"
+  installed_dir "$RELEASES"
+  dir="$RELEASES/$name"
+  [[ -f "$dir/REVISION" ]] || fail "$name is not an installed release" "sudo bin/chanbooru-release install $name"
+  # Refuse to replace anything but our own link.
+  if [[ -e "$CURRENT" || -L "$CURRENT" ]]; then current_release > /dev/null; fi
+  link="$RELEASES_ROOT/.current.tmp"
+  rm -f -- "$link"
+  ln -s "$dir" "$link" && mv -T "$link" "$CURRENT" || fail "could not point $CURRENT at $dir" "check $RELEASES_ROOT"
+  echo "$name" >> "$HISTORY"
+  echo "   current -> $name"
+}
+
+cmd_previous() {
+  local cur
+  cur="$(current_release)" || fail "no current release" "deploy once: bin/chanbooru-deploy"
+  [[ -f "$HISTORY" ]] || fail "no release history in $HISTORY" "nothing to go back to"
+  # The last activated release that is not the current one and is still installed.
+  tac "$HISTORY" | while read -r name; do
+    [[ "$name" == "$cur" ]] && continue
+    [[ -f "$RELEASES/$name/REVISION" ]] && { echo "$name"; break; }
+  done | grep . || fail "no earlier installed release in $HISTORY" "nothing to go back to"
+}
+
+cmd_prune() {
+  local cur prev keep
+  installed_dir "$RELEASES_ROOT"
+  installed_dir "$RELEASES"
+  cur="$(current_release)" || fail "no current release" "deploy once before pruning"
+  prev="$(cmd_previous 2>/dev/null || true)"
+  # Newest first, by when they were installed; keep KEEP, and always the
+  # current and the one a rollback would go to.
+  keep=0
+  for dir in $(ls -1td "$RELEASES"/*/ 2>/dev/null); do
+    dir="${dir%/}"; name="$(basename "$dir")"
+    [[ -f "$dir/REVISION" ]] || continue
+    if [[ "$name" == "$cur" || "$name" == "$prev" ]] || (( keep < KEEP )); then
+      keep=$(( keep + 1 )); continue
+    fi
+    rm -rf -- "$dir" && echo "   removed release $name"
+  done
+}
+
+case "${1:-}" in
+  install)  [[ -n "${2:-}" ]] || fail "install needs a commit" "bin/chanbooru-release install HEAD"; cmd_install "$2" ;;
+  activate) [[ -n "${2:-}" ]] || fail "activate needs a commit" "bin/chanbooru-release activate HEAD"; cmd_activate "$2" ;;
+  current)  current_release || fail "no current release at $CURRENT" "deploy once: bin/chanbooru-deploy" ;;
+  previous) cmd_previous ;;
+  prune)    cmd_prune ;;
+  *) fail "unknown command '${1:-}'" "one of: install <commit>, activate <commit>, current, previous, prune" ;;
+esac

@@ -1,11 +1,23 @@
 #!/usr/bin/env bash
-# Bring the serving box up to a commit: fast-forward, build, restart, verify.
+# Bring the serving box up to a commit: fast-forward, install its release,
+# restart, verify -- rebuilding the image only when the runtime changed.
 #
 # Usage, on the origin box:
-#   cd /opt/danbooru && bin/chanbooru-deploy
+#   cd /opt/danbooru && sudo bin/chanbooru-deploy
 #
-#   --no-pull   build and restart what is already checked out
-#   --no-build  restart and verify only (config or compose change)
+#   --no-pull        install and restart what is already checked out
+#   --no-build       never rebuild the image; refuse if HEAD changes the runtime
+#   --rebuild-image  rebuild the image even if no runtime file changed
+#   --rollback       go back to the previous release; no pull, no build
+#
+# THE IMAGE IS THE RUNTIME, A RELEASE IS THE CODE (fourier-basis
+# docs/design/CHANBOORU_RELEASES.md, operator-approved 2026-10-04). The
+# containers mount the live release at /danbooru (bin/chanbooru-release), so a
+# commit that changes only app code ships as a release -- its tree, its
+# compiled assets (cached unless JS/CSS changed) and its bootsnap cache -- and a
+# restart. The image is rebuilt only when a file in RUNTIME_FILES changed since
+# the image was built. Before 2026-10-04 every commit rebuilt and exported a
+# whole image, two of them, for about four minutes a deploy.
 #
 # This runs in the FOREGROUND and prints step transitions as they happen. It
 # does not start a tmux session. Backgrounding the build into tmux is how this
@@ -26,7 +38,8 @@ BRANCH="chanbooru"
 # How long the build may say nothing before the deploy says something.
 HEARTBEAT_SECS="${HEARTBEAT_SECS:-15}"
 PORT="${DANBOORU_PORT:-3000}"
-PULL=1; BUILD=1
+PULL=1; BUILD=1; FORCE_IMAGE=0; ROLLBACK=0
+IMAGE="danbooru:latest"
 
 # Wall clock for the whole run, and separately for the build inside it.
 # A deploy is the longest thing anyone here waits on, and "how long did that
@@ -59,6 +72,8 @@ for a in "$@"; do
   case "$a" in
     --no-pull)  PULL=0 ;;
     --no-build) BUILD=0 ;;
+    --rebuild-image) FORCE_IMAGE=1 ;;
+    --rollback) ROLLBACK=1; PULL=0 ;;
     --reexec)   PULL=0 ;;   # set by the re-exec below; the pull already happened
     *) echo "unknown option: $a" >&2; exit 2 ;;
   esac
@@ -73,6 +88,9 @@ cd "$ROOT" || die "cannot enter $ROOT"
 # shellcheck source=script/chanbooru-build-log.sh
 source script/chanbooru-build-log.sh || die "script/chanbooru-build-log.sh is missing from this checkout."
 LOG_DIR="$(build_log_dir "$ROOT")"
+# RUNTIME_FILES: what the image carries that a release does not.
+# shellcheck source=script/chanbooru-runtime-files.sh
+source script/chanbooru-runtime-files.sh || die "script/chanbooru-runtime-files.sh is missing from this checkout."
 LOG="$LOG_DIR/build.log"
 
 # --- 0. sanity ----------------------------------------------------------
@@ -194,6 +212,44 @@ step "checking image storage"
 bin/chanbooru-storage check || die "the image directory is not the installed one (see FAIL and fix above). Nothing was built or restarted."
 
 TARGET="$(git rev-parse HEAD)"
+[[ -x bin/chanbooru-release ]] || die "bin/chanbooru-release is missing from this checkout, so no release can be installed."
+
+if (( ROLLBACK )); then
+  # Back to the release before the live one: no pull, no build, no install.
+  # The image stays as it is -- a rollback across a runtime change needs the
+  # older image too, and is a deploy of the older commit, not this.
+  PREV="$(bin/chanbooru-release previous)" || die "no earlier release to roll back to (see FAIL and fix above)."
+  step "rolling back to release $PREV"
+  TARGET="$(cat "${CHANBOORU_RELEASES_ROOT:-/srv/danbooru}/releases/$PREV/REVISION")"
+  bin/chanbooru-release activate "$PREV" || die "could not activate release $PREV"
+  BUILD=0
+else
+  # --- 2a. does the image need rebuilding? ------------------------------
+  # The image's own revision, against HEAD, over the runtime files.
+  IMAGE_REV="$(docker image inspect "$IMAGE" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | sed -n 's/^DOCKER_IMAGE_REVISION=//p')"
+  NEED_IMAGE=0; WHY=""
+  if (( FORCE_IMAGE )); then
+    NEED_IMAGE=1; WHY="--rebuild-image"
+  elif [[ -z "$IMAGE_REV" ]]; then
+    NEED_IMAGE=1; WHY="no $IMAGE image here, or it names no revision"
+  elif ! git cat-file -e "$IMAGE_REV^{commit}" 2>/dev/null; then
+    NEED_IMAGE=1; WHY="the image's revision ${IMAGE_REV:0:12} is not in this checkout"
+  else
+    CHANGED="$(git diff --name-only "$IMAGE_REV" "$TARGET" -- "${RUNTIME_FILES[@]}")"
+    [[ -n "$CHANGED" ]] && { NEED_IMAGE=1; WHY="runtime files changed since ${IMAGE_REV:0:12}: $(tr '\n' ' ' <<< "$CHANGED")"; }
+  fi
+  if (( NEED_IMAGE )) && (( ! BUILD )); then
+    die "--no-build, but the image must be rebuilt: $WHY. Deploy without --no-build."
+  fi
+  if (( ! NEED_IMAGE )); then
+    echo
+    echo "== image $IMAGE (built from ${IMAGE_REV:0:12}) has HEAD's runtime -- not rebuilt"
+    BUILD=0
+  else
+    echo
+    echo "== the image must be rebuilt: $WHY"
+  fi
+fi
 
 # --- 2. build -----------------------------------------------------------
 if (( BUILD )); then
@@ -236,8 +292,8 @@ if (( BUILD )); then
       open_line=$(grep -aE '^#[0-9]+ \[' "$LOG" | tail -1)
       open_step=$(printf '%s' "$open_line" | grep -oE '^#[0-9]+ \[[^]]*\]')
       # The bracketed name, which is stable across builds. The #N is not:
-      # BuildKit renumbers, and this script runs two builds that each count
-      # from #1.
+      # BuildKit renumbers, and a log can hold more than one build, each
+      # counting from #1.
       name=$(printf '%s' "$open_step" | grep -oE '\[[^]]*\]')
 
       took=""
@@ -279,6 +335,13 @@ if (( BUILD )); then
   [[ -x bin/build-watch ]] && bin/build-watch --summary "$LOG"
 fi
 
+# --- 2b. release --------------------------------------------------------
+if (( ! ROLLBACK )); then
+  step "installing release $(git rev-parse --short=12 HEAD)"
+  bin/chanbooru-release install "$TARGET" || die "the release for $(git rev-parse --short=12 HEAD) was not installed (see FAIL and fix above). Nothing was restarted."
+  bin/chanbooru-release activate "$TARGET" || die "the release was installed but not activated (see FAIL and fix above). Nothing was restarted."
+fi
+
 # --- 3. restart ---------------------------------------------------------
 step "starting containers"
 # --progress quiet, then our own one-line-per-service summary.
@@ -289,6 +352,11 @@ step "starting containers"
 # four services here share one image, each phase of that image's resolution
 # printed four times over. Errors still come through: --progress quiet silences
 # the progress renderer, not failures.
+# The app services are RECREATED, not merely started: the release link is
+# resolved when a container starts, and their compose config does not change
+# from one release to the next, so `up -d` alone would leave them on the old
+# code. Then everything else to its config, as before.
+docker compose --progress quiet up -d --force-recreate danbooru cron jobs nginx || die "compose up failed for the app services"
 docker compose --progress quiet up -d || die "compose up failed"
 docker compose ps --format '{{.Service}}\t{{.State}}' | sort | sed 's/^/   /' 
 
@@ -299,35 +367,17 @@ step "verifying"
 
 RUNNING=""
 for _ in $(seq 1 30); do
-  RUNNING="$(docker compose exec -T danbooru printenv DOCKER_IMAGE_REVISION 2>/dev/null | tr -d '\r')"
+  RUNNING="$(docker compose exec -T danbooru cat /danbooru/REVISION 2>/dev/null | tr -d '\r')"
   [[ -n "$RUNNING" ]] && break
   sleep 2
 done
 
-[[ -n "$RUNNING" ]] || die "container never reported a revision. docker compose logs danbooru"
-if [[ "$RUNNING" == "$TARGET" ]]; then
-  echo "   revision  ${RUNNING:0:12}  matches HEAD"
-elif (( BUILD )); then
-  die "running ${RUNNING:0:12}, expected ${TARGET:0:12}. The new image did not take."
-else
-  # --no-build ships no code, so the image keeps the revision it was built
-  # from and HEAD may be ahead of it. That is right ONLY when nothing between
-  # the two is in the image. Comparing against HEAD regardless made every
-  # compose-only deploy report FAILED while it had done exactly what it was for
-  # (2026-09-30, the autotagger switch-off) -- and a check that is always red
-  # there teaches the reader to skip it on the day a code change really is
-  # missing. So: the running revision must be HEAD's ancestor, and the diff may
-  # touch only the compose files and the host-side scripts the deploy runs
-  # (this one, bin/chanbooru-storage, bin/build-watch and the build-log
-  # helper), which the image carries but never runs.
-  git merge-base --is-ancestor "$RUNNING" "$TARGET" 2>/dev/null \
-    || die "running ${RUNNING:0:12}, which is not an ancestor of HEAD ${TARGET:0:12}. Deploy without --no-build."
-  IN_IMAGE="$(git diff --name-only "$RUNNING" "$TARGET" -- . ':!docker-compose*.yaml' ':!bin/chanbooru-deploy' ':!bin/chanbooru-storage' ':!bin/build-watch' ':!script/chanbooru-build-log.sh')"
-  [[ -z "$IN_IMAGE" ]] || die "--no-build restarted the image built at ${RUNNING:0:12}, but HEAD changes files that image carries:
-$(sed 's/^/     /' <<< "$IN_IMAGE")
-   Those changes are NOT running. Deploy again without --no-build."
-  echo "   revision  ${RUNNING:0:12}  image not rebuilt; HEAD ${TARGET:0:12} changes only compose/deploy files"
-fi
+[[ -n "$RUNNING" ]] || die "the container never reported a release revision (/danbooru/REVISION). docker compose logs danbooru"
+# The code running is the release's, so it must be exactly the commit just
+# installed -- or, for a rollback, the one gone back to.
+[[ "$RUNNING" == "$TARGET" ]] || die "running ${RUNNING:0:12}, expected ${TARGET:0:12}. The release did not take; to go back: sudo bin/chanbooru-deploy --rollback"
+echo "   revision  ${RUNNING:0:12}  matches the release"
+echo "   image     $(docker image inspect "$IMAGE" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | sed -n 's/^DOCKER_IMAGE_REVISION=//p' | cut -c1-12) (runtime)"
 
 # db:prepare runs on container start, so the app answering at all is also the
 # migration having succeeded.
@@ -342,8 +392,11 @@ echo "   front page 200"
 
 FINISHED_AT=$(date +%s)
 
+# Old releases go only after the new one has proved itself.
+bin/chanbooru-release prune || echo "note: pruning old releases failed (see above); the deploy itself succeeded."
+
 echo
-echo "deployed $(git rev-parse --short HEAD) -- $(git log -1 --format=%s)"
+echo "deployed $(git rev-parse --short "$TARGET") -- $(git log -1 --format=%s "$TARGET")"
 
 BUILD_NOTE=""
 if [[ -n "$BUILD_STARTED_AT" && -n "$BUILD_ENDED_AT" ]]; then

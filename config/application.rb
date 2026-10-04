@@ -104,7 +104,13 @@ module Danbooru
     config.active_record.async_query_executor = :global_thread_pool
     config.active_record.global_executor_concurrency = Danbooru.config.max_concurrency.to_i
 
-    if ENV["DOCKER_IMAGE_REVISION"].present?
+    # FORK CHANGE: a release (bin/chanbooru-release) carries its commit in
+    # REVISION. The image's DOCKER_IMAGE_REVISION names the commit the IMAGE
+    # was built from, which is no longer the code's once a deploy ships code
+    # without rebuilding it.
+    if Rails.root.join("REVISION").exist?
+      config.x.git_hash = Rails.root.join("REVISION").read.strip
+    elsif ENV["DOCKER_IMAGE_REVISION"].present?
       config.x.git_hash = ENV["DOCKER_IMAGE_REVISION"]
     elsif system("type git > /dev/null && git rev-parse --show-toplevel > /dev/null")
       config.x.git_hash = `git rev-parse HEAD`.strip

@@ -151,6 +151,9 @@ x-base-template: &base-template
     # service below together, never one alone.
     # DANBOORU_AUTOTAGGER_URL: http://autotagger:5000
     DANBOORU_IMAGE_STORAGE_PATH: /images
+    # The release's own bootsnap cache (bin/chanbooru-release builds it for
+    # the release's paths); the image's was built for code it no longer runs.
+    BOOTSNAP_CACHE_DIR: /danbooru/.bootsnap
 
   tmpfs:
     - /tmp
@@ -166,6 +169,18 @@ x-base-template: &base-template
     - type: bind
       source: /mnt/storage/danbooru-images
       target: /images
+      bind:
+        create_host_path: false
+    # THE CODE IS A RELEASE, not the copy baked into the image: the live
+    # commit's app tree, compiled assets and bootsnap cache, installed by
+    # bin/chanbooru-release and mounted read-only (fourier-basis
+    # docs/design/CHANBOORU_RELEASES.md). `current` is a link the deploy
+    # writes; Docker resolves it when a container starts, so a release goes
+    # live when the deploy recreates the containers. Never created by compose.
+    - type: bind
+      source: ${CHANBOORU_RELEASES_ROOT:-/srv/danbooru}/current
+      target: /danbooru
+      read_only: true
       bind:
         create_host_path: false
 
@@ -244,11 +259,18 @@ services:
     configs:
       - source: nginx
         target: /usr/local/nginx/conf/nginx.conf
-    # Same mount, same rule as the base template above.
+    # Same mounts, same rules as the base template above: nginx serves
+    # /danbooru/public (the compiled assets) from the release.
     volumes:
       - type: bind
         source: /mnt/storage/danbooru-images
         target: /images
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${CHANBOORU_RELEASES_ROOT:-/srv/danbooru}/current
+        target: /danbooru
+        read_only: true
         bind:
           create_host_path: false
 

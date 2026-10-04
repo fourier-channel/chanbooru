@@ -343,6 +343,15 @@ EOS
 
 
 # The base layer for the production and development layers. Contains everything but the /danbooru directory.
+# FORK CHANGE: the compiled assets alone, for a release (bin/chanbooru-release,
+# fourier-basis docs/design/CHANBOORU_RELEASES.md). A deploy that ships code
+# without rebuilding the image takes its public/packs from here with
+# `--output type=local`; BuildKit's cache keys it on the asset inputs above, so
+# a commit that touches no JS or CSS costs a cache hit and the serving box
+# needs no node of its own.
+FROM scratch AS packs
+COPY --link --from=build-assets /danbooru/public/packs /
+
 FROM base AS danbooru-base
 WORKDIR /danbooru
 
