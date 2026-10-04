@@ -168,6 +168,24 @@ Push it somewhere first -- a branch or a tag -- then run this again."
   fi
 fi
 
+# --- 1b. image storage --------------------------------------------------
+# The host directory compose bind-mounts at /images must be the one
+# bin/chanbooru-storage installed: present, a real directory, on the storage
+# drive and not the root disk, owned by the containers' user, writable by
+# nobody else. Before this check a drive that did not come back after a reboot
+# gave a deploy that passed every step below -- compose made an empty directory
+# on the root disk, the revision matched, the front page answered 200 -- and a
+# booru serving nothing from it (installed-locations audit 2026-10-04).
+#
+# Here, before the build, so the refusal costs seconds rather than arriving
+# after fifteen minutes of compiling. Compose itself now refuses a missing
+# path too (create_host_path: false); this check also catches the cases it
+# cannot see: a directory that exists but sits on the root disk, or has the
+# wrong owner or mode.
+step "checking image storage"
+[[ -x bin/chanbooru-storage ]] || die "bin/chanbooru-storage is missing from this checkout, so the image directory cannot be checked."
+bin/chanbooru-storage check || die "the image directory is not the installed one (see FAIL and fix above). Nothing was built or restarted."
+
 TARGET="$(git rev-parse HEAD)"
 
 # --- 2. build -----------------------------------------------------------
@@ -285,10 +303,11 @@ else
   # (2026-09-30, the autotagger switch-off) -- and a check that is always red
   # there teaches the reader to skip it on the day a code change really is
   # missing. So: the running revision must be HEAD's ancestor, and the diff may
-  # touch only the compose files and this script, which the image never runs.
+  # touch only the compose files and the host-side scripts the deploy runs
+  # (this one and bin/chanbooru-storage), which the image carries but never runs.
   git merge-base --is-ancestor "$RUNNING" "$TARGET" 2>/dev/null \
     || die "running ${RUNNING:0:12}, which is not an ancestor of HEAD ${TARGET:0:12}. Deploy without --no-build."
-  IN_IMAGE="$(git diff --name-only "$RUNNING" "$TARGET" -- . ':!docker-compose*.yaml' ':!bin/chanbooru-deploy')"
+  IN_IMAGE="$(git diff --name-only "$RUNNING" "$TARGET" -- . ':!docker-compose*.yaml' ':!bin/chanbooru-deploy' ':!bin/chanbooru-storage')"
   [[ -z "$IN_IMAGE" ]] || die "--no-build restarted the image built at ${RUNNING:0:12}, but HEAD changes files that image carries:
 $(sed 's/^/     /' <<< "$IN_IMAGE")
    Those changes are NOT running. Deploy again without --no-build."

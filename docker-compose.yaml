@@ -155,8 +155,19 @@ x-base-template: &base-template
   tmpfs:
     - /tmp
 
+  # Long syntax, and create_host_path: false, on purpose. The short form
+  # (`host:/images`) makes a missing host path as an empty root-owned
+  # directory and starts against it, so an unmounted storage drive came up
+  # as a booru with no images on the root disk and every check green
+  # (installed-locations audit 2026-10-04). The directory is made by
+  # `sudo bin/chanbooru-storage install` and nothing else; the same path is
+  # in nginx below and in that script, and a test holds the three together.
   volumes:
-    - /mnt/storage/danbooru-images:/images
+    - type: bind
+      source: /mnt/storage/danbooru-images
+      target: /images
+      bind:
+        create_host_path: false
 
   configs:
     - source: danbooru_local_config
@@ -233,8 +244,13 @@ services:
     configs:
       - source: nginx
         target: /usr/local/nginx/conf/nginx.conf
+    # Same mount, same rule as the base template above.
     volumes:
-      - "/mnt/storage/danbooru-images:/images"
+      - type: bind
+        source: /mnt/storage/danbooru-images
+        target: /images
+        bind:
+          create_host_path: false
 
   # Off in production; see DANBOORU_AUTOTAGGER_URL above for why and how to restore.
   # autotagger:

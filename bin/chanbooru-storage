@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# The booru's host image directory: the one step that installs it, and the one
+# check that every deploy runs against it.
+#
+# Usage, on the serving box:
+#   cd /opt/danbooru && sudo bin/chanbooru-storage install   # once, and after a drive swap
+#   cd /opt/danbooru && bin/chanbooru-storage check          # bin/chanbooru-deploy runs this
+#
+# WHY THIS EXISTS. docker-compose.yaml bind-mounts IMAGES_DIR into the app and
+# nginx. Written the short way (`host:/images`), compose CREATES a missing host
+# path as an empty root-owned directory and starts the service against it. So a
+# storage drive that did not come back after a reboot, or a mistyped path,
+# produced a booru that came up, passed the deploy's checks (right revision,
+# front page 200) and served nothing from /data -- on the root disk. Nothing had
+# installed that directory and nothing checked it (installed-locations audit
+# 2026-10-04, docker-compose.yaml:159 and :237).
+#
+# Now the location is trusted only because this script installed it:
+#   - compose says `create_host_path: false`, so a missing directory is a
+#     refused `compose up`, never an empty one;
+#   - `install` is the ONLY thing that makes the directory, and it refuses to
+#     make it on the root filesystem, which is where it would land with the
+#     drive unmounted;
+#   - `check` refuses a directory that is missing, a symlink, on the root
+#     filesystem, owned by anyone but the containers' user, or writable by
+#     group or other -- naming the path and the step that fixes it.
+#
+# The constants below are the one statement of where and whose. The compose
+# file names the same path twice; test/unit/chanbooru_image_storage_test.rb
+# reads both files and fails if they disagree.
+set -uo pipefail
+
+IMAGES_DIR="/mnt/storage/danbooru-images"
+# The danbooru user inside every container that mounts it. Rails writes
+# variants here as this uid, and fails with "Permission denied @ dir_s_mkdir"
+# against anything else.
+IMAGES_UID=1000
+IMAGES_GID=1000
+# Owner writes; nginx and the app read. Never group- or world-writable: anyone
+# who can write here is an author of what the booru serves.
+IMAGES_MODE=755
+
+fail() { echo "FAIL: $1" >&2; echo "fix:  $2" >&2; return 1; }
+
+# The filesystem a path lives on, by its mount target. "/" means the root disk.
+mount_of() { findmnt -n -o TARGET -T "$1"; }
+
+# check_images_dir DIR UID -- 0 when DIR is the installed directory, else 1
+# with a FAIL/fix pair on stderr. Takes its inputs as arguments so the test
+# suite can prove it against directories of its own; the CLI passes only the
+# constants above.
+check_images_dir() {
+  local dir=$1 uid=$2 mnt owner mode
+  local install="sudo bin/chanbooru-storage install   (in the deploy checkout, /opt/danbooru)"
+
+  # -L before -e: -e follows the link, so a dangling one would read as missing
+  # and a live one as fine. A link points somewhere the install did not make.
+  if [[ -L "$dir" ]]; then
+    fail "$dir is a symlink (to $(readlink "$dir")). The install makes a real directory, not a link to somewhere else." \
+      "remove the link, then: $install"
+    return 1
+  fi
+  if [[ ! -e "$dir" ]]; then
+    fail "$dir does not exist. Compose will refuse to mount it (create_host_path: false); nothing makes it on demand." \
+      "if the storage drive is not mounted, mount it; otherwise: $install"
+    return 1
+  fi
+  if [[ ! -d "$dir" ]]; then
+    fail "$dir exists but is not a directory." \
+      "move it aside, then: $install"
+    return 1
+  fi
+
+  if ! mnt="$(mount_of "$dir")" || [[ -z "$mnt" ]]; then
+    fail "could not tell which filesystem $dir is on (findmnt -T $dir gave nothing)." \
+      "run findmnt -T $dir by hand and read why; the check does not guess"
+    return 1
+  fi
+  if [[ "$mnt" == "/" ]]; then
+    fail "$dir is on the root filesystem. The images live on the storage drive; on / this is the directory Docker or someone made while the drive was not mounted." \
+      "mount the storage drive (findmnt /mnt/storage should name a device), then: bin/chanbooru-storage check"
+    return 1
+  fi
+
+  owner="$(stat -c %u "$dir")"
+  if [[ "$owner" != "$uid" ]]; then
+    fail "$dir is owned by uid $owner, not $uid (the containers' danbooru user)." \
+      "$install"
+    return 1
+  fi
+
+  mode="$(stat -c %a "$dir")"
+  if (( 8#$mode & 8#022 )); then
+    fail "$dir is mode $mode: writable by group or other. Only its owner may write where the booru serves from." \
+      "$install"
+    return 1
+  fi
+  return 0
+}
+
+# install_images_dir DIR UID GID MODE -- makes DIR (never its parent), sets its
+# owner and mode, then runs the same check every deploy runs.
+install_images_dir() {
+  local dir=$1 uid=$2 gid=$3 mode=$4 parent pmnt
+  parent="$(dirname "$dir")"
+
+  if [[ -L "$dir" ]]; then
+    fail "$dir is a symlink (to $(readlink "$dir")); install will not adopt a location it did not make." \
+      "remove the link and run this again"
+    return 1
+  fi
+  # The parent is the drive's mountpoint. Making it would put the images on the
+  # root disk -- the exact failure this script exists to stop.
+  if [[ ! -d "$parent" ]]; then
+    fail "$parent does not exist. It is where the storage drive is mounted; install does not create it." \
+      "mount the storage drive at $parent, then run this again"
+    return 1
+  fi
+  if ! pmnt="$(mount_of "$parent")" || [[ "$pmnt" == "/" ]]; then
+    fail "$parent is on the root filesystem${pmnt:+ (findmnt -T says $pmnt)}: the storage drive is not mounted there." \
+      "mount the storage drive at $parent, then run this again"
+    return 1
+  fi
+
+  if [[ ! -e "$dir" ]]; then
+    mkdir -m "$mode" "$dir" || { fail "could not create $dir." "run as root: sudo bin/chanbooru-storage install"; return 1; }
+    echo "created $dir"
+  fi
+  # Owner and mode of the directory itself, not recursively: the files inside
+  # were written by the app as its own user and are not this step's to rewrite.
+  chown "$uid:$gid" "$dir" || { fail "could not chown $dir to $uid:$gid." "run as root: sudo bin/chanbooru-storage install"; return 1; }
+  chmod "$mode" "$dir" || { fail "could not chmod $dir to $mode." "run as root: sudo bin/chanbooru-storage install"; return 1; }
+
+  check_images_dir "$dir" "$uid" || return 1
+  echo "installed $dir  owner $uid:$gid  mode $mode  on $(mount_of "$dir")"
+}
+
+main() {
+  case "${1:-}" in
+    install)
+      install_images_dir "$IMAGES_DIR" "$IMAGES_UID" "$IMAGES_GID" "$IMAGES_MODE" ;;
+    check)
+      check_images_dir "$IMAGES_DIR" "$IMAGES_UID" || return 1
+      echo "   images  $IMAGES_DIR  owner $IMAGES_UID  mode $(stat -c %a "$IMAGES_DIR")  on $(mount_of "$IMAGES_DIR")" ;;
+    *)
+      fail "usage: bin/chanbooru-storage install|check" "install once with sudo; check is what the deploy runs"
+      return 2 ;;
+  esac
+}
+
+# Sourced by the test suite for the functions; run, it is the CLI.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+  exit $?
+fi
