@@ -657,6 +657,40 @@ ALTER SEQUENCE public.creator_gallery_posts_id_seq OWNED BY public.creator_galle
 
 
 --
+-- Name: creator_tag_releases; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.creator_tag_releases (
+    id bigint NOT NULL,
+    tag_name character varying NOT NULL,
+    released boolean DEFAULT false NOT NULL,
+    updater_id bigint NOT NULL,
+    note character varying DEFAULT ''::character varying NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: creator_tag_releases_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.creator_tag_releases_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_tag_releases_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.creator_tag_releases_id_seq OWNED BY public.creator_tag_releases.id;
+
+
+--
 -- Name: dmails; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3268,6 +3302,13 @@ ALTER TABLE ONLY public.creator_gallery_posts ALTER COLUMN id SET DEFAULT nextva
 
 
 --
+-- Name: creator_tag_releases id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_tag_releases ALTER COLUMN id SET DEFAULT nextval('public.creator_tag_releases_id_seq'::regclass);
+
+
+--
 -- Name: dmails id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3777,6 +3818,14 @@ ALTER TABLE ONLY public.creator_gallery_messages
 
 ALTER TABLE ONLY public.creator_gallery_posts
     ADD CONSTRAINT creator_gallery_posts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: creator_tag_releases creator_tag_releases_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_tag_releases
+    ADD CONSTRAINT creator_tag_releases_pkey PRIMARY KEY (id);
 
 
 --
@@ -4819,6 +4868,20 @@ CREATE UNIQUE INDEX index_creator_gallery_posts_on_creator_gallery_id_and_post_i
 --
 
 CREATE INDEX index_creator_gallery_posts_on_post_id ON public.creator_gallery_posts USING btree (post_id);
+
+
+--
+-- Name: index_creator_tag_releases_on_tag_name; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_creator_tag_releases_on_tag_name ON public.creator_tag_releases USING btree (tag_name);
+
+
+--
+-- Name: index_creator_tag_releases_on_updater_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_tag_releases_on_updater_id ON public.creator_tag_releases USING btree (updater_id);
 
 
 --
@@ -7974,6 +8037,14 @@ ALTER TABLE ONLY public.post_disapprovals
 
 
 --
+-- Name: creator_tag_releases fk_rails_edbbf9a2f7; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_tag_releases
+    ADD CONSTRAINT fk_rails_edbbf9a2f7 FOREIGN KEY (updater_id) REFERENCES public.users(id);
+
+
+--
 -- Name: forum_posts fk_rails_eef947df00; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8044,6 +8115,7 @@ ALTER TABLE ONLY public.fourier_tag_sources
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261007100000'),
 ('20261002000000'),
 ('20260930000000'),
 ('20260929000001'),

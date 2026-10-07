@@ -150,10 +150,23 @@ module CreatorPrefixes
     visibility_config[:entries].reject { |e| sees?(e, user) }
   end
 
-  # Is this tag under a prefix hidden from `user`?
-  def hidden_for?(tag_name, user, hidden = hidden_prefixes_for(user))
+  # What decides, for one viewer: the prefixes hidden from them, the creators
+  # released from their prefix's default (CreatorTagRelease -- public by their
+  # own tag from then on), and the creators they hold an approved claim on,
+  # whose posts they always see.
+  def hidden_context(user)
+    prefixes = hidden_prefixes_for(user)
+    return { prefixes: [], released: Set.new, owned: Set.new } if prefixes.empty?
+
+    { prefixes: prefixes, released: CreatorTagRelease.released_names, owned: CreatorTagRelease.owned_names(user) }
+  end
+
+  # Is this tag under a prefix hidden from `user`, and not released or theirs?
+  def hidden_for?(tag_name, user, ctx = hidden_context(user))
     name = tag_name.to_s
-    hidden.any? { |e| name.start_with?(e.prefix) && name.length > e.prefix.length }
+    return false if ctx[:released].include?(name) || ctx[:owned].include?(name)
+
+    ctx[:prefixes].any? { |e| name.start_with?(e.prefix) && name.length > e.prefix.length }
   end
 
   # Every existing tag name under a prefix hidden from `user` -- what
@@ -161,16 +174,17 @@ module CreatorPrefixes
   # tag row, so the cache is keyed on the newest tag id as well as the
   # prefixes: exact, never a timer.
   def hidden_tag_names_for(user)
-    prefixes = hidden_prefixes_for(user).map(&:prefix).sort
+    ctx = hidden_context(user)
+    prefixes = ctx[:prefixes].map(&:prefix).sort
     return [] if prefixes.empty?
 
     key = [prefixes, Tag.maximum(:id)]
-    @names_mutex.synchronize do
-      return @names[:value] if @names && @names[:key] == key
+    names = @names_mutex.synchronize { @names[:value] if @names && @names[:key] == key }
+    unless names
+      names = prefixes.flat_map { |p| Tag.where("name LIKE ?", "#{Tag.sanitize_sql_like(p)}%").pluck(:name) }.freeze
+      @names_mutex.synchronize { @names = { key: key, value: names } }
     end
-    value = prefixes.flat_map { |p| Tag.where("name LIKE ?", "#{Tag.sanitize_sql_like(p)}%").pluck(:name) }.freeze
-    @names_mutex.synchronize { @names = { key: key, value: value } }
-    value
+    names.reject { |n| ctx[:released].include?(n) || ctx[:owned].include?(n) }
   end
 
   # The ids of every post carrying such a tag -- what post searches exclude.

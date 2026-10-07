@@ -155,11 +155,11 @@ class AutocompleteService
   # visible_to) do not autocomplete for them either: the names are the posts'
   # creators, and a hidden post's creator is part of what is hidden.
   def withhold_hidden_creator_tags(results)
-    hidden = CreatorPrefixes.hidden_prefixes_for(current_user)
-    return results if hidden.empty?
+    ctx = CreatorPrefixes.hidden_context(current_user)
+    return results if ctx[:prefixes].empty?
 
     results.reject do |result|
-      CreatorPrefixes.hidden_for?(result[:value], current_user, hidden) || CreatorPrefixes.hidden_for?(result[:antecedent], current_user, hidden)
+      CreatorPrefixes.hidden_for?(result[:value], current_user, ctx) || CreatorPrefixes.hidden_for?(result[:antecedent], current_user, ctx)
     end
   end
 

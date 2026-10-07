@@ -11,6 +11,13 @@ class ModAction < ApplicationRecord
     backup_code_send
   ]
 
+  # Fork: categories ADMINS alone may read. A hidden creator is hidden from
+  # everyone below admin (CreatorPrefixes visible_to), moderators included, so
+  # anything about one is too; the entry itself never names the tag either.
+  ADMIN_ONLY_CATEGORIES = %i[
+    creator_visibility_update
+  ].freeze
+
   dtext_attribute :description, inline: true # defines :dtext_description
 
   belongs_to :creator, class_name: "User"
@@ -93,6 +100,10 @@ class ModAction < ApplicationRecord
     email_address_update: 501,
     backup_code_send: 606,
     mass_update: 1000, # XXX unused
+    # Fork: 1100+ are 41chan's own. creator_visibility_update -- a creator
+    # released from, or returned to, their prefix's default (CreatorTagRelease).
+    # chanbooru-53's creator-visibility categories take 1101 and up.
+    creator_visibility_update: 1100,
   }
 
   normalizes :category, with: ->(category) { category.to_s.parameterize.underscore.presence }
@@ -102,10 +113,12 @@ class ModAction < ApplicationRecord
   end
 
   def self.visible(user)
-    if user.is_moderator?
+    if user.is_admin?
       all
+    elsif user.is_moderator?
+      where.not(category: ADMIN_ONLY_CATEGORIES)
     else
-      where.not(category: MOD_ONLY_CATEGORIES)
+      where.not(category: MOD_ONLY_CATEGORIES + ADMIN_ONLY_CATEGORIES)
     end
   end
 

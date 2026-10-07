@@ -41,6 +41,9 @@ Rails.application.routes.draw do
   get  "fourier_identity",           to: "fourier_identity#show", as: :fourier_identity # "am I linked yet?" poll
   # fourier: the creator-prefix list (provenance lookup; the tag lock reads it).
   get  "creator_prefixes",           to: "creator_prefixes#index", as: :creator_prefixes
+  # fourier: hidden creators, released from their prefix's default (admin; the creator from their artist page).
+  get  "creator_prefixes/releases",  to: "creator_prefixes#releases", as: :releases_creator_prefixes
+  post "creator_prefixes/releases",  to: "creator_prefixes#update_release", as: :update_release_creator_prefixes
   # fourier: release one image from troll jail (undelete its post). Approver+,
   # and only for a post that is deleted AND carries the jail tag.
   post "fourier_jail/release",       to: "fourier_jail#create", as: :fourier_jail_release

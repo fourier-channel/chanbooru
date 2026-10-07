@@ -1,0 +1,53 @@
+<% page_title "Hidden Creators" %>
+
+<div id="c-creator-prefixes">
+  <div id="a-releases">
+    <h1>Hidden Creators</h1>
+    <p>Creators whose prefix hides their posts by default. Releasing one moves
+      their posts from the prefix's default to their own settings -- public,
+      until they narrow it themselves. Returning them restores the default.
+      Admins only; nothing on this page is shown to anyone else.</p>
+
+    <% if @rows.empty? %>
+      <p>No prefix hides anything (every prefix in the list is visible to everyone).</p>
+    <% else %>
+      <table class="striped" width="100%">
+        <thead>
+          <tr>
+            <th>Creator</th>
+            <th>Posts</th>
+            <th>Default</th>
+            <th>Status</th>
+            <th>Last changed</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @rows.each do |entry, name, count| %>
+            <% release = @releases[name] %>
+            <tr>
+              <td><%= link_to name, posts_path(tags: name) %></td>
+              <td><%= count %></td>
+              <td><%= entry.prefix %>: <%= entry.visible_to %></td>
+              <td><%= release&.released ? "released" : "hidden" %></td>
+              <td>
+                <% if release %>
+                  <%= release.updater.pretty_name %>, <%= time_ago_in_words_tagged(release.updated_at) %>
+                  <% if release.note.present? %><br><span class="text-muted"><%= release.note %></span><% end %>
+                <% end %>
+              </td>
+              <td>
+                <%= form_tag(update_release_creator_prefixes_path, method: :post) do %>
+                  <%= hidden_field_tag :tag_name, name %>
+                  <%= hidden_field_tag :released, release&.released ? "false" : "true" %>
+                  <%= text_field_tag :note, "", placeholder: "note (who asked, where)", size: 24 %>
+                  <%= submit_tag(release&.released ? "Return to default" : "Release") %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+  </div>
+</div>

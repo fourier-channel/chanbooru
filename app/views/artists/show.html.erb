@@ -9,6 +9,24 @@
     <% else %>
       <%= render "artists/summary", artist: @artist %>
 
+      <%# A creator under a hidden prefix: the release box, for an admin or the creator themselves (approved claim). %>
+      <% entry = (CreatorPrefixes.lookup(@artist.name) rescue nil) %>
+      <% if entry && entry.visible_to != "everyone" && CreatorTagRelease.may_set?(CurrentUser.user, @artist.name) %>
+        <% release = CreatorTagRelease.find_by(tag_name: @artist.name) %>
+        <div class="creator-release-box">
+          <% if release&.released %>
+            <p><strong>Released.</strong> These posts follow their creator's own settings, not the <%= entry.prefix %> default (<%= entry.visible_to %> only).</p>
+          <% else %>
+            <p><strong>Hidden by default.</strong> Posts under <%= entry.prefix %> are visible to <%= entry.visible_to %> only. Releasing moves these posts to their creator's own settings -- public, until narrowed.</p>
+          <% end %>
+          <%= form_tag(update_release_creator_prefixes_path, method: :post) do %>
+            <%= hidden_field_tag :tag_name, @artist.name %>
+            <%= hidden_field_tag :released, release&.released ? "false" : "true" %>
+            <%= submit_tag(release&.released ? "Return to the default" : "Release my posts") %>
+          <% end %>
+        </div>
+      <% end %>
+
       <% if @artist.tag.present? && @artist.tag.post_count > 0 %>
         <div class="recent-posts">
           <h2 class="recent-posts-header">

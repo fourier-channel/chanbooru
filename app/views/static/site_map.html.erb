@@ -178,6 +178,14 @@
       <ul>
         <li><h2>Admin</h2></li>
 
+        <%# fourier: 41chan's own consoles, admins only. %>
+        <% if CurrentUser.user.is_admin? %>
+          <li><%= link_to("Hidden Creators", releases_creator_prefixes_path) %></li>
+          <li><%= link_to("Creator Prefixes", creator_prefixes_path) %></li>
+          <li><%= link_to("Invites", admin_signup_tokens_path) %></li>
+          <li><%= link_to("Landing Carousel", admin_landing_setting_path) %></li>
+        <% end %>
+
         <% if policy(PostApproval).create? %>
           <li><%= link_to("Modqueue", modqueue_index_path) %></li>
         <% end %>

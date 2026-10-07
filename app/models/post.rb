@@ -2076,10 +2076,10 @@ class Post < ApplicationRecord
   # A post carrying a creator tag whose prefix the list hides from `user`
   # (CreatorPrefixes, visible_to). Operator, 2026-10-07: aichan_ admins only.
   def hidden_by_creator_prefix?(user = CurrentUser.user)
-    hidden = CreatorPrefixes.hidden_prefixes_for(user)
-    return false if hidden.empty?
+    ctx = CreatorPrefixes.hidden_context(user)
+    return false if ctx[:prefixes].empty?
 
-    tag_array.any? { |t| CreatorPrefixes.hidden_for?(t, user, hidden) }
+    tag_array.any? { |t| CreatorPrefixes.hidden_for?(t, user, ctx) }
   end
 
   # The same rule for a SET of posts: the posts hidden_from? is true of, as a
