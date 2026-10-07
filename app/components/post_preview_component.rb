@@ -52,8 +52,14 @@ class PostPreviewComponent < ApplicationComponent
   # hidden_as_banished? as well: a list built without the implicit metatags
   # (a profile's upload strip, for one) must not draw what a search would
   # have withheld from an admin whose reveal is off.
+  #
+  # And a post under a creator prefix the list hides from this viewer
+  # (CreatorPrefixes visible_to, 2026-10-07): the parent/children strip and
+  # other lists built without the implicit metatags would draw it otherwise.
+  # Not the whole of hidden_from?: show_deleted is this method's own rule.
   def render?
-    post.present? && post.visible?(current_user) && (!post.is_deleted? || show_deleted) && !post.hidden_as_banished?(current_user)
+    post.present? && post.visible?(current_user) && (!post.is_deleted? || show_deleted) && !post.hidden_as_banished?(current_user) &&
+      !post.hidden_by_creator_prefix?(current_user)
   end
 
   def article_attrs

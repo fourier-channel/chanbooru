@@ -21,7 +21,9 @@ class CreatorGalleryComponent < ApplicationComponent
   # Curated posts, in the creator's order, filtered to what the viewer may see.
   def featured_posts
     gallery.creator_gallery_posts.includes(post: :media_asset).filter_map do |cgp|
-      cgp.post if cgp.post&.visible?(viewer)
+      # hidden_from? too: a curated post can sit under a creator prefix the
+      # list hides from this viewer, and visible? does not know about that.
+      cgp.post if cgp.post&.visible?(viewer) && !cgp.post.hidden_from?(viewer)
     end
   end
 
@@ -30,7 +32,7 @@ class CreatorGalleryComponent < ApplicationComponent
   end
 
   def thumb(post)
-    post.visible?(viewer) ? post.preview_file_url : nil
+    post.visible?(viewer) && !post.hidden_from?(viewer) ? post.preview_file_url : nil
   rescue StandardError
     nil
   end

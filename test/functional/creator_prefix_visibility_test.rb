@@ -132,6 +132,27 @@ class CreatorPrefixVisibilityTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Lists built without the implicit metatags, each guarded by its own
+  # predicate (chanbooru-53's read of dcea9e28b, 2026-10-07).
+  context "the lists that bypass the search" do
+    should "keep a hidden post out of the landing showcase, the parent/children strip and a creator gallery" do
+      showcase = ->(user) { LandingShowcase.new(viewer: user) }
+      [User.anonymous, @member].each do |user|
+        assert_not showcase.call(user).send(:showable?, @hidden), "landing, #{user.name}"
+        assert_not PostPreviewComponent.new(post: @hidden, current_user: user).render?, "preview strip, #{user.name}"
+      end
+      assert showcase.call(@admin).send(:showable?, @hidden), "an admin still sees it in the showcase"
+      assert PostPreviewComponent.new(post: @hidden, current_user: @admin).render?
+
+      gallery = CreatorGallery.create!(matrix_id: "@alice:41chan.net", slug: "alice-cv", user: @member)
+      gallery.creator_gallery_posts.create!(post: @hidden, position: 0)
+      gallery.creator_gallery_posts.create!(post: @shown, position: 1)
+      featured = CreatorGalleryComponent.new(gallery: gallery.reload, viewer: @member).featured_posts
+      assert_includes featured, @shown
+      assert_not_includes featured, @hidden
+    end
+  end
+
   context "widening it" do
     should "show it to members, not visitors, the moment the list says members" do
       write_list("members")

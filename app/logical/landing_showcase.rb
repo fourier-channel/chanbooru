@@ -243,6 +243,10 @@ class LandingShowcase
     # A released post keeps its banished tag, and an admin whose reveal is
     # off is not shown one anywhere (Post#hidden_as_banished?).
     return false if post.hidden_as_banished?(viewer)
+    # Everything Post#hidden_from? withholds -- a post under a creator prefix
+    # hidden from this viewer included (aichan_, 2026-10-07): this class skips
+    # the implicit metatags, so the post's own rule is the only guard here.
+    return false if post.hidden_from?(viewer)
 
     post.visible?(viewer)
   end
