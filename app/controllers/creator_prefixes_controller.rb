@@ -12,17 +12,28 @@
 class CreatorPrefixesController < ApplicationController
   respond_to :html, :json
 
+  # WHO SEES IT (operator, 2026-10-07): members, not signed-out visitors --
+  # who get the 404 a hidden post gets -- and each viewer only the rows for
+  # prefixes they can see. A hidden prefix's row says which server is
+  # archived and that its posts exist, which is part of what it hides, so it
+  # and the posting accounts' names are for admins (and editors) alone. The
+  # lookup matches only the rows shown: a hidden prefix answers as an
+  # unlisted one does.
   def index
     skip_authorization
-    @prefixes = CreatorPrefixes.entries
-    @editors = CreatorPrefixes.config[:editors]
+    user = CurrentUser.user
+    raise ActiveRecord::RecordNotFound if user.nil? || user.is_anonymous?
+
+    @prefixes = CreatorPrefixes.entries.select { |e| CreatorPrefixes.sees?(e, user) }
+    @editors = CreatorPrefixes.editor?(user) ? CreatorPrefixes.config[:editors] : nil
     @tag = params[:tag].to_s.strip.downcase.presence
     @match = @tag && @prefixes.find { |e| @tag.start_with?(e.prefix) || @tag == e.prefix.delete_suffix("_") }
 
     respond_to do |format|
       format.html
       format.json do
-        body = { editors: @editors, prefixes: @prefixes.map(&:to_h) }
+        body = { prefixes: @prefixes.map(&:to_h) }
+        body[:editors] = @editors if @editors
         body.merge!(tag: @tag, match: @match&.to_h) if @tag
         render json: body
       end

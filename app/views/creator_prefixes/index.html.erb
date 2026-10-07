@@ -46,6 +46,8 @@
       </tbody>
     </table>
 
-    <p class="text-muted">Locked-tag editors: <%= @editors.join(", ") %>, and admins.</p>
+    <% if @editors %>
+      <p class="text-muted">Locked-tag editors: <%= @editors.join(", ") %>, and admins.</p>
+    <% end %>
   </div>
 </div>
