@@ -10,6 +10,11 @@
 # FOURIER_CREATOR_PREFIXES names (docker-compose.yaml), whose canon is
 # fourier-basis ops/hetzner/danbooru/creator_prefixes.yml.
 
+# visible_to (per prefix): everyone (default), members (not signed-out
+# visitors) or admins. A post with a creator tag under a hidden prefix is
+# hidden from that viewer everywhere, and so are those tag names; the editors
+# below always see them. Operator, 2026-10-07: aichan_ admins only, for now.
+
 # Booru accounts that post on the pipeline's behalf and may write locked tags.
 editors:
   - tunnel
@@ -31,3 +36,4 @@ prefixes:
     target_kind: server
     target: AIChan
     scope: Channels joined by the tunnel
+    visible_to: admins

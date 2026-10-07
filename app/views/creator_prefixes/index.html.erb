@@ -30,6 +30,7 @@
           <th>Provenance</th>
           <th>Target</th>
           <th>Scope</th>
+          <th>Visible to</th>
         </tr>
       </thead>
       <tbody>
@@ -39,6 +40,7 @@
             <td><%= entry.provenance %></td>
             <td><%= entry.target %> <span class="text-muted">(<%= entry.target_kind %>)</span></td>
             <td><%= entry.scope %></td>
+            <td><%= entry.visible_to %></td>
           </tr>
         <% end %>
       </tbody>

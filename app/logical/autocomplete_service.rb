@@ -139,6 +139,7 @@ class AutocompleteService
   # tag just as plainly as naming it.
   def withhold_gated_tags(results)
     results = withhold_banished_tags(results)
+    results = withhold_hidden_creator_tags(results)
     return results if current_user.present? && !current_user.is_anonymous?
 
     gated = Danbooru.config.restricted_tags
@@ -147,6 +148,18 @@ class AutocompleteService
     # Hashes at this stage; they only become Result structs later.
     results.reject do |result|
       result[:value].to_s.in?(gated) || result[:antecedent].to_s.in?(gated)
+    end
+  end
+
+  # Creator tags under a prefix hidden from this viewer (CreatorPrefixes,
+  # visible_to) do not autocomplete for them either: the names are the posts'
+  # creators, and a hidden post's creator is part of what is hidden.
+  def withhold_hidden_creator_tags(results)
+    hidden = CreatorPrefixes.hidden_prefixes_for(current_user)
+    return results if hidden.empty?
+
+    results.reject do |result|
+      CreatorPrefixes.hidden_for?(result[:value], current_user, hidden) || CreatorPrefixes.hidden_for?(result[:antecedent], current_user, hidden)
     end
   end
 

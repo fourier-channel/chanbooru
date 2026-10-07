@@ -13,6 +13,14 @@
 #     and the claim rule (ArtistClaim) and every count by creator read tags.
 #   - THE LOOKUP. Each entry names the provenance, the target and the scope, so
 #     a prefix answers "where did this come from" exactly (/creator_prefixes).
+#   - WHO SEES IT (operator, 2026-10-07: aichan_ posts hidden by default,
+#     "admins only, for now"). `visible_to` per prefix: everyone (the
+#     default), members (not signed-out visitors) or admins. A post carrying a
+#     tag under a prefix hidden from a viewer is hidden from that viewer
+#     everywhere Post.hidden_from / #hidden_from? reach -- every door, the
+#     media gate included -- and so are those tag names. The posting accounts
+#     (`editors`) always see them: they recognise duplicates and write tags
+#     back to their own posts. Widening is an edit to this file, live.
 #
 # WHERE IT LIVES. FOURIER_CREATOR_PREFIXES names the file; production points it
 # at a host directory mounted into the container, outside the read-only release,
@@ -31,17 +39,23 @@
 module CreatorPrefixes
   class ConfigError < StandardError; end
 
-  Entry = Struct.new(:prefix, :provenance, :target_kind, :target, :scope, keyword_init: true)
+  Entry = Struct.new(:prefix, :provenance, :target_kind, :target, :scope, :visible_to, keyword_init: true)
+
+  VISIBILITIES = %w[everyone members admins].freeze
+  DEFAULT_PATH = Rails.root.join("config/fourier/creator_prefixes.yml").to_s
 
   PREFIX_FORMAT = /\A[a-z0-9]{1,16}_\z/
 
   @mutex = Mutex.new
   @cache = nil
+  @last_good = nil
+  @names_mutex = Mutex.new
+  @names = nil
 
   module_function
 
   def path
-    ENV["FOURIER_CREATOR_PREFIXES"].presence || Rails.root.join("config/fourier/creator_prefixes.yml").to_s
+    ENV["FOURIER_CREATOR_PREFIXES"].presence || DEFAULT_PATH
   end
 
   # { entries: [Entry], editors: [String] }, re-read when the file changed.
@@ -75,8 +89,13 @@ module CreatorPrefixes
         raise ConfigError, "#{file}: prefixes[#{i}] prefix #{prefix.inspect} must be lowercase letters or digits ending in _ (e.g. aichan_)"
       end
 
+      visible_to = (e["visible_to"].presence || "everyone").to_s
+      unless VISIBILITIES.include?(visible_to)
+        raise ConfigError, "#{file}: prefixes[#{i}] visible_to #{visible_to.inspect} must be one of #{VISIBILITIES.join(", ")}"
+      end
+
       Entry.new(prefix: prefix, provenance: e["provenance"].to_s, target_kind: e["target_kind"].to_s,
-                target: e["target"].to_s, scope: e["scope"].to_s)
+                target: e["target"].to_s, scope: e["scope"].to_s, visible_to: visible_to)
     end
     dupes = entries.map(&:prefix).tally.select { |_, n| n > 1 }.keys
     raise ConfigError, "#{file}: prefix listed twice: #{dupes.join(", ")}" if dupes.any?
@@ -105,8 +124,67 @@ module CreatorPrefixes
     config[:editors].include?(user.name)
   end
 
+  # The list for VISIBILITY, which never fails open. An unreadable live list
+  # keeps the last one read, then the release's own copy, and says so in the
+  # log: hiding must not switch off because a file broke. (The tag lock fails
+  # the other way -- it refuses edits -- because refusing is safe there.)
+  def visibility_config
+    value = config
+    @last_good = value
+  rescue ConfigError => e
+    Rails.logger.error("[creator_prefixes] #{e.message} -- visibility uses #{@last_good ? "the last list read" : "the release copy (#{DEFAULT_PATH})"}")
+    @last_good || parse(File.read(DEFAULT_PATH), DEFAULT_PATH)
+  end
+
+  # Does `user` see posts under this entry's prefix?
+  def sees?(entry, user)
+    case entry.visible_to
+    when "everyone" then true
+    when "members" then user.present? && !user.is_anonymous?
+    else user.present? && !user.is_anonymous? && (user.is_admin? || visibility_config[:editors].include?(user.name))
+    end
+  end
+
+  # The entries whose posts are hidden from `user`.
+  def hidden_prefixes_for(user)
+    visibility_config[:entries].reject { |e| sees?(e, user) }
+  end
+
+  # Is this tag under a prefix hidden from `user`?
+  def hidden_for?(tag_name, user, hidden = hidden_prefixes_for(user))
+    name = tag_name.to_s
+    hidden.any? { |e| name.start_with?(e.prefix) && name.length > e.prefix.length }
+  end
+
+  # Every existing tag name under a prefix hidden from `user` -- what
+  # Post.hidden_from and the tag index filter on. A new creator's tag is a new
+  # tag row, so the cache is keyed on the newest tag id as well as the
+  # prefixes: exact, never a timer.
+  def hidden_tag_names_for(user)
+    prefixes = hidden_prefixes_for(user).map(&:prefix).sort
+    return [] if prefixes.empty?
+
+    key = [prefixes, Tag.maximum(:id)]
+    @names_mutex.synchronize do
+      return @names[:value] if @names && @names[:key] == key
+    end
+    value = prefixes.flat_map { |p| Tag.where("name LIKE ?", "#{Tag.sanitize_sql_like(p)}%").pluck(:name) }.freeze
+    @names_mutex.synchronize { @names = { key: key, value: value } }
+    value
+  end
+
+  # The ids of every post carrying such a tag -- what post searches exclude.
+  def hidden_post_ids_for(user)
+    names = hidden_tag_names_for(user)
+    return [] if names.empty?
+
+    Post.where_array_includes_any("string_to_array(posts.tag_string, ' ')", names).order(:id).pluck(:id)
+  end
+
   # Forget the cached list (tests).
   def reset!
     @mutex.synchronize { @cache = nil }
+    @names_mutex.synchronize { @names = nil }
+    @last_good = nil
   end
 end

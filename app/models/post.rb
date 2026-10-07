@@ -2070,7 +2070,16 @@ class Post < ApplicationRecord
   # visitor, or deleted/jailed past what they may see. The two predicates
   # above, as the one question a door asks about a post it is about to name.
   def hidden_from?(user = CurrentUser.user)
-    hidden_from_anonymous?(user) || hidden_as_deleted?(user)
+    hidden_from_anonymous?(user) || hidden_as_deleted?(user) || hidden_by_creator_prefix?(user)
+  end
+
+  # A post carrying a creator tag whose prefix the list hides from `user`
+  # (CreatorPrefixes, visible_to). Operator, 2026-10-07: aichan_ admins only.
+  def hidden_by_creator_prefix?(user = CurrentUser.user)
+    hidden = CreatorPrefixes.hidden_prefixes_for(user)
+    return false if hidden.empty?
+
+    tag_array.any? { |t| CreatorPrefixes.hidden_for?(t, user, hidden) }
   end
 
   # The same rule for a SET of posts: the posts hidden_from? is true of, as a
@@ -2101,6 +2110,9 @@ class Post < ApplicationRecord
     end
 
     terms << where_array_includes_any(tags, TagBanishment.post_tags) if TagBanishment.withholds_posts_from?(user)
+
+    prefixed = CreatorPrefixes.hidden_tag_names_for(user)
+    terms << where_array_includes_any(tags, prefixed) if prefixed.any?
 
     if user.nil? || !user.can_see_deleted_posts?
       deleted = where(is_deleted: true)

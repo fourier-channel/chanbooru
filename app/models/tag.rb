@@ -61,6 +61,7 @@ class Tag < ApplicationRecord
     names = []
     names += TagBanishment.list if TagBanishment.list.present? && !TagBanishment.revealed_to?(user)
     names += Danbooru.config.restricted_tags if (user.nil? || user.is_anonymous?) && Danbooru.config.restricted_tags.present?
+    names += CreatorPrefixes.hidden_tag_names_for(user)
     names
   end
 

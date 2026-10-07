@@ -94,6 +94,8 @@ class FourierTagSourcesController < ApplicationController
     # anyone. 404 as there, which every reader already takes as "no such post".
     raise ActiveRecord::RecordNotFound if post.hidden_from_anonymous?(CurrentUser.user)
     raise ActiveRecord::RecordNotFound if post.hidden_as_deleted?(CurrentUser.user)
+    # Under a creator prefix the list hides from this viewer (CreatorPrefixes visible_to).
+    raise ActiveRecord::RecordNotFound if post.hidden_by_creator_prefix?(CurrentUser.user)
     payload = if params[:scope] == "public"
                 FourierTagSource.matrix_projection(post)
               else
