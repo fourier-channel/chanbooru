@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class AITag < ApplicationRecord
+  # Fork: rows name posts: a media asset and the post on it. Listing them is
+  # members only (MembersOnly, ApplicationRecord.names_posts?).
+  def self.names_posts? = true
+
   self.primary_key = :media_asset_id, :tag_id
 
   belongs_to :tag

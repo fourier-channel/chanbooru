@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class Pool < ApplicationRecord
+  # Fork: rows name posts: post_ids, and the gallery draws its cover post. Listing them is
+  # members only (MembersOnly, ApplicationRecord.names_posts?).
+  def self.names_posts? = true
+
   class RevertError < StandardError; end
 
   RESERVED_NAMES = %w[none any series collection]

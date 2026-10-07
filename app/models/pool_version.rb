@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class PoolVersion < ApplicationRecord
+  # Fork: rows name posts: post_ids, added and removed. Listing them is
+  # members only (MembersOnly, ApplicationRecord.names_posts?).
+  def self.names_posts? = true
+
   dtext_attribute :description # defines :dtext_description
 
   belongs_to :updater, class_name: "User"

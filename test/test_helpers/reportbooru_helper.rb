@@ -9,17 +9,4 @@ module ReportbooruHelper
     url = "http://localhost:1234/post_searches/rank?date=#{date}"
     mock_request(url, body: rankings.to_json)
   end
-
-  def mock_missed_search_rankings(rankings)
-    Danbooru.config.stubs(:reportbooru_server).returns("http://localhost:1234")
-    url = "http://localhost:1234/missed_searches"
-    data = rankings.map { it.join(" ") }.join("\n")
-    mock_request(url, body: data)
-  end
-
-  def mock_post_view_rankings(date, rankings)
-    Danbooru.config.stubs(:reportbooru_server).returns("http://localhost:1234")
-    url = "http://localhost:1234/post_views/rank?date=#{date}"
-    mock_request(url, body: rankings.to_json)
-  end
 end

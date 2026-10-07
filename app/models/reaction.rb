@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class Reaction < ApplicationRecord
+  # Fork: rows name posts: its model can be a post. Listing them is
+  # members only (MembersOnly, ApplicationRecord.names_posts?).
+  def self.names_posts? = true
+
   MODEL_TYPES = %w[Post Comment ForumPost User Tag Pool]
 
   REACTIONS = Danbooru.config.reactions

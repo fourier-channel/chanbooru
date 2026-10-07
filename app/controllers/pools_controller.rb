@@ -14,6 +14,9 @@ class PoolsController < ApplicationController
   end
 
   def show
+    # Fork: a pool's page is a paged listing of its posts -- members only
+    # (MembersOnly; the index is covered by paginated_search).
+    MembersOnly.post_listing!(CurrentUser.user)
     limit = params[:limit].presence || CurrentUser.user.per_page
 
     @pool = authorize Pool.find(params[:id])
@@ -32,6 +35,8 @@ class PoolsController < ApplicationController
   end
 
   def gallery
+    # Fork: cover posts, paged -- members only (MembersOnly).
+    MembersOnly.post_listing!(CurrentUser.user)
     limit = params[:limit].presence || CurrentUser.user.per_page
     search = search_params.presence || ActionController::Parameters.new(category: "series")
 

@@ -52,7 +52,9 @@ class ModulationNavbarComponent < NavbarComponent
     list << { label: "Posts", href: main_app.posts_path, category: "general" }
     list << { label: "Creators", href: main_app.artists_path, category: "artist" }
     list << { label: "Tags", href: main_app.tags_path, category: "general" }
-    list << { label: "Pools", href: main_app.gallery_pools_path, category: "general" }
+    # The pool gallery is a listing of posts, members only (MembersOnly): a
+    # signed-out visitor is not offered a pill that answers "not found".
+    list << { label: "Pools", href: main_app.gallery_pools_path, category: "general" } if MembersOnly.sees_post_listings?(current_user)
     # The wiki INDEX, not help:home. That page does not exist in this database
     # and the pill 404d in production -- a top-level nav item leading nowhere.
     # The help corpus was never written; the wiki itself works.

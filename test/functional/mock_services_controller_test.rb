@@ -12,9 +12,7 @@ class MockServicesControllerTest < ActionDispatch::IntegrationTest
         paths = [
           mock_recommender_recommend_path(42),
           mock_recommender_similar_path(42),
-          mock_reportbooru_missed_searches_path,
           mock_reportbooru_post_searches_path,
-          mock_reportbooru_post_views_path,
           mock_iqdb_query_path,
         ]
 

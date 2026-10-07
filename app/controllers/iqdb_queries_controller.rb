@@ -4,6 +4,9 @@ class IqdbQueriesController < ApplicationController
   respond_to :html, :json, :xml, :js
 
   def show
+    # Fork: the matches are a listing of posts -- members only (MembersOnly).
+    MembersOnly.post_listing!(CurrentUser.user)
+
     # XXX allow bare search params for backwards compatibility.
     search_params.merge!(params.slice(:url, :hash, :image_url, :file_url, :post_id, :media_asset_id, :limit, :similarity, :high_similarity).permit!)
 

@@ -34,6 +34,12 @@ class ApplicationRecord < ActiveRecord::Base
         search_params = defaults.merge(search_params).with_indifferent_access
 
         max_limit = (params[:format] == "sitemap") ? 10_000 : 1_000
+        # Fork: a listing whose rows name posts is for members only
+        # (MembersOnly, operator ruling 2026-10-07), asked here because every
+        # index door passes through, so a listing added later is covered
+        # without knowing.
+        MembersOnly.post_listing!(current_user) if names_posts?
+
         # Fork: rows about a post the searcher may not see are not results --
         # see without_hidden_posts. Here, at the one place every index door
         # passes through, so the count and paginator never include them.
@@ -72,6 +78,14 @@ class ApplicationRecord < ActiveRecord::Base
         else
           where(arel_table[column].eq(nil).or(arel_table[column].not_in(hidden.pluck(:id))))
         end
+      end
+
+      # Fork: whether this model's rows name posts -- an id, a preview, an
+      # md5 -- so that listing them is a listing of posts (MembersOnly). Every
+      # model that belongs_to :post does; a model that names posts another
+      # way (a polymorphic subject, post_ids, a media asset) overrides this.
+      def names_posts?
+        hidden_post_column.present?
       end
 
       # The column naming the post a row belongs to, or nil.

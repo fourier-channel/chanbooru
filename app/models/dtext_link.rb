@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class DtextLink < ApplicationRecord
+  # Fork: rows name posts: an embedded post id. Listing them is
+  # members only (MembersOnly, ApplicationRecord.names_posts?).
+  def self.names_posts? = true
+
   belongs_to :model, polymorphic: true
   belongs_to :linked_wiki, primary_key: :title, foreign_key: :link_target, class_name: "WikiPage", optional: true
   belongs_to :linked_tag, primary_key: :name, foreign_key: :link_target, class_name: "Tag", optional: true

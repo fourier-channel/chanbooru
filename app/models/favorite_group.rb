@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class FavoriteGroup < ApplicationRecord
+  # Fork: rows name posts: post_ids. Listing them is
+  # members only (MembersOnly, ApplicationRecord.names_posts?).
+  def self.names_posts? = true
+
   belongs_to :creator, class_name: "User"
 
   normalizes :name, with: ->(name) { name.unicode_normalize(:nfc).normalize_whitespace.gsub(/[[:space:]]+/, "_").squeeze("_").gsub(/\A_|_\z/, "") }

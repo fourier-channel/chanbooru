@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class MediaAsset < ApplicationRecord
+  # Fork: rows name posts: an md5, variant URLs and the post on it. Listing them is
+  # members only (MembersOnly, ApplicationRecord.names_posts?).
+  def self.names_posts? = true
+
   class Error < StandardError; end
 
   FILE_TYPES = %w[jpg png gif webp avif mp4 webm swf zip]

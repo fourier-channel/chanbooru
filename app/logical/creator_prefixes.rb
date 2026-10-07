@@ -140,8 +140,8 @@ module CreatorPrefixes
   def sees?(entry, user)
     case entry.visible_to
     when "everyone" then true
-    when "members" then user.present? && !user.is_anonymous?
-    else user.present? && !user.is_anonymous? && (user.is_admin? || visibility_config[:editors].include?(user.name))
+    when "members" then MembersOnly.member?(user)
+    else MembersOnly.member?(user) && (user.is_admin? || visibility_config[:editors].include?(user.name))
     end
   end
 

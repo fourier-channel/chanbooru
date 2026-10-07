@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class CommentVote < ApplicationRecord
+  # Fork: rows name posts: a comment, which belongs to a post. Listing them is
+  # members only (MembersOnly, ApplicationRecord.names_posts?).
+  def self.names_posts? = true
+
   attr_accessor :updater
 
   belongs_to :comment

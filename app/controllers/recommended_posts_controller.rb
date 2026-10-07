@@ -6,6 +6,8 @@ class RecommendedPostsController < ApplicationController
   after_action :skip_authorization
 
   def index
+    # Fork: a listing of posts -- members only (MembersOnly).
+    MembersOnly.post_listing!(CurrentUser.user)
     limit = params.fetch(:limit, 100).to_i.clamp(0, 200)
     @recs = RecommenderService.search(search_params).take(limit)
     @posts = @recs.pluck(:post)

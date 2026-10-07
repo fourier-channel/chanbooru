@@ -118,9 +118,6 @@ Rails.application.routes.draw do
     resources :posts, only: [] do
       collection do
         get :popular
-        get :viewed
-        get :searches
-        get :missed_searches
       end
     end
   end
@@ -463,9 +460,7 @@ Rails.application.routes.draw do
 
   get "/mock/recommender/recommend/:user_id" => "mock_services#recommender_recommend", as: "mock_recommender_recommend"
   get "/mock/recommender/similiar/:post_id" => "mock_services#recommender_similar", as: "mock_recommender_similar"
-  get "/mock/reportbooru/missed_searches" => "mock_services#reportbooru_missed_searches", as: "mock_reportbooru_missed_searches"
   get "/mock/reportbooru/post_searches/rank" => "mock_services#reportbooru_post_searches", as: "mock_reportbooru_post_searches"
-  get "/mock/reportbooru/post_views/rank" => "mock_services#reportbooru_post_views", as: "mock_reportbooru_post_views"
   get "/mock/iqdb/query" => "mock_services#iqdb_query", as: "mock_iqdb_query"
   post "/mock/iqdb/query" => "mock_services#iqdb_query"
   get "/mock/autotagger/evaluate" => "mock_services#autotagger_evaluate", as: "mock_autotagger_evaluate"

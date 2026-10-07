@@ -785,6 +785,21 @@ module Danbooru
       !Rails.env.test?
     end
 
+    # Whether every listing that names posts is for members only (operator
+    # ruling 2026-10-07: "An anonymous viewer is not supposed to be paging
+    # through all of the content 20 posts at a time."). The browsing cap held
+    # /posts to one page, but /explore/posts/popular walked every date at any
+    # page size, and /artist_commentaries, /post_approvals and the rest of the
+    # post-adjacent indexes paged on with previews. MembersOnly.post_listing!
+    # reads this; see there for every door it shuts and why.
+    #
+    # Off under test (the fork restriction pattern): the inherited suite lists
+    # these indexes signed out and asserts upstream's answer.
+    # members_only_post_listings_test stubs it on and asserts every door.
+    def post_listings_members_only?
+      !Rails.env.test?
+    end
+
     # The booru accounts that post ON SOMEONE ELSE'S BEHALF, by the names they
     # have on production (read 2026-09-29): `sample`, fourier-sampling's, and
     # `tunnel`, fourier-tunnel's. Matched on the account name,

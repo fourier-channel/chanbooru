@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class Upload < ApplicationRecord
+  # Fork: rows name posts: its media assets and the posts made from them. Listing them is
+  # members only (MembersOnly, ApplicationRecord.names_posts?).
+  def self.names_posts? = true
+
   extend Memoist
 
   class Error < StandardError; end

@@ -9,6 +9,10 @@ class CommentsController < ApplicationController
   end
 
   def index
+    # Fork: grouped by post, this is a paged listing of posts, not of comments
+    # -- members only (MembersOnly). Retired here anyway; this holds if it is
+    # ever brought back.
+    MembersOnly.post_listing!(CurrentUser.user)
     params[:group_by] ||= "comment" if params[:search].present?
 
     if params[:group_by] == "comment" || request.format.atom?

@@ -19,18 +19,8 @@ class MockServicesController < ApplicationController
     render json: @data
   end
 
-  def reportbooru_missed_searches
-    @data = tags.map { |tag| "#{tag.name} #{rand(1.0..1000.0)}" }.join("\n")
-    render json: @data
-  end
-
   def reportbooru_post_searches
     @data = tags.map { |tag| [tag.name, rand(1..1000)] }
-    render json: @data
-  end
-
-  def reportbooru_post_views
-    @data = posts.map { |post| [post.id, rand(1..1000)] }
     render json: @data
   end
 

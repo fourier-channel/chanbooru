@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class UserAction < ApplicationRecord
+  # Fork: rows name posts: uploads, votes, approvals, flags, commentary. Listing them is
+  # members only (MembersOnly, ApplicationRecord.names_posts?).
+  def self.names_posts? = true
+
   belongs_to :model, polymorphic: true
   belongs_to :user
 

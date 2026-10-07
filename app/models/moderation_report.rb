@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class ModerationReport < ApplicationRecord
+  # Fork: rows name posts: a reported comment, which belongs to a post. Listing them is
+  # members only (MembersOnly, ApplicationRecord.names_posts?).
+  def self.names_posts? = true
+
   MODEL_TYPES = %w[Dmail Comment ForumPost]
 
   dtext_attribute :reason, inline: true # defines :dtext_reason

@@ -13,7 +13,7 @@ class CreatorPrefixesController < ApplicationController
   respond_to :html, :json
 
   # WHO SEES IT (operator, 2026-10-07): members, not signed-out visitors --
-  # who get the 404 a hidden post gets -- and each viewer only the rows for
+  # who get the 404 a hidden post gets (MembersOnly) -- and each viewer only the rows for
   # prefixes they can see. A hidden prefix's row says which server is
   # archived and that its posts exist, which is part of what it hides, so it
   # and the posting accounts' names are for admins (and editors) alone. The
@@ -22,7 +22,7 @@ class CreatorPrefixesController < ApplicationController
   def index
     skip_authorization
     user = CurrentUser.user
-    raise ActiveRecord::RecordNotFound if user.nil? || user.is_anonymous?
+    MembersOnly.require!(user)
 
     @prefixes = CreatorPrefixes.entries.select { |e| CreatorPrefixes.sees?(e, user) }
     @editors = CreatorPrefixes.editor?(user) ? CreatorPrefixes.config[:editors] : nil

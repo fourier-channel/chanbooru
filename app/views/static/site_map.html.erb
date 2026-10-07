@@ -1,4 +1,7 @@
 <% page_title "Site Map" %>
+<%# Listings that name posts are for members only (MembersOnly); a signed-out
+    visitor is not sent to a page that will answer "not found". %>
+<% post_listings = MembersOnly.sees_post_listings?(CurrentUser.user) %>
 
 <div id="c-static">
   <div id="a-site-map" class="fixed-width-container space-y-4 md:flex md:space-y-0">
@@ -7,22 +10,25 @@
         <li><h2>Posts</h2></li>
         <li><%= link_to("Posts", posts_path) %></li>
         <li><%= link_to("Upload", new_upload_path) %></li>
-        <li><%= link_to("Popular", popular_explore_posts_path) %></li>
-        <li><%= link_to("Votes", post_votes_path) %></li>
-        <li><%= link_to("Most Viewed", viewed_explore_posts_path) %></li>
-        <li><%= link_to("Similar Image Search", iqdb_queries_path) %></li>
+        <% if post_listings %>
+          <li><%= link_to("Popular", popular_explore_posts_path) %></li>
+          <li><%= link_to("Votes", post_votes_path) %></li>
+          <li><%= link_to("Similar Image Search", iqdb_queries_path) %></li>
+        <% end %>
       </ul>
 
-      <ul>
-        <li><h2>Post Events</h2></li>
-        <li><%= link_to("Tag History", post_versions_path) %></li>
-        <li><%= link_to("Events", post_events_path) %></li>
-        <li><%= link_to("Appeals", post_appeals_path) %></li>
-        <li><%= link_to("Approvals", post_approvals_path) %></li>
-        <li><%= link_to("Disapprovals", post_disapprovals_path) %></li>
-        <li><%= link_to("Flags", post_flags_path) %></li>
-        <li><%= link_to("Replacements", post_replacements_path) %></li>
-      </ul>
+      <% if post_listings %>
+        <ul>
+          <li><h2>Post Events</h2></li>
+          <li><%= link_to("Tag History", post_versions_path) %></li>
+          <li><%= link_to("Events", post_events_path) %></li>
+          <li><%= link_to("Appeals", post_appeals_path) %></li>
+          <li><%= link_to("Approvals", post_approvals_path) %></li>
+          <li><%= link_to("Disapprovals", post_disapprovals_path) %></li>
+          <li><%= link_to("Flags", post_flags_path) %></li>
+          <li><%= link_to("Replacements", post_replacements_path) %></li>
+        </ul>
+      <% end %>
 
       <ul>
         <li><h2>Artists</h2></li>
@@ -30,11 +36,13 @@
         <li><%= link_to("History", artist_versions_path) %></li>
       </ul>
 
-      <ul>
-        <li><h2>Artist commentary</h2></li>
-        <li><%= link_to("Commentary", artist_commentaries_path) %></li>
-        <li><%= link_to("History", artist_commentary_versions_path) %></li>
-      </ul>
+      <% if post_listings %>
+        <ul>
+          <li><h2>Artist commentary</h2></li>
+          <li><%= link_to("Commentary", artist_commentaries_path) %></li>
+          <li><%= link_to("History", artist_commentary_versions_path) %></li>
+        </ul>
+      <% end %>
     </section>
 
     <section class="flex-auto space-y-4">
@@ -67,14 +75,16 @@
         </ul>
       <% end %>
 
-      <ul>
-        <li><h2>Pools</h2></li>
-        <li><%= link_to("Pools", pools_path) %></li>
-        <li><%= link_to("Gallery", gallery_pools_path) %></li>
-        <% if PoolVersion.enabled? %>
-          <li><%= link_to("History", pool_versions_path) %></li>
-        <% end %>
-      </ul>
+      <% if post_listings %>
+        <ul>
+          <li><h2>Pools</h2></li>
+          <li><%= link_to("Pools", pools_path) %></li>
+          <li><%= link_to("Gallery", gallery_pools_path) %></li>
+          <% if PoolVersion.enabled? %>
+            <li><%= link_to("History", pool_versions_path) %></li>
+          <% end %>
+        </ul>
+      <% end %>
 
       <ul>
         <li><h2>Reports</h2></li>
@@ -85,8 +95,6 @@
             this site's own pages while sending the reader to a third party.
             Removed 2026-09-18. There is no local equivalent to point it at;
             if one is ever built, it goes here. %>
-        <li><%= link_to("Top Searches", searches_explore_posts_path) %></li>
-        <li><%= link_to("Missed Searches", missed_searches_explore_posts_path) %></li>
       </ul>
     </section>
 
@@ -190,7 +198,9 @@
           <li><%= link_to("Modqueue", modqueue_index_path) %></li>
         <% end %>
 
-        <li><%= link_to("Mod Actions", mod_actions_path) %></li>
+        <% if post_listings %>
+          <li><%= link_to("Mod Actions", mod_actions_path) %></li>
+        <% end %>
 
         <% if policy(UserAction).index? %>
           <li><%= link_to("User Actions", user_actions_path) %></li>

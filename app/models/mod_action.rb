@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class ModAction < ApplicationRecord
+  # Fork: rows name posts: its subject can be a post ("deleted post #N"). Listing them is
+  # members only (MembersOnly, ApplicationRecord.names_posts?).
+  def self.names_posts? = true
+
   MOD_ONLY_CATEGORIES = %i[
     ip_ban_create
     ip_ban_delete

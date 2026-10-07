@@ -12,6 +12,9 @@ class FavoriteGroupsController < ApplicationController
   end
 
   def show
+    # Fork: a favorite group's page is a paged listing of its posts --
+    # members only (MembersOnly; the index is covered by paginated_search).
+    MembersOnly.post_listing!(CurrentUser.user)
     limit = params[:limit].presence || CurrentUser.user.per_page
 
     @favorite_group = authorize FavoriteGroup.find(params[:id])

@@ -4,6 +4,16 @@ module Explore
   class PostsController < ApplicationController
     respond_to :html, :xml, :json
 
+    # Members only, every format (operator ruling 2026-10-07): a signed-out
+    # visitor could ask for any page of any day's posts at any `limit=`, so
+    # walking ?date= backwards listed the whole booru. See MembersOnly.
+    #
+    # viewed, searches and missed_searches were removed the same day: they
+    # read Reportbooru, which this booru does not run, so they rendered empty
+    # (operator: "If we're not using it and it won't break anything then
+    # close it off altogether").
+    before_action { MembersOnly.post_listing!(CurrentUser.user) }
+
     def popular
       @date, @scale, @min_date, @max_date = parse_date(params)
 
@@ -12,29 +22,6 @@ module Explore
       authorize @posts, policy_class: ExplorePostPolicy
 
       respond_with(@posts)
-    end
-
-    def viewed
-      @date, @scale, @min_date, @max_date = parse_date(params)
-      @posts = ReportbooruService.new.popular_posts(@date)
-      authorize @posts, policy_class: ExplorePostPolicy
-
-      respond_with(@posts)
-    end
-
-    def searches
-      @date, @scale, @min_date, @max_date = parse_date(params)
-      @searches = ReportbooruService.new.post_search_rankings(@date)
-      authorize @searches, policy_class: ExplorePostPolicy
-
-      respond_with(@searches)
-    end
-
-    def missed_searches
-      @missed_searches = ReportbooruService.new.missed_search_rankings
-      authorize @missed_searches, policy_class: ExplorePostPolicy
-
-      respond_with(@missed_searches)
     end
 
     private

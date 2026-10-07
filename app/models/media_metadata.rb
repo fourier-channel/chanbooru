@@ -7,6 +7,10 @@
 # @see ExifTool
 # @see https://exiftool.org/TagNames/index.html
 class MediaMetadata < ApplicationRecord
+  # Fork: rows name posts: a media asset and the post on it. Listing them is
+  # members only (MembersOnly, ApplicationRecord.names_posts?).
+  def self.names_posts? = true
+
   self.table_name = "media_metadata"
 
   attribute :id

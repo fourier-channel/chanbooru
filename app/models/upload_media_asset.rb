@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class UploadMediaAsset < ApplicationRecord
+  # Fork: rows name posts: a media asset, its md5 and its post. Listing them is
+  # members only (MembersOnly, ApplicationRecord.names_posts?).
+  def self.names_posts? = true
+
   extend Memoist
 
   attr_accessor :file
