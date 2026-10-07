@@ -1,8 +1,8 @@
 <% content_for(:secondary_links) do %>
   <%= subnav_link_to "Listing", posts_path %>
-  <% if CurrentUser.user.is_anonymous? %>
-    <%= subnav_link_to "Upload", login_path(url: new_upload_path) %>
-  <% else %>
+  <%# Posting is the ingest bots' alone (PostingAccounts): nobody else is
+      offered an Upload link, signed in or not. %>
+  <% if policy(Upload).create? %>
     <%= subnav_link_to "Upload", new_upload_path %>
   <% end %>
   <%= subnav_link_to "Hot", posts_path(:tags => "order:rank", :d => "1") %>

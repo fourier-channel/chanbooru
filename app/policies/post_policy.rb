@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class PostPolicy < ApplicationPolicy
+  include PostingAccounts::Policy
+
   def show_seq?
     true
   end
@@ -13,8 +15,9 @@ class PostPolicy < ApplicationPolicy
     unbanned? && record.visible?
   end
 
+  # Fork: the posting bots only (PostingAccounts, operator ruling 2026-10-07).
   def create?
-    unbanned? && record.uploader == user
+    unbanned? && record.uploader == user && may_post?
   end
 
   def revert?

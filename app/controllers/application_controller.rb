@@ -157,6 +157,9 @@ class ApplicationController < ActionController::Base
         render_error_page(401, exception, message: exception.message)
       when ActionController::InvalidAuthenticityToken, ActionController::UnpermittedParameters, ActionController::InvalidCrossOriginRequest, ActionController::Redirecting::UnsafeRedirectError
         render_error_page(403, exception, message: exception.message)
+      when ->(e) { e.is_a?(Pundit::NotAuthorizedError) && e.policy.try(:denial_message, e.query).present? }
+        # Fork: a policy that says WHY it refused (PostingAccounts::Policy).
+        render_error_page(403, exception, message: exception.policy.denial_message(exception.query))
       when ActiveSupport::MessageVerifier::InvalidSignature, # raised by `find_signed!`
           User::PrivilegeError,
           Pundit::NotAuthorizedError

@@ -1,8 +1,14 @@
 # frozen_string_literal: true
 
 class PostReplacementPolicy < ApplicationPolicy
+  include PostingAccounts::Policy
+
+  # Fork: a replacement makes a post's content from a new file or URL, so it
+  # is posting -- the posting bots only (PostingAccounts, operator ruling
+  # 2026-10-07), and of them only a moderator, as upstream asks. No bot is a
+  # moderator, so today nobody replaces a file.
   def create?
-    user.is_moderator?
+    user.is_moderator? && may_post?
   end
 
   def update?

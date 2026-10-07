@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
 class UploadPolicy < ApplicationPolicy
+  include PostingAccounts::Policy
+
+  # Fork: the posting bots only (PostingAccounts, operator ruling 2026-10-07).
   def create?
-    unbanned?
+    unbanned? && may_post?
   end
 
   def show?

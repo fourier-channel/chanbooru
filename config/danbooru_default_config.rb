@@ -826,8 +826,23 @@ module Danbooru
     # The SAME list under test: the user factory's names are random, so no
     # upstream test posts as either, and the fork's tests create accounts
     # named `tunnel` and `sample` to ask the real list rather than a stub.
+    #
+    # ALSO THE LIST OF WHO MAY POST AT ALL (operator ruling 2026-10-07: "The
+    # upload path is only ever used by the bots. Normal users are not
+    # intended to be able to post directly."). One fact, the posting bots,
+    # read by PostingAccounts for every door that makes content from a file
+    # or a URL. Empty or missing means NOBODY may post: the refusal names
+    # this setting.
     def fourier_posting_bot_names
       %w[sample tunnel]
+    end
+
+    # Whether only the posting bots (fourier_posting_bot_names) may upload,
+    # post or replace a file. Off under test (the fork restriction pattern):
+    # the inherited suite uploads and posts as factory accounts with random
+    # names. posting_accounts_test stubs it on and asserts every door.
+    def posting_restricted_to_bots?
+      !Rails.env.test?
     end
 
     # The Matrix homeserver whose users fourier-tunnel mints `41chan_<localpart>`

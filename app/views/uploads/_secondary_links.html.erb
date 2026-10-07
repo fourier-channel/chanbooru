@@ -1,9 +1,12 @@
 <% content_for(:secondary_links) do %>
-  <%= subnav_link_to "Upload", new_upload_path %>
-  <%= subnav_divider %>
-  <%= subnav_link_to "My Uploads", user_uploads_path(CurrentUser.user.id.to_i) %>
+  <%# Posting is the ingest bots' alone (PostingAccounts). %>
+  <% if policy(Upload).create? %>
+    <%= subnav_link_to "Upload", new_upload_path %>
+    <%= subnav_divider %>
+    <%= subnav_link_to "My Uploads", user_uploads_path(CurrentUser.user.id.to_i) %>
+  <% end %>
   <%= subnav_link_to "All Uploads", media_assets_path unless Danbooru.config.retired_sections.include?("media_assets") %>
-  <%= subnav_link_to "Reverse Image Search", iqdb_queries_path %>
+  <%= subnav_link_to "Reverse Image Search", iqdb_queries_path if policy(Upload).create? %>
   <%= subnav_link_to "Source Info", source_path %>
   <%= subnav_divider %>
   <%= subnav_link_to "Help", wiki_page_path("help:upload") %>
