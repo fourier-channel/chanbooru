@@ -107,6 +107,31 @@ class CreatorPrefixVisibilityTest < ActionDispatch::IntegrationTest
     end
   end
 
+  context "the galleries on artist and wiki pages" do
+    setup do
+      # As tunnel does on posting: a creator tag is an artist tag.
+      as(@admin) { Tag.find_by_name("aichan_alice").update!(category: Tag.categories.artist, updater: @admin) }
+      as(@admin) do
+        @artist = create(:artist, name: "aichan_alice")
+        @wiki = create(:wiki_page, title: "aichan_alice")
+      end
+    end
+
+    # Found live 2026-10-07: the artist page showed 8 hidden aichan_ posts to
+    # a signed-out visitor -- its gallery query skipped the implicit filters.
+    should "not show a hidden post to a visitor or a member, and show it to an admin" do
+      [nil, @member].each do |user|
+        user ? get_auth(artist_path(@artist), user) : (reset!; get(artist_path(@artist)))
+        assert_response :success
+        assert_select "article#post_#{@hidden.id}", false, "artist page, #{user&.name || "anonymous"}"
+        user ? get_auth(wiki_page_path(@wiki), user) : (reset!; get(wiki_page_path(@wiki)))
+        assert_select "article#post_#{@hidden.id}", false, "wiki page, #{user&.name || "anonymous"}"
+      end
+      get_auth artist_path(@artist), @admin
+      assert_select "article#post_#{@hidden.id}"
+    end
+  end
+
   context "widening it" do
     should "show it to members, not visitors, the moment the list says members" do
       write_list("members")

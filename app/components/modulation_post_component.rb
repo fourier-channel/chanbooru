@@ -552,12 +552,21 @@ class ModulationPostComponent < ApplicationComponent
     @random_trail ||= RandomTrail.for(viewer, @session, base_tags)
   end
 
+  # A flank thumbnail. Withheld when the post is hidden from this viewer
+  # (Post#hidden_from?: deleted, jailed, gated, under a hidden creator prefix)
+  # as well as when it is not visible? -- the side strip asked only visible?,
+  # so an admin who can see deleted posts got a jailed neighbour's thumbnail
+  # sharp beside a centre that blurs it (operator, 2026-10-07). A deleted
+  # neighbour the viewer may see is flagged, and the strip blurs it as the
+  # gallery grid does.
   def neighbour_preview(neighbour, search)
     return nil if neighbour.nil?
 
+    shown = neighbour.visible?(viewer) && !neighbour.hidden_from?(viewer)
     { id: neighbour.id,
       url: post_url_for(neighbour, search),
-      thumb: (neighbour.visible?(viewer) ? neighbour.preview_file_url : nil) }
+      thumb: (shown ? neighbour.preview_file_url : nil),
+      deleted: neighbour.is_deleted? }
   rescue StandardError
     nil
   end

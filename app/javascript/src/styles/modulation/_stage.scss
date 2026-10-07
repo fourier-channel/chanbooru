@@ -77,6 +77,11 @@
 
     img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
+    // A deleted or jailed neighbour: desaturated and blurred, as the gallery
+    // grid's .modgal-card--spoiler -- the row crops (overflow: hidden), so the
+    // blur shows no soft edge.
+    &.is-spoiler img { filter: grayscale(1) blur(14px); transform: scale(1.12); }
+
     // THE RAISE (canon --mod-raise-*): a flank thumb is a picture you can
     // click, so under the pointer it scales on top of its rank transform, takes
     // the ring and the lift, and the sweep crosses it. The scale MULTIPLIES the

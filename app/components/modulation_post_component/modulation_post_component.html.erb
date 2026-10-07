@@ -164,7 +164,10 @@
       const inner = (nb && nb.thumb) ? '<img src="' + esc(nb.thumb) + '" alt="" loading="lazy">'
                                      : trailCapHTML(side);
       const title = empty ? p.label + " -- " + (side === "prev" ? "start of trail" : "end of trail") : p.label;
-      return '<a class="mod-sortrow' + (empty ? " is-empty" : "") + '" data-i="' + i + '" data-side="' + side + '" href="' + esc((nb && nb.url) || "#") + '" title="' + esc(title) + '">' + inner + '<span class="mod-sortrow-tag">' + esc(p.label) + "</span></a>";
+      // A deleted (or jailed) neighbour is blurred, as the gallery grid blurs
+      // it; the reveal belongs to the centre, one image at a time.
+      const spoiler = nb && nb.deleted ? " is-spoiler" : "";
+      return '<a class="mod-sortrow' + (empty ? " is-empty" : "") + spoiler + '" data-i="' + i + '" data-side="' + side + '" href="' + esc((nb && nb.url) || "#") + '" title="' + esc(title + (spoiler ? " (deleted)" : "")) + '">' + inner + '<span class="mod-sortrow-tag">' + esc(p.label) + "</span></a>";
     }
     function renderFlanks() {
       region("flank-prev").innerHTML = presets().map((p, i) => flankRow(p, i, "prev")).join("");

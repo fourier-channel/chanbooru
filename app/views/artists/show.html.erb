@@ -17,7 +17,8 @@
 
           <%= render BlacklistComponent.new(user: CurrentUser.user, inline: true) %>
 
-          <%= render_post_gallery(PostQuery.normalize(@artist.name, current_user: CurrentUser.user).posts_with_timeout(8), tags: @artist.name) %>
+          <%# with_implicit_metatags: the viewer's hidden posts (jailed, deleted, gated, under a hidden creator prefix) stay out, as on the post index. %>
+          <%= render_post_gallery(PostQuery.normalize(@artist.name, current_user: CurrentUser.user).with_implicit_metatags.posts_with_timeout(8), tags: @artist.name) %>
         </div>
       <% end %>
     <% end%>
