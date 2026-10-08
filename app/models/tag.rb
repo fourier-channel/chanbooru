@@ -57,13 +57,33 @@ class Tag < ApplicationRecord
   # Banished names are absent for EVERYONE -- admins included -- unless the
   # admin has switched reveal_banished on (TagBanishment); restricted names
   # are absent for a signed-out visitor.
-  def self.hidden_names_for(user)
+  #
+  # by_creator: false leaves out the names found only on posts a creator hid,
+  # for a caller asking about a few names exactly (#hidden_from?).
+  def self.hidden_names_for(user, by_creator: true)
     names = []
     names += TagBanishment.list if TagBanishment.list.present? && !TagBanishment.revealed_to?(user)
     names += Danbooru.config.restricted_tags if (user.nil? || user.is_anonymous?) && Danbooru.config.restricted_tags.present?
     names += CreatorPrefixes.hidden_tag_names_for(user)
+    # Names that exist only on posts their creator hid from `user`
+    # (CreatorVisibility.hidden_tag_names, 2026-10-08).
+    names += CreatorVisibility.hidden_tag_names(user) if by_creator
     names
   end
+
+  # Whether this tag is one visible_to leaves out for `user` -- asked of the
+  # one tag a door names BY ID (tags#show, #edit, #update), which answered
+  # every name the index withholds, to anyone, and in id order, so walking
+  # the ids listed them (second review, 2026-10-08). The creator term asked
+  # exactly, of this one name, not by building the whole list.
+  def hidden_from?(user)
+    Tag.hidden_names_for(user, by_creator: false).include?(name) || CreatorVisibility.hidden_tag_names_among(user, [name]).any?
+  end
+
+  # So ApplicationController#authorize answers such a tag as a missing one,
+  # on a read and a write alike.
+  def hidden_by_post_from?(user) = hidden_from?(user)
+  def refuses_write_from?(user) = hidden_from?(user)
 
   scope :empty, -> { where("tags.post_count <= 0") }
   scope :nonempty, -> { where("tags.post_count > 0") }

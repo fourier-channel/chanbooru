@@ -9,6 +9,8 @@ class PoolVersionsController < ApplicationController
     set_version_comparison
     @pool_versions = authorize PoolVersion.paginated_search(params)
     @pool_versions = @pool_versions.includes(:updater, :pool) if request.format.html?
+    # Fork: which listed post ids are hidden from the viewer, once for the page.
+    PoolVersion.preload_visible_post_ids(@pool_versions)
 
     respond_with(@pool_versions)
   end

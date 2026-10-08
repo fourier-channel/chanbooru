@@ -154,12 +154,23 @@ class AutocompleteService
   # Creator tags under a prefix hidden from this viewer (CreatorPrefixes,
   # visible_to) do not autocomplete for them either: the names are the posts'
   # creators, and a hidden post's creator is part of what is hidden.
+  #
+  # Nor does a name that exists only on posts their creator hid from this
+  # viewer (2026-10-08): typing its first letters would otherwise name what
+  # the creator's panel removed. Asked of these suggestions alone
+  # (CreatorVisibility.hidden_tag_names_among), not of every tag of every
+  # hidden post: this runs per keystroke.
   def withhold_hidden_creator_tags(results)
+    return results if results.empty?
+
     ctx = CreatorPrefixes.hidden_context(current_user)
-    return results if ctx[:prefixes].empty?
+    by_creator = CreatorVisibility.hidden_tag_names_among(current_user, results.flat_map { |result| [result[:value], result[:antecedent]] }).to_set
+    return results if ctx[:prefixes].empty? && by_creator.empty?
 
     results.reject do |result|
-      CreatorPrefixes.hidden_for?(result[:value], current_user, ctx) || CreatorPrefixes.hidden_for?(result[:antecedent], current_user, ctx)
+      [result[:value], result[:antecedent]].any? do |name|
+        CreatorPrefixes.hidden_for?(name, current_user, ctx) || by_creator.include?(name.to_s)
+      end
     end
   end
 
@@ -344,7 +355,9 @@ class AutocompleteService
   def autocomplete_pool(string)
     pools = Pool.undeleted.name_contains(string).search({ order: "post_count" }, current_user).limit(limit)
 
-    pools.map do |pool|
+    # Fork: post_count is the posts that exist for the asker (PostIdList),
+    # decided once for the list.
+    Pool.preload_visible_post_ids(pools, current_user).map do |pool|
       { type: "pool", label: pool.pretty_name, value: pool.name, id: pool.id, post_count: pool.post_count, category: pool.category }
     end
   end
@@ -355,7 +368,7 @@ class AutocompleteService
   def autocomplete_favorite_group(string)
     favgroups = FavoriteGroup.visible(current_user).where(creator: current_user).name_contains(string).search({ order: "post_count" }, current_user).limit(limit)
 
-    favgroups.map do |favgroup|
+    FavoriteGroup.preload_visible_post_ids(favgroups, current_user).map do |favgroup|
       { label: favgroup.pretty_name, value: favgroup.name, post_count: favgroup.post_count }
     end
   end
@@ -460,7 +473,15 @@ class AutocompleteService
 
   # Whether the results can be safely cached with `Cache-Control: public`.
   # Queries that don't depend on the current user are safe to cache publicly.
+  #
+  # Fork: never for a signed-in viewer. What a tag search suggests depends on
+  # who asks (gated names, hidden creator prefixes, names that exist only on
+  # posts a creator hid from others), so a signed-in answer held in a shared
+  # cache would be served to someone it names too much to. A signed-out
+  # answer is the narrowest there is, and is still shared.
   def cache_publicly?
+    return false if current_user.present? && !current_user.is_anonymous?
+
     if type == :tag_query && parsed_query.tag_names.one?
       true
     elsif type.in?(%i[tag artist wiki_page pool emoji opensearch])

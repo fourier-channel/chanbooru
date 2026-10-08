@@ -6,8 +6,8 @@
 # A tiered group here admits its higher tiers too (Q3); that, like
 # everything else these rows mean, is CreatorVisibility's.
 class CreatorAudienceGroup < ApplicationRecord
-  # The audiences that list no groups: inherit has none of its own, and
-  # private is the creator alone (section 4).
+  # The audiences that list no groups: inherit has none of its own, and no
+  # group ever opens private (Q9, 2026-10-07: the users named, and nobody else).
   GROUPLESS = %w[inherit private].freeze
 
   belongs_to :creator_group
@@ -25,7 +25,7 @@ class CreatorAudienceGroup < ApplicationRecord
   def self.replace!(gallery, post, audience, group_ids)
     ids = Array(group_ids).map(&:to_i).uniq
     if audience.in?(GROUPLESS) && ids.any?
-      raise ArgumentError, "an audience of #{audience} lists no groups (#{(audience == "private") ? "private is the creator alone" : "inherit takes the creator default's"})"
+      raise ArgumentError, "an audience of #{audience} lists no groups (#{(audience == "private") ? "no group opens a private post; name its users instead" : "inherit takes the creator default's"})"
     end
 
     groups = CreatorGroup.where(id: ids, creator_gallery_id: gallery.id).order(:name).pluck(:id, :name)

@@ -21,7 +21,8 @@ class CreatorGallery < ApplicationRecord
 
   # Who sees this creator's posts when a post says nothing of its own: public
   # (whoever the site already lets see it), groups (members of the groups in
-  # its audience) or private (the creator alone). What each means is
+  # its audience) or private (the creator and the users they name, never a
+  # group: Q9). What each means is
   # CreatorVisibility's to decide.
   #
   # NULL until the creator chooses, decided as public -- but kept apart from

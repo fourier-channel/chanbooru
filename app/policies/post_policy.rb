@@ -11,8 +11,11 @@ class PostPolicy < ApplicationPolicy
     true
   end
 
+  # Fork: and only a post the user may write to (Post#writable_by?), so every
+  # policy that asks this one -- AITagPolicy#tag?, and any added later --
+  # holds the same line as Post.find_writable! (second review, 2026-10-08).
   def update?
-    unbanned? && record.visible?
+    unbanned? && record.visible? && record.writable_by?(user)
   end
 
   # Fork: the posting bots only (PostingAccounts, operator ruling 2026-10-07).
@@ -36,8 +39,11 @@ class PostPolicy < ApplicationPolicy
     user.is_approver?
   end
 
+  # Fork: only onto a parent this user may be told of (Post#parent_id_shown_to)
+  # -- the option on the page confirmed a parent its creator hid (second
+  # review, 2026-10-08); with none, the answer is a post with no parent's.
   def move_favorites?
-    unbanned? && user.is_approver? && record.fav_count > 0 && record.parent_id.present?
+    unbanned? && user.is_approver? && record.fav_count > 0 && record.parent_id_shown_to(user).present?
   end
 
   def regenerate?

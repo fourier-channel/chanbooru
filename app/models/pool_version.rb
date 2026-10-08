@@ -10,6 +10,34 @@ class PoolVersion < ApplicationRecord
   belongs_to :updater, class_name: "User"
   belongs_to :pool
 
+  # Fork: the ids a viewer is shown leave out the posts hidden from them, as
+  # Pool#visible_post_ids does for the pool itself (2026-10-08). The stored
+  # history stays whole: a revert restores it.
+  attr_writer :hidden_post_ids
+
+  # A page of versions decided in one query (HiddenPostIds), not one a row:
+  # the JSON, the listing's count and its diff each ask.
+  def self.preload_visible_post_ids(versions, user = CurrentUser.user)
+    versions = versions.to_a
+    hidden = HiddenPostIds.new(user, versions.flat_map { |version| version.post_ids + version.added_post_ids + version.removed_post_ids })
+    versions.each { |version| version.hidden_post_ids = hidden }
+  end
+
+  # `ids` (this version's, or a diff against another) without the posts
+  # hidden from `user`.
+  def visible_ids(ids, user = CurrentUser.user)
+    @hidden_post_ids = HiddenPostIds.new(user) unless @hidden_post_ids && @hidden_post_ids.user == user
+    @hidden_post_ids.visible(ids)
+  end
+
+  def serializable_hash(...)
+    hash = super
+    %w[post_ids added_post_ids removed_post_ids].each do |key|
+      hash[key] = visible_ids(hash[key]) if hash[key].is_a?(Array)
+    end
+    hash
+  end
+
   def self.enabled?
     Rails.env.test? || Danbooru.config.aws_sqs_archives_url.present?
   end
@@ -40,6 +68,9 @@ class PoolVersion < ApplicationRecord
     end
 
     def search(params, current_user)
+      # Fork: found by the posts that exist for the searcher, as Pool.search
+      # is (Post.searchable_post_id_params; second review, 2026-10-08).
+      params = Post.searchable_post_id_params(params, current_user)
       q = search_attributes(params, %i[id created_at updated_at pool_id post_ids added_post_ids removed_post_ids updater_id description description_changed name name_changed version is_active is_deleted category], current_user: current_user)
 
       if params[:post_id]

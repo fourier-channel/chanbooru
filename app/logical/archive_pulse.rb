@@ -112,13 +112,26 @@ class ArchivePulse
   # stranger and a member because the gating does, but they do not differ
   # between two strangers, and a per-user key would make this cache useless for
   # the audience it exists for.
+  #
+  # And by WHAT IS HIDDEN from the viewer by id or by name beyond their level
+  # (2026-10-08): a creator's panel and a claimant's own creator tags make two
+  # viewers at one level see different archives -- a member of a creator's
+  # group sees posts a stranger does not -- and the first viewer's count and
+  # "last upload" would otherwise be served to the other, saying that hidden
+  # posts exist and when they arrived. A digest of the viewer's hidden post
+  # ids (which also decide the tag names hidden with them) and hidden creator
+  # prefix names, so two strangers still share an entry.
   def cached(name, ttl = CACHE_TTL, &)
     # The reveal toggle too: two admins at one level see different archives
     # when one of them has it off (TagBanishment.withholds_posts_from?).
-    Cache.get("archive-pulse/#{name}/#{viewer.level}/#{TagBanishment.withholds_posts_from?(viewer) ? "withheld" : "all"}", ttl, race_condition_ttl: [ttl, 30.seconds].min, &)
+    Cache.get("archive-pulse/#{name}/#{viewer.level}/#{TagBanishment.withholds_posts_from?(viewer) ? "withheld" : "all"}/#{hidden_digest}", ttl, race_condition_ttl: [ttl, 30.seconds].min, &)
   rescue ActiveRecord::QueryCanceled, ActiveRecord::StatementInvalid
     # A stat that timed out is omitted, not zero. Reporting zero posts because a
     # count was slow would tell the visitor the opposite of the truth.
     nil
+  end
+
+  def hidden_digest
+    @hidden_digest ||= Cache.hash([CreatorVisibility.hidden_ids_literal(viewer), CreatorPrefixes.hidden_tag_names_for(viewer).sort].to_json)
   end
 end

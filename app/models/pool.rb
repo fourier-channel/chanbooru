@@ -12,6 +12,8 @@ class Pool < ApplicationRecord
   MAX_DESCRIPTION_LENGTH = 20_000
 
   array_attribute :post_ids, parse: /\d+/, cast: :to_i
+  include PostIdList # its post ids as each viewer may see them (2026-10-08)
+
   dtext_attribute :description # defines :dtext_description
 
   normalizes :name, with: ->(name) { name.unicode_normalize(:nfc).normalize_whitespace.gsub(/[[:space:]]+/, "_").squeeze("_").gsub(/\A_|_\z/, "") }
@@ -51,6 +53,7 @@ class Pool < ApplicationRecord
     end
 
     def search(params, current_user)
+      params = Post.searchable_post_id_params(params, current_user)
       q = search_attributes(params, [:id, :created_at, :updated_at, :is_deleted, :name, :description, :post_ids, :dtext_links], current_user: current_user)
 
       if params[:post_tags_match]
@@ -148,7 +151,7 @@ class Pool < ApplicationRecord
   end
 
   def page_number(post_id)
-    post_ids.find_index(post_id).to_i + 1
+    visible_post_ids.find_index(post_id).to_i + 1
   end
 
   def updater_can_edit_deleted
@@ -186,38 +189,40 @@ class Pool < ApplicationRecord
   # XXX unify with PostQueryBuilder ordpool search
   def posts
     pool_posts = Pool.where(id: id).joins("CROSS JOIN unnest(pools.post_ids) WITH ORDINALITY AS row(post_id, pool_index)").select(:post_id, :pool_index)
-    Post.joins("JOIN (#{pool_posts.to_sql}) pool_posts ON pool_posts.post_id = posts.id").order("pool_posts.pool_index ASC")
+    posts = Post.joins("JOIN (#{pool_posts.to_sql}) pool_posts ON pool_posts.post_id = posts.id").order("pool_posts.pool_index ASC")
+    # Fork: only the posts that exist for the viewer (PostIdList).
+    (visible_post_ids.size == post_ids.size) ? posts : posts.where(id: visible_post_ids)
   end
 
   def post_count
-    post_ids.size
+    visible_post_ids.size
   end
 
   def first_post?(post_id)
-    post_id == post_ids.first
+    post_id == visible_post_ids.first
   end
 
   def last_post?(post_id)
-    post_id == post_ids.last
+    post_id == visible_post_ids.last
   end
 
   # XXX finds wrong post when the pool contains multiple copies of the same post (#2042).
   def previous_post_id(post_id)
-    return nil if first_post?(post_id) || !contains?(post_id)
+    return nil if first_post?(post_id) || visible_post_ids.exclude?(post_id)
 
-    n = post_ids.index(post_id) - 1
-    post_ids[n]
+    n = visible_post_ids.index(post_id) - 1
+    visible_post_ids[n]
   end
 
   def next_post_id(post_id)
-    return nil if last_post?(post_id) || !contains?(post_id)
+    return nil if last_post?(post_id) || visible_post_ids.exclude?(post_id)
 
-    n = post_ids.index(post_id) + 1
-    post_ids[n]
+    n = visible_post_ids.index(post_id) + 1
+    visible_post_ids[n]
   end
 
   def cover_post
-    (post_count > 0) ? Post.find(post_ids.first) : nil
+    (post_count > 0) ? Post.find(visible_post_ids.first) : nil
   end
 
   def create_version(updater: CurrentUser.user)

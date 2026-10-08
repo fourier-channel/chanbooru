@@ -294,15 +294,15 @@
     </div>
   <% end %>
 
-  <% if @post.parent.present? %>
+  <% if @parent_post.present? %>
     <div class="notice notice-small post-notice post-notice-child">
-      <%= render "posts/partials/show/parent_notice", parent: @post.parent, children: @sibling_posts.to_a %>
+      <%= render "posts/partials/show/parent_notice", parent: @parent_post, children: @sibling_posts %>
     </div>
   <% end %>
 
-  <% if @post.has_visible_children? %>
+  <% if @post.has_visible_children? && @child_posts.any? %>
     <div class="notice notice-small post-notice post-notice-parent">
-      <%= render "posts/partials/show/child_notice", parent: @post, children: @child_posts.to_a %>
+      <%= render "posts/partials/show/child_notice", parent: @post, children: @child_posts %>
     </div>
   <% end %>
 

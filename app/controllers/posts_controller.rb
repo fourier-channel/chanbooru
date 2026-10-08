@@ -12,7 +12,7 @@ class PostsController < ApplicationController
       @post = authorize Post.find_by!(md5: params[:md5])
       # Same rule by the other door: an md5 lookup must not confirm a gated post
       # exists when the post page would not.
-      # One rule, Post#hidden_from?: gated, deleted or jailed, under a hidden creator prefix.
+      # One rule, Post#hidden_from?: gated, deleted or jailed, under a hidden creator prefix, hidden by its creator.
       raise ActiveRecord::RecordNotFound if @post.hidden_from?(CurrentUser.user)
       respond_with(@post) do |format|
         format.html { redirect_to(@post) }
@@ -56,19 +56,23 @@ class PostsController < ApplicationController
     # A deleted post answers nothing, by any door. Same 404 rather than a 403,
     # for the same reason: "there is something here you may not see" is itself
     # the disclosure, and troll jail exists so that there is nothing to point at.
-    # One rule, Post#hidden_from?: gated, deleted or jailed, under a hidden creator prefix.
+    # One rule, Post#hidden_from?: gated, deleted or jailed, under a hidden creator prefix, hidden by its creator.
     raise ActiveRecord::RecordNotFound if @post.hidden_from?(CurrentUser.user)
     raise PageRemovedError if request.format.html? && !request.variant.tooltip? && @post.banblocked?(CurrentUser.user)
 
-    if request.format.html?
-      include_deleted = @post.is_deleted? || (@post.parent_id.present? && @post.parent.is_deleted?) || CurrentUser.user.show_deleted_children?
-      @sibling_posts = @post.parent.present? ? @post.parent.children : Post.none
-      @sibling_posts = @sibling_posts.undeleted unless include_deleted
-      @sibling_posts = @sibling_posts.includes(:media_asset)
+    # CREATOR_VISIBILITY Q2 (ruled 2026-10-07): "admins only may view a post
+    # its creator hid; every such view is logged." The page view only -- not
+    # a hover tooltip, the JSON, a listing or a media fetch, which are not an
+    # admin choosing to open the post. Admin-only, like the panel's own log.
+    CreatorVisibility.log_admin_view(@post, CurrentUser.user) if request.format.html? && !request.variant.tooltip?
 
-      @child_posts = @post.children
-      @child_posts = @child_posts.undeleted unless include_deleted
-      @sibling_posts = @sibling_posts.includes(:media_asset)
+    if request.format.html?
+      # The relationship notices name their posts -- "has 2 children", a
+      # link to parent:<id> -- so they are built from the posts that exist
+      # for this viewer, not from every row (Post#relatives_shown_to, which
+      # the Modulation payload reads too). Review, 2026-10-08.
+      relatives = @post.relatives_shown_to(CurrentUser.user)
+      @parent_post, @sibling_posts, @child_posts = relatives.values_at(:parent, :siblings, :children)
     end
 
     respond_with(@post) do |format|
@@ -118,7 +122,9 @@ class PostsController < ApplicationController
   end
 
   def destroy
-    @post = authorize Post.find(params[:id])
+    # find_writable!: a moderator acts on deleted and jailed posts, never on
+    # one its creator hid -- this answers with the whole post (Q2, 2026-10-08).
+    @post = authorize Post.find_writable!(params[:id])
 
     if params[:commit] == "Delete"
       move_favorites = params.dig(:post, :move_favorites).to_s.truthy?

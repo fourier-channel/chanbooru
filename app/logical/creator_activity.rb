@@ -14,10 +14,20 @@
 # so a creator who uploads through the booru and posts through the tunnel is
 # one creator to the lamp.
 #
+# FOR ONE VIEWER (2026-10-08). Only posts that exist for the viewer light a
+# lamp: a post hidden from them (Post.hidden_from -- its creator's panel, a
+# hidden creator prefix, gated from a signed-out visitor, deleted or jailed)
+# is not "a post created recently" to them. Before this the lamps counted
+# every post, so the front page -- the hero band, which is the signed-out
+# visitor's draw (CLAUDE.md) -- announced the moment a creator posted
+# something private, and the poll confirmed tag names that exist only on
+# hidden posts, which autocomplete and the tag index withhold.
+#
 # Cost: one indexed range scan on posts.created_at (the window is minutes, so
-# tens to a few hundred rows) and one lookup of their uploaders. No per-tag
-# search, no tag_match, so a page with three artist tags costs the same as a
-# page with one.
+# tens to a few hundred rows), one query for which of those are hidden from
+# the viewer, and one lookup of their uploaders. No per-tag search, no
+# tag_match, so a page with three artist tags costs the same as a page with
+# one.
 module CreatorActivity
   TUNNEL_PREFIX = "41chan_"
   # How many names one ask may carry. The cost above does not grow with the
@@ -31,12 +41,15 @@ module CreatorActivity
   end
 
   # @param names [Array<String>] artist tag names
+  # @param viewer [User] whose lamps these are: only posts that exist for them count
   # @return [Array<String>] the subset that is active now, in the order given
-  def self.active(names)
+  def self.active(names, viewer:)
     names = Array(names).map(&:to_s).reject(&:blank?).uniq
     return [] if names.empty?
 
-    recent = Post.where("posts.created_at > ?", window.ago).pluck(:tag_string, :uploader_id)
+    rows = Post.where("posts.created_at > ?", window.ago).pluck(:id, :tag_string, :uploader_id)
+    hidden = Post.hidden_ids_among(rows.map(&:first), viewer)
+    recent = rows.reject { |id, _, _| hidden.include?(id) }.map { |_, tag_string, uploader_id| [tag_string, uploader_id] }
     return [] if recent.empty?
 
     tagged = recent.flat_map { |tag_string, _| tag_string.to_s.split }.to_set

@@ -109,7 +109,8 @@ class CreatorGalleriesController < ApplicationController
   # --- curated posts ---
   def add_post
     skip_authorization
-    post = Post.find(params.expect(:post_id))
+    # A post hidden from the curator is "not found" (Post.find_visible!).
+    post = Post.find_visible!(params.expect(:post_id))
     next_pos = (@gallery.creator_gallery_posts.maximum(:position) || 0) + 1
     @gallery.creator_gallery_posts.create_or_find_by(post_id: post.id) { |cgp| cgp.position = next_pos }
     respond_change

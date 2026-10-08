@@ -124,13 +124,77 @@ module CreatorControl
   # @param galleries [Array<Array(Integer, String)>] [id, matrix_id] pairs
   # @return [Array<Integer>] sorted post ids
   def gallery_post_ids(galleries)
+    gallery_post_parts(galleries).flat_map { |part| part.pluck(:id) }.uniq.sort
+  end
+
+  # The same set as relations, so a caller narrows it further in SQL
+  # (CreatorVisibility: only the gated ones) instead of carrying every id of
+  # a large gallery into Ruby and back as an IN list (review, 2026-10-08).
+  # TWO parts -- the recorded posts, driven by the creator index, and the
+  # tagged ones, driven by the tag index -- never ORed into one: measured on
+  # a 400,000-post dev DB (2026-10-08), an OR of the two with a tag filter
+  # on top planned as a scan of every post.
+  #
+  # @return [Array<ActiveRecord::Relation<Post>>]
+  def gallery_post_parts(galleries)
     return [] if galleries.empty?
 
     mxids = galleries.map { |_, mxid| mxid.downcase }
-    recorded = FourierPostCreator.where("lower(mxid) IN (?)", mxids).pluck(:post_id)
-    tagged = tagged_post_ids(controlling_tags(galleries).values.flatten.uniq)
+    recorded = Post.where(id: FourierPostCreator.where("lower(mxid) IN (?)", mxids).select(:post_id))
+    tags = controlling_tags(galleries).values.flatten.uniq
+    tags.empty? ? [recorded] : [recorded, tagged_posts(tags)]
+  end
 
-    (recorded + tagged).uniq.sort
+  # Every post these galleries control, as SQL selecting (post_id,
+  # gallery_id) pairs -- the per-gallery form of gallery_post_parts, for
+  # CreatorVisibility, where one gallery's settings apply to its own posts
+  # only. ONE statement whatever the number of galleries: the recorded posts
+  # through the creator index, the tagged ones by one GIN probe per
+  # gallery's tags. Measured on a 400,000-post dev DB (2026-10-08): a
+  # subselect per gallery (113 of them) planned at a cost past
+  # jit_above_cost, and Postgres spent 0.86 s compiling it, every request.
+  #
+  # `only`: SQL selecting candidate (post_id, gallery_id) pairs -- a
+  # creator's overrides -- to keep those the gallery controls, without
+  # listing every post of the gallery. By joins from the candidates: as an
+  # EXISTS inside an OR the planner hashed every creator row instead.
+  #
+  # @param galleries [Array<Array(Integer, String)>] [id, matrix_id] pairs
+  # @return [String] SQL
+  def controlled_pairs_sql(galleries, only: nil)
+    return "SELECT NULL::bigint AS post_id, NULL::bigint AS gallery_id WHERE false" if galleries.empty?
+
+    # The galleries' MXIDs as constants, so the creator index is probed for
+    # each (measured: joining on lower(matrix_id) hashed every creator row).
+    mxids = "VALUES #{galleries.map { |id, mxid| ActiveRecord::Base.sanitize_sql_array(["(?::bigint, ?)", Integer(id), mxid.downcase]) }.join(", ")}"
+    tags = tag_values_sql(galleries)
+    if only
+      <<~SQL.squish
+        SELECT f.post_id, m.gallery_id FROM (#{only}) o JOIN fourier_post_creators f ON f.post_id = o.post_id
+          JOIN (#{mxids}) m(gallery_id, mxid) ON m.gallery_id = o.gallery_id AND lower(f.mxid) = m.mxid
+        UNION ALL
+        SELECT p.id AS post_id, t.gallery_id FROM (#{only}) o JOIN (#{tags}) t(gallery_id, tags) ON t.gallery_id = o.gallery_id
+          JOIN posts p ON p.id = o.post_id AND string_to_array(p.tag_string, ' ') && t.tags
+          WHERE NOT EXISTS (SELECT 1 FROM fourier_post_creators f WHERE f.post_id = p.id)
+      SQL
+    else
+      <<~SQL.squish
+        SELECT f.post_id, m.gallery_id FROM fourier_post_creators f JOIN (#{mxids}) m(gallery_id, mxid) ON lower(f.mxid) = m.mxid
+          WHERE lower(f.mxid) IN (#{galleries.map { |_, mxid| ActiveRecord::Base.connection.quote(mxid.downcase) }.join(", ")})
+        UNION ALL
+        SELECT p.id AS post_id, t.gallery_id FROM (#{tags}) t(gallery_id, tags)
+          JOIN posts p ON string_to_array(p.tag_string, ' ') && t.tags
+          WHERE NOT EXISTS (SELECT 1 FROM fourier_post_creators f WHERE f.post_id = p.id)
+      SQL
+    end
+  end
+
+  # (gallery_id, tags) rows of the tags that confer control, as SQL.
+  def tag_values_sql(galleries)
+    rows = controlling_tags(galleries).reject { |_, tags| tags.empty? }
+    return "SELECT NULL::bigint, NULL::text[] WHERE false" if rows.empty?
+
+    "VALUES #{rows.map { |id, tags| ActiveRecord::Base.sanitize_sql_array(["(?::bigint, ARRAY[?]::text[])", id, tags]) }.join(", ")}"
   end
 
   # The creator tags that confer control on each of these galleries: the
@@ -200,11 +264,9 @@ module CreatorControl
 
   # Posts carrying any of these tags that have NO recorded creator: a recorded
   # creator is the only controller of their post.
-  def tagged_post_ids(tags)
-    return [] if tags.empty?
-
+  def tagged_posts(tags)
     Post.where_array_includes_any("string_to_array(posts.tag_string, ' ')", tags)
-        .where.not(id: FourierPostCreator.select(:post_id)).pluck(:id)
+        .where.not(id: FourierPostCreator.select(:post_id))
   end
 
   def signed_in_id(user)

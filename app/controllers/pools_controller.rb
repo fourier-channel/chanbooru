@@ -9,6 +9,8 @@ class PoolsController < ApplicationController
     else
       @pools = authorize Pool.paginated_search(params, count_pages: true)
     end
+    # Fork: which listed post ids are hidden from the viewer, once for the page.
+    Pool.preload_visible_post_ids(@pools)
 
     respond_with(@pools)
   end
@@ -41,6 +43,7 @@ class PoolsController < ApplicationController
     search = search_params.presence || ActionController::Parameters.new(category: "series")
 
     @pools = authorize Pool.search(search, CurrentUser.user).paginate(params[:page], limit: limit, search_count: params[:search])
+    Pool.preload_visible_post_ids(@pools)
     respond_with(@pools)
   end
 
@@ -53,7 +56,9 @@ class PoolsController < ApplicationController
 
   def update
     @pool = authorize Pool.find(params[:id])
-    @pool.update(permitted_attributes(@pool))
+    @pool.assign_attributes(permitted_attributes(@pool))
+    @pool.keep_unseen_post_ids(CurrentUser.user)
+    @pool.save
 
     respond_with(@pool, notice: "Pool updated")
   end

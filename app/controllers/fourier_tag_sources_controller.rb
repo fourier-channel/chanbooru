@@ -92,7 +92,7 @@ class FourierTagSourcesController < ApplicationController
     # id" -- and a gated post does not exist for a signed-out caller. This
     # read answered both until 2026-09-24: a jailed post's whole tag list, to
     # anyone. 404 as there, which every reader already takes as "no such post".
-    # One rule, Post#hidden_from?: gated, deleted or jailed, under a hidden creator prefix.
+    # One rule, Post#hidden_from?: gated, deleted or jailed, under a hidden creator prefix, hidden by its creator.
     raise ActiveRecord::RecordNotFound if post.hidden_from?(CurrentUser.user)
     payload = if params[:scope] == "public"
                 FourierTagSource.matrix_projection(post)

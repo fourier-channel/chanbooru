@@ -125,6 +125,25 @@ class ApplicationRecord < ActiveRecord::Base
 
       post.present? && post.hidden_from?(user)
     end
+
+    # Fork: whether a WRITE that names this record must answer as if its
+    # post did not exist (Post#writable_by?) -- a new favorite, vote,
+    # comment, note or flag on a post hidden from the writer, or an edit of
+    # one already there. Asked by ApplicationController#authorize on every
+    # write; Post answers for itself.
+    def refuses_write_from?(user)
+      return false if self.class.hidden_post_column.nil?
+
+      post.present? && post.refuses_write_from?(user)
+    end
+
+    # Fork: whether this record names, by id, a post that does not exist --
+    # which a write must answer exactly as it answers a hidden one
+    # (ApplicationController#reject_hidden_post_record).
+    def names_missing_post?
+      column = self.class.hidden_post_column
+      column.present? && self[column].present? && post.nil?
+    end
   end
 
   concerning :ApiMethods do

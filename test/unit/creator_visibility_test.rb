@@ -106,19 +106,23 @@ class CreatorVisibilityTest < ActiveSupport::TestCase
       assert_agrees(@stranger, [@post])
     end
 
-    # Section 4: private is "the creator alone" -- not their groups, not the
-    # users they name; narrowest wins.
-    should "hide a private creator's posts from everyone but the creator" do
+    # Q9 (operator, 2026-10-07): "Private should be PRIVATE, unless explicitly
+    # given permission by individual name." Groups never open it.
+    should "hide a private creator's posts from everyone but the creator and the users named" do
       tier = group("41chan_maple_tier_1", tier: 1)
       join(tier, @member)
-      rule!(@stranger, "allow")
-      rule!(@member, "allow", post: @post)
       default!("private")
 
-      [@stranger, @member, User.anonymous, nil].each { |viewer| assert_equal(:hidden, decide(@post, viewer), viewer&.name) }
+      [@member, @stranger, User.anonymous, nil].each { |viewer| assert_equal(:hidden, decide(@post, viewer), viewer&.name) }
       assert_equal(:allowed, decide(@post, @maple))
       assert_agrees(@member, [@post])
+
+      rule!(@stranger, "allow")
+
+      assert_equal(:allowed, decide(@post, @stranger))
+      assert_equal(:hidden, decide(@post, @member), "a group member who is not named")
       assert_agrees(@stranger, [@post])
+      assert_agrees(@member, [@post])
     end
 
     # Unset (never chosen) and an explicit public decide alike; the column
@@ -305,21 +309,53 @@ class CreatorVisibilityTest < ActiveSupport::TestCase
       assert_agrees(@stranger, [@post, other])
     end
 
-    # Section 4: narrowest wins between the levels -- a named user does not
-    # open what the audience closes.
-    should "not open a private or groups-only post to a named user" do
+    # Section 4 and Q9: a named allow opens a groups-only or a private post to
+    # that person -- creator-wide, or on that post alone.
+    should "open a private or groups-only post to a named user, and to nobody else" do
       tier = group("41chan_maple_tier_1", tier: 1)
       default!("groups", [tier])
       closed = maple_post
       override!(closed, "private")
       rule!(@member, "allow")
       rule!(@stranger, "allow", post: closed)
+      other = create(:user)
 
-      assert_equal(:hidden, decide(@post, @member))
-      assert_equal(:hidden, decide(closed, @member))
-      assert_equal(:hidden, decide(closed, @stranger))
+      assert_equal(:allowed, decide(@post, @member))
+      assert_equal(:allowed, decide(closed, @member))
+      assert_equal(:allowed, decide(closed, @stranger))
+      assert_equal(:hidden, decide(@post, @stranger), "a post-scoped allow opens its post only")
+      [other, User.anonymous].each { |viewer| assert_equal(:hidden, decide(closed, viewer), viewer.name) }
       assert_agrees(@member, [@post, closed])
       assert_agrees(@stranger, [@post, closed])
+      assert_agrees(other, [@post, closed])
+    end
+
+    # Q9: groups never open a private post -- a member of the groups the
+    # creator default lists loses a post its override makes private, and a
+    # private audience cannot list a group at all (CreatorAudienceGroup).
+    should "not open a private post to a group member" do
+      tier = group("41chan_maple_tier_1", tier: 1)
+      join(tier, @member)
+      default!("groups", [tier])
+      overridden = maple_post
+      override!(overridden, "private")
+
+      assert_equal(:allowed, decide(@post, @member))
+      assert_equal(:hidden, decide(overridden, @member))
+      assert_agrees(@member, [@post, overridden])
+      assert_raises(ArgumentError) { override!(overridden, "private", [tier]) }
+    end
+
+    # Q9: "A block still beats a named allow."
+    should "let a block beat a named allow on a private post" do
+      default!("private")
+      rule!(@member, "allow")
+      rule!(@member, "block", post: @post)
+      other = maple_post
+
+      assert_equal(:hidden, decide(@post, @member))
+      assert_equal(:allowed, decide(other, @member))
+      assert_agrees(@member, [@post, other])
     end
 
     # A post's override replaces the creator default -- the audience and its
@@ -673,6 +709,149 @@ class CreatorVisibilityTest < ActiveSupport::TestCase
 
       assert_operator(few, :>, 0)
       assert_equal(few, many)
+    end
+  end
+
+  # Stage 3 (2026-10-08): what enforcement reads. The widen set must agree
+  # with the per-post form on every gated post, and the per-request sets must
+  # cost nothing per post once computed.
+  context "the enforcement sets" do
+    setup do
+      @gated_tag = "child" # a restricted tag (gated_posts_test asserts it)
+      @tier = group("41chan_maple_tier_1", tier: 1)
+      join(@tier, @member)
+      default!("public", [@tier])
+      rule!(@stranger, "allow", post: (@named_gated = maple_post("landscape #{@gated_tag}")))
+      @posts = [
+        maple_post("landscape #{@gated_tag}"),
+        maple_post("landscape #{@gated_tag} #{Danbooru.config.troll_jail_tag}"),
+        maple_post("landscape #{@gated_tag}").tap { |p| override!(p, "private") },
+        maple_post("landscape"),
+        post_tagged("landscape #{@gated_tag}"),
+        @named_gated,
+      ]
+    end
+
+    should "widen exactly the gated posts the per-post form allows, for every viewer" do
+      [@maple, @member, @stranger, @alice, @admin, @tunnel, create(:banned_user), User.anonymous, nil].each do |viewer|
+        allowed = @posts.select { |p| p.gated? && decide(p, viewer) == :allowed }.map(&:id).sort
+        assert_equal(allowed, CreatorVisibility.widened_post_ids_for(viewer) & @posts.map(&:id), viewer&.name.inspect)
+      end
+      assert_equal([@posts[0].id, @named_gated.id].sort, CreatorVisibility.widened_post_ids_for(@member) & @posts.map(&:id))
+      assert_equal([@named_gated.id], CreatorVisibility.widened_post_ids_for(@stranger) & @posts.map(&:id))
+    end
+
+    # The peer warning (2026-10-08): the creator terms compute their lists
+    # once per request per viewer, never per post.
+    should "ask the database once per viewer, then answer every post from memory" do
+      CreatorVisibility.forget!
+      ask = -> { @posts.each { |p| p.hidden_by_creator?(@stranger) || p.creator_allows?(@stranger) } }
+      first = queries_during(&ask)
+      rest = queries_during(&ask)
+
+      assert_operator(first, :>, 0)
+      assert_equal(0, rest)
+    end
+
+    # Review 2026-10-08: the first call must not grow with how much is
+    # narrowed -- a fixed number of reads per batch of BATCH_SIZE posts.
+    should "read the same number of times for one narrowed post as for many" do
+      reads = lambda do
+        CreatorVisibility.forget!
+        queries_during { CreatorVisibility.hidden_ids(@stranger) }
+      end
+      default!("private")
+      reads.call # the process-wide caches it reads through (releases, the prefix list) warm once
+      few = reads.call
+      6.times { maple_post }
+      many = reads.call
+
+      assert_operator(CreatorVisibility.hidden_ids(@stranger).size, :>=, 7)
+      assert_equal(few, many)
+    end
+
+    # Review 2026-10-08: every override on the site was decided post by post
+    # for every viewer, so a creator's "public" overrides cost each request
+    # a per-post decision each.
+    should "read the same number of times however many posts carry an override" do
+      reads = lambda do
+        CreatorVisibility.forget!
+        queries_during { CreatorVisibility.hidden_ids(@stranger) }
+      end
+      default!("private")
+      override!(maple_post, "public")
+      reads.call
+      few = reads.call
+      5.times { override!(maple_post, "public") }
+      3.times { override!(maple_post, "private") }
+      2.times { override!(maple_post, "groups", [@tier]) }
+      many = reads.call
+
+      assert_equal(few, many)
+    end
+
+    # ...and decides none of them post by post for a viewer with no relation
+    # of their own to the gallery: only a rule naming them on a post, or a
+    # groups override where they belong to a group, needs that.
+    should "decide no post one by one for a viewer the creator never named" do
+      default!("private")
+      5.times { override!(maple_post, "public") }
+      override!(maple_post, "private")
+      viewer = create(:user)
+      CreatorVisibility.forget!
+      CreatorVisibility.expects(:decisions).never
+
+      assert_operator(CreatorVisibility.hidden_post_ids_for(viewer).size, :>=, 2)
+    end
+
+    # The whole-site form decides overrides by rule, in SQL; it must give the
+    # per-post answer for every kind of override, under every default, to
+    # every kind of viewer -- a member, one named on a post, one blocked, the
+    # creator, a signed-out visitor -- and leave alone an override by a
+    # gallery that does not control the post.
+    should "agree with the per-post form for every kind of override" do
+      opened = maple_post.tap { |p| override!(p, "public") }
+      closed = maple_post.tap { |p| override!(p, "private") }
+      tiered = maple_post.tap { |p| override!(p, "groups", [@tier]) }
+      named = maple_post.tap { |p| override!(p, "private") }
+      rule!(@stranger, "allow", post: named)
+      alices = post_tagged("landscape", creator: "@alice:41chan.net").tap { |p| override!(p, "private", gallery: @alice_gallery) }
+      # A row left behind by a gallery that does not control the post (set!
+      # refuses to write one; a claim that lapsed leaves one).
+      stray = maple_post.tap { |p| CreatorPostAudience.new(post_id: p.id, creator_gallery_id: @alice_gallery.id, audience: "private", updated_by_id: @admin.id).save!(validate: false) }
+      blocked = create(:user)
+      rule!(blocked, "block")
+      posts = [@post, opened, closed, tiered, named, alices, stray, *@posts]
+
+      [["public", []], ["groups", [@tier]], ["private", []]].each do |audience, groups|
+        default!(audience, groups)
+        [@stranger, @member, @maple, @alice, blocked, User.anonymous].each do |viewer|
+          CreatorVisibility.forget!
+          assert_agrees(viewer, posts)
+        end
+      end
+    end
+
+    should "be forgotten on request, so a changed rule is read again" do
+      private_one = @posts[2]
+      assert(private_one.hidden_by_creator?(@member))
+      rule!(@member, "allow", post: private_one)
+
+      assert(private_one.hidden_by_creator?(@member), "still the request's own answer")
+      CreatorVisibility.forget!
+
+      assert_not(private_one.hidden_by_creator?(@member))
+    end
+
+    should "say when an admin looks past a creator's narrowing, and only then" do
+      private_one = @posts[2]
+
+      assert(CreatorVisibility.hidden_but_for_admin?(private_one, @admin))
+      assert_not(CreatorVisibility.hidden_but_for_admin?(@posts[0], @admin))
+      assert_not(CreatorVisibility.hidden_but_for_admin?(private_one, create(:moderator_user)), "not an admin: nothing to log")
+      rule!(@admin, "allow", post: private_one)
+
+      assert_not(CreatorVisibility.hidden_but_for_admin?(private_one, @admin), "named by the creator")
     end
   end
 end

@@ -53,13 +53,14 @@ class PostPreviewComponent < ApplicationComponent
   # (a profile's upload strip, for one) must not draw what a search would
   # have withheld from an admin whose reveal is off.
   #
-  # And a post under a creator prefix the list hides from this viewer
-  # (CreatorPrefixes visible_to, 2026-10-07): the parent/children strip and
-  # other lists built without the implicit metatags would draw it otherwise.
-  # Not the whole of hidden_from?: show_deleted is this method's own rule.
+  # And every other reason a post does not exist for this viewer
+  # (Post#hidden_beyond_deletion?: a hidden creator prefix, 2026-10-07; its
+  # creator's panel, 2026-10-08): the parent/children strip and other lists
+  # built without the implicit metatags would draw it otherwise. Not the
+  # whole of hidden_from?: show_deleted is this method's own rule.
   def render?
     post.present? && post.visible?(current_user) && (!post.is_deleted? || show_deleted) && !post.hidden_as_banished?(current_user) &&
-      !post.hidden_by_creator_prefix?(current_user)
+      !post.hidden_beyond_deletion?(current_user)
   end
 
   def article_attrs
@@ -93,8 +94,10 @@ class PostPreviewComponent < ApplicationComponent
     klass << "post-status-pending" if post.is_pending?
     klass << "post-status-flagged" if post.is_flagged?
     klass << "post-status-deleted" if post.is_deleted?
-    klass << "post-status-has-parent" if post.parent_id
-    klass << "post-status-has-children" if post.has_visible_children?
+    # Fork: the relatives that exist for this viewer, not the stored columns
+    # (Post#parent_id_shown_to; second review, 2026-10-08).
+    klass << "post-status-has-parent" if post.parent_id_shown_to(current_user)
+    klass << "post-status-has-children" if post.has_visible_children?(current_user)
     klass << "post-preview-show-votes" if show_votes
     klass << "post-preview-fit-#{fit}"
     klass << "post-preview-#{size}"

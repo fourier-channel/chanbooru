@@ -8,7 +8,9 @@ class PoolElementsController < ApplicationController
     raise ActiveRecord::RecordNotFound if @pool.nil?
     authorize(@pool, :update?)
 
-    @post = Post.find(params[:post_id])
+    # A post hidden from the editor is "not found", as a missing one is:
+    # 200 for a hidden post and 404 for a missing one told them apart.
+    @post = Post.find_visible!(params[:post_id])
     @pool.add!(@post)
     respond_with(@pool)
   end

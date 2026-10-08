@@ -259,7 +259,12 @@ class ModulationPostComponent < ApplicationComponent
       list << { kind: "pending", text: "This post was appealed and is pending approval." }
     end
 
-    if post.parent_id.present?
+    # Only a parent and children that exist for this viewer are named, by
+    # the one rule the post page's notices use (Post#relatives_shown_to;
+    # review, 2026-10-08: a deleted child made a hidden live one announce
+    # itself here while the page said nothing).
+    relatives = post.relatives_shown_to(viewer)
+    if relatives[:parent].present?
       list << {
         kind: "parent",
         text: "This post belongs to a parent.",
@@ -268,7 +273,7 @@ class ModulationPostComponent < ApplicationComponent
       }
     end
 
-    if post.has_visible_children?
+    if post.has_visible_children? && relatives[:children].any?
       list << {
         kind: "child",
         text: "This post has children.",
@@ -368,10 +373,17 @@ class ModulationPostComponent < ApplicationComponent
       # the blacklist keeps matching the post the viewer arrived on.
       blacklist: blacklist_data,
       can_browse: can_browse?,
+      # Q2's log (CreatorVisibility.log_admin_view): true only for an admin
+      # this post's creator hid it from. The client fetches payloads ahead of
+      # time (the neighbours) and again after a vote or a favourite, none of
+      # which is the admin opening the post, so the payload request logs
+      # nothing by itself; the client says when it actually shows this post
+      # (?opened=1, ModulationController#show). Review, 2026-10-08.
+      logs_admin_view: CreatorVisibility.hidden_but_for_admin?(post, viewer),
       # The creator lamps: which of this post's artist tags are active now,
       # and the window that means. The page polls /modulation/creator_activity
       # to keep them honest while it stays open.
-      live_creators: CreatorActivity.active(category_tags[:artist].to_a),
+      live_creators: CreatorActivity.active(category_tags[:artist].to_a, viewer: viewer),
       live_window: Danbooru.config.creator_active_window.to_i,
       # The ( jail | delete ) pill: what the post is, and whether this viewer
       # may change it. The rule between the two switches -- jailed implies

@@ -13,7 +13,7 @@
         <%= pool_version_post_diff(pool_version, params[:type]) %>
       <% end %>
       <% t.column "Post Count" do |pool_version| %>
-        <%= link_to pool_version.post_ids.size, pool_versions_path(search: { pool_id: pool_version.pool_id }) %>
+        <%= link_to pool_version.visible_ids(pool_version.post_ids).size, pool_versions_path(search: { pool_id: pool_version.pool_id }) %>
       <% end %>
       <% t.column "Changes", td: {class: "col-expand"} do |pool_version| %>
         <%= status_diff_html(pool_version, params[:type]) %>

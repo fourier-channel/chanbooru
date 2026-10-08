@@ -21,7 +21,7 @@
       <% else %>
         <p>Reorder the post IDs in the text box below to reorder the pool.</p>
 
-        <%= f.input :post_ids_string, as: :text, label: "Posts" %>
+        <%= f.input :post_ids_string, as: :text, label: "Posts", input_html: { value: @pool.visible_post_ids.join(" ") } %>
       <% end %>
 
       <%= f.submit "Save" %>

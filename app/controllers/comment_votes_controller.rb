@@ -39,6 +39,9 @@ class CommentVotesController < ApplicationController
   def destroy
     @comment_vote = authorize CommentVote.find(params[:id])
     @comment_vote.soft_delete(updater: CurrentUser.user)
+    # A withdrawal from a post hidden from the member names nothing of it --
+    # the .js answer renders the whole comment (ApplicationController#reject_hidden_post_record).
+    return head(204) if @comment_vote.hidden_by_post_from?(CurrentUser.user)
 
     respond_with(@comment_vote)
   end

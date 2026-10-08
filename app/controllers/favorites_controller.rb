@@ -29,6 +29,9 @@ class FavoritesController < ApplicationController
     @favorite = authorize Favorite.find_by!(post_id: params[:id], user: CurrentUser.user)
     @favorite.destroy
     @post = @favorite.post.reload
+    # A withdrawal from a post hidden from the member names nothing of it
+    # (ApplicationController#reject_hidden_post_record).
+    return head(204) if @post.hidden_from?(CurrentUser.user)
 
     respond_with(@post, notice: "You have unfavorited this post")
   end

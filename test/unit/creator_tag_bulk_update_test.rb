@@ -51,4 +51,53 @@ class CreatorTagBulkUpdateTest < ActiveSupport::TestCase
       assert approvable_by?(@admin, script), script
     end
   end
+
+  # Decided 2026-10-08 with creator visibility (stage 3): a bulk retag is not
+  # a viewer, so it reaches every post its query matches (Post.bulk_tag_match)
+  # -- a post its creator made private, a post under a hidden prefix, a gated
+  # one, a deleted one. It used to search as the signed-out visitor (a mass
+  # update) or as the moderator-level system user (an implication), so every
+  # viewer rule this fork added made it skip posts silently.
+  context "a bulk retag" do
+    setup do
+      Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
+      CreatorPrefixes.reset!
+      CurrentUser.user = @admin
+      tunnel = create(:builder_user, name: "tunnel")
+      maple = create(:user)
+      gallery = CreatorGallery.create!(matrix_id: "@maple:41chan.net", slug: "maple-bulk", user: maple)
+      as(tunnel) do
+        @private = create(:post, uploader: tunnel, tag_string: "sword")
+        @prefixed = create(:post, uploader: tunnel, tag_string: "sword aichan_bee")
+        @gated = create(:post, uploader: tunnel, tag_string: "sword child")
+        @deleted = create(:post, uploader: tunnel, tag_string: "sword")
+        @plain = create(:post, uploader: tunnel, tag_string: "sword")
+      end
+      FourierPostCreator.create!(post: @private, mxid: gallery.matrix_id, recorded_by: tunnel.id)
+      CreatorPostAudience.set!(@private, gallery: gallery, audience: "private", by: maple)
+      @deleted.delete!("ordinary deletion", user: @admin)
+      @posts = [@private, @prefixed, @gated, @deleted, @plain]
+      CreatorVisibility.forget!
+
+      assert @private.hidden_by_creator?(User.system), "fixture: hidden from the system user as a viewer"
+      assert @private.hidden_by_creator?(User.anonymous), "fixture: hidden from a signed-out viewer"
+    end
+
+    teardown do
+      CurrentUser.user = nil
+      CreatorPrefixes.reset!
+    end
+
+    should "reach every matching post in a mass update" do
+      create_bur!("mass update sword -> blade", @admin)
+
+      @posts.each { |post| assert_includes post.reload.tag_array, "blade", "post ##{post.id} (#{post.tag_string})" }
+    end
+
+    should "reach every matching post in an implication" do
+      TagImplication.approve!(antecedent_name: "sword", consequent_name: "weapon", approver: @admin)
+
+      @posts.each { |post| assert_includes post.reload.tag_array, "weapon", "post ##{post.id} (#{post.tag_string})" }
+    end
+  end
 end

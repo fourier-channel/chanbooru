@@ -243,6 +243,8 @@ module Searchable
     end
   end
 
+  LONG_IN_LIST = 500
+
   def attribute_matches(value, field, type = :integer)
     operator, arg = RangeParser.parse(value, type)
 
@@ -251,6 +253,15 @@ module Searchable
       relation = arg.map do |sub_operator, sub_value|
         where_operator(field, sub_operator, sub_value)
       end.reduce(:or)
+    elsif operator == :in && arg.size > LONG_IN_LIST && arg.all?(Integer)
+      # Fork: a long id list (the hidden-post term PostQuery adds per viewer,
+      # 2026-10-08) as ONE array literal: Arel quoting each of 28,000 values
+      # cost 50-85 ms per query to render, measured on a 400,000-post dev DB.
+      # As `IN (SELECT unnest(array))`, which Postgres answers with one hash
+      # of the list; `= ANY(array)` as a row filter compared each row with
+      # every element -- 1 s for 29,000 rows against 27,752 ids (measured,
+      # same DB). Grouped, so negating it gives NOT (... IN ...).
+      relation = where(Arel::Nodes::Grouping.new(arel_node(field).in(Arel.sql("SELECT unnest('{#{arg.join(",")}}'::integer[])"))))
     else
       relation = where_operator(field, operator, arg)
     end

@@ -17,7 +17,9 @@ class PostNavbarComponent < ApplicationComponent
   end
 
   def pools
-    @pools ||= post.pools.undeleted.sort_by do |pool|
+    # Fork: each pool's neighbours are its posts that exist for the viewer
+    # (PostIdList), decided once for every pool in the bar.
+    @pools ||= Pool.preload_visible_post_ids(post.pools.undeleted, current_user).sort_by do |pool|
       [(pool == selected_pool) ? 0 : 1, pool.is_series? ? 0 : 1, pool.name]
     end
   end
@@ -27,7 +29,7 @@ class PostNavbarComponent < ApplicationComponent
 
     favgroups = FavoriteGroup.visible(current_user).for_post(post.id)
     favgroups = favgroups.where(creator: current_user).or(favgroups.where(id: selected_favgroup))
-    favgroups.sort_by do |favgroup|
+    FavoriteGroup.preload_visible_post_ids(favgroups, current_user).sort_by do |favgroup|
       [(favgroup == selected_favgroup) ? 0 : 1, favgroup.name]
     end
   end

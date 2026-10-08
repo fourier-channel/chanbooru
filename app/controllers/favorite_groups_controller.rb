@@ -7,6 +7,8 @@ class FavoriteGroupsController < ApplicationController
     params[:search][:creator_id] ||= params[:user_id]
     @favorite_groups = authorize FavoriteGroup.visible(CurrentUser.user).paginated_search(params)
     @favorite_groups = @favorite_groups.includes(:creator) if request.format.html?
+    # Fork: which listed post ids are hidden from the viewer, once for the page.
+    FavoriteGroup.preload_visible_post_ids(@favorite_groups)
 
     respond_with(@favorite_groups)
   end
@@ -41,7 +43,9 @@ class FavoriteGroupsController < ApplicationController
 
   def update
     @favorite_group = authorize FavoriteGroup.find(params[:id])
-    @favorite_group.update(permitted_attributes(@favorite_group))
+    @favorite_group.assign_attributes(permitted_attributes(@favorite_group))
+    @favorite_group.keep_unseen_post_ids(CurrentUser.user)
+    @favorite_group.save
 
     respond_with(@favorite_group, notice: "Favorite group updated")
   end
@@ -55,7 +59,9 @@ class FavoriteGroupsController < ApplicationController
 
   def add_post
     @favorite_group = authorize FavoriteGroup.find(params[:id])
-    @post = Post.find(params[:post_id])
+    # Hidden is "not found" (Post.find_visible!), so the answer cannot tell
+    # a hidden post from a missing one.
+    @post = Post.find_visible!(params[:post_id])
     @favorite_group.add(@post)
 
     respond_with(@favorite_group)
@@ -63,7 +69,7 @@ class FavoriteGroupsController < ApplicationController
 
   def remove_post
     @favorite_group = authorize FavoriteGroup.find(params[:id])
-    @post = Post.find(params[:post_id])
+    @post = Post.find_visible!(params[:post_id])
     @favorite_group.remove(@post)
 
     respond_with(@favorite_group)

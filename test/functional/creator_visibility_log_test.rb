@@ -36,6 +36,9 @@ class CreatorVisibilityLogTest < ActionDispatch::IntegrationTest
     ArtistClaim.create!(artist: as(@admin) { create(:artist, name: "4chan_maple") }, creator_gallery: @gallery).reject!(by: @admin)
     CreatorTagRelease.set!("aichan_maple", released: true, by: @admin)
     ModAction.log("unlinked the booru account of creator page maple", :creator_gallery_unlink, subject: @gallery, user: @admin)
+    # Q2's view log, through its real door: an admin opening the page of a
+    # post its creator made private (stage 3, 2026-10-08).
+    get_auth post_path(@post), @admin
   end
 
   teardown do

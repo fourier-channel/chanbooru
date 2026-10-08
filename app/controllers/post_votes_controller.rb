@@ -30,6 +30,9 @@ class PostVotesController < ApplicationController
     @post_vote = authorize PostVote.find(params[:id])
     @post_vote.locked_update(is_deleted: true, updater: CurrentUser.user)
     @post = @post_vote.post.reload
+    # A withdrawal from a post hidden from the member names nothing of it
+    # (ApplicationController#reject_hidden_post_record).
+    return head(204) if @post.hidden_from?(CurrentUser.user)
 
     respond_with(@post_vote)
   end

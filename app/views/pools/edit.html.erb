@@ -5,7 +5,7 @@
 
       <%= f.input :name, :as => :string, :input_html => { :value => @pool.pretty_name } %>
       <%= f.input :description, as: :dtext, input_html: { autofocus: true } %>
-      <%= f.input :post_ids_string, as: :text, label: "Posts" %>
+      <%= f.input :post_ids_string, as: :text, label: "Posts", input_html: { value: @pool.visible_post_ids.join(" ") } %>
       <%= f.input :category, :collection => ["series", "collection"], :include_blank => false %>
       <%= f.button :submit %>
     <% end %>

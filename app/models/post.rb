@@ -52,6 +52,7 @@ class Post < ApplicationRecord
   before_validation :normalize_tags
   validate :uploader_is_not_limited, on: :create
   validate :post_is_not_allowed, on: :create
+  validate :forget_parent_the_editor_cannot_write
   validate :validate_no_parent_cycles
   validate :validate_parent_depth
   validate :validate_child_count
@@ -583,22 +584,26 @@ class Post < ApplicationRecord
           raise User::PrivilegeError unless CurrentUser.is_approver?
           disapprovals.create!(user: CurrentUser.user, reason: reason.downcase)
 
+        # Fork: these write onto OTHER posts, so only onto the ones the
+        # editor may write to (#writable_by?); any other is left alone, as a
+        # missing id is (second review, 2026-10-08: child:<id of a post its
+        # creator hid> made it this post's child).
         in "child", "none"
-          children.each do |post|
+          children.select { |post| post.writable_by?(CurrentUser.user) }.each do |post|
             post.update!(parent_id: nil)
           end
 
         in "-child", ids
           next if ids.blank?
 
-          children.where_numeric_matches(:id, ids).each do |post|
+          children.where_numeric_matches(:id, ids).select { |post| post.writable_by?(CurrentUser.user) }.each do |post|
             post.update!(parent_id: nil)
           end
 
         in "child", ids
           next if ids.blank?
 
-          Post.where_numeric_matches(:id, ids).where.not(id: id).limit(10).each do |post|
+          Post.where_numeric_matches(:id, ids).where.not(id: id).limit(10).select { |post| post.writable_by?(CurrentUser.user) }.each do |post|
             post.update!(parent_id: id)
           end
 
@@ -812,8 +817,12 @@ class Post < ApplicationRecord
       nil
     end
 
+    # Fork: not onto a parent the mover may not write to (#writable_by?) --
+    # a moderator moving a deleted child's favorites wrote them onto a post
+    # its creator hid from them (second review, 2026-10-08). As for a post
+    # with no parent, nothing moves.
     def give_favorites_to_parent(current_user = CurrentUser.user)
-      return if parent.nil?
+      return if parent.nil? || !parent.writable_by?(current_user)
 
       transaction do
         favorites.each do |fav|
@@ -825,15 +834,51 @@ class Post < ApplicationRecord
       ModAction.log("moved favorites from post ##{id} to post ##{parent.id}", :post_move_favorites, subject: self, user: current_user)
     end
 
-    def has_visible_children?
-      return true if has_active_children?
-      return true if has_children? && CurrentUser.user.show_deleted_children?
-      return true if has_children? && is_deleted?
+    # Fork: of the children that exist for `viewer` (#children_shown_to)
+    # rather than the stored flags, which count every child: a visible
+    # parent whose only live child its creator hid said it had children in
+    # its JSON, its thumbnail border and its page (second review, 2026-10-08).
+    def has_visible_children?(viewer = CurrentUser.user)
+      shown = children_shown_to(viewer)
+      return true if shown.any? { |child| !child.is_deleted? }
+      return true if shown.any? && viewer.show_deleted_children?
+      return true if shown.any? && is_deleted?
       false
     end
 
     def has_visible_children
       has_visible_children?
+    end
+
+    # The children that exist for `viewer`: every child but those hidden
+    # from them beyond deletion (#hidden_beyond_deletion? -- a creator's
+    # narrowing, a hidden creator prefix, gated from a signed-out visitor);
+    # deleted ones stay, as the stored flags count them. Read fresh, not
+    # through the children association, which a save's own validations load
+    # before child: metatags change it; and only for a post whose flag says
+    # it has children, so a gallery pays one query per parent, not per post.
+    def children_shown_to(viewer)
+      return [] unless has_children?
+
+      (@children_shown_to ||= {})[viewer&.id] ||= Post.unscoped.where(parent_id: id).reject { |child| child.hidden_beyond_deletion?(viewer) }
+    end
+
+    # parent_id, unless the parent does not exist for `viewer` (as above).
+    def parent_id_shown_to(viewer)
+      parent_id unless parent_id.present? && parent&.hidden_beyond_deletion?(viewer)
+    end
+
+    # The stored relationship columns as `viewer` may be told them -- what a
+    # post's JSON and its page's data attributes carry. A deleted relative is
+    # still named, as upstream names it.
+    def relationship_attributes_shown_to(viewer)
+      shown = children_shown_to(viewer)
+      {
+        parent_id: parent_id_shown_to(viewer),
+        has_children: shown.any?,
+        has_active_children: shown.any? { |child| !child.is_deleted? },
+        has_visible_children: has_visible_children?(viewer),
+      }
     end
   end
 
@@ -978,12 +1023,26 @@ class Post < ApplicationRecord
   end
 
   concerning :ApiMethods do
+    # Fork: the relationship columns as the viewer may be told them
+    # (#relationship_attributes_shown_to): a visible child's JSON named its
+    # hidden parent's id, and a visible parent's said it had children when
+    # its only one was hidden (second review, 2026-10-08). Only the keys
+    # the answer carries, so a post with no relatives queries nothing.
+    def serializable_hash(...)
+      hash = super
+      keys = %w[parent_id has_children has_active_children has_visible_children] & hash.keys
+      return hash if keys.empty?
+
+      hash.merge(relationship_attributes_shown_to(CurrentUser.user).stringify_keys.slice(*keys))
+    end
+
     def legacy_attributes
+      shown = relationship_attributes_shown_to(CurrentUser.user)
       hash = {
         "has_comments" => last_commented_at.present?,
-        "parent_id" => parent_id,
+        "parent_id" => shown[:parent_id],
         "status" => status,
-        "has_children" => has_children?,
+        "has_children" => shown[:has_children],
         "created_at" => created_at.to_fs(:db),
         "has_notes" => has_notes?,
         "rating" => rating,
@@ -1201,7 +1260,7 @@ class Post < ApplicationRecord
         when "status"
           status_matches(value, current_user)
         when "parent"
-          parent_matches(value)
+          parent_matches(value, current_user)
         when "child"
           child_matches(value)
         when "rating"
@@ -1352,7 +1411,7 @@ class Post < ApplicationRecord
         end
       end
 
-      def parent_matches(parent)
+      def parent_matches(parent, current_user = User.anonymous)
         case parent.downcase
         when "none"
           where(parent: nil)
@@ -1361,6 +1420,12 @@ class Post < ApplicationRecord
         when "pending", "flagged", "appealed", "modqueue", "deleted", "banned", "active", "unmoderated"
           where.not(parent: nil).where(parent: status_matches(parent))
         when /\A\d+\z/
+          # Fork: the id of a post that does not exist for the searcher
+          # (#hidden_beyond_deletion?) matches what a missing id matches,
+          # nothing -- parent:<id of a post its creator hid> listed its
+          # visible children (second review, 2026-10-08). A deleted parent's
+          # children are still found, as upstream finds them.
+          parent = "0" if Post.unscoped.find_by(id: parent)&.hidden_beyond_deletion?(current_user)
           # XXX must use `attribute_matches(parent, :parent_id)` instead of `where(parent_id: parent)` so that `-parent:1` works
           where(id: parent).or(attribute_matches(parent, :parent_id))
         else
@@ -1757,6 +1822,19 @@ class Post < ApplicationRecord
         user_tag_match(query, User.system, tag_limit: nil, safe_mode: false)
       end
 
+      # Fork: the posts a BULK RETAG touches -- a BUR mass update, a tag
+      # implication -- which is every post the query matches, as upstream's
+      # anon_tag_match and system_tag_match gave before this fork added
+      # viewer rules to every search. A retag is not a viewer: through the
+      # implicit metatags these skipped deleted, gated and prefix-hidden
+      # posts, and with creator visibility (2026-10-08) they would have
+      # skipped every post a creator narrowed, silently leaving a creator's
+      # private posts outside every implication. `user` resolves only what a
+      # query itself names (fav:, upvote: and the like), as before.
+      def bulk_tag_match(query, user)
+        and_relation(PostQuery.normalize(query, current_user: user, tag_limit: nil, safe_mode: false).posts)
+      end
+
       # Perform a tag search as the current user, or as another user.
       #
       # @param query [String] the tag search to perform
@@ -1835,6 +1913,21 @@ class Post < ApplicationRecord
   end
 
   concerning :ValidationMethods do
+    # Fork: a new parent the editor may not write to (#writable_by? -- its
+    # creator hid it from them, or it is deleted or jailed past what they may
+    # see) is a parent that does not exist. Making a post its child wrote
+    # onto it, and a hidden id was accepted where a missing one was refused,
+    # so walking ids listed the hidden posts (second review, 2026-10-08).
+    # Forgotten rather than refused here, so every validation after this one
+    # -- the presence check's "post does not exist", the cycle, depth and
+    # child-count checks -- answers exactly as it does for a missing id.
+    def forget_parent_the_editor_cannot_write
+      return unless parent_id.present? && parent_id_changed? && CurrentUser.user.present?
+      return if parent.nil? || parent.writable_by?(CurrentUser.user)
+
+      association(:parent).target = nil
+    end
+
     def validate_no_parent_cycles
       return unless parent_id_changed?
 
@@ -2066,11 +2159,45 @@ class Post < ApplicationRecord
     tag_array.intersect?(TagBanishment.post_tags) && TagBanishment.withholds_posts_from?(user)
   end
 
-  # Whether this post does not exist for `user`: gated from a signed-out
-  # visitor, or deleted/jailed past what they may see. The two predicates
-  # above, as the one question a door asks about a post it is about to name.
+  # Whether this post does not exist for `user`: deleted/jailed past what they
+  # may see, or hidden for any other reason -- the one question a door asks
+  # about a post it is about to name.
   def hidden_from?(user = CurrentUser.user)
-    hidden_from_anonymous?(user) || hidden_as_deleted?(user) || hidden_by_creator_prefix?(user)
+    hidden_as_deleted?(user) || hidden_beyond_deletion?(user)
+  end
+
+  # Every reason this post does not exist for `user` other than deletion:
+  # gated from a signed-out visitor, under a creator prefix hidden from them,
+  # or hidden by its creator. Split from hidden_from? for the lists whose
+  # deleted posts are their own rule (PostPreviewComponent#render?'s
+  # show_deleted); everything else asks hidden_from?.
+  def hidden_beyond_deletion?(user = CurrentUser.user)
+    hidden_from_anonymous?(user) || hidden_by_creator_prefix?(user) || hidden_by_creator?(user)
+  end
+
+  # Hidden by its creator's panel (CreatorVisibility; design
+  # CREATOR_VISIBILITY sections 4-9, ruled 2026-10-07): private, groups-only
+  # or a block, for a viewer the creator did not let in. Exactly what gate 1
+  # means for a signed-out visitor -- the post does not exist (section 6).
+  # Read from a set computed once per request per viewer, never per post.
+  def hidden_by_creator?(user = CurrentUser.user)
+    CreatorVisibility.hidden_ids(user).include?(id)
+  end
+
+  # Let past the level gate by its creator (section 7, Q1: "a creator can
+  # widen"): an explicit group or named allow, or being the controller. Never
+  # for a signed-out or banned viewer, or a jailed post (CreatorVisibility
+  # step 4); never past an unreleased hidden prefix (the release precondition,
+  # section 7). Asked by #levelblocked? alone.
+  #
+  # And never for a post that does not exist for the viewer anyway
+  # (#hidden_from?: deleted, jailed past their reveal, under ANOTHER creator's
+  # hidden prefix): a widen lifts the level gate and nothing else, so a door
+  # that asks only #visible? -- can_see_media? on a nested post -- must not
+  # be handed what every other door refuses (fourier-sampling-c2's check c,
+  # 2026-10-08). Asked only of a post in the set, so the rest pay nothing.
+  def creator_allows?(user = CurrentUser.user)
+    CreatorVisibility.widened_ids(user).include?(id) && !hidden_from?(user)
   end
 
   # A post carrying a creator tag whose prefix the list hides from `user`
@@ -2101,7 +2228,10 @@ class Post < ApplicationRecord
   #
   # Must agree with hidden_from? row for row; hidden_post_doors_test holds
   # both to the same fixtures.
-  def self.hidden_from(user)
+  #
+  # by_creator: false leaves out the creator term, for a caller that holds
+  # the ids already and checks them in Ruby (hidden_ids_among).
+  def self.hidden_from(user, by_creator: true)
     tags = "string_to_array(posts.tag_string, ' ')"
     terms = []
 
@@ -2114,6 +2244,13 @@ class Post < ApplicationRecord
     prefixed = CreatorPrefixes.hidden_tag_names_for(user)
     terms << where_array_includes_any(tags, prefixed) if prefixed.any?
 
+    # By id, as PostQuery#hidden_post_metatags excludes them -- one array
+    # literal, unnested, for the reasons Searchable#attribute_matches gives
+    # (a quoted IN list is slow to render; `= ANY(array)` as a row filter is
+    # a linear scan of the list for every row).
+    literal = CreatorVisibility.hidden_ids_literal(user) if by_creator
+    terms << where("posts.id IN (SELECT unnest(?::integer[]))", literal) if literal
+
     if user.nil? || !user.can_see_deleted_posts?
       deleted = where(is_deleted: true)
       deleted = deleted.where.not(uploader_id: user.id) unless user.nil? || user.is_anonymous?
@@ -2121,6 +2258,20 @@ class Post < ApplicationRecord
     end
 
     terms.reduce(:or)
+  end
+
+  # ApplicationRecord.without_hidden_posts, for posts themselves: the posts
+  # hidden_from is not true of. For a listing of posts built without
+  # PostQuery's implicit metatags -- /user_actions listed every post its
+  # creator hid, by id and arrival time (second review, 2026-10-08).
+  # Inverted rather than NOT IN the hidden set, so Postgres checks only the
+  # rows the listing visits (the 9-11 s NOT IN that
+  # ApplicationRecord.without_hidden_posts describes). Every column the
+  # terms read is NOT NULL, so the inversion is exact. Built unscoped, or the
+  # caller's own conditions would be inverted with it.
+  def self.without_hidden_posts(user)
+    hidden = unscoped { hidden_from(user) }
+    hidden.nil? ? all : self.and(hidden.invert_where)
   end
 
   # Post.find for a door that names a post on the caller's behalf: a hidden
@@ -2134,17 +2285,106 @@ class Post < ApplicationRecord
   end
 
   # Post.find for a door that WRITES to a post (PostsController#update and
-  # its siblings): a post hidden from the writer is "not found" -- unless the
-  # writer is in the moderation tier (approver and up), because the accounts
-  # that jail and release posts act on posts they cannot see, and must keep
-  # doing so. Below that tier, a write to a hidden post both changed it and
-  # answered with its whole JSON, tags and source, to any member who named
-  # its id (2026-10-02).
+  # its siblings): a post not #writable_by? the writer is "not found".
   def self.find_writable!(id, user = CurrentUser.user)
     post = find(id)
-    raise ActiveRecord::RecordNotFound if post.hidden_from?(user) && !user&.is_approver?
+    raise ActiveRecord::RecordNotFound unless post.writable_by?(user)
 
     post
+  end
+
+  # May `user` write to this post -- edit, delete, ban or regenerate it, or
+  # file a row on it (a favorite, a vote, a comment, a note, a flag)? Not when
+  # it is hidden from them -- unless they are in the moderation tier (approver
+  # and up) and the post is hidden from them only as DELETED or JAILED,
+  # because the accounts that jail and release posts act on posts they cannot
+  # see, and must keep doing so. Below that tier, a write to a hidden post
+  # both changed it and answered with its whole JSON, tags and source, to any
+  # member who named its id (2026-10-02).
+  #
+  # Never past a creator's narrowing or a hidden creator prefix
+  # (#hidden_beyond_deletion?): moderators see nothing a creator hid
+  # (CREATOR_VISIBILITY Q2, ruled 2026-10-07), and a write answers with the
+  # whole post. Admins and the posting bots are never hidden from in the
+  # first place. ApplicationController#authorize asks this of every record a
+  # write names (#refuses_write_from?), so a write door added later is
+  # covered without knowing (review, 2026-10-08: favorites, votes and
+  # comments were not).
+  def writable_by?(user = CurrentUser.user)
+    !hidden_from?(user) || (user.present? && user.is_approver? && !hidden_beyond_deletion?(user))
+  end
+
+  # ApplicationRecord#refuses_write_from?, for the post itself. A post not
+  # yet saved is an upload, which the upload rules decide.
+  def refuses_write_from?(user)
+    persisted? && !writable_by?(user)
+  end
+
+  # The parent, siblings and children a post's relationship notices name to
+  # `viewer` -- the post page and the Modulation payload, which must say the
+  # same (review, 2026-10-08). A post that does not exist for the viewer
+  # (#hidden_beyond_deletion?: hidden by its creator, under a hidden creator
+  # prefix, gated from a signed-out visitor) is neither counted nor linked;
+  # deleted ones keep upstream's rule: shown when this post or its parent is
+  # deleted, or the viewer asked to see deleted children.
+  #
+  # @return [Hash{Symbol => Object}] parent: a Post or nil; siblings: and
+  #   children: Arrays of Post
+  def relatives_shown_to(viewer)
+    shown_parent = parent unless parent.nil? || parent.hidden_beyond_deletion?(viewer)
+    include_deleted = is_deleted? || shown_parent&.is_deleted? || viewer.show_deleted_children?
+    shown = ->(posts) { (include_deleted ? posts : posts.undeleted).includes(:media_asset).reject { |post| post.hidden_beyond_deletion?(viewer) } }
+
+    { parent: shown_parent, siblings: shown_parent.nil? ? [] : shown.call(shown_parent.children), children: shown.call(children) }
+  end
+
+  # `ids` without the posts hidden from `user` (Post.hidden_from), in their
+  # own order -- for a record that holds a LIST of post ids rather than a
+  # post column (a pool, a favorite group), whose ids the listing rule of
+  # ApplicationRecord.without_hidden_posts cannot reach. One query.
+  def self.visible_ids_among(ids, user = CurrentUser.user)
+    gone = hidden_ids_among(ids, user)
+    gone.empty? ? ids : ids.reject { |id| gone.include?(id) }
+  end
+
+  # The ids among `ids` of posts hidden from `user`, as a Set, in one query
+  # -- what a page of pools, favorite groups or pool versions asks ONCE for
+  # all its rows (PostIdList.preload_visible_post_ids), not once a row. The
+  # creator-hidden ones are read from the per-request set in memory, not
+  # sent back to the database as a list of every hidden id (measured,
+  # 2026-10-08: ~200 ms of a 1,000-pool page).
+  def self.hidden_ids_among(ids, user = CurrentUser.user)
+    return Set.new if ids.empty?
+
+    by_creator = CreatorVisibility.hidden_ids(user) & ids
+    hidden = hidden_from(user, by_creator: false)
+    hidden.nil? ? by_creator : by_creator | where(id: ids.uniq).and(hidden).pluck(:id)
+  end
+
+  # A search of a record that holds a LIST of post ids (Pool, FavoriteGroup,
+  # PoolVersion) BY those ids -- search[post_ids_include_any]=N, its
+  # siblings, a version's added_/removed_ ones and search[post_id] -- asks
+  # about the posts that exist for `user`. The stored lists are whole, so a
+  # hidden id matched the pools and versions holding it, confirming the post
+  # exists, where and since when (reviews, 2026-10-08). A hidden id becomes
+  # 0, which no post has, so it matches no list, as a missing post's id
+  # does. A regex over the ids cannot be held to what the searcher may see,
+  # so it is refused.
+  def self.searchable_post_id_params(params, user = CurrentUser.user)
+    params = (params.try(:to_unsafe_h) || params).with_indifferent_access
+    regex = params.keys.grep(/\Aany_((added|removed)_)?post_id_matches_regex\z/).find { |key| params[key].present? }
+    raise ActionController::BadRequest, "search[#{regex}] is refused here: it would match posts hidden from you. Search with post_ids_include_any instead." if regex
+
+    keys = params.keys.grep(/\A((added|removed)_)?post_ids_include_(any|all)(_lower)?(_array)?\z/)
+    keys << "post_id" if params[:post_id].present?
+    return params if keys.empty?
+
+    asked = keys.index_with { |key| Array.wrap(params[key]).flat_map { |value| value.to_s.scan(/[^[:space:]]+/) }.map(&:to_i) }
+    gone = hidden_ids_among(asked.values.flatten, user)
+    params.merge(asked.to_h do |key, ids|
+      ids = ids.map { |id| gone.include?(id) ? 0 : id }
+      [key, key.end_with?("_array") ? ids : ids.join(" ")]
+    end)
   end
 
   # Whether an upload of this post's file by `user` is REFUSED, rather than
@@ -2257,9 +2497,15 @@ class Post < ApplicationRecord
     end
   end
 
+  # Fork: a creator's explicit allow lets the viewer past this gate
+  # (creator_allows?; CREATOR_VISIBILITY section 7, ruled 2026-10-07:
+  # restricted content "is legal and shown where granted"). The one place a
+  # creator widens: can_see_media?, the post page and PostPreviewComponent
+  # inherit it through visible?. Asked last, so a gold viewer or the uploader
+  # never computes it.
   def levelblocked?(user = CurrentUser.user)
     # !user.is_gold? && RESTRICTED_TAGS.any? { |tag| has_tag?(tag) }
-    user.id != uploader_id && !user.is_gold? && tag_string.match?(RESTRICTED_TAGS_REGEX)
+    user.id != uploader_id && !user.is_gold? && tag_string.match?(RESTRICTED_TAGS_REGEX) && !creator_allows?(user)
   end
 
   def banblocked?(user = CurrentUser.user)
@@ -2278,6 +2524,7 @@ class Post < ApplicationRecord
     @pools = nil
     @tag_categories = nil
     @typed_tags = nil
+    @children_shown_to = nil
     self
   end
 

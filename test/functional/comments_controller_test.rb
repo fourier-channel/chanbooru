@@ -305,11 +305,14 @@ class CommentsControllerTest < ActionDispatch::IntegrationTest
         assert_redirected_to post_path(comment.post)
       end
 
+      # Fork: a 404, as for a post hidden from the commenter -- the redirect
+      # here told a missing post from a hidden one (second review, 2026-10-08;
+      # ApplicationController#reject_hidden_post_record).
       should "not allow commenting on nonexistent posts" do
         assert_difference("Comment.count", 0) do
           post_auth comments_path, @user, params: { comment: { post_id: -1, body: "blah" }}
         end
-        assert_redirected_to comments_path
+        assert_response 404
       end
     end
 

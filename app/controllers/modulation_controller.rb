@@ -21,8 +21,15 @@ class ModulationController < ApplicationController
     # RecordNotFound rather than 403, again for the controller's own reason:
     # "there is something here you may not see" is itself the disclosure, and
     # troll jail exists so that there is nothing to point at.
-    # One rule, Post#hidden_from?: gated, deleted or jailed, under a hidden creator prefix.
+    # One rule, Post#hidden_from?: gated, deleted or jailed, under a hidden creator prefix, hidden by its creator.
     raise ActiveRecord::RecordNotFound if post.hidden_from?(CurrentUser.user)
+    # Q2's log (CreatorVisibility.log_admin_view): the Modulation viewer
+    # moves post to post without loading a page, so it says when it OPENS a
+    # post -- ?opened=1, sent when it shows a post whose payload carried
+    # logs_admin_view. Its other fetches of this payload (the neighbours,
+    # ahead of time; a refresh after a vote or a favourite) are not a view
+    # and log nothing (review, 2026-10-08: each prefetch logged one).
+    CreatorVisibility.log_admin_view(post, CurrentUser.user) if params[:opened].present?
     component = ModulationPostComponent.new(post: post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session, request: request)
     render json: component.payload.merge(comments_html: comments_html(post)), status: :ok
   end
@@ -38,13 +45,15 @@ class ModulationController < ApplicationController
   end
 
   # The creator lamps' re-read: which of the named artist tags are active
-  # now (CreatorActivity). Public -- it discloses only that a public post was
-  # created recently, which /posts already shows -- and bounded: twenty names
-  # a call, one range scan however many are asked.
+  # now (CreatorActivity). Open to signed-out callers -- it discloses only
+  # that a post which exists FOR THE CALLER was created recently, which
+  # /posts already shows them (CreatorActivity counts nothing hidden from
+  # them, 2026-10-08) -- and bounded: a hundred names a call, one range scan
+  # however many are asked.
   def creator_activity
     skip_authorization
     names = params[:tags].to_s.split(",").map(&:strip).reject(&:blank?).first(CreatorActivity::MAX_NAMES)
-    render json: { active: CreatorActivity.active(names), window: Danbooru.config.creator_active_window.to_i }, status: :ok
+    render json: { active: CreatorActivity.active(names, viewer: CurrentUser.user), window: Danbooru.config.creator_active_window.to_i }, status: :ok
   end
 
   private

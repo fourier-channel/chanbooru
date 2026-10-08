@@ -99,6 +99,25 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
       assert @jailed.versions.any?, "fixture: the jailed post has versions"
     end
 
+    # fourier-sampling-c2's check a (2026-10-08): PostPreviewComponent#render?
+    # asks hidden_beyond_deletion? now, which does not carry banishment --
+    # that lives on the deletion side -- so render? must still withhold a
+    # jailed post itself, even from a strip that shows deleted posts, and a
+    # RELEASED one (live, banished tag kept) from an admin whose reveal is off.
+    should "not draw a jailed or released banished post in a preview strip" do
+      # Created carrying a banished tag, so the booru jails it; then released
+      # as a release leaves it: live, the banished tag kept.
+      released = as(@admin) { create(:post, tag_string: "landscape #{TagBanishment.list.first}", source: BOARD, uploader: @admin) }
+      released.update!(is_deleted: false)
+      assert released.reload.tag_array.intersect?(TagBanishment.post_tags)
+      [@admin_off, @member, User.anonymous].each do |user|
+        assert_not PostPreviewComponent.new(post: @jailed, current_user: user, show_deleted: true).render?, user.name
+      end
+      assert_not PostPreviewComponent.new(post: released, current_user: @admin_off).render?
+      assert PostPreviewComponent.new(post: released, current_user: @admin).render?
+      assert PostPreviewComponent.new(post: @jailed, current_user: @admin, show_deleted: true).render?
+    end
+
     context "post versions" do
       should "show a signed-out visitor and a member nothing of a hidden post" do
         viewers.each do |who, user|
@@ -179,6 +198,34 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
           votes = json_rows(post_votes_path, user, limit: 100)
           assert_not_includes votes.pluck("post_id"), @jailed.id, who
         end
+      end
+
+      # Review 2026-10-08: a write door that takes a post id answered a hidden
+      # post as a found one -- POST /favorites.json with its whole JSON, md5
+      # and source -- and filed the row. ApplicationController#authorize asks
+      # Post#writable_by? of every record a write names.
+      should "refuse a member's favorite or vote on a hidden post, as on a missing one" do
+        [@jailed, @deleted].each do |post|
+          post_auth favorites_path(format: :json), @member, params: { post_id: post.id }
+          assert_response 404, post.tag_string
+          assert_not_includes response.body, post.md5
+          post_auth post_post_votes_path(post_id: post.id, format: :json), @member, params: { score: 1 }
+          assert_response 404, post.tag_string
+        end
+        assert_equal 0, Favorite.where(user: @member).count
+        assert_equal 0, PostVote.where(user: @member).count
+        post_auth favorites_path(format: :json), @member, params: { post_id: @visible.id }
+        assert_response :success
+      end
+
+      # Second review, 2026-10-08: an AI tag names its post through the
+      # media asset, which the row rule keyed on belongs_to :post missed.
+      should "not list a hidden post's AI tags to a member" do
+        tag = Tag.find_or_create_by_name("doors_ai_guess")
+        [@jailed, @deleted, @visible].each { |post| AITag.create!(media_asset: post.media_asset, tag: tag, score: 80) }
+        listed = ->(user) { json_rows(ai_tags_path, user, search: { tag_id: tag.id }, limit: 100).pluck("media_asset_id").sort }
+        assert_equal [@visible.media_asset.id], listed.call(@member)
+        assert_equal [@jailed, @deleted, @visible].map { |post| post.media_asset.id }.sort, listed.call(@admin)
       end
 
       should "still show them to an admin with reveal on" do
@@ -264,6 +311,63 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
 
       assert_includes ids, gated.id
       assert_not_includes ids, plain.id
+    end
+  end
+
+  # A post its creator hid (CreatorVisibility, stage 3, 2026-10-08) is one
+  # more term in BOTH halves of the rule. The relation must agree with the
+  # per-post predicate row for row, for every kind of viewer, including posts
+  # hidden for two reasons at once; and a record that names the post is gone
+  # with it.
+  context "A post its creator hid" do
+    setup do
+      Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
+      CreatorPrefixes.reset!
+      @bot = create(:builder_user, name: "tunnel")
+      @admin = create(:admin_user)
+      @maple = create(:user)
+      @fan = create(:user)
+      @member = create(:user)
+      gallery = CreatorGallery.create!(matrix_id: CREATOR.sub("alice", "maple"), slug: "maple-doors", user: @maple)
+      tier = CreatorGroup.make!(gallery, name: "41chan_maple_tier_1", tier: 1, by: @maple)
+      tier.add_member!(@fan, by: @maple)
+      record = ->(post) { FourierPostCreator.create!(post: post, mxid: gallery.matrix_id, recorded_by: @bot.id) && post }
+      as(@bot) do
+        @plain = create(:post, uploader: @bot, tag_string: "landscape")
+        @grouped = record.call(create(:post, uploader: @bot, tag_string: "landscape cv_doors"))
+        @closed = record.call(create(:post, uploader: @bot, tag_string: "landscape cv_doors"))
+        @gated = record.call(create(:post, uploader: @bot, tag_string: "landscape #{JAIL}"))
+        @deleted = record.call(create(:post, uploader: @bot, tag_string: "landscape cv_doors"))
+      end
+      gallery.set_default_audience!("groups", by: @maple, group_ids: [tier.id])
+      CreatorPostAudience.set!(@closed, gallery: gallery, audience: "private", by: @maple)
+      @deleted.delete!("ordinary deletion", user: @admin)
+      @posts = [@plain, @grouped, @closed, @gated, @deleted.reload]
+      CreatorVisibility.forget!
+    end
+
+    teardown { CreatorPrefixes.reset! }
+
+    should "agree row for row: the relation and the per-post rule" do
+      [nil, User.anonymous, @member, @fan, @maple, @bot, @admin, create(:banned_user), create(:moderator_user)].each do |user|
+        hidden = Post.hidden_from(user)
+        by_relation = hidden ? Post.where(id: @posts.map(&:id)).merge(hidden).pluck(:id).sort : []
+        by_post = @posts.select { |post| post.hidden_from?(user) }.map(&:id).sort
+        assert_equal by_post, by_relation, user&.name || "nil"
+      end
+      assert_equal [@grouped.id, @closed.id, @gated.id, @deleted.id].sort, @posts.select { |p| p.hidden_from?(@member) }.map(&:id).sort
+      assert_equal [@closed.id, @deleted.id].sort, @posts.select { |p| p.hidden_from?(@fan) }.map(&:id).sort
+    end
+
+    # Asked through artist commentaries, which live on the posts' own
+    # connection: post versions live behind the archive connection, whose
+    # test transaction cannot see the posts this setup creates.
+    should "take the records that name it with it" do
+      as(@bot) { create(:artist_commentary, post: @grouped, original_title: "", original_description: ATTRIBUTION, translated_title: "", translated_description: "") }
+      assert_empty json_ids(artist_commentaries_path, @member, search: { post_id: @grouped.id })
+      assert_not_empty json_ids(artist_commentaries_path, @fan, search: { post_id: @grouped.id })
+      assert_equal 0, count_for("id:#{@closed.id}", @fan)
+      assert_equal 1, count_for("id:#{@closed.id}", @maple)
     end
   end
 

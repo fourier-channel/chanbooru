@@ -1,6 +1,7 @@
 <%= edit_form_for(@favorite_group) do |f| %>
   <%= f.input :name, as: :string, required: true, input_html: { value: @favorite_group.pretty_name } %>
-  <%= f.input :post_ids_string, label: "Posts", as: :text %>
+  <%# The posts that exist for this editor; the rest are kept on save (FavoriteGroup#keep_unseen_post_ids). %>
+  <%= f.input :post_ids_string, label: "Posts", as: :text, input_html: { value: @favorite_group.visible_post_ids.join(" ") } %>
   <% if policy(@favorite_group).can_enable_privacy? %>
     <%= f.input :is_private, label: "Private", as: :boolean, hint: "Don't allow others to view this favgroup." %>
   <% elsif @favorite_group.is_private? %>

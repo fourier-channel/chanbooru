@@ -17,6 +17,7 @@ class FavoriteGroup < ApplicationRecord
   validate :validate_can_enable_privacy
 
   array_attribute :post_ids, parse: /\d+/, cast: :to_i
+  include PostIdList # its post ids as each viewer may see them (2026-10-08)
 
   scope :is_public, -> { where(is_public: true) }
   scope :is_private, -> { where(is_public: false) }
@@ -43,6 +44,7 @@ class FavoriteGroup < ApplicationRecord
     end
 
     def search(params, current_user)
+      params = Post.searchable_post_id_params(params, current_user)
       q = search_attributes(params, [:id, :created_at, :updated_at, :name, :is_public, :post_ids, :creator], current_user: current_user)
 
       if params[:name_contains].present?
@@ -79,14 +81,17 @@ class FavoriteGroup < ApplicationRecord
   end
 
   def validate_number_of_posts
-    if post_count > 10_000
+    if post_ids.size > 10_000
       errors.add(:base, "Favorite groups can have up to 10,000 posts each")
     end
   end
 
   def validate_posts
     added_post_ids = post_ids - post_ids_was
-    existing_post_ids = Post.where(id: added_post_ids).pluck(:id)
+    # Fork: a post hidden from the editor is as invalid as a missing one, so
+    # the answer cannot tell them apart (Post.visible_ids_among, as its owner
+    # sees them).
+    existing_post_ids = Post.visible_ids_among(Post.where(id: added_post_ids).pluck(:id), creator)
     nonexisting_post_ids = added_post_ids - existing_post_ids
 
     if nonexisting_post_ids.present?
@@ -148,7 +153,9 @@ class FavoriteGroup < ApplicationRecord
 
   def posts
     favgroup_posts = FavoriteGroup.where(id: id).joins("CROSS JOIN unnest(favorite_groups.post_ids) WITH ORDINALITY AS row(post_id, favgroup_index)").select(:post_id, :favgroup_index)
-    Post.joins("JOIN (#{favgroup_posts.to_sql}) favgroup_posts ON favgroup_posts.post_id = posts.id").order("favgroup_posts.favgroup_index ASC")
+    posts = Post.joins("JOIN (#{favgroup_posts.to_sql}) favgroup_posts ON favgroup_posts.post_id = posts.id").order("favgroup_posts.favgroup_index ASC")
+    # Fork: only the posts that exist for the viewer (PostIdList).
+    (visible_post_ids.size == post_ids.size) ? posts : posts.where(id: visible_post_ids)
   end
 
   def add(post)
@@ -164,29 +171,29 @@ class FavoriteGroup < ApplicationRecord
   end
 
   def post_count
-    post_ids.size
+    visible_post_ids.size
   end
 
   def first_post?(post_id)
-    post_id == post_ids.first
+    post_id == visible_post_ids.first
   end
 
   def last_post?(post_id)
-    post_id == post_ids.last
+    post_id == visible_post_ids.last
   end
 
   def previous_post_id(post_id)
-    return nil if first_post?(post_id) || !contains?(post_id)
+    return nil if first_post?(post_id) || visible_post_ids.exclude?(post_id)
 
-    n = post_ids.index(post_id) - 1
-    post_ids[n]
+    n = visible_post_ids.index(post_id) - 1
+    visible_post_ids[n]
   end
 
   def next_post_id(post_id)
-    return nil if last_post?(post_id) || !contains?(post_id)
+    return nil if last_post?(post_id) || visible_post_ids.exclude?(post_id)
 
-    n = post_ids.index(post_id) + 1
-    post_ids[n]
+    n = visible_post_ids.index(post_id) + 1
+    visible_post_ids[n]
   end
 
   def last_page

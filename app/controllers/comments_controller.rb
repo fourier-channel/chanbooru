@@ -84,7 +84,9 @@ class CommentsController < ApplicationController
   private
 
   def index_for_post
-    @post = Post.find(params[:post_id])
+    # authorize below gets a Relation, which reject_hidden_post_record never
+    # asks: a hidden post's comment section answered here (2026-10-08).
+    @post = Post.find_visible!(params[:post_id])
     @comments = authorize @post.comments
     render action: "index_for_post"
   end

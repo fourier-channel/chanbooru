@@ -357,7 +357,14 @@ module ApplicationHelper
     if current_item.present? && current_item.respond_to?(:html_data_attributes) && current_item.respond_to?(:model_name)
       model_name = current_item.model_name.singular.dasherize
       model_attributes = current_item.html_data_attributes
-      data_attributes_for(current_item, model_name, model_attributes)
+      data = data_attributes_for(current_item, model_name, model_attributes)
+      return data unless current_item.is_a?(Post)
+
+      # Fork: a post page's relationship attributes as the viewer may be told
+      # them (Post#relationship_attributes_shown_to): data-post-parent-id
+      # named a hidden parent (second review, 2026-10-08).
+      shown = current_item.relationship_attributes_shown_to(CurrentUser.user).to_h { |attr, value| [:"#{model_name}-#{attr.to_s.dasherize}", value.nil? ? "null" : value] }
+      data.merge(shown.slice(*data.keys))
     else
       {}
     end

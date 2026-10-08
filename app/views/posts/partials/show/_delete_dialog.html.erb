@@ -4,7 +4,8 @@
   <%= edit_form_for(post, method: :delete, remote: true) do |f| %>
     <input type="hidden" name="commit" value="Delete">
     <%= f.input :reason, as: :string, input_html: { value: "", autofocus: true } %>
-    <% if post.parent_id.present? %>
+    <%# Fork: only a parent this moderator may be told of (Post#parent_id_shown_to, 2026-10-08). %>
+    <% if post.parent_id_shown_to(CurrentUser.user).present? %>
       <%= f.input :move_favorites, label: "Move favorites to parent", as: :boolean, input_html: { checked: false } %>
     <% end %>
   <% end %>

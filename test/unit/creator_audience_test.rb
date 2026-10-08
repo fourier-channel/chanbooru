@@ -44,7 +44,7 @@ class CreatorAudienceTest < ActiveSupport::TestCase
       assert_equal("public", @gallery.reload.default_audience)
     end
 
-    # Private is the creator alone (section 4): a group listed there would be
+    # No group opens private (Q9): a group listed there would be
     # stored, logged as granted, and do nothing.
     should "refuse groups under a private default, loudly" do
       assert_raises(ArgumentError) { @gallery.set_default_audience!("private", by: @maple, group_ids: [@tier.id]) }
@@ -99,7 +99,7 @@ class CreatorAudienceTest < ActiveSupport::TestCase
       assert_equal(0, CreatorAudienceGroup.count)
     end
 
-    # Inherit lists nothing of its own, and private is the creator alone: a
+    # Inherit lists nothing of its own, and no group opens private (Q9): a
     # group under either would be stored, logged as granted, and do nothing.
     should "refuse groups under inherit or private, loudly" do
       %w[inherit private].each do |audience|

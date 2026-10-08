@@ -5,6 +5,29 @@ class CommentVote < ApplicationRecord
   # members only (MembersOnly, ApplicationRecord.names_posts?).
   def self.names_posts? = true
 
+  # Fork: a vote names its post through the comment, which
+  # ApplicationRecord's write rule keyed on belongs_to :post cannot reach:
+  # voting on a comment of a post hidden from the voter answers as a missing
+  # comment does (Post#writable_by?, 2026-10-08).
+  def refuses_write_from?(user)
+    comment&.post.present? && comment.post.refuses_write_from?(user)
+  end
+
+  # And the read half, for the same reason: /comment_votes/:id, and the
+  # listings -- /comment_votes and /user_actions -- named every vote on a
+  # hidden post's comments (second review, 2026-10-08). Correlated through
+  # the comment, for the reason ApplicationRecord.without_hidden_posts gives.
+  def hidden_by_post_from?(user)
+    comment&.post.present? && comment.post.hidden_from?(user)
+  end
+
+  def self.without_hidden_posts(user)
+    hidden = Post.hidden_from(user)
+    return all if hidden.nil?
+
+    where.not(hidden.joins(:comments).where(Comment.arel_table[:id].eq(arel_table[:comment_id])).arel.exists)
+  end
+
   attr_accessor :updater
 
   belongs_to :comment

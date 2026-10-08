@@ -5,6 +5,23 @@ class MediaAsset < ApplicationRecord
   # members only (MembersOnly, ApplicationRecord.names_posts?).
   def self.names_posts? = true
 
+  # Fork: an asset whose post is hidden from the viewer (Post.hidden_from) is
+  # hidden with it. ApplicationRecord's rule keys on belongs_to :post; an
+  # asset names its post through the md5 instead, so /media_assets listed --
+  # and /media_assets/:id showed, with "Post #N", the sources and uploaders --
+  # the asset of a post whose own page was a 404 (review, 2026-10-08).
+  # Correlated, for the reason ApplicationRecord.without_hidden_posts gives.
+  def self.without_hidden_posts(user)
+    hidden = Post.hidden_from(user)
+    return all if hidden.nil?
+
+    where.not(hidden.where(Post.arel_table[:md5].eq(arel_table[:md5])).arel.exists)
+  end
+
+  def hidden_by_post_from?(user)
+    post.present? && post.hidden_from?(user)
+  end
+
   class Error < StandardError; end
 
   FILE_TYPES = %w[jpg png gif webp avif mp4 webm swf zip]

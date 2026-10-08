@@ -240,17 +240,27 @@ class PostQuery
   # them: rating:g under safe mode, and the gated tags a signed-out visitor may
   # not know exist.
   def implicit_metatags
-    safe_mode_metatags + gated_metatags + deleted_metatags + banished_metatags + creator_prefix_metatags
+    safe_mode_metatags + gated_metatags + deleted_metatags + banished_metatags + hidden_post_metatags
   end
 
-  # Posts under a creator prefix the list hides from this viewer
-  # (CreatorPrefixes visible_to; operator, 2026-10-07), excluded BY ID rather
-  # than by tag: measured on production, excluding two tags made an exact
-  # count of every post take 7.9s instead of 0.2s, past the count timeout,
-  # while excluding their 101 post ids cost 0.09s. As a metatag, so the count
-  # cache key carries it and one viewer's count is never served to another.
-  def creator_prefix_metatags
-    ids = CreatorPrefixes.hidden_post_ids_for(current_user)
+  # Posts hidden from this viewer BY ID, as ONE negated id term:
+  #
+  #   - under a creator prefix the list hides from them (CreatorPrefixes
+  #     visible_to; operator, 2026-10-07);
+  #   - hidden by their creator's panel (CreatorVisibility; design
+  #     CREATOR_VISIBILITY section 6, ruled 2026-10-07: excluded at QUERY
+  #     level, from results, the count, the paginator and the neighbours, as
+  #     gate 1 is).
+  #
+  # By id rather than by tag: measured on production, excluding two tags made
+  # an exact count of every post take 7.9s instead of 0.2s, past the count
+  # timeout, while excluding their 101 post ids cost 0.09s. One term rather
+  # than one per rule (fourier-sampling-c2's check, 2026-10-08): a post hidden
+  # for both reasons is listed once, and the planner sees one NOT IN. As a
+  # metatag, so the count cache key carries it and one viewer's count is never
+  # served to another. Both lists are computed once per request per viewer.
+  def hidden_post_metatags
+    ids = (CreatorPrefixes.hidden_post_ids_for(current_user) | CreatorVisibility.hidden_ids(current_user).to_a).sort
     ids.empty? ? [] : [-AST.metatag("id", ids.join(","))]
   end
 
@@ -430,5 +440,5 @@ class PostQuery
     end
   end
 
-  memoize :tags, :replace_aliases, :with_implicit_metatags, :to_cnf, :aliases, :implicit_metatags, :safe_mode_metatags, :gated_metatags, :deleted_metatags, :banished_metatags, :creator_prefix_metatags, :term_count
+  memoize :tags, :replace_aliases, :with_implicit_metatags, :to_cnf, :aliases, :implicit_metatags, :safe_mode_metatags, :gated_metatags, :deleted_metatags, :banished_metatags, :hidden_post_metatags, :term_count
 end

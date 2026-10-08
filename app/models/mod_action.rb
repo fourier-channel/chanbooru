@@ -23,7 +23,8 @@ class ModAction < ApplicationRecord
   # moderators, who see nothing a creator hid (Q2), are not shown who was
   # given that control either, nor whose account a creator page is unlinked
   # from -- nor how a creator's panel is set: who is in their groups, who is
-  # allowed or blocked, which posts are narrowed.
+  # allowed or blocked, which posts are narrowed -- nor that an admin opened
+  # one of those posts (Q2: every such view is logged, and it names the post).
   ADMIN_ONLY_CATEGORIES = %i[
     creator_visibility_update
     artist_claim_approve
@@ -37,6 +38,7 @@ class ModAction < ApplicationRecord
     creator_join_request_approve
     creator_join_request_reject
     creator_user_rule_update
+    creator_hidden_post_view
   ].freeze
 
   dtext_attribute :description, inline: true # defines :dtext_description
@@ -138,6 +140,7 @@ class ModAction < ApplicationRecord
     creator_join_request_approve: 1109, # CreatorJoinRequest#approve!
     creator_join_request_reject: 1110, # CreatorJoinRequest#reject!
     creator_user_rule_update: 1111, # a per-user allow or block set or cleared (CreatorUserRule)
+    creator_hidden_post_view: 1112, # an admin opened the page of a post its creator hid from them (PostsController#show, Q2)
   }
 
   normalizes :category, with: ->(category) { category.to_s.parameterize.underscore.presence }

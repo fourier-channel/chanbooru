@@ -702,6 +702,13 @@
         .then(r => r.ok ? r.json() : Promise.reject(r.status))
         .then(p => { cache.set(key, p); return p; });
     }
+    // Q2's log: an admin shown a post its creator hid from them is logged
+    // when the viewer SHOWS it, not when its payload is fetched (fetches run
+    // ahead for the neighbours and again after a vote). HEAD: the server
+    // writes the entry; nothing comes back but the status.
+    function noteOpened(p, search) {
+      if (p && p.logs_admin_view) fetch(endpointFor(p.id, search) + "&opened=1", { method: "HEAD", credentials: "same-origin" }).catch(() => {});
+    }
     function preloadNeighbours() {
       const a = active(); if (!a) return;
       ["prev", "next"].forEach(side => {
@@ -731,6 +738,7 @@
           root.classList.add(enter);
           renderAll();
           history.pushState({ modId: p.id }, "", p.url);
+          noteOpened(p, a.search);
           requestAnimationFrame(() => requestAnimationFrame(() => { root.classList.remove(enter); busy = false; preloadNeighbours(); }));
         }, 260);
       }).catch(() => { window.location.href = nb.url; }); // network failure: fall back to a real load
@@ -939,7 +947,7 @@
     window.addEventListener("popstate", () => {
       const m = location.pathname.match(/\/posts\/(\d+)/); if (!m) return;
       const search = new URLSearchParams(location.search).get("q") || "";
-      fetchPayload(+m[1], search).then(p => { cur = p; activeKey = p.active_key || activeKey; revealed = false; renderAll(); }).catch(() => {});
+      fetchPayload(+m[1], search).then(p => { cur = p; activeKey = p.active_key || activeKey; revealed = false; renderAll(); noteOpened(p, search); }).catch(() => {});
     });
 
     history.replaceState({ modId: cur.id }, "", cur.url);

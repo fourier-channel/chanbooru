@@ -88,8 +88,8 @@ class ModulationLandingComponent < ApplicationComponent
       # THE CREATOR LAMPS: which artists named on the page are active now
       # (CreatorActivity), and the window that means, so each creator pill is
       # lit right on first paint. creator_lamps.js re-reads it while the page
-      # is visible.
-      liveCreators: CreatorActivity.active(categories.flat_map { |c| c[:slides].filter_map { |s| s.dig(:creator, :tag) } }.uniq),
+      # is visible. For this viewer: a post hidden from them lights nothing.
+      liveCreators: CreatorActivity.active(categories.flat_map { |c| c[:slides].filter_map { |s| s.dig(:creator, :tag) } }.uniq, viewer: viewer),
       liveWindow: Danbooru.config.creator_active_window.to_i,
       # No periodic re-fetch. The carousel cycling three categories is what keeps
       # a page left open from becoming a fixed poster, and a background swap

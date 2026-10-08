@@ -46,7 +46,8 @@ class BulkUpdateRequest::Command::MassUpdate < BulkUpdateRequest::Command
 
   def self.mass_update(antecedent, consequent, user: User.system)
     CurrentUser.scoped(user) do
-      Post.anon_tag_match(antecedent).reorder(nil).parallel_find_each do |post|
+      # Every matching post, whoever may see it (Post.bulk_tag_match).
+      Post.bulk_tag_match(antecedent, User.anonymous).reorder(nil).parallel_find_each do |post|
         post.with_lock do
           post.tag_string += " #{consequent}"
           post.save

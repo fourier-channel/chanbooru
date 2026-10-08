@@ -274,13 +274,40 @@ class ApplicationController < ActionController::Base
     # on a read -- the commentary, a flag, a version of a jailed post answers
     # as the post's own page does, with the 404 a missing record gets
     # (Post#hidden_from?). Before the policy, so a hidden post's record can
-    # never answer 403 where a missing one answers 404. Reads only: writes
-    # carry their own policies, and the bots that jail a post still act on it.
+    # never answer 403 where a missing one answers 404.
+    #
+    # And on a WRITE: the post itself, or any row filed on one (a favorite, a
+    # vote, a comment), whose post the writer may not write to
+    # (Post#writable_by? -- the moderation tier still acts on deleted and
+    # jailed posts; nobody below admin on one its creator hid). Until
+    # 2026-10-08 writes were left to each door, and POST /favorites.json
+    # answered a creator-hidden post's whole JSON, md5 and source to any
+    # member who named its id.
+    #
+    # A write naming a post that does not exist answers the same 404
+    # (ApplicationRecord#names_missing_post?): it answered 500 or 422 at
+    # those doors, so the hidden post's 404 still told the two apart (second
+    # review, 2026-10-08).
+    #
+    # Except a member WITHDRAWING their own favorite or vote (a destroy of a
+    # row they filed while they could see the post): it discloses nothing
+    # they did not already know, and without it a post narrowed after the
+    # fact kept their name on it with no way to take it back. Those doors
+    # answer it with no content, so the answer carries nothing of the post --
+    # not its score, its favorite count or its comments, which the .js
+    # answers render.
     def reject_hidden_post_record(record)
-      return unless request.get? || request.head?
       return unless record.is_a?(ApplicationRecord)
 
-      raise ActiveRecord::RecordNotFound if record.hidden_by_post_from?(CurrentUser.user)
+      user = CurrentUser.user
+      if request.get? || request.head?
+        raise ActiveRecord::RecordNotFound if record.hidden_by_post_from?(user)
+
+        return
+      end
+      return if action_name == "destroy" && record.persisted? && [Favorite, PostVote, CommentVote].any? { |model| record.is_a?(model) } && record.user_id == user.id
+
+      raise ActiveRecord::RecordNotFound if record.refuses_write_from?(user) || record.names_missing_post?
     end
 
     # Checks the rate limit for the current controller action. Looks up the corresponding policy class and calls

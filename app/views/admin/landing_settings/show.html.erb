@@ -80,7 +80,7 @@
                 warning, because it does not error -- it finds nothing, and the
                 row silently loses that creator. %>
             <% categories_by_name = Tag.where(name: category.tags).pluck(:name, :category).to_h.transform_values { |c| TagCategory.reverse_mapping[c] } %>
-            <% live = CreatorActivity.active(category.tags.select { |t| categories_by_name[t] == "artist" }) %>
+            <% live = CreatorActivity.active(category.tags.select { |t| categories_by_name[t] == "artist" }, viewer: CurrentUser.user) %>
             <% missing = category.tags.reject { |t| categories_by_name.key?(t) } %>
             <div class="input landing-creators" data-landing-creators
                  data-live="<%= live.to_json %>" data-window="<%= Danbooru.config.creator_active_window.to_i %>">

@@ -12,6 +12,29 @@ class AITag < ApplicationRecord
   has_one :post, through: :media_asset
   has_one :aliased_tag, through: :tag
 
+  # Fork: an AI tag names its post through the media asset, which the rules
+  # keyed on belongs_to :post cannot reach (ApplicationRecord). So /ai_tags
+  # listed the autotagger's description of every post its creator hid, with
+  # the asset id, and PUT /ai_tags/:asset/:tag/tag wrote tags -- rating:,
+  # parent:, a banished tag -- onto one, for any member (second review,
+  # 2026-10-08). The listing is correlated, for the reason
+  # ApplicationRecord.without_hidden_posts gives, and joins on the md5 as
+  # MediaAsset.without_hidden_posts does.
+  def self.without_hidden_posts(user)
+    hidden = Post.hidden_from(user)
+    return all if hidden.nil?
+
+    where.not(hidden.joins("JOIN media_assets ON media_assets.md5 = posts.md5").where(MediaAsset.arel_table[:id].eq(arel_table[:media_asset_id])).arel.exists)
+  end
+
+  def hidden_by_post_from?(user)
+    post.present? && post.hidden_from?(user)
+  end
+
+  def refuses_write_from?(user)
+    post.present? && post.refuses_write_from?(user)
+  end
+
   validates :score, inclusion: { in: (0..100) }
 
   scope :deprecated, -> { where(tag: Tag.deprecated) }

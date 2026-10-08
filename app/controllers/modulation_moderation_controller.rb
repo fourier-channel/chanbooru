@@ -35,7 +35,10 @@ class ModulationModerationController < ApplicationController
   respond_to :json
 
   def update
-    post = Post.find(params[:post_id])
+    # find_writable!: the pill jails and deletes posts the moderator cannot
+    # see, but never one its creator hid from them, whose state it would
+    # otherwise report (Q2, 2026-10-08).
+    post = Post.find_writable!(params[:post_id])
     authorize post, :moderate? # an unbanned approver; PostPolicy#moderate? says why not delete?
     jail_tag = Danbooru.config.troll_jail_tag
 
