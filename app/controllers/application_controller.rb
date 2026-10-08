@@ -16,6 +16,10 @@ class ApplicationController < ActionController::Base
   before_action :check_get_body
   before_action :reset_current_user
   before_action :set_current_user
+  # Default-deny for a signed-out viewer (MembersOnly::ANONYMOUS_DOORS): the
+  # first thing after the user is loaded, so no later filter or action can
+  # answer a signed-out viewer before the list is asked.
+  before_action :refuse_anonymous_off_the_list
   # Retired sections 404 as early as possible, but AFTER set_current_user --
   # the owner exemption is unanswerable before the user is loaded.
   before_action :reject_retired_section
@@ -136,6 +140,12 @@ class ApplicationController < ActionController::Base
   end
 
   protected
+
+  # Fork: a signed-out viewer is refused everything not on
+  # MembersOnly::ANONYMOUS_DOORS. The list and the rule are there.
+  def refuse_anonymous_off_the_list
+    MembersOnly.admit!(self)
+  end
 
   def add_headers
     response.headers["Access-Control-Allow-Origin"] = "*"

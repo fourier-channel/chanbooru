@@ -23,7 +23,10 @@ class LandingController < ApplicationController
       redirect_to(posts_path) and return
     end
 
-    @categories = showcase.categories
+    # A signed-out viewer gets the day's fixed set and no refresh to pull a
+    # new one (LandingShowcase.anonymous_categories; MembersOnly default-deny).
+    @fixed_set = MembersOnly.default_deny? && MembersOnly.signed_out?(CurrentUser.user, request)
+    @categories = @fixed_set ? LandingShowcase.anonymous_categories(safe_mode: CurrentUser.safe_mode?) : showcase.categories
     @promoted = CreatorGallery.landing_promoted.to_a
     @preference = cookies[PREFERENCE_COOKIE].to_s
   end

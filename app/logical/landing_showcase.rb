@@ -31,6 +31,38 @@ class LandingShowcase
     @viewer = viewer
   end
 
+  # THE SIGNED-OUT SET: ONE PER DAY (MembersOnly default-deny, 2026-10-07).
+  #
+  # A row on "random", and every row the refresh job redraws, is a fresh draw
+  # on each render -- so reloading the front page, or polling
+  # /landing/slides.json, walked the booru ten posts at a time
+  # (/landing/slides answered a new set per call on production that day). A
+  # signed-out viewer gets ONE set per UTC day, the same for all of them,
+  # computed by the first of them to ask; a member's front page is as live
+  # as before. The set is also what a signed-out viewer's post pages may open
+  # (MembersOnly.anonymous_shown_post), so a slide clicked always opens.
+  ANONYMOUS_SET_TTL = 26.hours
+
+  def self.anonymous_key(safe_mode, now = Time.now)
+    ["landing_showcase", "anonymous", now.utc.to_date.iso8601, safe_mode ? "safe" : "all"]
+  end
+
+  #
+  # The creator credit carries no link in this set: it points at the
+  # creator's tag search (or, for an untagged post, the uploader's page), and
+  # neither is open to a signed-out viewer. The pill still names them.
+  def self.anonymous_categories(safe_mode:)
+    Rails.cache.fetch(anonymous_key(safe_mode), expires_in: ANONYMOUS_SET_TTL) do
+      new(viewer: User.anonymous).categories.map do |category|
+        category.merge(slides: category[:slides].map { |slide| slide[:creator] ? slide.merge(creator: slide[:creator].merge(url: nil)) : slide })
+      end
+    end
+  end
+
+  def self.anonymous_post_ids(safe_mode:)
+    anonymous_categories(safe_mode: safe_mode).flat_map { |c| c[:slides].map { |s| s[:id] } }.grep(Integer).to_set
+  end
+
   # @return [Array<Hash>] one entry per category: { key:, label:, slides: [...] }.
   #   Categories with nothing to show are dropped rather than rendered empty --
   #   a segment that switches to a blank panel is worse than one that is absent.

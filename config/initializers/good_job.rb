@@ -30,8 +30,20 @@ ActiveSupport.on_load(:good_job_application_controller) do
   helper UsersHelper
 
   before_action :set_current_user
+  # Fork: the default-deny list (MembersOnly::ANONYMOUS_DOORS) holds here too.
+  # This controller does not inherit ApplicationController, so it would
+  # otherwise be the one place a signed-out viewer met upstream's answer.
+  before_action { MembersOnly.admit!(self) }
   before_action :authorize_user
   rescue_from Exception, with: :rescue_exception
+
+  # Fork: the error page in the blank layout. The default layout asks helpers
+  # only ApplicationController has (modulation?, from ExperiencePreset), so
+  # every refusal here rendered as a 500 instead -- measured on production
+  # 2026-10-07: a signed-out GET /good_job answered 500.
+  def render_error_page(status, exception = nil, **options)
+    super(status, exception, **options, layout: "blank")
+  end
 
   def authorize_user
     authorize(self, :can_view_good_job_dashboard?, policy_class: BackgroundJobPolicy)
@@ -39,5 +51,26 @@ ActiveSupport.on_load(:good_job_application_controller) do
 
   def current_user
     CurrentUser.user
+  end
+end
+
+# Fork: the dashboard's own static files (GoodJob::FrontendsController, which
+# inherits ActionController::Base, not the controller above) are behind the
+# default-deny list too. They are the gem's bootstrap and chart scripts and
+# hold no data -- but "refused everywhere except the list" has no exception
+# for harmless, or the next one will be argued the same way.
+#
+# to_prepare, so a reloaded class is patched again; the mark keeps a class
+# that was NOT reloaded from collecting the filters twice.
+Rails.application.config.to_prepare do
+  next if GoodJob::FrontendsController.instance_variable_get(:@fourier_default_deny)
+
+  GoodJob::FrontendsController.instance_variable_set(:@fourier_default_deny, true)
+  GoodJob::FrontendsController.class_eval do
+    include ApplicationController::AuthenticationMethods
+
+    before_action :set_current_user
+    before_action { MembersOnly.admit!(self) }
+    rescue_from(ActiveRecord::RecordNotFound) { head :not_found }
   end
 end

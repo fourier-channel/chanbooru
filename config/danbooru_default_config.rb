@@ -800,6 +800,22 @@ module Danbooru
       !Rails.env.test?
     end
 
+    # DEFAULT-DENY for a signed-out viewer (operator, 2026-10-07: "I'm trying
+    # to solidify the view surfaces and keep finding new ways for danbooru to
+    # show every single post to whoever bothered to ask."). With this on, a
+    # viewer with no booru session, no API key and no verified Matrix identity
+    # is refused EVERY controller action except the ones on
+    # MembersOnly::ANONYMOUS_DOORS, one list with a reason per entry. A route
+    # added later is therefore closed until someone opens it on purpose. A
+    # signed-in viewer is untouched. See MembersOnly for the list and the rule.
+    #
+    # Off under test (the fork restriction pattern): the inherited suite asks
+    # hundreds of pages signed out and asserts upstream's answer.
+    # anonymous_default_deny_test stubs it on and walks the whole routes table.
+    def anonymous_default_deny?
+      !Rails.env.test?
+    end
+
     # The booru accounts that post ON SOMEONE ELSE'S BEHALF, by the names they
     # have on production (read 2026-09-29): `sample`, fourier-sampling's, and
     # `tunnel`, fourier-tunnel's. Matched on the account name,

@@ -6,4 +6,5 @@
       promoted: @promoted,
       preference: @preference,
       viewer: CurrentUser.user,
+      refreshes: !@fixed_set,
   settings: ModulationSetting.for_viewer(CurrentUser.user, session)) %>

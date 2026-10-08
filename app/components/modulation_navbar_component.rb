@@ -50,15 +50,18 @@ class ModulationNavbarComponent < NavbarComponent
     # FourierRetiredSections. Dropping them from this list is the cosmetic half;
     # the concern is the half that closes the door.
     list << { label: "Posts", href: main_app.posts_path, category: "general" }
-    list << { label: "Creators", href: main_app.artists_path, category: "artist" }
-    list << { label: "Tags", href: main_app.tags_path, category: "general" }
+    # Offered only where the door is open: a signed-out viewer is refused
+    # everything off MembersOnly::ANONYMOUS_DOORS, and a pill that answers
+    # "not found" is a pill that should not be there.
+    list << { label: "Creators", href: main_app.artists_path, category: "artist" } if offers?("artists#index")
+    list << { label: "Tags", href: main_app.tags_path, category: "general" } if offers?("tags#index")
     # The pool gallery is a listing of posts, members only (MembersOnly): a
     # signed-out visitor is not offered a pill that answers "not found".
     list << { label: "Pools", href: main_app.gallery_pools_path, category: "general" } if MembersOnly.sees_post_listings?(current_user)
     # The wiki INDEX, not help:home. That page does not exist in this database
     # and the pill 404d in production -- a top-level nav item leading nowhere.
     # The help corpus was never written; the wiki itself works.
-    list << { label: "Wiki", href: main_app.wiki_pages_path, category: "general" }
+    list << { label: "Wiki", href: main_app.wiki_pages_path, category: "general" } if offers?("wiki_pages#index")
 
     # The sampling curation surface, published inside this site at /sample
     # (operator ruling 2026-09-13) so it inherits the booru's authentication.
@@ -87,8 +90,12 @@ class ModulationNavbarComponent < NavbarComponent
       list << { label: "Dashboard", href: main_app.moderator_dashboard_path, category: "meta" }
     end
 
-    list << { label: "More", href: main_app.site_map_path, category: "general" }
+    list << { label: "More", href: main_app.site_map_path, category: "general" } if offers?("static#site_map")
     list
+  end
+
+  def offers?(door)
+    MembersOnly.offers?(current_user, helpers.request, door)
   end
 
   def current?(entry)

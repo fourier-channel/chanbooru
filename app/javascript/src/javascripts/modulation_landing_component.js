@@ -71,7 +71,10 @@ function initLanding(root) {
   function artistPill(creator) {
     const pill = document.createElement("a");
     pill.className = "mod-pill mod-pill--cat mod-pill--cat-artist";
-    pill.href = creator.url;
+    // No url for a signed-out viewer (LandingShowcase.anonymous_categories):
+    // the pill names the creator and goes nowhere, rather than to a search
+    // that would answer "not found".
+    if (creator.url) { pill.href = creator.url; }
     pill.dataset.tag = creator.tag;
     const dot = document.createElement("span");
     dot.className = "mod-pill-dot";

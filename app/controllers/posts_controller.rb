@@ -31,6 +31,11 @@ class PostsController < ApplicationController
       redirect_to posts_path(tags: query, page: params[:page], limit: params[:limit], format: request.format.symbol)
     else
       @posts = authorize post_set.posts, policy_class: PostPolicy
+      # Fork: what the gallery showed a signed-out viewer is what their post
+      # pages may open (MembersOnly.anonymous_shown_post). The newest posts
+      # only: an md5 ask (fourier-auth's) names a file the caller already
+      # had, and must not turn into a post page for whoever asked.
+      MembersOnly.remember_anonymous_listing(@posts.map(&:id), safe_mode: CurrentUser.safe_mode?) if anonymous_gated? && post_set.tag_string.blank?
       @preview_size = params[:size].presence || cookies[:post_preview_size].presence || PostGalleryComponent::DEFAULT_SIZE
       raise PageRemovedError if request.format.html? && post_set.banned_artist?
 
@@ -193,6 +198,11 @@ class PostsController < ApplicationController
     end
   end
 
+  # Is this request a signed-out viewer under the default-deny rule?
+  def anonymous_gated?
+    MembersOnly.default_deny? && MembersOnly.signed_out?(CurrentUser.user, request)
+  end
+
   def post_set
     @post_set ||= begin
       tag_query = params[:tags] || params.dig(:post, :tags)
@@ -211,6 +221,10 @@ class PostsController < ApplicationController
   # exactly what it asked.
   def apply_modulation_panel_memory(tag_query)
     return tag_query unless request.format.html? && modulation? && action_name == "index" && params[:random].blank?
+    # A signed-out viewer's gallery is the newest posts and nothing else
+    # (MembersOnly.anonymous_post_listing): a sort remembered in their session
+    # would be a query by another name.
+    return tag_query if anonymous_gated?
 
     ModulationSetting.record!(CurrentUser.user, session, { "gallery_sort" => "" }) if params[:sort_reset].present?
 
