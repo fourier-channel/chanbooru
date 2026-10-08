@@ -65,6 +65,10 @@ class ModulationLandingComponent < ApplicationComponent
       # server-side on that cadence; asking more often than that gets the same
       # answer, and asking less often means a draw nobody ever sees.
       refreshMs: LandingShowcaseCache::REFRESH_EVERY.to_i * 1_000,
+      # The credit line's phrase and its weights, from the ONE list the post
+      # page's title uses (TagSetPresenter::CREDIT_PHRASES). The browser rolls
+      # it each time a slide takes the focus: no request, no second list.
+      creditPhrases: TagSetPresenter::CREDIT_PHRASES,
       # The whole set travels to the client: every axis has to be renderable at
       # any position, including the ones not on screen, because that is what
       # "up from image X lands on image X" means.

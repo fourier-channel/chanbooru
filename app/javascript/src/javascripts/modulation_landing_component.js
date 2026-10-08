@@ -558,6 +558,30 @@ function initLanding(root) {
     return xs;
   }
 
+  // The credit's phrase: "Created by" most of the time, rarely one of the
+  // others (operator, 2026-10-08), from the server's one list and weights
+  // (cfg.creditPhrases, TagSetPresenter::CREDIT_PHRASES). Rolled HERE, in the
+  // browser, once each time a slide takes the focus -- render() runs on every
+  // resize and swap, and a phrase re-rolled on each would flicker under the
+  // reader. A slide that leaves the focus and comes back rolls again.
+  const creditPhrases = Array.isArray(cfg.creditPhrases) && cfg.creditPhrases.length ? cfg.creditPhrases : [["created by", 1]];
+  const creditTotal = creditPhrases.reduce((sum, [, w]) => sum + w, 0);
+  let creditShownFor = null;
+  let creditShown = creditPhrases[0][0];
+  function rollCredit() {
+    let roll = Math.random() * creditTotal;
+    for (const [phrase, weight] of creditPhrases) {
+      if (roll < weight) { return phrase; }
+      roll -= weight;
+    }
+    return creditPhrases[0][0];
+  }
+  function creditPhraseFor(slide) {
+    const key = `${axis}:${slide.id}`;
+    if (key !== creditShownFor) { creditShownFor = key; creditShown = rollCredit(); }
+    return creditShown.charAt(0).toUpperCase() + creditShown.slice(1);
+  }
+
   function renderCredit(slide) {
     const el = region("credit");
     if (!el) { return; }
@@ -571,7 +595,7 @@ function initLanding(root) {
     const parts = [];
     if (creator) {
       const who = slide.creator.tag ? artistPill(slide.creator).outerHTML : `<span class="modland-credit-creator">${esc(creator)}</span>`;
-      parts.push(`Created by ${who}`);
+      parts.push(`${esc(creditPhraseFor(slide))} ${who}`);
     }
     if (platform) {
       // The slug rides on the element so a per-site logo is later a rule per

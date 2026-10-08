@@ -44,6 +44,18 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
         assert(slides.any? { it.dig("creator", "name").present? }, "no slide named a creator")
       end
 
+      # The credit line's phrase is rolled in the browser from the post title's
+      # own list (TagSetPresenter::CREDIT_PHRASES), so the page must carry that
+      # list and those weights -- not a copy that can drift from them.
+      should "carry the credit phrases and their weights, from the post title's list" do
+        get root_path
+
+        config = JSON.parse(css_select(".modland").first["data-config"])
+
+        assert_equal(TagSetPresenter::CREDIT_PHRASES, config["creditPhrases"])
+        assert_equal(100, config["creditPhrases"].sum { it[1] })
+      end
+
       # The blacklist matches on ELEMENTS. The carousel draws from the payload,
       # so every slide also exists as a hidden element for the blacklist to mark
       # -- without it the filter simply would not apply to this page.
