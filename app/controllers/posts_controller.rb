@@ -32,10 +32,11 @@ class PostsController < ApplicationController
     else
       @posts = authorize post_set.posts, policy_class: PostPolicy
       # Fork: what the gallery showed a signed-out viewer is what their post
-      # pages may open (MembersOnly.anonymous_shown_post). The newest posts
-      # only: an md5 ask (fourier-auth's) names a file the caller already
-      # had, and must not turn into a post page for whoever asked.
-      MembersOnly.remember_anonymous_listing(@posts.map(&:id), safe_mode: CurrentUser.safe_mode?) if anonymous_gated? && post_set.tag_string.blank?
+      # pages may open (MembersOnly.anonymous_shown_post). The html gallery
+      # only -- the newest posts, or a featured creator's page: an md5 ask
+      # (fourier-auth's, json) names a file the caller already had, and must
+      # not turn into a post page for whoever asked.
+      MembersOnly.remember_shown_to_anonymous(@posts.map(&:id), safe_mode: CurrentUser.safe_mode?) if anonymous_gated? && request.format.html?
       @preview_size = params[:size].presence || cookies[:post_preview_size].presence || PostGalleryComponent::DEFAULT_SIZE
       raise PageRemovedError if request.format.html? && post_set.banned_artist?
 

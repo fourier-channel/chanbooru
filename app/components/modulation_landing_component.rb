@@ -20,12 +20,8 @@ class ModulationLandingComponent < ApplicationComponent
   # `settings` is the viewer's Modulation view state (ModulationSetting.for_viewer);
   # the landing page reads one key of it, hero_band, and renders the band
   # already maximised so a remembered choice does not flash into place.
-  # `refreshes` is false for a signed-out viewer, whose set is fixed for the
-  # day (LandingShowcase.anonymous_categories): the page is then given no
-  # slides URL to poll, and /landing/slides is not open to them anyway.
-  def initialize(categories:, promoted: [], preference: nil, viewer: nil, settings: nil, refreshes: true)
+  def initialize(categories:, promoted: [], preference: nil, viewer: nil, settings: nil)
     super
-    @refreshes = refreshes
     @categories = categories.to_a
     @promoted = promoted.to_a
     @preference = preference.to_s
@@ -63,7 +59,7 @@ class ModulationLandingComponent < ApplicationComponent
   # than as a dozen data attributes.
   def config
     {
-      slidesUrl: (@refreshes ? routes.landing_slides_path(format: :json) : nil),
+      slidesUrl: routes.landing_slides_path(format: :json),
       # How often the page pulls a fresh set, FROM THE SAME CONSTANT the
       # scheduler and the staleness check read. A row on "random" is redrawn
       # server-side on that cadence; asking more often than that gets the same

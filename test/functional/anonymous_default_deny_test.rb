@@ -112,6 +112,11 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
 
   def matrix(mxid = "@reader:41chan.net") = { "X-Fourier-Identity" => mxid }
 
+  # The post ids a front-page answer (/landing/slides.json) carries.
+  def slide_ids(body = response.parsed_body)
+    body["categories"].flat_map { |c| c["slides"].pluck("id") }
+  end
+
   # The GET walk as whoever this session is, for comparing the rule on and
   # off. Post-shaped paths get a real post so the comparison is not 404
   # against 404 throughout.
@@ -243,24 +248,96 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
       @newest = Array.new(21) { create(:post, md5: SecureRandom.hex(16)) }.last
     end
 
-    should "serve the front page with no fresh set to poll, and refuse /landing/slides" do
+    # The front page is the anonymous draw ON PURPOSE (operator, 2026-10-08:
+    # "The landing carousel was the Anonymous draw, purposely. It let me
+    # choose creators to show off without opening the whole booru."). Its
+    # scope is the operator's own choice of rows, so it is live for a
+    # signed-out viewer exactly as for a member.
+    should "serve the front page live, with /landing/slides to poll" do
       assert_admitted root_path
-      assert_no_match(%r{landing/slides}, response.body)
-      assert_refused "/landing/slides.json"
+      assert_match(%r{landing/slides}, response.body)
+      assert_admitted "/landing/slides.json"
+      first = slide_ids
+      assert(first.any?, "the showcase drew nothing, so this proves nothing")
+
+      later = create(:post, md5: SecureRandom.hex(16), fav_count: 1_000)
+      assert_admitted "/landing/slides.json"
+      assert_includes(slide_ids, later.id, "a signed-out draw must be live, not frozen")
     end
 
-    should "give every signed-out visitor the same front-page set all day" do
-      first = LandingShowcase.anonymous_categories(safe_mode: false)
-      assert(first.any?, "the showcase drew nothing, so this proves nothing")
-      later = create(:post, md5: SecureRandom.hex(16))
-      live = LandingShowcase.new(viewer: User.anonymous).categories
-      assert_includes(live.flat_map { |c| c[:slides].pluck(:id) }, later.id, "a live draw should see the new post")
-      assert_equal(first, LandingShowcase.anonymous_categories(safe_mode: false), "a second ask the same day drew again")
-      assert_not_includes(LandingShowcase.anonymous_post_ids(safe_mode: false), later.id)
-      assert(first.flat_map { |c| c[:slides] }.all? { |slide| slide[:creator].nil? || slide[:creator][:url].nil? }, "a creator credit links to a door that is closed")
+    should "open a slide's post page only once a signed-out viewer was served it" do
+      # Top of Community Favorites, and too old for the gallery's first page
+      # (which is newest by id: twenty-one posts came after it).
+      favourite = @old
+      favourite.update_columns(fav_count: 1_000)
+      assert_refused post_path(favourite), why: :narrowed
+      assert_refused "/posts/#{favourite.id}/modulation.json", why: :narrowed
 
-      travel 1.day do
-        assert_includes(LandingShowcase.anonymous_post_ids(safe_mode: false), later.id, "the next day draws again")
+      assert_admitted "/landing/slides.json"
+      assert_includes(slide_ids, favourite.id)
+      assert_admitted post_path(favourite)
+      assert_admitted "/posts/#{favourite.id}/modulation.json"
+    end
+
+    should "open the front page's own slides from the page, not only from the poll" do
+      favourite = @old
+      favourite.update_columns(fav_count: 1_000)
+      assert_refused post_path(favourite), why: :narrowed
+      assert_admitted root_path
+      assert_admitted post_path(favourite)
+    end
+
+    context "with a featured creators row" do
+      setup do
+        @artist = create(:tag, name: "featured_maker", category: Tag.categories.artist)
+        create(:tag, name: "unfeatured_maker", category: Tag.categories.artist)
+        LandingCategory.create!(key: "featured", label: "Featured Creators", enabled: true, position: 0,
+                                kind: "tags", tags: ["featured_maker"], ordering: "new", fresh_only: false)
+        # Twelve by the featured creator, all older than the gallery's first
+        # page; the row shows ten of them, the tag page all twelve.
+        @made = Array.new(12) { |i| create(:post, tag_string: "featured_maker", created_at: (10 + i).days.ago, md5: SecureRandom.hex(16)) }
+        create(:post, tag_string: "unfeatured_maker", created_at: 9.days.ago, md5: SecureRandom.hex(16))
+        # The gallery's first page is newest by id: push these off it.
+        21.times { create(:post, md5: SecureRandom.hex(16)) }
+      end
+
+      should "link a featured creator's pill and leave every other pill unlinked" do
+        assert_admitted "/landing/slides.json"
+        creators = response.parsed_body["categories"].flat_map { |c| c["slides"].pluck("creator") }.compact
+        featured = creators.select { |c| c["tag"] == "featured_maker" }
+        assert(featured.any?, "the featured row drew nothing")
+        assert(featured.all? { |c| c["url"] == posts_path(tags: "featured_maker") }, featured.inspect)
+        others = creators.reject { |c| c["tag"] == "featured_maker" }
+        assert(others.any?, "no other pill to check")
+        assert(others.all? { |c| c["url"].nil? }, others.inspect)
+
+        login_as(create(:user))
+        get "/landing/slides.json"
+        member = response.parsed_body["categories"].flat_map { |c| c["slides"].pluck("creator") }.compact
+        assert(member.reject { |c| c["tag"] == "featured_maker" }.all? { |c| c["url"].present? }, "a member's pills lost their links")
+      end
+
+      should "open a featured creator's tag page 1 and nothing else" do
+        assert_admitted "#{posts_path}?tags=featured_maker"
+        ["tags=featured_maker&page=2", "tags=featured_maker+1girl", "tags=featured_maker+order:random",
+         "tags=unfeatured_maker", "tags=featured_maker&page=b#{@made.first.id}", "tags=-featured_maker"].each do |query|
+          assert_refused "#{posts_path}?#{query}", why: :narrowed
+        end
+        assert_refused "/posts.json?tags=featured_maker", why: :narrowed
+        assert_refused "/posts.atom?tags=featured_maker", why: :wrong_format
+      end
+
+      should "open the posts on a featured creator's page once it was shown" do
+        oldest = @made.last
+        assert_refused post_path(oldest), why: :narrowed
+        get "#{posts_path}?tags=featured_maker"
+        assert_response 200
+        assert_admitted post_path(oldest)
+      end
+
+      should "close a creator's page again when the row is disabled" do
+        LandingCategory.find_by!(key: "featured").update!(enabled: false)
+        assert_refused "#{posts_path}?tags=featured_maker", why: :narrowed
       end
     end
 
@@ -321,9 +398,25 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
       get "/posts.json", params: { tags: "md5:#{@old.md5},#{@newest.md5}", only: "md5,is_deleted,source", limit: 2 }
       assert_response 200
       assert_equal([@old.md5, @newest.md5].sort, response.parsed_body.pluck("md5").sort)
+      assert_equal(%w[is_deleted md5 source], response.parsed_body.flat_map(&:keys).uniq.sort)
       # Asking for it by md5 does not make the old post's page one the site
       # showed a signed-out viewer.
       assert_refused post_path(@old), why: :narrowed
+    end
+
+    # An md5 is not a secret (4chan's archives publish one for every image),
+    # so an md5 ask that could choose its own fields would read any post's
+    # tags twenty at a time. It is fourier-auth's ask, field for field, or
+    # nothing (booru-visibility.js: only=md5,is_deleted,source).
+    should "refuse an md5 ask for anything but fourier-auth's three fields" do
+      md5s = "md5:#{@old.md5},#{@newest.md5}"
+      [{ only: "id,tag_string" }, { only: "md5,is_deleted,source,tag_string" }, { only: "md5" }, {},
+       { only: "md5,is_deleted,source", search: { id: 1 } }, { only: "md5,is_deleted,source", includes: "uploader" },
+       { only: "md5,is_deleted,source[tag_string]" }].each do |extra|
+        query = { tags: md5s, limit: 2 }.merge(extra).to_query
+        assert_refused "/posts.json?#{query}", why: :narrowed
+      end
+      assert_admitted "/posts.json?#{{ tags: md5s, only: "source,md5,is_deleted" }.to_query}"
     end
 
     should "open a post page only for a post the site showed a signed-out viewer" do

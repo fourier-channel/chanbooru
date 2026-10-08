@@ -96,16 +96,18 @@ module MembersOnly
   # NARROWED DOORS. Three pages a signed-out viewer needs would enumerate the
   # booru if they were simply open; each names the rule that narrows it:
   #
-  #   :anonymous_post_listing  /posts is the newest posts and nothing else.
+  #   :anonymous_post_listing  /posts is the newest posts, or one featured
+  #                            creator's page 1, and nothing else.
   #   :anonymous_shown_post    a post's page only for a post the site has
-  #                            shown a signed-out viewer (anonymous_shown_post_ids).
+  #                            shown a signed-out viewer (anonymous_shown_post?).
   #   :anonymous_promoted_gallery  a creator's page only while the landing page
   #                            promotes it.
   #
   # The list, top to bottom. "Who calls it" is the reason the door exists.
   ANONYMOUS_DOORS = {
     # --- the front page ------------------------------------------------------
-    "landing#show" => { formats: %i[html], why: "the front page, and the Open Graph tags a link unfurler (Discordbot) reads; its showcase is one fixed set per day for a signed-out viewer (LandingShowcase.anonymous_categories)" },
+    "landing#show" => { formats: %i[html], why: "the front page, and the Open Graph tags a link unfurler (Discordbot) reads; its carousel is the live anonymous draw, on purpose (operator, 2026-10-08)" },
+    "landing#slides" => { formats: %i[json], why: "the front page's 5-minute fresh draw. Operator, 2026-10-08: \"The landing carousel was the Anonymous draw, purposely. It let me choose creators to show off without opening the whole booru.\" Its scope is the rows the operator configured" },
     "landing#preference" => { formats: %i[html], why: "the front page's 'Skip this next time' form; sets a cookie on this browser and redirects, names nothing" },
     "creator_galleries#show" => { formats: %i[html], narrow: :anonymous_promoted_gallery, why: "the front page's Promoted Creators section links each promoted creator's page" },
     "modulation#creator_activity" => { formats: %i[json], why: "creator_lamps.js re-reads the activity lamps on the front page's creator pills; booleans for names the caller sent" },
@@ -219,17 +221,27 @@ module MembersOnly
   #
   # What a signed-out viewer may pass, exactly:
   #   - no tags at all (`tags`, `post[tags]` blank) -- the newest posts;
+  #   - in html ONLY, `tags=<one tag>` where that tag is on an ENABLED
+  #     landing row's tag list (anonymous_featured_tags): the page a featured
+  #     creator's pill on the front page links to. One term, nothing else --
+  #     the rows are the operator's choice of what to show off (2026-10-08);
   #   - page blank or 1; limit (clamped to restricted_browsing_per_page as
   #     for anyone below the browsing tier); size, show_votes, variant;
   #   - in json ONLY, `tags=md5:<32 hex>[,<32 hex>...]` (up to the 20 rows a
-  #     restricted page holds) and no other term: fourier-auth's
-  #     media gate asks exactly that, anonymously, before every picture it
-  #     releases, and treats any non-200 as "booru unavailable" -- refusing
-  #     it would black out every picture for everyone. An md5 is not
-  #     enumerable the way an id is: it names one file the caller already has.
+  #     restricted page holds, fourier-auth's MAX_BATCH) with
+  #     `only=md5,is_deleted,source` and `limit`, and NO other parameter:
+  #     fourier-auth's media gate asks exactly that, anonymously, before
+  #     every picture it releases (booru-visibility.js), and treats any
+  #     non-200 as "booru unavailable" -- refusing it would black out every
+  #     picture for everyone. The fields are PINNED because an md5 is not a
+  #     secret: 4chan's archives publish one for every image, so an md5 ask
+  #     free to pick its own `only=` read any post's tags twenty at a time.
+  #     The three fields say only "a post the asker may see holds this file".
   # Not `md5=` (a redirect to the post page), not `random=`. The Modulation
   # panel's remembered sort is not applied for them either (PostsController).
   ANONYMOUS_MD5_QUERY = /\Amd5:[0-9a-f]{32}(,[0-9a-f]{32}){0,19}\z/i
+  ANONYMOUS_MD5_FIELDS = %w[is_deleted md5 source].freeze
+  ANONYMOUS_MD5_PARAMS = %w[tags only limit].freeze
 
   def anonymous_post_listing(controller)
     params = controller.params
@@ -239,12 +251,52 @@ module MembersOnly
     return false if params[:md5].present? || params[:random].present?
     return true if tags.empty?
 
-    request_format(controller.request) == :json && tags.match?(ANONYMOUS_MD5_QUERY)
+    case request_format(controller.request)
+    when :json then anonymous_md5_ask?(controller.request, tags)
+    when :html then anonymous_featured_tags.include?(tags)
+    else false
+    end
   end
 
-  # A post's page for a post the site has shown a signed-out viewer: on the
-  # gallery's first page within the last hour or two, in today's front-page
-  # set, or in a promoted creator's curated set. Walking /posts/1, /posts/2...
+  def anonymous_md5_ask?(request, tags)
+    query = request.query_parameters
+    tags.match?(ANONYMOUS_MD5_QUERY) &&
+      (query.keys - ANONYMOUS_MD5_PARAMS).empty? &&
+      query["only"].is_a?(String) && query["only"].split(",").sort == ANONYMOUS_MD5_FIELDS
+  end
+
+  # Every tag on an enabled landing row's list: today the Featured
+  # Creators. Read fresh, so disabling a row closes its pages at once.
+  def anonymous_featured_tags
+    LandingCategory.configured.select { |row| row.enabled? && row.kind == "tags" }.flat_map(&:tags).to_set
+  end
+
+  # THE FRONT PAGE, AS SERVED TO A SIGNED-OUT VIEWER (LandingController).
+  # The draw itself is the members' draw (operator, 2026-10-08). Two things
+  # change on the way out: what was served is remembered, so a slide clicked
+  # opens its post (the same record the gallery's first page writes), and a
+  # creator's link is kept only where it leads to a door open to them -- a
+  # featured creator's tag page. Any other credit (another artist's search,
+  # an uploader's page) is sent without a url and draws as an unlinked pill.
+  def anonymous_landing(categories, safe_mode:)
+    featured = anonymous_featured_tags
+    remember_shown_to_anonymous(categories.flat_map { |c| c[:slides].map { |slide| slide[:id] } }.grep(Integer), safe_mode: safe_mode)
+
+    categories.map do |category|
+      slides = category[:slides].map do |slide|
+        creator = slide[:creator]
+        next slide if creator.nil? || (creator[:tag].present? && featured.include?(creator[:tag]))
+
+        slide.merge(creator: creator.merge(url: nil))
+      end
+      category.merge(slides: slides)
+    end
+  end
+
+  # A post's page for a post the site has shown a signed-out viewer: on a
+  # gallery page or a front-page draw served to one within the last hour or
+  # two, on the gallery's first page now, or in a promoted creator's curated
+  # set. Walking /posts/1, /posts/2...
   # was the same enumeration by another door (every id answered 200 on
   # 2026-10-07); a page reached from what the site showed still opens.
   def anonymous_shown_post(controller)
@@ -253,9 +305,8 @@ module MembersOnly
   end
 
   def anonymous_shown_post?(id, safe_mode:)
-    anonymous_recent_listing_ids(safe_mode).include?(id) ||
+    anonymous_recent_shown_ids(safe_mode).include?(id) ||
       anonymous_newest_ids(safe_mode).include?(id) ||
-      LandingShowcase.anonymous_post_ids(safe_mode: safe_mode).include?(id) ||
       promoted_gallery_post_ids.include?(id)
   end
 
@@ -270,24 +321,35 @@ module MembersOnly
     CreatorGalleryPost.where(creator_gallery_id: CreatorGallery.landing_promoted.select(:id)).pluck(:post_id).to_set
   end
 
-  # THE GALLERY'S FIRST PAGE, AS SHOWN. PostsController records the ids it
-  # rendered for a signed-out viewer, into an hourly bucket; a post page reads
-  # this hour's and the last, so a thumbnail clicked minutes after the page
-  # loaded still opens after newer posts have pushed it off the first page.
-  # Nothing here can be reached that the gallery did not render.
-  RECENT_LISTING_TTL = 2.hours
+  # WHAT WAS SHOWN, ONE RECORD. Every page that shows a signed-out viewer
+  # posts writes the ids it rendered here, into an hourly bucket: the
+  # gallery (its first page, or a featured creator's page -- PostsController)
+  # and the front page's draw (anonymous_landing, for / and /landing/slides).
+  # A post page reads this hour's and the last, so a thumbnail or a slide
+  # clicked minutes later still opens after the page moved on. Nothing here
+  # can be reached that one of those pages did not render.
+  #
+  # A read-then-write, so two renders in the same instant can drop one
+  # another's ids. Harmless here: every page that writes it serves the same
+  # set to every signed-out viewer for minutes at a time, so the next render
+  # writes the lost ids again. The cap is above an hour of front-page draws
+  # (40 creators, 400 candidates, a redraw every 5 minutes).
+  RECENT_SHOWN_TTL = 2.hours
+  RECENT_SHOWN_CAP = 10_000
 
-  def recent_listing_key(safe_mode, at)
-    ["members_only", "anonymous_listing", safe_mode ? "safe" : "all", at.utc.strftime("%Y%m%d%H")]
+  def recent_shown_key(safe_mode, at)
+    ["members_only", "anonymous_shown", safe_mode ? "safe" : "all", at.utc.strftime("%Y%m%d%H")]
   end
 
-  def remember_anonymous_listing(ids, safe_mode:, now: Time.now)
-    key = recent_listing_key(safe_mode, now)
-    Rails.cache.write(key, (Rails.cache.read(key).to_a | ids.to_a).last(2_000), expires_in: RECENT_LISTING_TTL)
+  def remember_shown_to_anonymous(ids, safe_mode:, now: Time.now)
+    return if ids.empty?
+
+    key = recent_shown_key(safe_mode, now)
+    Rails.cache.write(key, (Rails.cache.read(key).to_a | ids.to_a).last(RECENT_SHOWN_CAP), expires_in: RECENT_SHOWN_TTL)
   end
 
-  def anonymous_recent_listing_ids(safe_mode, now: Time.now)
-    [now, now - 1.hour].flat_map { |at| Rails.cache.read(recent_listing_key(safe_mode, at)).to_a }.to_set
+  def anonymous_recent_shown_ids(safe_mode, now: Time.now)
+    [now, now - 1.hour].flat_map { |at| Rails.cache.read(recent_shown_key(safe_mode, at)).to_a }.to_set
   end
 
   # The gallery's first page as it is now, for a link opened without the

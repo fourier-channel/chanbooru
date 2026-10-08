@@ -23,10 +23,7 @@ class LandingController < ApplicationController
       redirect_to(posts_path) and return
     end
 
-    # A signed-out viewer gets the day's fixed set and no refresh to pull a
-    # new one (LandingShowcase.anonymous_categories; MembersOnly default-deny).
-    @fixed_set = MembersOnly.default_deny? && MembersOnly.signed_out?(CurrentUser.user, request)
-    @categories = @fixed_set ? LandingShowcase.anonymous_categories(safe_mode: CurrentUser.safe_mode?) : showcase.categories
+    @categories = served_categories
     @promoted = CreatorGallery.landing_promoted.to_a
     @preference = cookies[PREFERENCE_COOKIE].to_s
   end
@@ -40,7 +37,7 @@ class LandingController < ApplicationController
   # uses, so the two cannot drift apart.
   def slides
     skip_authorization
-    categories = showcase.categories
+    categories = served_categories
     pool = categories.flat_map { |c| c[:slides].map { |s| s.merge(category: c[:key]) } }
     render json: {
       categories: categories,
@@ -59,6 +56,17 @@ class LandingController < ApplicationController
   end
 
   private
+
+  # The live draw, for everyone (operator, 2026-10-08: the carousel is the
+  # anonymous draw on purpose). For a signed-out viewer, what is served is
+  # recorded so its slides open, and creator links are kept only where they
+  # lead somewhere open to them (MembersOnly.anonymous_landing).
+  def served_categories
+    categories = showcase.categories
+    return categories unless MembersOnly.default_deny? && MembersOnly.signed_out?(CurrentUser.user, request)
+
+    MembersOnly.anonymous_landing(categories, safe_mode: CurrentUser.safe_mode?)
+  end
 
   def showcase
     @showcase ||= LandingShowcase.new(viewer: CurrentUser.user)
