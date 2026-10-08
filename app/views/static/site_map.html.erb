@@ -226,6 +226,11 @@
         <% if policy(SiteCredential).create? %>
           <li><%= link_to("Site Credentials", site_credentials_path) %></li>
         <% end %>
+
+        <%# fourier: the creator-claim queue, admins only (CREATOR_VISIBILITY Q6). %>
+        <% if policy(ArtistClaim).index? %>
+          <li><%= link_to("Creator Claims", admin_artist_claims_path) %></li>
+        <% end %>
       </ul>
 
       <ul>

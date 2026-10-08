@@ -110,7 +110,12 @@ class ReportsController < ApplicationController
       @available_columns = { wiki_edits: "COUNT(*)", editors: "COUNT(distinct updater_id)" }
       @available_groups = %w[updater]
     when "mod_actions"
-      @model = ModAction
+      # Fork: only the rows this viewer may read. The report counts by any
+      # search -- description, creator, subject -- so an unscoped count says
+      # what /mod_actions withholds: who a creator let into which group, which
+      # posts a creator hid (CREATOR_VISIBILITY Q2, 2026-10-07), and upstream's
+      # moderator-only rows besides.
+      @model = ModAction.visible(CurrentUser.user)
       @title = "Mod Actions Report"
       @available_columns = { mod_actions: "COUNT(*)", creators: "COUNT(distinct creator_id)" }
       @available_groups = %w[creator category subject_type]

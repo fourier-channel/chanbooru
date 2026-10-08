@@ -18,8 +18,25 @@ class ModAction < ApplicationRecord
   # Fork: categories ADMINS alone may read. A hidden creator is hidden from
   # everyone below admin (CreatorPrefixes visible_to), moderators included, so
   # anything about one is too; the entry itself never names the tag either.
+  # A creator claim keys that creator's control over who sees their posts and
+  # is decided by an admin alone (CREATOR_VISIBILITY Q6, 2026-10-07);
+  # moderators, who see nothing a creator hid (Q2), are not shown who was
+  # given that control either, nor whose account a creator page is unlinked
+  # from -- nor how a creator's panel is set: who is in their groups, who is
+  # allowed or blocked, which posts are narrowed.
   ADMIN_ONLY_CATEGORIES = %i[
     creator_visibility_update
+    artist_claim_approve
+    artist_claim_reject
+    creator_gallery_unlink
+    creator_audience_update
+    creator_group_create
+    creator_group_delete
+    creator_group_member_add
+    creator_group_member_remove
+    creator_join_request_approve
+    creator_join_request_reject
+    creator_user_rule_update
   ].freeze
 
   dtext_attribute :description, inline: true # defines :dtext_description
@@ -108,6 +125,19 @@ class ModAction < ApplicationRecord
     # released from, or returned to, their prefix's default (CreatorTagRelease).
     # chanbooru-53's creator-visibility categories take 1101 and up.
     creator_visibility_update: 1100,
+    artist_claim_approve: 1101, # creator claims, ArtistClaim#approve!/#reject!
+    artist_claim_reject: 1102,
+    creator_gallery_unlink: 1103, # an admin clears a creator page's booru account (CreatorGalleriesController)
+    # Who sees a creator's posts (CREATOR_VISIBILITY sections 4-5): the panel's
+    # writes, by the creator or an admin. Admin-only above, with the claims.
+    creator_audience_update: 1104, # a creator default or a per-post override (CreatorGallery, CreatorPostAudience)
+    creator_group_create: 1105, # CreatorGroup.make!
+    creator_group_delete: 1106, # CreatorGroup#dissolve!
+    creator_group_member_add: 1107, # CreatorGroup#add_member! (by hand, by an approved request, or automation)
+    creator_group_member_remove: 1108, # CreatorGroup#remove_member!
+    creator_join_request_approve: 1109, # CreatorJoinRequest#approve!
+    creator_join_request_reject: 1110, # CreatorJoinRequest#reject!
+    creator_user_rule_update: 1111, # a per-user allow or block set or cleared (CreatorUserRule)
   }
 
   normalizes :category, with: ->(category) { category.to_s.parameterize.underscore.presence }

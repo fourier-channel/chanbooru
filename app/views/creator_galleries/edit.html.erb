@@ -1,8 +1,8 @@
 <% content_for(:content) do %>
   <section class="modcreator-edit-page">
     <header class="modcreator-edit-head">
-      <h1>Edit page — <%= @gallery.slug %></h1>
-      <%= link_to "View page ›", creator_gallery_path(@gallery), class: "modcreator-edit-view" %>
+      <h1>Edit page - <%= @gallery.slug %></h1>
+      <%= link_to "View page >", creator_gallery_path(@gallery), class: "modcreator-edit-view" %>
     </header>
 
     <%# --- settings --- %>
@@ -16,6 +16,44 @@
         <%= f.text_field :matrix_contact, placeholder: @gallery.matrix_id %></label>
       <%= f.submit "Save settings" %>
     <% end %>
+
+    <%# --- booru account and creator claims (CREATOR_VISIBILITY, 2026-10-07) --- %>
+    <section id="creator-claims">
+      <h2>Booru account and creator tags</h2>
+      <% if @gallery.user %>
+        <p>Linked to the booru account <%= link_to_user @gallery.user %>.</p>
+        <% if CurrentUser.user.is_admin? %>
+          <%# An admin's correction (logged, admins only): a page made before 2026-10-07 may carry the admin's own account. %>
+          <%= button_to "Unlink from #{@gallery.user.name}", creator_gallery_path(@gallery), method: :patch,
+                params: { unlink_account: 1 }, data: { confirm: "Unlink this page from #{@gallery.user.name}? Its owner can then link their own account." } %>
+        <% end %>
+      <% elsif @signed_in_owner %>
+        <p>This page is not linked to a booru account yet. Claims and control over your posts need one.</p>
+        <%= button_to "Link this page to my booru account (#{CurrentUser.user.name})", creator_gallery_path(@gallery),
+              method: :patch, params: { link_account: 1 }, class: "button-primary" %>
+      <% else %>
+        <p class="fineprint">Not linked to a booru account. Sign in to the booru while signed in with this page's Matrix identity to link it.</p>
+      <% end %>
+
+      <% if @claims.any? %>
+        <ul>
+          <% @claims.each do |claim| %>
+            <li><%= claim.tag_name %> - <%= claim.status %><%= " (#{claim.note})" if claim.rejected? && claim.note.present? %></li>
+          <% end %>
+        </ul>
+      <% end %>
+
+      <% @claim_offers.each do |tag| %>
+        <%= form_with url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-inline-form" do %>
+          <%= hidden_field_tag :claim_tag, tag %>
+          <button type="submit" class="button-primary">Claim <%= tag %></button>
+        <% end %>
+      <% end %>
+      <p class="fineprint">
+        A creator tag under another site's prefix is yours to claim when it matches your Matrix name once the prefix
+        is taken off. An admin reviews every claim. Your 41chan_ tag needs no claim.
+      </p>
+    </section>
 
     <%# --- curated posts --- %>
     <h2>Featured posts</h2>
@@ -39,7 +77,7 @@
     <%# --- blog messages --- %>
     <h2>Blog messages</h2>
     <%= form_with url: creator_gallery_add_message_path(@gallery), method: :post, class: "modcreator-form", scope: :creator_gallery_message do |f| %>
-      <%= f.text_area :body, rows: 3, placeholder: "Write a message…", required: true %>
+      <%= f.text_area :body, rows: 3, placeholder: "Write a message...", required: true %>
       <%= f.submit "Post message" %>
     <% end %>
     <ul class="modcreator-edit-msgs">

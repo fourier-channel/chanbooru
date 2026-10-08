@@ -43,6 +43,8 @@ class BulkUpdateRequest::Command::CreateAlias < BulkUpdateRequest::Command
   end
 
   def approval_level(tags: nil)
+    return User::Levels::ADMIN if touches_creator_tag? # fourier: creator tags move by admin only
+
     old_tag = tags.present? ? tags.find { |tag| tag.name == @old_name } : self.old_tag
     new_tag = tags.present? ? tags.find { |tag| tag.name == @new_name } : self.new_tag
 

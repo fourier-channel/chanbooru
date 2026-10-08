@@ -25,8 +25,10 @@ class ConfirmedCreatorTest < ActiveSupport::TestCase
 
   context "A confirmed creator" do
     setup do
-      @artist = create(:artist)
-      @other = create(:artist)
+      # Creator tags under a listed prefix: a claim is valid on nothing else
+      # (CREATOR_VISIBILITY section 9, 2026-10-07).
+      @artist = create(:artist, name: "4chan_maple")
+      @other = create(:artist, name: "aichan_maple")
       @creator = tier5_user
       @claim = claim_for(@creator, @artist, "@maple:41chan.net")
     end
@@ -36,7 +38,7 @@ class ConfirmedCreatorTest < ActiveSupport::TestCase
     end
 
     context "with an approved claim" do
-      setup { @claim.approve!(by: create(:moderator_user)) }
+      setup { @claim.approve!(by: create(:admin_user)) }
 
       should "edit the artist they claimed" do
         assert(ArtistPolicy.new(@creator, @artist).update?)

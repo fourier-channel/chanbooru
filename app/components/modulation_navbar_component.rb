@@ -90,6 +90,11 @@ class ModulationNavbarComponent < NavbarComponent
       list << { label: "Dashboard", href: main_app.moderator_dashboard_path, category: "meta" }
     end
 
+    # Creator claims waiting for an admin (CREATOR_VISIBILITY Q6, 2026-10-07:
+    # admins decide). Shown only while something waits: the queue is rare
+    # work, and the site map's Admin block is the standing way in.
+    list << { label: "Claims", href: main_app.admin_artist_claims_path, category: "meta", count: pending_claim_count } if current_user.is_admin? && pending_claim_count > 0
+
     list << { label: "More", href: main_app.site_map_path, category: "general" } if offers?("static#site_map")
     list
   end
@@ -124,5 +129,10 @@ class ModulationNavbarComponent < NavbarComponent
   # Counted once, and only for the moderators who can see the entry at all.
   def pending_report_count
     @pending_report_count ||= ModerationReport.pending.count
+  end
+
+  # Counted once, and only for the admins who can see the entry at all.
+  def pending_claim_count
+    @pending_claim_count ||= ArtistClaim.pending.count
   end
 end

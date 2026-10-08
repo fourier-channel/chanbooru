@@ -41,21 +41,19 @@ class CreatorTagRelease < ApplicationRecord
     @mutex.synchronize { @released = nil }
   end
 
-  # The creator themselves: an approved claim, on a gallery that is theirs, of
-  # the artist whose name is this tag.
+  # The creator themselves: an approved claim on this tag, on a gallery that is
+  # theirs, still standing (ArtistClaim.standing). Keyed on the claim's
+  # tag_name, never the Artist's current name, which any member can change
+  # (CREATOR_VISIBILITY section 9: renaming an Artist moves nothing).
   def self.owner?(user, tag_name)
-    return false if user.nil? || user.is_anonymous?
-
-    ArtistClaim.approved.joins(:creator_gallery, :artist)
-               .exists?(artists: { name: tag_name.to_s }, creator_galleries: { user_id: user.id })
+    owned_names(user).include?(tag_name.to_s)
   end
 
   # The tags `user` holds an approved claim on: they see their own posts.
   def self.owned_names(user)
     return Set.new if user.nil? || user.is_anonymous?
 
-    ArtistClaim.approved.joins(:creator_gallery, :artist)
-               .where(creator_galleries: { user_id: user.id }).pluck("artists.name").to_set
+    ArtistClaim.held_by(user).standing.to_set(&:first)
   end
 
   def self.may_set?(user, tag_name)
@@ -71,7 +69,9 @@ class CreatorTagRelease < ApplicationRecord
     changed = row.new_record? || row.released != released
     row.update!(released: released, updater: by, note: note)
     if changed
-      ModAction.log("changed a hidden creator's visibility (creator release ##{row.id})", :creator_visibility_update, subject: row, user: by)
+      # No subject: /mod_actions links every row's subject, and a release has
+      # no page to link to (the admin's list is releases_creator_prefixes).
+      ModAction.log("changed a hidden creator's visibility (creator release ##{row.id})", :creator_visibility_update, subject: nil, user: by)
     end
     row
   end

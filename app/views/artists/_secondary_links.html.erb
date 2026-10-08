@@ -13,6 +13,16 @@
       <%= subnav_link_to "Edit", edit_artist_path(@artist), :"data-shortcut" => "e" %>
     <% end %>
     <%= subnav_link_to "History", artist_versions_path(:search => {:artist_id => @artist.id}) %>
+    <%# fourier: "Claim this creator" (CREATOR_VISIBILITY section 9, 2026-10-07).
+        Offered only to the signed-in account linked to the gallery of the
+        request's VERIFIED Matrix identity, and only when ArtistClaim.prepare --
+        the check the filing itself makes -- would take it, so the link never
+        leads to a refusal. Filed through the gallery's own update route. %>
+    <% verified_mxid = FourierIdentity.current(request) %>
+    <% claim_gallery = verified_mxid && !CurrentUser.user.is_anonymous? && CreatorGallery.where(user_id: CurrentUser.user.id).find_by("lower(matrix_id) = ?", verified_mxid.downcase) %>
+    <% if claim_gallery && ArtistClaim.prepare(claim_gallery, CurrentUser.user, @artist.name).second.nil? %>
+      <%= subnav_link_to "Claim this creator", creator_gallery_path(claim_gallery, claim_tag: @artist.name), method: :patch %>
+    <% end %>
     <% if current_page?(action: :edit) && policy(@artist).update? %>
       <% if @artist.is_deleted? %>
         <%= subnav_link_to "Undelete", artist_path(@artist, format: "js"), method: :put, data: {confirm: "Are you sure you want to undelete this artist?", params: "artist[is_deleted]=false"}, remote: true %>

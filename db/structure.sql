@@ -200,7 +200,8 @@ CREATE TABLE public.artist_claims (
     decided_at timestamp(6) without time zone,
     note text DEFAULT ''::text NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
-    updated_at timestamp(6) without time zone NOT NULL
+    updated_at timestamp(6) without time zone NOT NULL,
+    tag_name character varying
 );
 
 
@@ -553,6 +554,38 @@ ALTER SEQUENCE public.comments_id_seq OWNED BY public.comments.id;
 
 
 --
+-- Name: creator_audience_groups; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.creator_audience_groups (
+    id bigint NOT NULL,
+    creator_group_id bigint NOT NULL,
+    post_id bigint,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: creator_audience_groups_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.creator_audience_groups_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_audience_groups_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.creator_audience_groups_id_seq OWNED BY public.creator_audience_groups.id;
+
+
+--
 -- Name: creator_galleries; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -569,7 +602,9 @@ CREATE TABLE public.creator_galleries (
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
     promoted_at timestamp(6) without time zone,
-    featured_at timestamp(6) without time zone
+    featured_at timestamp(6) without time zone,
+    default_audience character varying,
+    CONSTRAINT creator_galleries_default_audience_known CHECK (((default_audience)::text = ANY ((ARRAY['public'::character varying, 'groups'::character varying, 'private'::character varying])::text[])))
 );
 
 
@@ -657,6 +692,148 @@ ALTER SEQUENCE public.creator_gallery_posts_id_seq OWNED BY public.creator_galle
 
 
 --
+-- Name: creator_group_memberships; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.creator_group_memberships (
+    id bigint NOT NULL,
+    creator_group_id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    added_by_id bigint NOT NULL,
+    source character varying NOT NULL,
+    expires_at timestamp(6) without time zone,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT creator_group_memberships_source_known CHECK (((source)::text = ANY ((ARRAY['creator'::character varying, 'request'::character varying, 'automation'::character varying])::text[])))
+);
+
+
+--
+-- Name: creator_group_memberships_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.creator_group_memberships_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_group_memberships_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.creator_group_memberships_id_seq OWNED BY public.creator_group_memberships.id;
+
+
+--
+-- Name: creator_groups; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.creator_groups (
+    id bigint NOT NULL,
+    creator_gallery_id bigint NOT NULL,
+    name character varying NOT NULL,
+    tier integer,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT creator_groups_tier_positive CHECK (((tier IS NULL) OR (tier >= 1)))
+);
+
+
+--
+-- Name: creator_groups_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.creator_groups_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_groups_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.creator_groups_id_seq OWNED BY public.creator_groups.id;
+
+
+--
+-- Name: creator_join_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.creator_join_requests (
+    id bigint NOT NULL,
+    creator_group_id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    decided_by_id bigint,
+    decided_at timestamp(6) without time zone,
+    note character varying DEFAULT ''::character varying NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT creator_join_requests_status_known CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying])::text[])))
+);
+
+
+--
+-- Name: creator_join_requests_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.creator_join_requests_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_join_requests_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.creator_join_requests_id_seq OWNED BY public.creator_join_requests.id;
+
+
+--
+-- Name: creator_post_audiences; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.creator_post_audiences (
+    id bigint NOT NULL,
+    post_id bigint NOT NULL,
+    creator_gallery_id bigint NOT NULL,
+    audience character varying DEFAULT 'inherit'::character varying NOT NULL,
+    updated_by_id bigint NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT creator_post_audiences_audience_known CHECK (((audience)::text = ANY ((ARRAY['inherit'::character varying, 'public'::character varying, 'groups'::character varying, 'private'::character varying])::text[])))
+);
+
+
+--
+-- Name: creator_post_audiences_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.creator_post_audiences_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_post_audiences_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.creator_post_audiences_id_seq OWNED BY public.creator_post_audiences.id;
+
+
+--
 -- Name: creator_tag_releases; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -688,6 +865,42 @@ CREATE SEQUENCE public.creator_tag_releases_id_seq
 --
 
 ALTER SEQUENCE public.creator_tag_releases_id_seq OWNED BY public.creator_tag_releases.id;
+
+
+--
+-- Name: creator_user_rules; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.creator_user_rules (
+    id bigint NOT NULL,
+    creator_gallery_id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    post_id bigint,
+    rule character varying NOT NULL,
+    updated_by_id bigint NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT creator_user_rules_rule_known CHECK (((rule)::text = ANY ((ARRAY['allow'::character varying, 'block'::character varying])::text[])))
+);
+
+
+--
+-- Name: creator_user_rules_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.creator_user_rules_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_user_rules_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.creator_user_rules_id_seq OWNED BY public.creator_user_rules.id;
 
 
 --
@@ -3281,6 +3494,13 @@ ALTER TABLE ONLY public.comments ALTER COLUMN id SET DEFAULT nextval('public.com
 
 
 --
+-- Name: creator_audience_groups id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_audience_groups ALTER COLUMN id SET DEFAULT nextval('public.creator_audience_groups_id_seq'::regclass);
+
+
+--
 -- Name: creator_galleries id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3302,10 +3522,45 @@ ALTER TABLE ONLY public.creator_gallery_posts ALTER COLUMN id SET DEFAULT nextva
 
 
 --
+-- Name: creator_group_memberships id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_group_memberships ALTER COLUMN id SET DEFAULT nextval('public.creator_group_memberships_id_seq'::regclass);
+
+
+--
+-- Name: creator_groups id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_groups ALTER COLUMN id SET DEFAULT nextval('public.creator_groups_id_seq'::regclass);
+
+
+--
+-- Name: creator_join_requests id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_join_requests ALTER COLUMN id SET DEFAULT nextval('public.creator_join_requests_id_seq'::regclass);
+
+
+--
+-- Name: creator_post_audiences id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_post_audiences ALTER COLUMN id SET DEFAULT nextval('public.creator_post_audiences_id_seq'::regclass);
+
+
+--
 -- Name: creator_tag_releases id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.creator_tag_releases ALTER COLUMN id SET DEFAULT nextval('public.creator_tag_releases_id_seq'::regclass);
+
+
+--
+-- Name: creator_user_rules id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_user_rules ALTER COLUMN id SET DEFAULT nextval('public.creator_user_rules_id_seq'::regclass);
 
 
 --
@@ -3797,6 +4052,14 @@ ALTER TABLE ONLY public.comments
 
 
 --
+-- Name: creator_audience_groups creator_audience_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_audience_groups
+    ADD CONSTRAINT creator_audience_groups_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: creator_galleries creator_galleries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3821,11 +4084,51 @@ ALTER TABLE ONLY public.creator_gallery_posts
 
 
 --
+-- Name: creator_group_memberships creator_group_memberships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_group_memberships
+    ADD CONSTRAINT creator_group_memberships_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: creator_groups creator_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_groups
+    ADD CONSTRAINT creator_groups_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: creator_join_requests creator_join_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_join_requests
+    ADD CONSTRAINT creator_join_requests_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: creator_post_audiences creator_post_audiences_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_post_audiences
+    ADD CONSTRAINT creator_post_audiences_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: creator_tag_releases creator_tag_releases_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.creator_tag_releases
     ADD CONSTRAINT creator_tag_releases_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: creator_user_rules creator_user_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_user_rules
+    ADD CONSTRAINT creator_user_rules_pkey PRIMARY KEY (id);
 
 
 --
@@ -4325,6 +4628,13 @@ ALTER TABLE ONLY public.wiki_pages
 
 
 --
+-- Name: idx_on_creator_group_id_user_id_ca53aa7df1; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_on_creator_group_id_user_id_ca53aa7df1 ON public.creator_group_memberships USING btree (creator_group_id, user_id);
+
+
+--
 -- Name: index_ai_tags_on_media_asset_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4392,6 +4702,13 @@ CREATE INDEX index_artist_claims_on_status ON public.artist_claims USING btree (
 --
 
 CREATE UNIQUE INDEX index_artist_claims_one_approved_per_artist ON public.artist_claims USING btree (artist_id) WHERE ((status)::text = 'approved'::text);
+
+
+--
+-- Name: index_artist_claims_one_approved_per_tag_name; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_artist_claims_one_approved_per_tag_name ON public.artist_claims USING btree (tag_name) WHERE ((status)::text = 'approved'::text);
 
 
 --
@@ -4808,6 +5125,27 @@ CREATE INDEX index_completed_user_upgrades_on_updater_id_and_created_at ON publi
 
 
 --
+-- Name: index_creator_audience_groups_on_post_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_audience_groups_on_post_id ON public.creator_audience_groups USING btree (post_id);
+
+
+--
+-- Name: index_creator_audience_groups_one_per_default; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_creator_audience_groups_one_per_default ON public.creator_audience_groups USING btree (creator_group_id) WHERE (post_id IS NULL);
+
+
+--
+-- Name: index_creator_audience_groups_one_per_post; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_creator_audience_groups_one_per_post ON public.creator_audience_groups USING btree (creator_group_id, post_id) WHERE (post_id IS NOT NULL);
+
+
+--
 -- Name: index_creator_galleries_on_featured_at; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4871,6 +5209,97 @@ CREATE INDEX index_creator_gallery_posts_on_post_id ON public.creator_gallery_po
 
 
 --
+-- Name: index_creator_group_memberships_on_added_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_group_memberships_on_added_by_id ON public.creator_group_memberships USING btree (added_by_id);
+
+
+--
+-- Name: index_creator_group_memberships_on_creator_group_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_group_memberships_on_creator_group_id ON public.creator_group_memberships USING btree (creator_group_id);
+
+
+--
+-- Name: index_creator_group_memberships_on_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_group_memberships_on_user_id ON public.creator_group_memberships USING btree (user_id);
+
+
+--
+-- Name: index_creator_groups_on_creator_gallery_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_groups_on_creator_gallery_id ON public.creator_groups USING btree (creator_gallery_id);
+
+
+--
+-- Name: index_creator_groups_on_name; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_creator_groups_on_name ON public.creator_groups USING btree (name);
+
+
+--
+-- Name: index_creator_join_requests_on_creator_group_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_join_requests_on_creator_group_id ON public.creator_join_requests USING btree (creator_group_id);
+
+
+--
+-- Name: index_creator_join_requests_on_decided_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_join_requests_on_decided_by_id ON public.creator_join_requests USING btree (decided_by_id);
+
+
+--
+-- Name: index_creator_join_requests_on_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_join_requests_on_user_id ON public.creator_join_requests USING btree (user_id);
+
+
+--
+-- Name: index_creator_join_requests_one_pending; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_creator_join_requests_one_pending ON public.creator_join_requests USING btree (creator_group_id, user_id) WHERE ((status)::text = 'pending'::text);
+
+
+--
+-- Name: index_creator_post_audiences_on_audience; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_post_audiences_on_audience ON public.creator_post_audiences USING btree (audience);
+
+
+--
+-- Name: index_creator_post_audiences_on_creator_gallery_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_post_audiences_on_creator_gallery_id ON public.creator_post_audiences USING btree (creator_gallery_id);
+
+
+--
+-- Name: index_creator_post_audiences_on_post_id_and_creator_gallery_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_creator_post_audiences_on_post_id_and_creator_gallery_id ON public.creator_post_audiences USING btree (post_id, creator_gallery_id);
+
+
+--
+-- Name: index_creator_post_audiences_on_updated_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_post_audiences_on_updated_by_id ON public.creator_post_audiences USING btree (updated_by_id);
+
+
+--
 -- Name: index_creator_tag_releases_on_tag_name; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4882,6 +5311,41 @@ CREATE UNIQUE INDEX index_creator_tag_releases_on_tag_name ON public.creator_tag
 --
 
 CREATE INDEX index_creator_tag_releases_on_updater_id ON public.creator_tag_releases USING btree (updater_id);
+
+
+--
+-- Name: index_creator_user_rules_on_post_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_user_rules_on_post_id ON public.creator_user_rules USING btree (post_id);
+
+
+--
+-- Name: index_creator_user_rules_on_updated_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_user_rules_on_updated_by_id ON public.creator_user_rules USING btree (updated_by_id);
+
+
+--
+-- Name: index_creator_user_rules_on_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_user_rules_on_user_id ON public.creator_user_rules USING btree (user_id);
+
+
+--
+-- Name: index_creator_user_rules_one_creator_wide; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_creator_user_rules_one_creator_wide ON public.creator_user_rules USING btree (creator_gallery_id, user_id) WHERE (post_id IS NULL);
+
+
+--
+-- Name: index_creator_user_rules_one_per_post; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_creator_user_rules_one_per_post ON public.creator_user_rules USING btree (creator_gallery_id, user_id, post_id) WHERE (post_id IS NOT NULL);
 
 
 --
@@ -5246,6 +5710,13 @@ CREATE UNIQUE INDEX index_fourier_generation_metadata_on_md5 ON public.fourier_g
 --
 
 CREATE UNIQUE INDEX index_fourier_generation_metadata_on_raw_md5 ON public.fourier_generation_metadata USING btree (raw_md5) WHERE (raw_md5 IS NOT NULL);
+
+
+--
+-- Name: index_fourier_post_creators_on_lower_mxid; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_fourier_post_creators_on_lower_mxid ON public.fourier_post_creators USING btree (lower((mxid)::text));
 
 
 --
@@ -7325,6 +7796,14 @@ ALTER TABLE ONLY public.bulk_update_requests
 
 
 --
+-- Name: creator_group_memberships fk_rails_18015acd5f; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_group_memberships
+    ADD CONSTRAINT fk_rails_18015acd5f FOREIGN KEY (creator_group_id) REFERENCES public.creator_groups(id) ON DELETE CASCADE;
+
+
+--
 -- Name: user_name_change_requests fk_rails_18d9682b1c; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7373,6 +7852,14 @@ ALTER TABLE ONLY public.dmails
 
 
 --
+-- Name: creator_audience_groups fk_rails_2565cca620; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_audience_groups
+    ADD CONSTRAINT fk_rails_2565cca620 FOREIGN KEY (creator_group_id) REFERENCES public.creator_groups(id) ON DELETE CASCADE;
+
+
+--
 -- Name: post_appeals fk_rails_2794bb6745; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7410,6 +7897,14 @@ ALTER TABLE ONLY public.modulation_settings
 
 ALTER TABLE ONLY public.posts
     ADD CONSTRAINT fk_rails_299f071108 FOREIGN KEY (uploader_id) REFERENCES public.users(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: creator_user_rules fk_rails_29ff40f174; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_user_rules
+    ADD CONSTRAINT fk_rails_29ff40f174 FOREIGN KEY (creator_gallery_id) REFERENCES public.creator_galleries(id) ON DELETE CASCADE;
 
 
 --
@@ -7693,6 +8188,14 @@ ALTER TABLE ONLY public.saved_searches
 
 
 --
+-- Name: creator_audience_groups fk_rails_6800a14be6; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_audience_groups
+    ADD CONSTRAINT fk_rails_6800a14be6 FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE CASCADE;
+
+
+--
 -- Name: post_flags fk_rails_68fe8072b5; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7749,6 +8252,22 @@ ALTER TABLE ONLY public.post_approvals
 
 
 --
+-- Name: creator_post_audiences fk_rails_75ab7cdfa0; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_post_audiences
+    ADD CONSTRAINT fk_rails_75ab7cdfa0 FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: creator_groups fk_rails_75c4e4a8fd; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_groups
+    ADD CONSTRAINT fk_rails_75c4e4a8fd FOREIGN KEY (creator_gallery_id) REFERENCES public.creator_galleries(id) ON DELETE CASCADE;
+
+
+--
 -- Name: upgrade_codes fk_rails_778e1e40b5; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7762,6 +8281,14 @@ ALTER TABLE ONLY public.upgrade_codes
 
 ALTER TABLE ONLY public.favorite_groups
     ADD CONSTRAINT fk_rails_796204a5e3 FOREIGN KEY (creator_id) REFERENCES public.users(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: creator_join_requests fk_rails_7f2ea19324; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_join_requests
+    ADD CONSTRAINT fk_rails_7f2ea19324 FOREIGN KEY (decided_by_id) REFERENCES public.users(id);
 
 
 --
@@ -7829,6 +8356,22 @@ ALTER TABLE ONLY public.media_metadata
 
 
 --
+-- Name: creator_post_audiences fk_rails_9adea6ea4e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_post_audiences
+    ADD CONSTRAINT fk_rails_9adea6ea4e FOREIGN KEY (creator_gallery_id) REFERENCES public.creator_galleries(id) ON DELETE CASCADE;
+
+
+--
+-- Name: creator_group_memberships fk_rails_9cd45ecfbf; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_group_memberships
+    ADD CONSTRAINT fk_rails_9cd45ecfbf FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: comment_votes fk_rails_a0196e2ef9; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7853,6 +8396,22 @@ ALTER TABLE ONLY public.notes
 
 
 --
+-- Name: creator_post_audiences fk_rails_a27f6376ba; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_post_audiences
+    ADD CONSTRAINT fk_rails_a27f6376ba FOREIGN KEY (updated_by_id) REFERENCES public.users(id);
+
+
+--
+-- Name: creator_join_requests fk_rails_a844598521; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_join_requests
+    ADD CONSTRAINT fk_rails_a844598521 FOREIGN KEY (creator_group_id) REFERENCES public.creator_groups(id) ON DELETE CASCADE;
+
+
+--
 -- Name: tag_implications fk_rails_aa452a83e5; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7874,6 +8433,14 @@ ALTER TABLE ONLY public.bulk_update_requests
 
 ALTER TABLE ONLY public.artist_commentary_versions
     ADD CONSTRAINT fk_rails_af197b3f45 FOREIGN KEY (post_id) REFERENCES public.posts(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: creator_join_requests fk_rails_af5847744a; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_join_requests
+    ADD CONSTRAINT fk_rails_af5847744a FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -7925,6 +8492,14 @@ ALTER TABLE ONLY public.news_updates
 
 
 --
+-- Name: creator_user_rules fk_rails_c2dc4c0c74; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_user_rules
+    ADD CONSTRAINT fk_rails_c2dc4c0c74 FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE CASCADE;
+
+
+--
 -- Name: dmails fk_rails_c303efc12e; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7965,6 +8540,14 @@ ALTER TABLE ONLY public.uploads
 
 
 --
+-- Name: creator_group_memberships fk_rails_d4a700f3d7; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_group_memberships
+    ADD CONSTRAINT fk_rails_d4a700f3d7 FOREIGN KEY (added_by_id) REFERENCES public.users(id);
+
+
+--
 -- Name: upgrade_codes fk_rails_d5a4e5e1a6; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7978,6 +8561,14 @@ ALTER TABLE ONLY public.upgrade_codes
 
 ALTER TABLE ONLY public.upload_media_assets
     ADD CONSTRAINT fk_rails_d61d4a2ba9 FOREIGN KEY (user_id) REFERENCES public.users(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: creator_user_rules fk_rails_d6a07df03e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_user_rules
+    ADD CONSTRAINT fk_rails_d6a07df03e FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -8109,12 +8700,22 @@ ALTER TABLE ONLY public.fourier_tag_sources
 
 
 --
+-- Name: creator_user_rules fk_rails_fd8dffc39d; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_user_rules
+    ADD CONSTRAINT fk_rails_fd8dffc39d FOREIGN KEY (updated_by_id) REFERENCES public.users(id);
+
+
+--
 -- PostgreSQL database dump complete
 --
 
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261007120000'),
+('20261007110000'),
 ('20261007100000'),
 ('20261002000000'),
 ('20260930000000'),

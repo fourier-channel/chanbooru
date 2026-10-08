@@ -40,6 +40,8 @@ class BulkUpdateRequest::Command::CreateImplication < BulkUpdateRequest::Command
   end
 
   def approval_level(tags: nil)
+    return User::Levels::ADMIN if touches_creator_tag? # fourier: creator tags move by admin only
+
     child_tag = tags.present? ? tags.find { |tag| tag.name == @antecedent } : self.child_tag
     parent_tag = tags.present? ? tags.find { |tag| tag.name == @consequent } : self.parent_tag
 

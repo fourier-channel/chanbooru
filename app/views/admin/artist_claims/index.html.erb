@@ -1,0 +1,86 @@
+<% page_title "Creator claims" %>
+
+<div id="c-admin-artist-claims">
+  <div id="a-index" class="fixed-width-container mx-auto">
+    <h1 class="mb-2">Creator claims</h1>
+    <p class="fineprint mb-6">
+      A creator asking for a creator tag to be recognised as theirs. An approved claim
+      gives its creator control over who sees the posts carrying that tag. The rule
+      below (the tag is locked, and strips to the creator's Matrix name) is checked
+      again when you approve; it is a precondition, not proof that the person is who
+      they say. A <code>41chan_</code> tag needs no claim. Every decision is written
+      to the mod log, visible to admins only.
+    </p>
+
+    <h2 class="mb-2">Waiting</h2>
+    <table id="artist-claims" class="striped w-full mb-8">
+      <thead>
+        <tr><th>Tag</th><th>Matrix account</th><th>Booru account</th><th>Filed</th><th>Rule now</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% @pending.each do |claim| %>
+          <tr id="artist-claim-<%= claim.id %>">
+            <td><%= link_to claim.tag_name, artist_path(claim.artist) %></td>
+            <td><%= link_to claim.creator_gallery.matrix_id, creator_gallery_path(claim.creator_gallery) %></td>
+            <td>
+              <% if claim.claimant %>
+                <%= link_to_user claim.claimant %>
+              <% else %>
+                <span class="fineprint">not linked</span>
+              <% end %>
+            </td>
+            <td><%= time_ago_in_words_tagged(claim.created_at) %></td>
+            <td>
+              <% if @refusals.nil? %>
+                <span class="fineprint">cannot check</span>
+              <% elsif @refusals[claim.id] %>
+                <span class="fineprint"><%= @refusals[claim.id] %></span>
+              <% else %>
+                holds
+              <% end %>
+            </td>
+            <td class="space-y-2">
+              <%= button_to "Approve", approve_admin_artist_claim_path(claim), method: :post, class: "button-primary" %>
+              <%= form_with url: reject_admin_artist_claim_path(claim), method: :post, class: "flex items-center gap-2" do |f| %>
+                <%= f.text_field :note, placeholder: "why (shown to admins)" %>
+                <%= f.submit "Reject", class: "button-outline-danger" %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+        <% if @pending.empty? %>
+          <tr><td colspan="6" class="fineprint">Nothing waiting.</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+
+    <h2 class="mb-2">Decided</h2>
+    <table id="artist-claims-decided" class="striped w-full">
+      <thead>
+        <tr><th>Tag</th><th>Matrix account</th><th>Answer</th><th>By</th><th>When</th><th>Note</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% @decided.each do |claim| %>
+          <tr id="artist-claim-<%= claim.id %>">
+            <td><%= claim.tag_name %></td>
+            <td><%= link_to claim.creator_gallery.matrix_id, creator_gallery_path(claim.creator_gallery) %></td>
+            <td><%= claim.status %></td>
+            <td><%= claim.approver ? link_to_user(claim.approver) : "-" %></td>
+            <td><%= claim.decided_at ? time_ago_in_words_tagged(claim.decided_at) : "-" %></td>
+            <td><%= claim.note.presence || "-" %></td>
+            <td>
+              <% if claim.approved? %>
+                <%= button_to "Withdraw", reject_admin_artist_claim_path(claim), method: :post, class: "button-outline-danger",
+                      params: { note: "approval withdrawn" },
+                      form: { data: { confirm: "Withdraw the approval of #{claim.tag_name}? Its creator loses control of those posts." } } %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+        <% if @decided.empty? %>
+          <tr><td colspan="7" class="fineprint">No decisions yet.</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

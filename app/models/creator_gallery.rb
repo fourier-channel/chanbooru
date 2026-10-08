@@ -11,12 +11,31 @@ class CreatorGallery < ApplicationRecord
   has_many :creator_gallery_posts, -> { order(:position, :id) }, dependent: :destroy, inverse_of: :creator_gallery
   has_many :posts, through: :creator_gallery_posts
   has_many :creator_gallery_messages, -> { order(created_at: :desc) }, dependent: :destroy, inverse_of: :creator_gallery
+  # Claims are history (who asked, who decided), so a gallery that has filed
+  # one is not deleted out from under it.
+  has_many :artist_claims, dependent: :restrict_with_error
+  # The creator's visibility panel (CREATOR_VISIBILITY sections 4-5). The
+  # database cascades these away with the gallery; nothing else depends on
+  # them.
+  has_many :creator_groups, dependent: nil
+
+  # Who sees this creator's posts when a post says nothing of its own: public
+  # (whoever the site already lets see it), groups (members of the groups in
+  # its audience) or private (the creator alone). What each means is
+  # CreatorVisibility's to decide.
+  #
+  # NULL until the creator chooses, decided as public -- but kept apart from
+  # a chosen public, because Q7 (2026-10-07) opens a creator's Matrix-posted
+  # image on the booru only on THEIR allow, "public" among them. Once chosen,
+  # it cannot be unset again.
+  AUDIENCES = %w[public groups private].freeze
 
   validates :slug, presence: true, uniqueness: true, format: { with: %r{\A[a-z0-9._=\-/]+\z} }
   validates :matrix_id, presence: true, uniqueness: true
   validates :style, inclusion: { in: STYLES }
   validates :title, length: { maximum: 120 }
   validates :bio, length: { maximum: 4000 }
+  validates :default_audience, inclusion: { in: AUDIENCES }, unless: -> { default_audience.nil? && !default_audience_changed? }
 
   # Landing-page promotion. Timestamps, not flags: promoted wants an order, and
   # "creator of the month" wants history -- setting this month's feature must
@@ -75,6 +94,29 @@ class CreatorGallery < ApplicationRecord
 
   # The MXID a visitor should message; falls back to the owning identity.
   def contact = matrix_contact.presence || matrix_id
+
+  # Who may set this creator's panel -- default, overrides, groups, members,
+  # allows and blocks: the booru account linked to the gallery (set from a
+  # verified Matrix match, CreatorGalleriesController) or an admin. Never a
+  # moderator: moderators see nothing a creator hid (Q2). A banned account
+  # writes nothing here, as it writes nothing anywhere (ApplicationPolicy).
+  def managed_by?(user)
+    return false if user.nil? || user.is_anonymous? || user.is_banned?
+
+    user.is_admin? || (user_id.present? && user.id == user_id)
+  end
+
+  # The creator default and the groups it includes, in one logged write.
+  def set_default_audience!(audience, by:, group_ids: [])
+    raise User::PrivilegeError, "Only this creator or an admin can set who sees their posts." unless managed_by?(by)
+
+    transaction do
+      update!(default_audience: audience)
+      names = CreatorAudienceGroup.replace!(self, nil, audience, group_ids)
+      ModAction.log("set the default audience of creator #{matrix_id} to #{audience}#{" (groups: #{names.join(", ")})" if names.any?}",
+                    :creator_audience_update, subject: self, user: by)
+    end
+  end
 
   private
 

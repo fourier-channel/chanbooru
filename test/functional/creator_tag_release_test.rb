@@ -15,14 +15,19 @@ class CreatorTagReleaseTest < ActionDispatch::IntegrationTest
   YAML
 
   def status_for(post, user)
-    user ? get_auth(post_path(post, format: :json), user) : (reset!; get(post_path(post, format: :json)))
+    if user
+      get_auth(post_path(post, format: :json), user)
+    else
+      reset!
+      get(post_path(post, format: :json))
+    end
     response.status
   end
 
   setup do
     @dir = Dir.mktmpdir("creator-tag-release")
     @path = File.join(@dir, "creator_prefixes.yml")
-    @was = ENV["FOURIER_CREATOR_PREFIXES"]
+    @was = ENV.fetch("FOURIER_CREATOR_PREFIXES", nil)
     ENV["FOURIER_CREATOR_PREFIXES"] = @path
     File.write(@path, LIST)
     CreatorPrefixes.reset!
@@ -81,6 +86,32 @@ class CreatorTagReleaseTest < ActionDispatch::IntegrationTest
     end
     post_auth update_release_creator_prefixes_path, @member, params: { tag_name: "aichan_bob", released: "true" }
     assert_equal 404, status_for(@bobs, @member)
+  end
+
+  # Any unbanned member can rename an Artist. A claim is keyed on the tag it
+  # was filed for (ArtistClaim.tag_name, CREATOR_VISIBILITY section 9), so
+  # renaming alice's entry to bob's tag hands her neither bob's posts nor the
+  # power to release them -- and keeps her own.
+  should "not follow a rename of the claimed artist entry" do
+    as(@admin) do
+      Tag.find_by_name("aichan_bob").update!(category: Tag.categories.artist, updater: @admin)
+      @artist.update!(name: "aichan_bob")
+    end
+
+    assert_not CreatorTagRelease.may_set?(@alice, "aichan_bob")
+    assert_equal Set["aichan_alice"], CreatorTagRelease.owned_names(@alice)
+    assert CreatorTagRelease.may_set?(@alice, "aichan_alice")
+    assert_equal 404, status_for(@bobs, @alice)
+    assert_equal 200, status_for(@alices, @alice)
+  end
+
+  # Re-checked at use, as CreatorControl does: a row that no longer satisfies
+  # the claim rule (written around the model) confers nothing.
+  should "honour no approved claim that fails the claim rule" do
+    ArtistClaim.approved.sole.update_columns(tag_name: "aichan_bob") # rubocop:disable Rails/SkipsModelValidations
+
+    assert_not CreatorTagRelease.may_set?(@alice, "aichan_bob")
+    assert_empty CreatorTagRelease.owned_names(@alice)
   end
 
   should "return a creator to the default, keeping the row and who decided" do

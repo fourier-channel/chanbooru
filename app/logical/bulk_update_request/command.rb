@@ -62,6 +62,18 @@ class BulkUpdateRequest::Command
     User::Levels::ADMIN
   end
 
+  # fourier: does this command touch a creator tag (one a listed creator prefix
+  # locks)? Approving it retags posts as the system user, which the prefix lock
+  # lets through, and control over a post follows its creator tags
+  # (CreatorControl) -- so the commands that would otherwise let a builder or a
+  # moderator approve ask this and answer ADMIN (CREATOR_VISIBILITY section 3,
+  # 2026-10-07). A broken prefix list answers yes: refusing is the safe side.
+  def touches_creator_tag?
+    affected_tags.any? { |name| CreatorPrefixes.locked?(name) }
+  rescue CreatorPrefixes::ConfigError
+    true
+  end
+
   # Checks if a line matches any known command by comparing it to its respective regex.
   #
   # @param line [String] a single line from a BUR script

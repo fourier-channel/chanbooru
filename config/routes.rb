@@ -64,6 +64,9 @@ Rails.application.routes.draw do
   get  "errors/:status",             to: "errors#show", as: :error_art, constraints: { status: /\d{3}/, format: /svg/ }
 
   # Creator Gallery -- reads public, writes gated to the page's Matrix identity.
+  # fourier: PATCH creators/:slug also links or unlinks the page's booru account
+  # and files creator claims (CreatorGalleriesController#update; no new routes,
+  # ruling 2026-09-24).
   resources :creator_galleries, path: "creators", param: :slug, only: %i[index show new create edit update]
   post   "creators/:slug/posts",                to: "creator_galleries#add_post",         as: :creator_gallery_add_post
   delete "creators/:slug/posts/:post_id",       to: "creator_galleries#remove_post",      as: :creator_gallery_remove_post
@@ -86,6 +89,14 @@ Rails.application.routes.draw do
     # fourier: invite codes. 41chan is invite-only; these are the invites.
     resources :signup_tokens, only: [:index, :create] do
       post :revoke, on: :member
+    end
+    # fourier: the creator-claim queue. Admins decide (CREATOR_VISIBILITY Q6,
+    # 2026-10-07); approve and reject are the model's two logged verbs.
+    resources :artist_claims, only: [:index] do
+      member do
+        post :approve
+        post :reject
+      end
     end
     # fourier: the landing carousel's console -- the slide speed, and every
     # row's configuration -- so the front page can be re-aimed without a deploy.
