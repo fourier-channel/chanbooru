@@ -887,6 +887,14 @@ module Danbooru
       "https://sample.41chan.net/"
     end
 
+    # The shared secret a sign-up provider signs creator-group membership
+    # changes with (POST /webhooks/receive?source=creator_membership, design
+    # CREATOR_VISIBILITY Q5: "the signed endpoint for a payment provider is
+    # built alongside, unused"). Blank leaves the endpoint answering 503.
+    # Entered in .env.local / the local config, never committed.
+    def creator_membership_webhook_secret
+    end
+
     # Whether to enable comments.
     def comments_enabled?
       true

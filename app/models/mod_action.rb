@@ -39,6 +39,7 @@ class ModAction < ApplicationRecord
     creator_join_request_reject
     creator_user_rule_update
     creator_hidden_post_view
+    creator_group_update
   ].freeze
 
   dtext_attribute :description, inline: true # defines :dtext_description
@@ -141,6 +142,7 @@ class ModAction < ApplicationRecord
     creator_join_request_reject: 1110, # CreatorJoinRequest#reject!
     creator_user_rule_update: 1111, # a per-user allow or block set or cleared (CreatorUserRule)
     creator_hidden_post_view: 1112, # an admin opened the page of a post its creator hid from them (PostsController#show, Q2)
+    creator_group_update: 1113, # a group opened to, or closed to, join requests (CreatorGroup#open_to_requests!; the creator panel, 2026-10-09)
   }
 
   normalizes :category, with: ->(category) { category.to_s.parameterize.underscore.presence }

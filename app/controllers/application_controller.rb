@@ -170,6 +170,11 @@ class ApplicationController < ActionController::Base
       when ->(e) { e.is_a?(Pundit::NotAuthorizedError) && e.policy.try(:denial_message, e.query).present? }
         # Fork: a policy that says WHY it refused (PostingAccounts::Policy).
         render_error_page(403, exception, message: exception.policy.denial_message(exception.query))
+      when ->(e) { e.is_a?(User::PrivilegeError) && e.message != e.class.name }
+        # Fork: a PrivilegeError raised with its own sentence says why and
+        # what to do, and the page shows it (errors carry their remedy,
+        # 2026-09-14); a bare one still reads "Access denied".
+        render_error_page(403, exception, template: "static/access_denied", message: exception.message)
       when ActiveSupport::MessageVerifier::InvalidSignature, # raised by `find_signed!`
           User::PrivilegeError,
           Pundit::NotAuthorizedError

@@ -738,6 +738,7 @@ CREATE TABLE public.creator_groups (
     tier integer,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
+    open_to_requests boolean DEFAULT false NOT NULL,
     CONSTRAINT creator_groups_tier_positive CHECK (((tier IS NULL) OR (tier >= 1)))
 );
 
@@ -8714,6 +8715,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261009000000'),
 ('20261007120000'),
 ('20261007110000'),
 ('20261007100000'),

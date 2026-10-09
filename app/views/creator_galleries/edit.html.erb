@@ -5,9 +5,14 @@
       <%= link_to "View page >", creator_gallery_path(@gallery), class: "modcreator-edit-view" %>
     </header>
 
+    <%# --- who sees the creator's posts: the panel the claim is the key to (CREATOR_VISIBILITY, 2026-10-09) --- %>
+    <%= render CreatorPanelComponent.new(gallery: @gallery, viewer: CurrentUser.user, refusal: @panel_refusal,
+          place: { post_id: params[:post_id], audience_page: params[:audience_page], member_q: params[:member_q], open_group: params[:open_group] }) %>
+
     <%# --- settings --- %>
     <%= form_with model: @gallery, url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-form" do |f| %>
-      <label>Title <%= f.text_field :title, maxlength: 120 %></label>
+      <%# size: nil -- Rails otherwise sets size from maxlength, a 120-character box that scrolled the page sideways at phone width (2026-10-09). %>
+      <label>Title <%= f.text_field :title, maxlength: 120, size: nil %></label>
       <label>Bio <%= f.text_area :bio, rows: 4, maxlength: 4000 %></label>
       <label>Gallery style
         <%= f.select :style, CreatorGallery::STYLES.map { |s| [s.humanize, s] } %>

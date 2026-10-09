@@ -89,6 +89,7 @@ class CreatorGallery < ApplicationRecord
   end
 
   before_validation :default_contact
+  after_create :close_groups_named_for_me
 
   # URL key is the slug (Matrix localpart), not the numeric id.
   def to_param = slug
@@ -107,19 +108,60 @@ class CreatorGallery < ApplicationRecord
     user.is_admin? || (user_id.present? && user.id == user_id)
   end
 
+  # An audience in the creator panel's words (2026-10-09): what the panel,
+  # its notices and the post page's "who sees this" all say.
+  #
+  # @param group_labels [Array<String>] CreatorGroup.label of each group, so
+  #   a tier group says every higher tier sees it too (Q3), as enforced
+  def self.audience_words(audience, group_labels)
+    case audience
+    when "public" then "Everyone#{" (plus #{group_labels.to_sentence})" if group_labels.any?}"
+    when "groups" then group_labels.any? ? "Members of #{group_labels.to_sentence}" : "Members of my groups, with no group listed"
+    when "private" then "Private"
+    else "Not chosen yet (acts as Everyone)"
+    end
+  end
+
   # The creator default and the groups it includes, in one logged write.
+  #
+  # @return [Array<String>, nil] the names of the groups now in it; nil when
+  #   it already was exactly this (nothing written, nothing logged)
   def set_default_audience!(audience, by:, group_ids: [])
     raise User::PrivilegeError, "Only this creator or an admin can set who sees their posts." unless managed_by?(by)
 
+    ids = CreatorAudienceGroup.refuse!(audience, group_ids)
     transaction do
+      next nil if default_audience == audience && CreatorAudienceGroup.current_ids(self, nil) == ids.sort
+
       update!(default_audience: audience)
       names = CreatorAudienceGroup.replace!(self, nil, audience, group_ids)
       ModAction.log("set the default audience of creator #{matrix_id} to #{audience}#{" (groups: #{names.join(", ")})" if names.any?}",
                     :creator_audience_update, subject: self, user: by)
+      names
     end
   end
 
   private
+
+  # A group another creator made in this creator's name before the booru
+  # knew them (CreatorGroup: the gap the site-wide name index leaves; second
+  # repair, 2026-10-09). Closed to requests, so visitors are not drawn to ask
+  # the wrong creator, and logged for an admin to settle: dissolving it is
+  # the admin's call, through its maker's panel, not a page's side effect.
+  # matrix_id is set once, at creation, so this is the one moment to ask.
+  def close_groups_named_for_me
+    tag = CreatorControl.master_tags(matrix_id).first
+    return if tag.nil?
+
+    like = "#{CreatorGroup.sanitize_sql_like(tag)}\\_%"
+    named = CreatorGroup.where.not(creator_gallery_id: id).where("name = ? OR name LIKE ?", tag, like).includes(:creator_gallery)
+    named.select(&:reads_as_another_creator?).each do |group|
+      group.update!(open_to_requests: false)
+      ModAction.log("closed creator group #{group.name} to requests: its name reads as creator #{matrix_id}'s, whose page was just made. " \
+                    "An admin settles whose it is (dissolve it from #{group.creator_gallery.matrix_id}'s panel, or leave it)",
+                    :creator_group_update, subject: group.creator_gallery, user: User.system)
+    end
+  end
 
   def default_contact
     self.matrix_contact = matrix_id if matrix_contact.blank?

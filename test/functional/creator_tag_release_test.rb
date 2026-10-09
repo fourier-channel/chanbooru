@@ -69,7 +69,27 @@ class CreatorTagReleaseTest < ActionDispatch::IntegrationTest
     assert_equal 200, status_for(@alices, @alice), "an approved claimant sees their own"
     assert_equal 404, status_for(@bobs, @alice)
     post_auth update_release_creator_prefixes_path, @alice, params: { tag_name: "aichan_alice", released: "true" }
+    # spoken to the creator who released it, not about them (2026-10-09)
+    assert_equal "aichan_alice released: your posts now follow your own settings.", flash[:notice]
     assert_equal 200, status_for(@alices, @member)
+  end
+
+  should "land a release made from a creator's panel back on the default audience it hands over to" do
+    panel = "http://#{host}/creators/some-creator/edit"
+    post_auth update_release_creator_prefixes_path, @alice, params: { tag_name: "aichan_alice", released: "true" }, headers: { "Referer" => panel }
+    assert_redirected_to "/creators/some-creator/edit#creator-panel-default"
+
+    # Another host is never followed: redirect_back refuses it and takes the
+    # fallback, as before this change.
+    post_auth update_release_creator_prefixes_path, @alice, params: { tag_name: "aichan_alice", released: "true" }, headers: { "Referer" => "https://elsewhere.example/creators/x/edit" }
+    assert_redirected_to creator_prefixes_path
+  end
+
+  should "tell an admin whose posts a release hands to their creator" do
+    post_auth update_release_creator_prefixes_path, @admin, params: { tag_name: "aichan_alice", released: "true" }
+    assert_equal "aichan_alice released: the creator's posts now follow the creator's own settings.", flash[:notice]
+    post_auth update_release_creator_prefixes_path, @admin, params: { tag_name: "aichan_alice", released: "false" }
+    assert_equal "aichan_alice returned to its prefix's default.", flash[:notice]
   end
 
   should "offer the box on the artist page to the creator, and not to a member" do

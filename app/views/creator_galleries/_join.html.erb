@@ -1,0 +1,44 @@
+<%# The visitor's own standing with this creator's groups (CREATOR_VISIBILITY Q5;
+    the creator panel, 2026-10-09). The groups the creator opened to requests,
+    and any closed group in which the viewer has something of their own -- a
+    current membership, a request still waiting, a refusal still standing
+    (CreatorGalleriesController#show) -- so closing a group never hides a
+    request its asker can still take back. No other name, no count. %>
+<% creator = @gallery.title.presence || @gallery.slug %>
+<% if @join_groups.any? %>
+  <section id="creator-join" class="modcreator-join">
+    <h2>Join <%= creator %>'s groups</h2>
+    <% if @gallery.user_id.nil? %>
+      <p>This creator has not linked a booru account yet, so nobody can answer a request. Ask them on Matrix.</p>
+    <% end %>
+    <ul>
+      <% @join_groups.each do |group| %>
+        <% membership = @join_memberships[group.id] %>
+        <% asked = @join_requests[group.id] %>
+        <li>
+          <strong><%= group.name %></strong>:
+          <% if membership&.active? %>
+            You are in <%= group.name %><%= ", until #{membership.expires_at.to_date}" if membership.expires_at %>.
+          <% elsif asked&.pending? %>
+            You asked on <%= asked.created_at.to_date %>; waiting for <%= creator %>.
+            <%= form_with url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-panel-inline" do %>
+              <%= hidden_field_tag :join_withdraw, asked.id, id: nil %>
+              <button type="submit" aria-label="Withdraw your request to join <%= group.name %>">Withdraw</button>
+            <% end %>
+          <% elsif asked&.refusal_standing? %>
+            Refused on <%= asked.decided_at.to_date %><%= ": #{asked.note}" if asked.note.present? %>. You can ask again after <%= asked.ask_again_on %>.
+          <% elsif group.open_to_requests %>
+            <% if membership %>Your membership ended on <%= membership.expires_at.to_date %>.<% end %>
+            <% if @gallery.user_id %>
+              <%= form_with url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-panel-inline" do %>
+                <%= hidden_field_tag :join_group, group.id, id: nil %>
+                <label>A note for <%= creator %> (optional) <input type="text" name="note" maxlength="500"></label>
+                <button type="submit" class="button-primary">Ask to join <%= group.name %></button>
+              <% end %>
+            <% end %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+<% end %>

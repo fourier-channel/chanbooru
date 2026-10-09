@@ -6,7 +6,8 @@
       <% if CurrentUser.user.is_admin? %>
         <label>Matrix ID (admin) <%= f.text_field :matrix_id, placeholder: "@user:41chan.net" %></label>
       <% end %>
-      <label>Title <%= f.text_field :title, maxlength: 120 %></label>
+      <%# size: nil -- Rails otherwise sets size from maxlength, a 120-character box that scrolled the page sideways at phone width (2026-10-09). %>
+      <label>Title <%= f.text_field :title, maxlength: 120, size: nil %></label>
       <label>Bio <%= f.text_area :bio, rows: 4 %></label>
       <label>Gallery style <%= f.select :style, CreatorGallery::STYLES.map { |s| [s.humanize, s] } %></label>
       <%= f.submit "Create page" %>

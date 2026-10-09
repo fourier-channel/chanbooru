@@ -35,6 +35,17 @@ class CreatorVisibilityTest < ActiveSupport::TestCase
     group.add_member!(user, by: @admin, expires_at: expires_at)
   end
 
+  # A membership whose end has already passed, as it stands the day after:
+  # the panel refuses a date already gone (2026-10-09), and time ends it.
+  def lapsed_join(group, user, ended: 1.minute.ago)
+    join(group, user, expires_at: 1.day.from_now).tap { |m| m.update_columns(expires_at: ended) } # rubocop:disable Rails/SkipsModelValidations
+  end
+
+  def after_write(post, viewer)
+    CreatorVisibility.forget!
+    decide(post, viewer)
+  end
+
   def default!(audience, groups = [], gallery: @maple_gallery)
     gallery.set_default_audience!(audience, by: @admin, group_ids: groups.map(&:id))
   end
@@ -45,6 +56,14 @@ class CreatorVisibilityTest < ActiveSupport::TestCase
 
   def rule!(user, rule, post: nil, gallery: @maple_gallery)
     CreatorUserRule.set!(gallery, user, rule: rule, by: @admin, post: post)
+  end
+
+  # A rule on someone who always sees -- an admin, a posting account -- as it
+  # stands when it was set before they became one: the panel refuses new
+  # ones (rule_can_matter, 2026-10-09), and the decision must still ignore
+  # the old ones.
+  def stored_rule!(user, rule, post: nil, gallery: @maple_gallery)
+    CreatorUserRule.new(creator_gallery: gallery, user: user, rule: rule, post: post, updated_by: @admin).save!(validate: false)
   end
 
   delegate :decide, to: :CreatorVisibility
@@ -150,8 +169,12 @@ class CreatorVisibilityTest < ActiveSupport::TestCase
       assert_agrees(@stranger, [@post])
     end
 
+    # The panel refuses "groups" with none (2026-10-09); dissolving the only
+    # listed group is how a creator still arrives there (the cascade).
     should "hide a groups-only creator's posts from everyone when no group is listed" do
-      default!("groups")
+      only = group("41chan_maple_only")
+      default!("groups", [only])
+      only.dissolve!(by: @admin)
 
       assert_equal(:hidden, decide(@post, @stranger))
       assert_agrees(@stranger, [@post])
@@ -228,7 +251,7 @@ class CreatorVisibilityTest < ActiveSupport::TestCase
     end
 
     should "count an already-expired membership as no membership" do
-      join(@tier2, @member, expires_at: 1.minute.ago)
+      lapsed_join(@tier2, @member)
       default!("groups", [@tier1])
 
       assert_equal(:hidden, decide(@post, @member))
@@ -421,8 +444,8 @@ class CreatorVisibilityTest < ActiveSupport::TestCase
   context "who always sees" do
     setup do
       default!("private")
-      rule!(@admin, "block")
-      rule!(@tunnel, "block")
+      stored_rule!(@admin, "block")
+      stored_rule!(@tunnel, "block")
     end
 
     should "be the controller, explicitly allowed" do
@@ -480,7 +503,9 @@ class CreatorVisibilityTest < ActiveSupport::TestCase
     should "never allow anyone on a jailed post, while a narrowing still hides it" do
       jailed = maple_post("landscape #{Danbooru.config.troll_jail_tag}")
       hidden = maple_post("landscape #{Danbooru.config.troll_jail_tag}")
-      override!(hidden, "groups", [])
+      only = group("41chan_maple_only")
+      override!(hidden, "groups", [only])
+      only.dissolve!(by: @admin)
 
       assert_equal(:default, decide(jailed, @member))
       assert_equal(:default, decide(jailed, @maple))
@@ -670,7 +695,7 @@ class CreatorVisibilityTest < ActiveSupport::TestCase
       @tier2 = group("41chan_maple_tier_2", tier: 2)
       @friends = group("41chan_maple_friends")
       join(@tier2, @member)
-      join(@friends, @stranger, expires_at: 1.day.ago)
+      lapsed_join(@friends, @stranger, ended: 1.day.ago)
       default!("groups", [@tier1])
       approved_claim(@alice_gallery, "4chan_alice")
       approved_claim(@maple_gallery, "4chan_maple")
@@ -849,9 +874,48 @@ class CreatorVisibilityTest < ActiveSupport::TestCase
       assert(CreatorVisibility.hidden_but_for_admin?(private_one, @admin))
       assert_not(CreatorVisibility.hidden_but_for_admin?(@posts[0], @admin))
       assert_not(CreatorVisibility.hidden_but_for_admin?(private_one, create(:moderator_user)), "not an admin: nothing to log")
-      rule!(@admin, "allow", post: private_one)
+      stored_rule!(@admin, "allow", post: private_one)
 
       assert_not(CreatorVisibility.hidden_but_for_admin?(private_one, @admin), "named by the creator")
+    end
+  end
+
+  # The creator panel (2026-10-09) writes through these same methods, one
+  # request at a time: each write, then a fresh request (forget!), must move
+  # the decision the way section 4, Q3, Q8 and Q9 say.
+  context "a panel write, read on the next request" do
+    setup do
+      @tier1 = group("41chan_maple_tier_1", tier: 1)
+      @tier2 = group("41chan_maple_tier_2", tier: 2)
+      join(@tier1, @member)
+      join(@tier2, @alice)
+      @gated = maple_post("landscape child")
+    end
+
+    should "follow each write, as the rulings say" do
+      default!("private")
+
+      assert_equal(:hidden, after_write(@post, @member), "private hides from a tier member")
+      rule!(@member, "allow")
+
+      assert_equal(:allowed, after_write(@post, @member), "a named allow opens private (Q9)")
+      override!(@post, "groups", [@tier1])
+
+      assert_equal(:allowed, after_write(@post, @alice), "tier 2 sees what tier 1 sees (Q3)")
+      override!(@post, "private")
+
+      assert_equal(:hidden, after_write(@post, @alice), "no group opens private (Q9)")
+      override!(@post, "groups", [@tier1])
+      rule!(@alice, "block")
+
+      assert_equal(:hidden, after_write(@post, @alice), "a block beats a tier (Q8)")
+      override!(@post, "inherit")
+
+      assert_equal(:hidden, after_write(@post, @stranger), "inherit is the private default again")
+      override!(@gated, "public", [@tier1])
+
+      assert_not(@gated.reload.levelblocked?(@member), "a group on an Everyone post widens past the level gate (section 7)")
+      assert(@gated.levelblocked?(@stranger))
     end
   end
 end

@@ -22,11 +22,20 @@ class CreatorPostAudience < ApplicationRecord
   validate :gallery_controls_post
 
   # Set `post`'s audience as `gallery`, with its groups, in one logged write.
+  # "inherit" is "back to the creator default".
+  #
+  # @return [CreatorPostAudience, nil] the row; nil when the post already was
+  #   exactly this (nothing written, nothing logged) -- a post with no row
+  #   already inherits
   def self.set!(post, gallery:, audience:, by:, group_ids: [])
     raise User::PrivilegeError, "Only this creator or an admin can set who sees their posts." unless gallery.managed_by?(by)
 
+    ids = CreatorAudienceGroup.refuse!(audience, group_ids)
     transaction do
       row = find_or_initialize_by(post: post, creator_gallery: gallery)
+      was = row.new_record? ? "inherit" : row.audience
+      next nil if was == audience && CreatorAudienceGroup.current_ids(gallery, post) == ids.sort
+
       row.update!(audience: audience, updated_by: by)
       names = CreatorAudienceGroup.replace!(gallery, post, audience, group_ids)
       ModAction.log("set the audience of post ##{post.id} to #{audience} for creator #{gallery.matrix_id}#{" (groups: #{names.join(", ")})" if names.any?}",

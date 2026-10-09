@@ -329,6 +329,13 @@ class ModulationPostComponent < ApplicationComponent
     report << { label: "Appeal", href: routes.new_post_appeal_path(post_appeal: { post_id: post.id }) } if post.is_appealable?
     groups << { label: "report", links: report } if report.any?
 
+    # Who sees this post, for the people who may change it -- the creator
+    # panel's link (2026-10-09). Read-only here: an audience belongs to each
+    # controlling creator, not to the post, so it is set on their panel.
+    if audience_payload
+      groups << { label: "who sees this", links: audience_payload.map { |a| { label: "#{a[:words]} - change", href: a[:href] } }}
+    end
+
     groups << { label: "history", links: [
       { label: "Tags", href: routes.post_versions_path(search: { post_id: post.id }) },
       { label: "Notes", href: routes.note_versions_path(search: { post_id: post.id }) },
@@ -395,7 +402,37 @@ class ModulationPostComponent < ApplicationComponent
       # (ruling 2026-09-29), and nil when there is nothing -- the two are not
       # told apart.
       generation: generation_payload,
+      # Who sees this post, one entry per controlling creator this viewer may
+      # set it for (their own, or every one for an admin), or nil -- nil for
+      # everyone else, a moderator included (Q2).
+      audience: audience_payload,
     }
+  end
+
+  # @return [Array<Hash>, nil] { words:, href: } per controlling gallery the
+  #   viewer manages (CreatorGallery#managed_by?), nil when there is none
+  def audience_payload
+    return @audience_payload if defined?(@audience_payload)
+    return @audience_payload = nil if viewer.nil? || viewer.is_anonymous? || viewer.is_banned?
+    # Only an admin or the owner of a page can manage one (managed_by?): for
+    # every other member -- on every payload fetch and prefetch -- the answer
+    # is nil before anything asks who controls the post. Once per request.
+    return @audience_payload = nil unless viewer.is_admin? || CreatorVisibility.memoized(:owns_gallery, viewer) { CreatorGallery.exists?(user_id: viewer.id) }
+
+    ids = CreatorControl.controller_gallery_ids([post]).fetch(post.id, [])
+    galleries = ids.empty? ? [] : CreatorGallery.where(id: ids).order(:id).select { |gallery| gallery.managed_by?(viewer) }
+    return @audience_payload = nil if galleries.empty?
+
+    overrides = CreatorPostAudience.where(post_id: post.id, creator_gallery_id: galleries.map(&:id)).pluck(:creator_gallery_id, :audience).to_h
+    names = CreatorAudienceGroup.joins(:creator_group).where(creator_groups: { creator_gallery_id: galleries.map(&:id) }, post_id: [nil, post.id])
+                                .order("creator_groups.name").pluck("creator_groups.creator_gallery_id", :post_id, "creator_groups.name", "creator_groups.tier")
+    @audience_payload = galleries.map do |gallery|
+      own = overrides[gallery.id].presence_in(%w[public groups private])
+      listed = names.select { |gid, pid, _, _| gid == gallery.id && pid == (own ? post.id : nil) }.map { |*, name, tier| CreatorGroup.label(name, tier) }
+      whose = (gallery.user_id == viewer.id) ? "your default" : "#{gallery.title.presence || gallery.slug}'s default"
+      words = CreatorGallery.audience_words(own || gallery.default_audience, listed)
+      { words: "#{words} (#{own ? "post setting" : whose})", href: routes.edit_creator_gallery_path(gallery, post_id: post.id, anchor: "creator-panel-posts") }
+    end
   end
 
   # This post's generation data, if a record is served for this post

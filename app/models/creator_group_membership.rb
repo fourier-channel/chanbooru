@@ -19,7 +19,22 @@ class CreatorGroupMembership < ApplicationRecord
 
   validates :source, inclusion: { in: SOURCES }
   validates :user_id, uniqueness: { scope: :creator_group_id }
+  # A date already gone would add someone who is out again at once: the
+  # panel's "until" field and automation alike get the remedy instead
+  # (creator panel, 2026-10-09; fail loudly, 2026-09-13).
+  validate :expiry_ahead, if: :will_save_change_to_expires_at?
 
   # Memberships that count at `now`.
   scope :active, ->(now = Time.zone.now) { where(expires_at: nil).or(where(arel_table[:expires_at].gt(now))) }
+
+  def manual? = source.in?([CREATOR, REQUEST])
+
+  # The `active` scope, for one row in hand.
+  def active?(now = Time.zone.now) = expires_at.nil? || expires_at > now
+
+  private
+
+  def expiry_ahead
+    errors.add(:base, "That date has passed; choose a later one, or leave it empty for no end.") if expires_at.present? && expires_at <= Time.zone.now
+  end
 end

@@ -309,7 +309,9 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
     end
 
     should "not log an admin the creator let in" do
-      CreatorUserRule.set!(@gallery, @admin, rule: "allow", by: @maple, post: @closed)
+      # Stored as it stands from before the account became an admin: the
+      # panel refuses a new rule on an admin (rule_can_matter, 2026-10-09).
+      CreatorUserRule.new(creator_gallery: @gallery, user: @admin, rule: "allow", post: @closed, updated_by: @maple).save!(validate: false)
       get_auth post_path(@closed), @admin
       assert_response :success
       assert_equal 0, views.count

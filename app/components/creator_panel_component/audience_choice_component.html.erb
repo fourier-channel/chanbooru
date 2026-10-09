@@ -1,0 +1,20 @@
+<fieldset class="modcreator-panel-choice">
+  <legend>Who sees these posts</legend>
+  <% choices.each do |value, label, meaning| %>
+    <label class="modcreator-panel-radio">
+      <input type="radio" name="audience" value="<%= value %>"<%= " checked" if chosen == value %> required>
+      <strong><%= label %></strong>
+      <span class="fineprint"><%= meaning %></span>
+    </label>
+  <% end %>
+  <% if groups.any? %>
+    <div class="modcreator-panel-ticks">
+      <span class="fineprint">Groups that see these posts (never a private one):</span>
+      <% groups.each do |id, label| %>
+        <label><input type="checkbox" name="group_ids[]" value="<%= id %>"<%= " checked" if ticked.include?(id) %>> <%= label %></label>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="fineprint">No groups yet: <a href="#creator-panel-groups">make one below</a> to show posts to its members.</p>
+  <% end %>
+</fieldset>

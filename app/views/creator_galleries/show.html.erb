@@ -3,6 +3,8 @@
         gallery: @gallery,
         viewer: CurrentUser.user,
         can_edit: FourierIdentity.matches?(request, @gallery.matrix_id) || CurrentUser.user.is_admin?) %>
+  <%# Outside the gallery component on purpose: nothing the hero band draws changes (2026-10-09). %>
+  <%= render "creator_galleries/join" if @join_groups %>
 <% end %>
 <% content_for(:html_header) do %>
   <% page_title(@gallery.title.presence || @gallery.slug) %>

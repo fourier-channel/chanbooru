@@ -6,6 +6,13 @@
 # ruled 2026-10-07: a block stops the signed-in account seeing, and so
 # editing, the post). What a rule means is CreatorVisibility's.
 #
+# A rule that could change nothing is refused (creator panel, 2026-10-09;
+# fail loudly, 2026-09-13): on the creator's own account, which always sees
+# its posts, and on an admin or a posting account, who see every post
+# (CreatorVisibility.sees_everything?, the decision's own "who always
+# sees"). Saving the same rule again, or clearing one that is not there,
+# writes and logs nothing.
+#
 # One rule per user and scope: setting allow where a block stood replaces it.
 # A creator-wide rule and a per-post rule are separate scopes, both read --
 # which is how a block anywhere beats an allow anywhere.
@@ -21,12 +28,16 @@ class CreatorUserRule < ApplicationRecord
 
   validates :rule, inclusion: { in: RULES }
   validate :gallery_controls_post
+  validate :rule_can_matter
 
+  # @return [CreatorUserRule, nil] the rule; nil when it already was this
   def self.set!(gallery, user, rule:, by:, post: nil)
     authorize!(gallery, by)
 
     transaction do
       row = find_or_initialize_by(creator_gallery: gallery, user: user, post: post)
+      next nil if row.persisted? && row.rule == rule
+
       row.update!(rule: rule, updated_by: by)
       ModAction.log("#{(rule == BLOCK) ? "blocked" : "allowed"} user ##{user.id} #{scope_words(gallery, post)}",
                     :creator_user_rule_update, subject: post || gallery, user: by)
@@ -34,12 +45,15 @@ class CreatorUserRule < ApplicationRecord
     end
   end
 
+  # @return [Boolean] false when there was no rule to clear
   def self.clear!(gallery, user, by:, post: nil)
     authorize!(gallery, by)
 
     transaction do
-      where(creator_gallery: gallery, user: user, post: post).destroy_all
+      next false if where(creator_gallery: gallery, user: user, post: post).destroy_all.empty?
+
       ModAction.log("cleared the rule for user ##{user.id} #{scope_words(gallery, post)}", :creator_user_rule_update, subject: post || gallery, user: by)
+      true
     end
   end
 
@@ -52,6 +66,19 @@ class CreatorUserRule < ApplicationRecord
   end
 
   private
+
+  def rule_can_matter
+    return if user.nil? || creator_gallery.nil?
+
+    if creator_gallery.user_id == user.id
+      errors.add(:base, "You always see your own posts.")
+    # Exactly the decision's own exemption, on the list visibility reads
+    # (repair, 2026-10-09): that list keeps its last good copy when the file
+    # breaks, so a block the decision would honour is never refused here.
+    elsif CreatorVisibility.sees_everything?(user)
+      errors.add(:base, "#{user.name} is an admin or a posting account and sees every post, so a rule on them changes nothing.")
+    end
+  end
 
   def gallery_controls_post
     return if post.nil? || creator_gallery_id.nil?

@@ -166,6 +166,86 @@ class CreatorAudienceTest < ActiveSupport::TestCase
     end
   end
 
+  # The creator panel (2026-10-09): a refusal of groups is its own class, so
+  # the panel rescues it alone; "Members of my groups" with none is refused
+  # at the one writer both audiences go through; saving the same choice
+  # again writes and logs nothing.
+  context "the panel's rules on audiences" do
+    should "refuse groups with none, under private or inherit, and another creator's, as a Refusal" do
+      [
+        -> { @gallery.set_default_audience!("groups", by: @maple, group_ids: []) },
+        -> { CreatorPostAudience.set!(@post, gallery: @gallery, audience: "groups", by: @maple) },
+        -> { @gallery.set_default_audience!("private", by: @maple, group_ids: [@tier.id]) },
+        -> { CreatorPostAudience.set!(@post, gallery: @gallery, audience: "inherit", by: @maple, group_ids: [@tier.id]) },
+        -> { @gallery.set_default_audience!("groups", by: @maple, group_ids: [@alice_tier.id]) },
+      ].each do |write|
+        error = assert_raises(CreatorAudienceGroup::Refusal) { write.call }
+        assert_kind_of(ArgumentError, error)
+      end
+      assert_nil(@gallery.reload.default_audience)
+      assert_equal(0, CreatorPostAudience.count)
+      assert_equal(0, CreatorAudienceGroup.count)
+      assert_equal(0, ModAction.where(category: "creator_audience_update").count)
+    end
+
+    should "say how to get what groups-with-none would have meant" do
+      error = assert_raises(CreatorAudienceGroup::Refusal) { @gallery.set_default_audience!("groups", by: @maple) }
+
+      assert_equal("Members of my groups needs at least one group ticked. With none, only the people you name could see these posts; choose Private for that.", error.message)
+    end
+
+    should "write and log nothing when the same default or override is saved again" do
+      assert(@gallery.set_default_audience!("groups", by: @maple, group_ids: [@tier.id]))
+      assert_nil(@gallery.set_default_audience!("groups", by: @maple, group_ids: [@tier.id.to_s]))
+      assert(CreatorPostAudience.set!(@post, gallery: @gallery, audience: "private", by: @maple))
+      assert_nil(CreatorPostAudience.set!(@post, gallery: @gallery, audience: "private", by: @maple))
+
+      assert_equal(2, ModAction.where(category: "creator_audience_update").count)
+    end
+
+    should "treat inherit on a post with no override as no change" do
+      assert_nil(CreatorPostAudience.set!(@post, gallery: @gallery, audience: "inherit", by: @maple))
+      assert_equal(0, CreatorPostAudience.count)
+    end
+  end
+
+  # A rule that could change nothing is refused (fail loudly, 2026-09-13).
+  context "a per-user rule that cannot matter" do
+    should "be refused on the creator's own account, an admin and a posting account, and accepted on anyone else" do
+      {
+        @maple => "You always see your own posts.",
+        @admin => "#{@admin.name} is an admin or a posting account and sees every post, so a rule on them changes nothing.",
+        @tunnel => "tunnel is an admin or a posting account and sees every post, so a rule on them changes nothing.",
+      }.each do |user, words|
+        error = assert_raises(ActiveRecord::RecordInvalid) { CreatorUserRule.set!(@gallery, user, rule: "block", by: @maple) }
+        assert_equal(words, error.record.errors.full_messages.join)
+      end
+      assert(CreatorUserRule.set!(@gallery, @member, rule: "allow", by: @maple))
+      assert_equal(1, CreatorUserRule.count)
+    end
+
+    # The refusal asks exactly what the decision exempts (CreatorVisibility
+    # .sees_everything?), on the list visibility reads: while the live
+    # prefix list is broken, visibility keeps its last good copy, so a block
+    # still takes effect -- and must still save.
+    should "still save a block while the live prefix list is broken, and still refuse one on a posting account" do
+      CreatorPrefixes.visibility_config
+      CreatorPrefixes.stubs(:config).raises(CreatorPrefixes::ConfigError, "the list broke")
+
+      assert(CreatorUserRule.set!(@gallery, @member, rule: "block", by: @maple))
+      error = assert_raises(ActiveRecord::RecordInvalid) { CreatorUserRule.set!(@gallery, @tunnel, rule: "block", by: @maple) }
+      assert_equal("tunnel is an admin or a posting account and sees every post, so a rule on them changes nothing.", error.record.errors.full_messages.join)
+    end
+
+    should "write and log nothing when set the same again or cleared when absent" do
+      CreatorUserRule.set!(@gallery, @member, rule: "allow", by: @maple)
+
+      assert_nil(CreatorUserRule.set!(@gallery, @member, rule: "allow", by: @maple))
+      assert_equal(false, CreatorUserRule.clear!(@gallery, @alice, by: @maple))
+      assert_equal(1, ModAction.where(category: "creator_user_rule_update").count)
+    end
+  end
+
   # Q2: moderators see nothing a creator hid, nor who a creator let in.
   should "log every creator visibility action in a category only admins read" do
     categories = %w[creator_audience_update creator_group_create creator_group_delete creator_group_member_add

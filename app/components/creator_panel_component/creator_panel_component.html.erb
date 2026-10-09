@@ -1,0 +1,378 @@
+<section id="creator-panel" class="modcreator-panel">
+  <h2>Who sees <%= whose %> posts</h2>
+
+  <% if refusal %>
+    <p class="modcreator-panel-refusal"><%= refusal %></p>
+  <% else %>
+    <% if admin_acting? %>
+      <p class="modcreator-panel-admin">You are changing this creator's settings as an admin. Every change is logged under your name.</p>
+    <% end %>
+    <p class="fineprint">Changes apply on your next page load. Image links already handed out can stay viewable for about three minutes while the media servers refresh.</p>
+
+    <%# --- 0. the release precondition (section 7) --- %>
+    <% begin %>
+      <% if held_back.any? %>
+        <div id="creator-panel-release" class="modcreator-panel-block modcreator-panel-warn">
+          <% held_back.each do |tag, entry| %>
+            <p>
+              <strong><%= tag %></strong>: posts tagged <%= tag %> follow the <%= entry.prefix %> site rule: only <%= visible_to_words(entry) %> and you can see them.
+              Nothing on this panel shows them to anyone else until the tag is released.
+              What you hide stays hidden: private, groups-only and blocks apply to them already.
+            </p>
+            <p>Releasing hands these posts to this panel, which today says: <%= default_words %>. Set who sees your posts first if you want them narrower.</p>
+            <% if may_release?(tag) && gallery.default_audience %>
+              <%= form_with url: helpers.update_release_creator_prefixes_path, method: :post, class: "modcreator-panel-inline" do %>
+                <%= hidden_field_tag :tag_name, tag, id: nil %>
+                <%= hidden_field_tag :released, "true", id: nil %>
+                <%= hidden_field_tag :note, "released from the creator panel", id: nil %>
+                <button type="submit" class="button-primary" data-confirm="Release <%= tag %>? Its posts will follow this panel instead of the <%= entry.prefix %> rule.">Release <%= tag %></button>
+              <% end %>
+            <% elsif may_release?(tag) %>
+              <p class="fineprint">Choose who sees your posts below first; then you can release <%= tag %>.</p>
+            <% else %>
+              <p class="fineprint">Ask an admin to release <%= tag %>.</p>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+    <% rescue CreatorPrefixes::ConfigError => e %>
+      <p id="creator-panel-release" class="modcreator-panel-warn">The creator prefix list cannot be read right now (<%= e.message %>); this panel will say which of your tags are held back once it can.</p>
+    <% end %>
+
+    <%# --- 1. requests waiting (Q5) --- %>
+    <% if pending_count > 0 %>
+      <div id="creator-panel-requests" class="modcreator-panel-block">
+        <h3>People asking to join (<%= pending_count %>)</h3>
+        <%# One request a block at phone width, and scrollable inside its own
+            box should a row still be too wide: the page itself never scrolls
+            sideways (standing UI rule; stage-4 browser check, 2026-10-09). %>
+        <div class="modcreator-panel-scroll">
+        <table class="striped modcreator-panel-table">
+          <thead><tr><th>Who</th><th>Group</th><th>Note</th><th>Asked</th><th></th></tr></thead>
+          <tbody>
+            <% pending_requests.each do |ask| %>
+              <tr>
+                <td data-label="Who">
+                  <%= link_to_user ask.user %>
+                  <% if kept_out_ids.include?(ask.user_id) %><span class="modcreator-panel-badge">kept out: a block beats membership</span><% end %>
+                </td>
+                <td data-label="Group"><%= ask.creator_group.name %></td>
+                <td data-label="Note"><%= ask.note %></td>
+                <td data-label="Asked"><%= time_ago_in_words(ask.created_at) %> ago</td>
+                <td class="modcreator-panel-actions">
+                  <%= form_with url: path, method: :patch, class: "modcreator-panel-inline" do %>
+                    <%= hidden_field_tag :panel, "approve_request", id: nil %>
+                    <%= hidden_field_tag :request_id, ask.id, id: nil %>
+                    <label>until <input type="date" name="until" placeholder="no end"></label>
+                    <button type="submit" class="button-primary" aria-label="Let <%= ask.user.name %> in to <%= ask.creator_group.name %>">Let in</button>
+                  <% end %>
+                  <%= form_with url: path, method: :patch, class: "modcreator-panel-inline" do %>
+                    <%= hidden_field_tag :panel, "refuse_request", id: nil %>
+                    <%= hidden_field_tag :request_id, ask.id, id: nil %>
+                    <label>Reason (they will see it) <input type="text" name="note" maxlength="500"></label>
+                    <button type="submit" class="button-outline-danger" aria-label="Refuse <%= ask.user.name %>'s request to join <%= ask.creator_group.name %>">Refuse</button>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+        </div>
+        <% if pending_count > pending_requests.size %>
+          <p class="fineprint">The oldest <%= pending_requests.size %> of <%= pending_count %> are shown; the rest appear as you answer these.</p>
+        <% end %>
+        <p class="fineprint">Letting someone in adds them to the group, so they see every post that group can see. With a date, access ends at the end of that day by itself.</p>
+      </div>
+    <% end %>
+    <% if decided_requests.any? %>
+      <details class="modcreator-panel-block modcreator-panel-decided">
+        <summary>Decided (last <%= CreatorPanelComponent::DECIDED_LIMIT %>)</summary>
+        <ul>
+          <% decided_requests.each do |ask| %>
+            <li><%= link_to_user ask.user %> - <%= ask.creator_group.name %> - <%= ask.status %> by <%= link_to_user ask.decided_by %> on <%= ask.decided_at&.to_date %><%= " (#{ask.note})" if ask.note.present? %></li>
+          <% end %>
+        </ul>
+      </details>
+    <% end %>
+
+    <%# --- 2. the creator default (section 4) --- %>
+    <div id="creator-panel-default" class="modcreator-panel-block">
+      <h3>Default for <%= whose %> posts</h3>
+      <% if gallery.default_audience.nil? %>
+        <p class="fineprint">Not chosen yet: your posts act as Everyone until you choose. Once chosen you can switch between these three, not back to not chosen.</p>
+      <% elsif gallery.default_audience == "groups" && default_group_ids.empty? %>
+        <p class="modcreator-panel-warn">Your default lists no group, so only you, admins and people you name see these posts.</p>
+      <% end %>
+      <%= form_with url: path, method: :patch, class: "modcreator-panel-audience" do %>
+        <%= hidden_field_tag :panel, "default_audience", id: nil %>
+        <%= render CreatorPanelComponent::AudienceChoiceComponent.new(name: "default", chosen: gallery.default_audience, groups: group_choices, ticked: default_group_ids, inherit: nil) %>
+        <button type="submit" class="button-primary">Save who sees my posts</button>
+      <% end %>
+    </div>
+
+    <%# --- 3. groups (section 5, Q3, Q5) --- %>
+    <div id="creator-panel-groups" class="modcreator-panel-block">
+      <h3><%= admin_acting? ? "#{creator_name}'s groups" : "Your groups" %></h3>
+      <% if pending_count == 0 %>
+        <p class="fineprint">No one is waiting. People can ask to join only groups you open to requests.</p>
+      <% end %>
+      <% if groups.any? %>
+        <%= form_with url: helpers.edit_creator_gallery_path(gallery, anchor: "creator-panel-groups"), method: :get, class: "modcreator-panel-inline" do %>
+          <label>Find someone by name <input type="search" name="member_q" value="<%= member_q %>"></label>
+          <button type="submit">Find</button>
+          <% if member_q.present? %><%= link_to "Clear search", helpers.edit_creator_gallery_path(gallery, anchor: "creator-panel-groups") %><% end %>
+        <% end %>
+      <% end %>
+      <% groups.each do |group| %>
+        <% active, ended = member_counts.fetch(group.id, [0, 0]) %>
+        <details id="creator-panel-group-<%= group.id %>" class="modcreator-panel-group"<%= " open" if open?(group) %>>
+          <summary>
+            <strong><%= group.label %></strong> - <%= active %> <%= "member".pluralize(active) %><%= " (#{ended} ended)" if ended > 0 %>
+            - <%= group.open_to_requests ? "open to requests" : "by invitation only" %> - <%= uses_words(group) %>
+          </summary>
+
+          <ul class="modcreator-panel-members">
+            <% members.fetch(group.id, []).each do |m| %>
+              <li>
+                <%= link_to_user m.user %>
+                - <%= how_joined(m) %>, by <%= link_to_user m.added_by %>
+                - <%= m.expires_at ? "until #{m.expires_at.to_date}" : "no end" %>
+                <% if kept_out_ids.include?(m.user_id) %><span class="modcreator-panel-badge">kept out: a block beats membership</span><% end %>
+                <%= form_with url: path, method: :patch, class: "modcreator-panel-inline" do %>
+                  <%= hidden_field_tag :panel, "remove_member", id: nil %>
+                  <%= hidden_field_tag :group_id, group.id, id: nil %>
+                  <%= hidden_field_tag :user_id, m.user_id, id: nil %>
+                  <button type="submit" class="button-outline-danger" aria-label="Remove <%= m.user.name %> from <%= group.name %>">Remove</button>
+                <% end %>
+              </li>
+            <% end %>
+          </ul>
+          <% if member_q.present? && members.fetch(group.id, []).empty? && ended_members.fetch(group.id, []).empty? %>
+            <p class="fineprint">No member of <%= group.name %> matches "<%= member_q %>".</p>
+          <% end %>
+          <% if active > CreatorPanelComponent::MEMBER_LIMIT && member_q.blank? %>
+            <p class="fineprint">Showing the first <%= CreatorPanelComponent::MEMBER_LIMIT %> by name; find others with the name box above.</p>
+          <% end %>
+
+          <% if ended > 0 %>
+            <details>
+              <summary>Ended (<%= ended %>)</summary>
+              <ul class="modcreator-panel-members">
+                <% ended_members.fetch(group.id, []).each do |m| %>
+                  <li>
+                    <%= link_to_user m.user %> - ended <%= m.expires_at.to_date %>
+                    <%= form_with url: path, method: :patch, class: "modcreator-panel-inline" do %>
+                      <%= hidden_field_tag :panel, "add_member", id: nil %>
+                      <%= hidden_field_tag :group_id, group.id, id: nil %>
+                      <%= hidden_field_tag :user_name, m.user.name, id: nil %>
+                      <label>until <input type="date" name="until"></label>
+                      <button type="submit" aria-label="Renew <%= m.user.name %> in <%= group.name %>">Renew</button>
+                    <% end %>
+                  </li>
+                <% end %>
+              </ul>
+              <% if ended > CreatorPanelComponent::MEMBER_LIMIT && member_q.blank? %>
+                <p class="fineprint">Showing <%= CreatorPanelComponent::MEMBER_LIMIT %> of <%= ended %> ended members by name; find others with the name box above.</p>
+              <% end %>
+            </details>
+          <% end %>
+
+          <%= form_with url: path, method: :patch, class: "modcreator-panel-inline" do %>
+            <%= hidden_field_tag :panel, "add_member", id: nil %>
+            <%= hidden_field_tag :group_id, group.id, id: nil %>
+            <label>Booru name <input type="text" name="user_name" data-autocomplete="user" required></label>
+            <label>until <input type="date" name="until"></label>
+            <button type="submit" class="button-primary" aria-label="Add someone to <%= group.name %>">Add someone</button>
+          <% end %>
+          <%= form_with url: path, method: :patch, class: "modcreator-panel-inline" do %>
+            <%= hidden_field_tag :panel, "group_requests", id: nil %>
+            <%= hidden_field_tag :group_id, group.id, id: nil %>
+            <%= hidden_field_tag :open_to_requests, "0", id: nil %>
+            <label><input type="checkbox" name="open_to_requests" value="1"<%= " checked" if group.open_to_requests %>> Let people ask to join this group from your page</label>
+            <button type="submit" aria-label="Save whether people can ask to join <%= group.name %>">Save</button>
+          <% end %>
+          <% higher = higher_tier_members(group) %>
+          <%= form_with url: path, method: :patch, class: "modcreator-panel-inline" do %>
+            <%= hidden_field_tag :panel, "dissolve_group", id: nil %>
+            <%= hidden_field_tag :group_id, group.id, id: nil %>
+            <button type="submit" class="button-outline-danger" aria-label="Dissolve <%= group.name %>"
+                    data-confirm="Dissolve <%= group.name %>? Its <%= active %> <%= "member".pluralize(active) %><%= ", and the #{higher} #{"member".pluralize(higher)} of higher tiers," if higher > 0 %> lose what it alone let them see. Posts shown only to this group will be seen only by you, admins and people you name.">Dissolve group</button>
+          <% end %>
+        </details>
+      <% end %>
+
+      <h4>Make a group</h4>
+      <% if master_tag %>
+        <%= form_with url: path, method: :patch, class: "modcreator-panel-make" do %>
+          <%= hidden_field_tag :panel, "make_group", id: nil %>
+          <label>Group name <%= master_tag %>_<input type="text" name="suffix" placeholder="tier_<%= next_tier %>" pattern="[a-z0-9]+(_[a-z0-9]+)*"
+                 title="lowercase letters and digits, words joined by single underscores, like tier_1 or friends" required></label>
+          <label><input type="checkbox" name="open_to_requests" value="1"> Let people ask to join (tier groups usually are)</label>
+          <button type="submit" class="button-primary">Make group</button>
+        <% end %>
+        <p class="fineprint">Lowercase letters and digits, words joined by single underscores. tier_1, tier_2 ... nest: tier 2 sees everything tier 1 sees. Any other name, like friends, stands on its own. A group open to requests is named on your page to every signed-in member; leave the box unticked to run the group by hand.</p>
+      <% else %>
+        <p class="fineprint">Groups are named for your <%= CreatorPrefixes.visibility_config[:entries].find { |e| ArtistClaim.master?(e) }&.prefix %> tag, which only a Matrix account on <%= Danbooru.config.fourier_matrix_server_name %> has; <%= gallery.matrix_id %> is not.</p>
+      <% end %>
+    </div>
+
+    <%# --- 4. people let in or kept out (section 4, Q8, Q9) --- %>
+    <div id="creator-panel-people" class="modcreator-panel-block">
+      <h3>People you let in or keep out</h3>
+      <% if creator_wide_rules.size >= CreatorPanelComponent::MEMBER_LIMIT || post_rules.size >= CreatorPanelComponent::MEMBER_LIMIT || member_q.present? %>
+        <%= form_with url: helpers.edit_creator_gallery_path(gallery, anchor: "creator-panel-people"), method: :get, class: "modcreator-panel-inline" do %>
+          <label>Find someone by name <input type="search" name="member_q" value="<%= member_q %>"></label>
+          <button type="submit">Find</button>
+          <% if member_q.present? %><%= link_to "Clear search", helpers.edit_creator_gallery_path(gallery, anchor: "creator-panel-people") %><% end %>
+        <% end %>
+      <% end %>
+      <% rules = creator_wide_rules + post_rules %>
+      <% [[CreatorUserRule::ALLOW, "Let in by name"], [CreatorUserRule::BLOCK, "Kept out"]].each do |kind, heading| %>
+        <h4><%= heading %></h4>
+        <% listed = rules.select { |r| r.rule == kind } %>
+        <%# Under a search an empty heading is the search's, not "nobody is
+            set": the settings it filtered out still apply (second repair,
+            2026-10-09). %>
+        <% if listed.empty? && member_q.present? %>
+          <p class="fineprint">Nobody matching "<%= member_q %>". <%= link_to "Clear search", helpers.edit_creator_gallery_path(gallery, anchor: "creator-panel-people") %></p>
+        <% elsif listed.empty? %>
+          <p class="fineprint">Nobody.</p>
+        <% else %>
+          <ul class="modcreator-panel-members">
+            <% listed.each do |rule| %>
+              <li>
+                <%= link_to_user rule.user %> - <%= rule.post_id ? "post ##{rule.post_id} only" : "all your posts" %>
+                <%= form_with url: path, method: :patch, class: "modcreator-panel-inline" do %>
+                  <%= hidden_field_tag :panel, "clear_rule", id: nil %>
+                  <%= hidden_field_tag :user_id, rule.user_id, id: nil %>
+                  <%= hidden_field_tag :post_id, rule.post_id, id: nil if rule.post_id %>
+                  <button type="submit" class="button-outline-danger" aria-label="Remove the setting for <%= rule.user.name %> on <%= rule.post_id ? "post ##{rule.post_id}" : "all your posts" %>">Remove</button>
+                <% end %>
+              </li>
+            <% end %>
+          </ul>
+        <% end %>
+      <% end %>
+      <% if creator_wide_rules.size >= CreatorPanelComponent::MEMBER_LIMIT && creator_wide_rule_count > creator_wide_rules.size %>
+        <p class="fineprint">Showing <%= creator_wide_rules.size %> of <%= creator_wide_rule_count %> people set for all your posts by name; find others with the name box.</p>
+      <% end %>
+      <% if post_rules.size >= CreatorPanelComponent::MEMBER_LIMIT && post_rule_count > post_rules.size %>
+        <p class="fineprint">Showing <%= post_rules.size %> of <%= post_rule_count %> settings on single posts; find others with the name box, or open a post below to see all of its own.</p>
+      <% end %>
+      <% stale = stale_rule_count %>
+      <% if stale > 0 %>
+        <p class="fineprint"><%= stale %> older <%= "setting".pluralize(stale) %> <%= (stale == 1) ? "is" : "are" %> on posts that are no longer yours and <%= (stale == 1) ? "has" : "have" %> no effect.</p>
+      <% end %>
+
+      <%# A choice, not two submit buttons: Enter in a field submits the form's
+          first button, which made the keyboard path to Keep out an allow
+          (repair, 2026-10-09). Neither is chosen in advance. %>
+      <%= form_with url: path, method: :patch, class: "modcreator-panel-inline" do %>
+        <%= hidden_field_tag :panel, "set_rule", id: nil %>
+        <label>Booru name <input type="text" name="user_name" data-autocomplete="user" required></label>
+        <label>only on post # <input type="number" name="post_id" min="1"></label>
+        <label><input type="radio" name="rule" value="allow" required> Let in</label>
+        <label><input type="radio" name="rule" value="block" required> Keep out</label>
+        <button type="submit" class="button-primary">Save</button>
+      <% end %>
+      <p class="fineprint modcreator-panel-plain">
+        Letting someone in by name opens your posts to them, even private ones, unless you keep them out somewhere.
+        Keeping someone out beats everything else: while signed in, their booru account cannot see your posts, so it cannot tag, favourite or comment on them.
+        A post open to Everyone can still be looked at by anyone who signs out, this person included. A block stops the account, not the eyes.
+        Admins and the posting bots always see everything, so they cannot be let in or kept out.
+      </p>
+    </div>
+
+    <%# --- 5. posts set differently (Q4) --- %>
+    <div id="creator-panel-posts" class="modcreator-panel-block">
+      <h3>Posts set differently</h3>
+      <%= form_with url: helpers.edit_creator_gallery_path(gallery, anchor: "creator-panel-posts"), method: :get, class: "modcreator-panel-inline" do %>
+        <label>Set one post differently: post # <input type="number" name="post_id" min="1" value="<%= panel_post_id %>" required></label>
+        <button type="submit">Open</button>
+      <% end %>
+
+      <% if panel_post_id %>
+        <% if editor_post %>
+          <div class="modcreator-panel-editor">
+            <h4>Post #<%= editor_post.id %></h4>
+            <% if shared_post? %>
+              <p class="fineprint">Another creator also controls this post. Whoever of you is stricter wins for each viewer.</p>
+            <% end %>
+            <%= form_with url: path, method: :patch, class: "modcreator-panel-audience" do %>
+              <%= hidden_field_tag :panel, "post_audience", id: nil %>
+              <%= hidden_field_tag :post_id, editor_post.id, id: nil %>
+              <%= render CreatorPanelComponent::AudienceChoiceComponent.new(name: "post", chosen: editor_audience, groups: group_choices, ticked: editor_group_ids, inherit: default_words) %>
+              <button type="submit" class="button-primary">Save</button>
+            <% end %>
+            <% post_only = editor_rules.to_a %>
+            <% if post_only.any? %>
+              <ul class="modcreator-panel-members">
+                <% post_only.each do |rule| %>
+                  <li>
+                    <%= link_to_user rule.user %> - <%= (rule.rule == CreatorUserRule::BLOCK) ? "kept out of this post only" : "let in on this post only" %>
+                    <%= form_with url: path, method: :patch, class: "modcreator-panel-inline" do %>
+                      <%= hidden_field_tag :panel, "clear_rule", id: nil %>
+                      <%= hidden_field_tag :user_id, rule.user_id, id: nil %>
+                      <%= hidden_field_tag :post_id, editor_post.id, id: nil %>
+                      <button type="submit" class="button-outline-danger" aria-label="Remove the setting for <%= rule.user.name %> on post #<%= editor_post.id %>">Remove</button>
+                    <% end %>
+                  </li>
+                <% end %>
+              </ul>
+            <% end %>
+            <%= form_with url: path, method: :patch, class: "modcreator-panel-inline" do %>
+              <%= hidden_field_tag :panel, "set_rule", id: nil %>
+              <%= hidden_field_tag :post_id, editor_post.id, id: nil %>
+              <label>Booru name <input type="text" name="user_name" data-autocomplete="user" required></label>
+              <label><input type="radio" name="rule" value="allow" required> Let in on this post only</label>
+              <label><input type="radio" name="rule" value="block" required> Keep out of this post only</label>
+              <button type="submit" class="button-primary">Save</button>
+            <% end %>
+          </div>
+        <% else %>
+          <p class="modcreator-panel-warn"><%= not_your_post_words %></p>
+        <% end %>
+      <% end %>
+
+      <% if overrides.any? %>
+        <ul class="modcreator-panel-posts">
+          <% overrides.each do |row| %>
+            <% names = group_labels(override_groups.fetch(row.post_id, [])) %>
+            <li>
+              <% if (src = thumb(row.post)) %>
+                <img src="<%= src %>" alt="" loading="lazy" width="60" height="60">
+              <% end %>
+              <%= link_to "##{row.post_id}", helpers.post_path(row.post_id) %>
+              <%# A groups override listing no group is said once, as the warning. %>
+              <% if row.audience == "groups" && names.empty? %>
+                - <span class="modcreator-panel-warn">Members of my groups, but it lists no group, so only you, admins and people you name see it</span>
+              <% else %>
+                - <%= audience_words(row.audience, names) %>
+              <% end %>
+              <%= link_to "Change", helpers.edit_creator_gallery_path(gallery, post_id: row.post_id, anchor: "creator-panel-posts") %>
+              <%= form_with url: path, method: :patch, class: "modcreator-panel-inline" do %>
+                <%= hidden_field_tag :panel, "post_audience", id: nil %>
+                <%= hidden_field_tag :post_id, row.post_id, id: nil %>
+                <%= hidden_field_tag :audience, "inherit", id: nil %>
+                <button type="submit" aria-label="Put post #<%= row.post_id %> back to my default">Back to my default</button>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+        <% if last_page > 1 %>
+          <p class="modcreator-panel-pages">
+            <% if page > 1 %><%= link_to "< newer", helpers.edit_creator_gallery_path(gallery, audience_page: page - 1, anchor: "creator-panel-posts") %><% end %>
+            page <%= page %> of <%= last_page %>
+            <% if page < last_page %><%= link_to "older >", helpers.edit_creator_gallery_path(gallery, audience_page: page + 1, anchor: "creator-panel-posts") %><% end %>
+          </p>
+        <% end %>
+      <% else %>
+        <p class="fineprint">Every post follows your default.</p>
+      <% end %>
+      <% stale_posts = stale_override_count %>
+      <% if stale_posts > 0 %>
+        <p class="fineprint"><%= stale_posts %> older <%= "setting".pluralize(stale_posts) %> <%= (stale_posts == 1) ? "is" : "are" %> on posts that are no longer yours and <%= (stale_posts == 1) ? "has" : "have" %> no effect.</p>
+      <% end %>
+    </div>
+  <% end %>
+</section>

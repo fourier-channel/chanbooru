@@ -3,7 +3,12 @@
 <h1>Access Denied</h1>
 
 <p>
-  You do not have permission to visit this page.
+  <%# Fork: a refusal that says why (and what to do) is shown as it was raised; the bare one keeps upstream's words. %>
+  <% if @message.present? && @message != "Access denied" %>
+    <%= @message %>
+  <% else %>
+    You do not have permission to visit this page.
+  <% end %>
 
   <% if CurrentUser.user.is_anonymous? %>
     Try <%= link_to "logging in", main_app.login_path(url: request.fullpath) %> or

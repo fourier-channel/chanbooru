@@ -77,8 +77,24 @@ class CreatorPrefixesController < ApplicationController
     tag = params.require(:tag_name).to_s
     released = params[:released].to_s.truthy?
     CreatorTagRelease.set!(tag, released: released, by: CurrentUser.user, note: params[:note].to_s)
-    flash[:notice] = released ? "#{tag} released: their posts now follow their own settings" : "#{tag} returned to its prefix's default"
-    redirect_back fallback_location: (CurrentUser.user.is_admin? ? releases_creator_prefixes_path : creator_prefixes_path)
+    # Spoken to whoever released it: the creator releasing their own tag
+    # hears "your", an admin hears whose (2026-10-09).
+    whose = CreatorTagRelease.owner?(CurrentUser.user, tag) ? "your posts now follow your" : "the creator's posts now follow the creator's"
+    flash[:notice] = released ? "#{tag} released: #{whose} own settings." : "#{tag} returned to its prefix's default."
+    # From a creator's panel, land back on the setting the release hands
+    # over to (the default audience), not at the top of a long edit page
+    # (browser recheck, 2026-10-09). Same host only; anything else goes back
+    # as before.
+    back = begin
+      URI.parse(request.referer.to_s)
+    rescue URI::InvalidURIError
+      nil
+    end
+    if back&.host == request.host && back.path.to_s.match?(%r{\A/creators/[^/]+/edit\z})
+      redirect_to "#{back.path}#creator-panel-default"
+    else
+      redirect_back fallback_location: (CurrentUser.user.is_admin? ? releases_creator_prefixes_path : creator_prefixes_path)
+    end
   rescue ActiveRecord::RecordInvalid => e
     flash[:notice] = e.record.errors.full_messages.join("; ")
     redirect_back fallback_location: creator_prefixes_path
