@@ -63,27 +63,25 @@ class ModulationNavbarComponent < NavbarComponent
     # The help corpus was never written; the wiki itself works.
     list << { label: "Wiki", href: main_app.wiki_pages_path, category: "general" } if offers?("wiki_pages#index")
 
-    # The sampling curation surface, published inside this site at /sample
-    # (operator ruling 2026-09-13) so it inherits the booru's authentication.
+    # The sampling curation surface, on its own host since 2026-10-09 (operator
+    # ruling: it moves from /sample here to sample.41chan.net; the old paths
+    # are retired, not redirected). Danbooru.config.fourier_sample_url is the
+    # one place the address is written.
     #
-    # LIT 2026-09-15. It was inert because "its assets are still addressed from
-    # the site root, so loading it under /sample would render unstyled markup
-    # with no data" -- which was true, and is the trailing-slash defect fixed
-    # at the edge on 2026-09-14: the page's assets and API calls are relative,
-    # so /sample without the slash resolved them against the site root. The
-    # bare path now redirects to /sample/ and the surface renders. The stated
-    # condition for lighting this is met, so it is lit.
+    # SAME FRAME, NO TARGET (ruling 2026-10-09: "be absolutely sure that
+    # calling sample from within the booru from within sample doesn't cause a
+    # cascade"). Inside Technetium this page is a frame; the pill repaints that
+    # frame, and sample's way back to the booru repaints it again, so going
+    # back and forth never nests one frame in another. No `target`, no
+    # `rel` that implies a new browsing context.
     #
-    # OWNER ONLY (operator ruling 2026-09-14), and the earlier note here --
-    # that hiding the entry from non-admins would be "hiding a door that is
-    # open" -- no longer applies, because the door is now shut:
-    # SampleController#authorize refuses everything below owner outright
-    # instead of serving them the external view. The nav matches the boundary
-    # rather than contradicting it.
-    #
-    # Linked WITH the trailing slash so the browser does not pay a redirect on
-    # the way to a page whose every asset is relative.
-    list << { label: "Sample", href: "/sample/", category: "meta" } if current_user.is_owner?
+    # OWNER ONLY, as it was (ruling 2026-09-14). The booru no longer decides
+    # who may use the surface -- sample.41chan.net admits by Matrix power
+    # level in the moderators' room (ruling 2026-10-09), which the booru
+    # cannot read -- so this offers the door only to the one account certain
+    # to be admitted. Hiding a link changes what is offered, not what is
+    # reachable; the gate is sample's.
+    list << { label: "Sample", href: Danbooru.config.fourier_sample_url, category: "meta" } if current_user.is_owner?
 
     if current_user.is_moderator?
       list << { label: "Reports", href: main_app.moderation_reports_path, category: "meta", count: pending_report_count }

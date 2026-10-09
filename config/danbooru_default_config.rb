@@ -868,6 +868,25 @@ module Danbooru
       "41chan.net"
     end
 
+    # Where the owner's Sample nav pill goes: fourier-sampling's curation
+    # surface, on its own host (operator ruling 2026-10-09: it moves from
+    # booru.41chan.net/sample to sample.41chan.net, and the old links are
+    # retired, not redirected). ABSOLUTE because it is another origin; read by
+    # both navbars so the address is written once.
+    #
+    # The pill is a plain same-frame link, no target (ruling 2026-10-09: "be
+    # absolutely sure that calling sample from within the booru from within
+    # sample doesn't cause a cascade"). Inside Technetium the booru is a frame;
+    # following this link repaints THAT frame, and sample's way-back link to
+    # the booru repaints it again, so going back and forth never nests a frame.
+    #
+    # Who may use the surface is decided THERE, by the viewer's Matrix power
+    # level in the moderators' room (ruling 2026-10-09), not by the booru --
+    # this setting only says where it is.
+    def fourier_sample_url
+      "https://sample.41chan.net/"
+    end
+
     # Whether to enable comments.
     def comments_enabled?
       true

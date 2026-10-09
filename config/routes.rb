@@ -47,19 +47,6 @@ Rails.application.routes.draw do
   # fourier: release one image from troll jail (undelete its post). Approver+,
   # and only for a post that is deleted AND carries the jail tag.
   post "fourier_jail/release",       to: "fourier_jail#create", as: :fourier_jail_release
-  # The sampling curation surface, published inside the booru so it inherits
-  # this site's authentication instead of needing its own (operator ruling
-  # 2026-09-13). `/sample` is the page; `/sample/authorize` is what the reverse
-  # proxy asks before serving any of it, because only Rails knows the viewer's
-  # level. Admin and owner get the internal view; everyone else external.
-  # Deliberately NOT under /sample. The reverse proxy owns that whole prefix
-  # and hands it to the sampling app, so anything Rails needs to answer has to
-  # live outside it or Rails would never see the request.
-  #
-  # The proxy asks this before serving any of /sample, and serves nothing
-  # unless it answers 2xx. It carries no body: the whole reply is the status
-  # and one header naming the view.
-  get  "fourier_sample_authorize",   to: "sample#authorize", as: :fourier_sample_authorize
   # Error cards, shown in place of an image that failed to load.
   get  "errors/:status",             to: "errors#show", as: :error_art, constraints: { status: /\d{3}/, format: /svg/ }
 

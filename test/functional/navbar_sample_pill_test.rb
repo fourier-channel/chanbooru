@@ -10,9 +10,16 @@ require "test_helper"
 # everything below owner and a nav entry pointing at a shut door contradicts
 # the boundary. This file went on asserting the inert pill for nine days.
 #
-# navbar_sample_link_test.rb pins the href in both presets by matching the
-# page body. This file pins the PILL: the element in #top.modnav, lit, and
-# absent for everyone the surface refuses.
+# On 2026-10-09 the surface moved to its own host (operator ruling: /sample
+# on this site is retired, not redirected), SampleController went with it,
+# and the pill now carries Danbooru.config.fourier_sample_url, absolute, in
+# the same frame. It stays OWNER ONLY: the surface admits by Matrix power
+# level in the moderators' room, which the booru cannot read, so the pill is
+# offered to the one account certain to be admitted.
+#
+# navbar_sample_link_test.rb pins the href, the same-frame contract and the
+# retired route in both presets. This file pins the PILL: the element in
+# #top.modnav, lit, and absent for everyone it is not offered to.
 class NavbarSamplePillTest < ActionDispatch::IntegrationTest
   context "the Sample pill" do
     setup do
@@ -25,12 +32,12 @@ class NavbarSamplePillTest < ActionDispatch::IntegrationTest
       get_auth posts_path(preset: "modulation"), @owner
 
       assert_response :success
-      assert_select "#top.modnav a.modnav-pill[href='/sample/']", text: /Sample/, count: 1
+      assert_select "#top.modnav a.modnav-pill[href='#{Danbooru.config.fourier_sample_url}']:not([target])", text: /Sample/, count: 1
       assert_select "#top.modnav .modnav-pill.is-disabled", text: /Sample/, count: 0,
                                                             message: "the pill was lit on 2026-09-15 and must not go back to inert"
     end
 
-    should "not appear for an admin, because the surface is owner-only" do
+    should "not appear for an admin, because the pill is owner-only" do
       get_auth posts_path(preset: "modulation"), @admin
 
       assert_response :success
