@@ -36,34 +36,75 @@
       and still here" to the one above it, so the steps are numbered nodes on
       one rail rather than a loose list of tips. role="list" because
       Safari/VoiceOver drops the list semantics of a list styled
-      list-style: none, and the order is the point (review, 2026-10-10). %>
+      list-style: none, and the order is the point (review, 2026-10-10).
+
+      Each step is a <details> toggle, collapsed by default (operator,
+      2026-10-10): closed, the page reads as the flowchart's questions alone,
+      and the reader opens the one that fits. The green triangle on the
+      right says a step opens; it points down while it is open. Native
+      <details>, so it needs no script and opens from the keyboard. %>
   <ol class="oh-no-flow" role="list">
     <li class="oh-no-step">
-      <h2 class="oh-no-question">Have you registered?</h2>
-      <p>The majority of this site is only available to registered viewers.</p>
-      <p>You may register by clicking <span class="oh-no-ui">"Manage Session"</span>, <span class="oh-no-ui">"Booru: Log In"</span> and then <span class="oh-no-ui">"Create Account"</span>.</p>
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">Have you registered?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <p>The majority of this site is only available to registered viewers.</p>
+          <p>You may register by clicking <span class="oh-no-ui">"Manage Session"</span>, <span class="oh-no-ui">"Booru: Log In"</span> and then <span class="oh-no-ui">"Create Account"</span>.</p>
+        </div>
+      </details>
     </li>
 
     <li class="oh-no-step">
-      <h2 class="oh-no-question">Are you already registered, but still here?</h2>
-      <p>Your login token may be stale.  Click the <span class="oh-no-ui">"Manage Session"</span> button and check your logins for any amber or red lamps.  If so, follow the instructions on the panel.</p>
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">Are you already registered, but still here?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <p>Your login token may be stale.  Click the <span class="oh-no-ui">"Manage Session"</span> button and check your logins for any amber or red lamps.  If so, follow the instructions on the panel.</p>
+        </div>
+      </details>
     </li>
 
     <li class="oh-no-step">
-      <h2 class="oh-no-question">Registered, logged in with fresh tokens, and yet, here you are again?</h2>
-      <%# The bin is the header's own purge icon (IconHelper#purge_icon), not a
-          button: the working one is in the corner, and the sentence says so. %>
-      <p>Try performing a full purge of site data by clicking the <span class="oh-no-bin" role="img" aria-label="junk bin icon"><%= purge_icon %></span> in the upper right corner.  This will log you out of the services, purge your cache of all site data (with only a few exceptions) and give you a fresh start.  Try logging in again.</p>
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">Registered, logged in with fresh tokens, and yet, here you are again?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <%# The bin is the header's own purge icon (IconHelper#purge_icon), not a
+              button: the working one is in the corner, and the sentence says so. %>
+          <p>Try performing a full purge of site data by clicking the <span class="oh-no-bin" role="img" aria-label="junk bin icon"><%= purge_icon %></span> in the upper right corner.  This will log you out of the services, purge your cache of all site data (with only a few exceptions) and give you a fresh start.  Try logging in again.</p>
+        </div>
+      </details>
     </li>
 
     <li class="oh-no-step">
-      <h2 class="oh-no-question">Registered, newly logged in with a brand new set of tokens, and this page keeps popping up?</h2>
-      <p>It's possible this surface is not intended to be available to your user level--or at all.</p>
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">Registered, newly logged in with a brand new set of tokens, and this page keeps popping up?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <p>It's possible this surface is not intended to be available to your user level--or at all.</p>
+        </div>
+      </details>
     </li>
 
     <li class="oh-no-step">
-      <h2 class="oh-no-question">So you're registered, session tokens fresh out the box, and absolutely sure something is supposed to be here?</h2>
-      <p>You may report the bug to <span class="oh-no-ui">@Fourier:41chan.net</span> in the appropriate channel under <span class="oh-no-ui">"get help"</span> in the 41chan Matrix Homeserver.</p>
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">So you're registered, session tokens fresh out the box, and absolutely sure something is supposed to be here?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <p>You may report the bug to <span class="oh-no-ui">@Fourier:41chan.net</span> in the appropriate channel under <span class="oh-no-ui">"get help"</span> in the 41chan Matrix Homeserver.</p>
+        </div>
+      </details>
     </li>
   </ol>
 

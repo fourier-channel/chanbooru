@@ -23,6 +23,10 @@ ul.backtrace {
   --oh-no-line: var(--default-border-color);
   --oh-no-surface: var(--card-background-color);
   --oh-no-accent: var(--link-color);
+
+  // The steps' toggle triangle: green, as the operator asked (2026-10-10),
+  // in each preset's own green.
+  --oh-no-go: var(--success-color);
   --oh-no-mono: ui-monospace, "SFMono-Regular", "Menlo", monospace;
   --oh-no-radius: 6px;
 
@@ -40,6 +44,7 @@ body[data-preset="modulation"] .oh-no {
   --oh-no-line: var(--mod-line-strong);
   --oh-no-surface: var(--mod-surface-2);
   --oh-no-accent: var(--mod-accent);
+  --oh-no-go: var(--mod-accent);
   --oh-no-mono: var(--mod-mono);
   --oh-no-radius: var(--mod-radius-sm);
 }
@@ -159,8 +164,58 @@ body[data-preset="modulation"] .oh-no {
     p:last-child { margin-bottom: 0; }
   }
 
+  // Each step's toggle (operator, 2026-10-10): the question is the summary,
+  // collapsed by default, with a green triangle on the right pointing at the
+  // question while closed and down while open. The browser's own marker is
+  // hidden so the triangle is the only one.
+  .oh-no-toggle > summary {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    list-style: none;
+    cursor: pointer;
+    border-radius: 4px;
+
+    &::-webkit-details-marker { display: none; }
+
+    &:focus-visible {
+      outline: 2px solid var(--oh-no-go);
+      outline-offset: 2px;
+    }
+  }
+
+  // The triangle's box is one node tall, so the triangle sits level with the
+  // question's first line however many lines the question wraps to.
+  .oh-no-triangle {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: var(--oh-no-node);
+
+    &::before {
+      content: "";
+      width: 0;
+      height: 0;
+      border-style: solid;
+      border-width: 0.4rem 0 0.4rem 0.6rem;
+      border-color: transparent transparent transparent var(--oh-no-go);
+      transition: transform 0.15s ease-out;
+    }
+  }
+
+  .oh-no-toggle[open] > summary .oh-no-triangle::before { transform: rotate(90deg); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .oh-no-triangle::before { transition: none; }
+  }
+
+  .oh-no-answer { padding-top: 0.4rem; }
+
   .oh-no-question {
-    margin: 0 0 0.35rem;
+    flex: 1;
+    margin: 0;
     padding: 0;
     border: 0;
     min-height: var(--oh-no-node);

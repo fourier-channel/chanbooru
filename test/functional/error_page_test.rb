@@ -25,7 +25,12 @@ class ErrorPageTest < ActionDispatch::IntegrationTest
     assert_select ".oh-no p.oh-no-intro", text: /\AYou have reached the error page\.\s+Which error, we cannot say for sure, because that's just the way computers work\.\s+The following flowchart of conditionals may help:\z/
     # role="list" because Safari/VoiceOver drops an unstyled list's semantics,
     # and the ordered flowchart is the point of the page (review, 2026-10-10).
-    assert_equal(QUESTIONS, css_select(".oh-no ol.oh-no-flow[role='list'] > li.oh-no-step > h2.oh-no-question").map(&:text))
+    assert_equal(QUESTIONS, css_select(".oh-no ol.oh-no-flow[role='list'] > li.oh-no-step > details.oh-no-toggle > summary > h2.oh-no-question").map(&:text))
+    # Each step is a toggle, collapsed by default (operator, 2026-10-10): the
+    # questions read as the flowchart, and a reader opens the one that fits.
+    assert_select ".oh-no details.oh-no-toggle", count: QUESTIONS.size
+    assert_select ".oh-no details.oh-no-toggle[open]", count: 0
+    assert_select ".oh-no details.oh-no-toggle > summary > .oh-no-triangle[aria-hidden='true']", count: QUESTIONS.size
     # The junk bin is the header's own purge icon, labelled, and not a button.
     assert_select ".oh-no .oh-no-bin[role='img'][aria-label='junk bin icon'] svg.purge-icon path", count: 1
     assert_select ".oh-no button", count: 0
