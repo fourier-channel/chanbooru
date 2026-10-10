@@ -197,23 +197,24 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
         assert(rules.any? { |r| r.start_with?("arthropod ") })
       end
 
-      # How a jailed post is released by hand: with reveal on, from the
-      # post page's moderation pill. (With it off the page is a 404, and
-      # release goes through fourier-sampling's curation surface, which
-      # calls POST /fourier_jail/release -- asserted below.)
-      should "be able to release a jailed post from the post page pill" do
+      # Seeing a jailed post is not releasing it: there is no booru-side
+      # release (operator ruling 2026-10-09). The pill refuses both halves
+      # and names the jail panel, whose POST /fourier_jail/release is the
+      # one door (asserted below).
+      should "be refused releasing a jailed post from the post page pill" do
         login_as(@admin_on)
         get post_path(@jailed)
         assert_response :success
 
         patch modulation_moderation_path(@jailed), params: { jail: false }, as: :json
-        assert_response :success
+        assert_response 422
+        assert_equal Post::JAILED_RELEASE_DOOR, response.parsed_body["refused"]
         patch modulation_moderation_path(@jailed), params: { deleted: false }, as: :json
-        assert_response :success
+        assert_response 422
 
         @jailed.reload
-        assert_not @jailed.is_deleted?
-        assert_not @jailed.has_tag?(JAIL)
+        assert @jailed.is_deleted?
+        assert @jailed.has_tag?(JAIL)
       end
     end
 
@@ -233,7 +234,7 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
     end
 
     should "leave the release route working whatever any admin's toggle says" do
-      bot = create(:approver_user)
+      bot = create(:approver_user, name: "sample") # the jail panel's account (fourier_jail_release_names)
       post = jailed_post(bot)
 
       post_auth fourier_jail_release_path, bot, params: { md5: post.md5 }

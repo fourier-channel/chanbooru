@@ -44,9 +44,13 @@ Rails.application.routes.draw do
   # fourier: hidden creators, released from their prefix's default (admin; the creator from their artist page).
   get  "creator_prefixes/releases",  to: "creator_prefixes#releases", as: :releases_creator_prefixes
   post "creator_prefixes/releases",  to: "creator_prefixes#update_release", as: :update_release_creator_prefixes
-  # fourier: release one image from troll jail (undelete its post). Approver+,
-  # and only for a post that is deleted AND carries the jail tag.
+  # fourier: the jail panel's door, for its account alone
+  # (fourier_jail_release_names). POST releases one image from troll jail --
+  # untag and undelete, only a deletion the jail made. GET lists the booru's
+  # own jailings since a cursor, so the panel hears of them (2026-10-09; a
+  # verb on the existing path, not a new route).
   post "fourier_jail/release",       to: "fourier_jail#create", as: :fourier_jail_release
+  get  "fourier_jail/release",       to: "fourier_jail#index"
   # Error cards, shown in place of an image that failed to load.
   get  "errors/:status",             to: "errors#show", as: :error_art, constraints: { status: /\d{3}/, format: /svg/ }
 

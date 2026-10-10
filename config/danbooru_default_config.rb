@@ -861,6 +861,20 @@ module Danbooru
       !Rails.env.test?
     end
 
+    # The booru accounts that are the jail panel: the only callers of POST
+    # /fourier_jail/release and the only readers of its GET feed of the
+    # booru's own jailings. Operator ruling 2026-10-09: release happens only
+    # from the jail panel, by the jail account -- any other approver who held
+    # a jailed md5 could otherwise release it outside the panel, with
+    # sampling's record still holding it jailed. fourier-sampling's posting
+    # account; not derived from fourier_posting_bot_names, because the tunnel
+    # posts and never releases. HERE rather than in the untracked
+    # danbooru_local_config.rb, for the reason banished_posts_need_reveal?
+    # gives. Empty means nobody, and the refusal names this setting.
+    def fourier_jail_release_names
+      %w[sample]
+    end
+
     # The Matrix homeserver whose users fourier-tunnel mints `41chan_<localpart>`
     # poster tags for. The creator backfill proposes @<localpart>:<this> for a
     # post's poster tag; a remote @alice:elsewhere is not 41chan_alice.

@@ -192,12 +192,15 @@ class BanishedTagJailTest < ActionDispatch::IntegrationTest
   end
 
   # The release path, end to end the way fourier-sampling walks it:
-  # POST /fourier_jail/release undeletes, then a tag edit takes troll_jail
-  # off. The banished tag stays on the post throughout. None of that is the
+  # POST /fourier_jail/release undeletes and takes troll_jail off in one act
+  # (a tag edit after it, as an older sampling sends, finds nothing to do).
+  # The banished tag stays on the post throughout. None of that is the
   # post GAINING anything, so none of it may jail it again.
   context "A jailed post that is released" do
     setup do
-      @bot = create(:approver_user)
+      # The jail panel's account (fourier_jail_release_names): the release
+      # route answers it alone (operator ruling 2026-10-09).
+      @bot = create(:approver_user, name: "sample")
       @post = as(@bot) { create(:post, tag_string: "landscape gore", uploader: @bot, md5: SecureRandom.hex(16)) }
       assert_jailed(@post, "gore")
     end
@@ -254,15 +257,17 @@ class BanishedTagJailTest < ActionDispatch::IntegrationTest
       assert_equal 1, deletion_flags(@post).count
     end
 
-    should "stay released when an admin unjails and undeletes it from the post page pill" do
-      admin = create(:admin_user)
+    # No booru-side release (operator ruling 2026-10-09): the pill refuses
+    # both halves, and the jail panel's release is the door.
+    should "be refused by the post page pill and released only by the release route" do
+      login_as(create(:admin_user))
+      patch modulation_moderation_path(@post), params: { jail: false }, as: :json
+      assert_response 422
+      patch modulation_moderation_path(@post), params: { deleted: false }, as: :json
+      assert_response 422
+      assert_jailed(@post, "gore")
 
-      patch_json = ->(params) { patch modulation_moderation_path(@post), params: params, as: :json }
-      login_as(admin)
-      patch_json.call({ jail: false })
-      assert_response :success
-      patch_json.call({ deleted: false })
-      assert_response :success
+      post_auth fourier_jail_release_path, @bot, params: { md5: @post.md5 }
 
       assert_live(@post)
       assert_not @post.has_tag?(JAIL)

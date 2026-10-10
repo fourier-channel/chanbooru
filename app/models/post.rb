@@ -73,11 +73,13 @@ class Post < ApplicationRecord
   before_save :update_tag_post_counts
   before_save :update_tag_category_counts
   before_save :note_banished_tags_gained # fork: the booru's own jail, see jail_on_banished_tags
+  before_save :note_jailing_entered # fork: every booru-side jailing reaches the jail panel, see report_jailing_entered
   before_create :remove_blank_artist_commentary
   before_create :autoban
   after_save :create_version
   after_save :update_parent_on_save
   after_save :apply_post_metatags
+  after_save :report_jailing_entered
   after_save :jail_on_banished_tags # fork: LAST, because it saves again (see create_version)
   after_create_commit :update_iqdb
 
@@ -2477,11 +2479,8 @@ class Post < ApplicationRecord
           add_tag(jail)
           save!
         end
-        delete!(reason, user: User.system)
-        # delete! logs nothing for the system user (upstream treats its
-        # deletions as routine pruning). A jailing is not routine; log it.
-        ModAction.log("deleted post ##{id}, reason: #{reason}", :post_delete, subject: self, user: User.system)
       end
+      jail_by_booru!(reason)
     end
 
     # A live post that was once deleted BY A JAILING has been released: only
@@ -2494,6 +2493,204 @@ class Post < ApplicationRecord
     # tag was gained, so the query is off every ordinary save.
     def released_from_jail?
       flags.succeeded.where("post_flags.reason LIKE ?", "troll jail%").exists?
+    end
+  end
+
+  # WHAT A JAILING IS, ON THE BOORU, and the one door out of it.
+  #
+  # Operator ruling 2026-10-10: "Jailed means deleted." A jailed post is a
+  # DELETED post carrying troll_jail, and it is withheld exactly as every
+  # deleted post is (#hidden_as_deleted?, deleted_post_visibility_level) --
+  # nothing here decides who may SEE one. What this concern decides is who
+  # may UNDO one: operator ruling 2026-10-09, there is no booru-side way to
+  # release a jailed post; release happens only from the jail panel, as
+  # POST /fourier_jail/release by the jail's account. So every ordinary
+  # undelete door (PostApproval, the post-page pill) asks #jailed? and
+  # refuses with JAILED_RELEASE_DOOR.
+  #
+  # WHO PROVES THE JAIL ACTED. The jail's deletions are told apart by the
+  # account that made them, read from the post_delete mod action only code
+  # writes, never by the reason text: DELETE /posts/:id takes any approver's
+  # free text, so "troll jail: radioactive" typed by an approver would
+  # otherwise be a legal hold nothing could release, and "troll jail: x" a
+  # moderator's deletion the panel could undo. The jail's accounts are
+  # sampling's (fourier_jail_release_names, fourier_posting_bot_names) and the
+  # booru's own system user, which the banished-tag failsafe and the pill's
+  # jail-on delete as (#jail_by_booru!).
+  JAIL_DELETION_REASON = "troll jail: "
+  # A legal hold is never released (operator ruling 2026-10-08).
+  LEGAL_HOLD_REASON = "troll jail: radioactive"
+  JAILED_RELEASE_DOOR = "this post is jailed: a jailed post is released only from the jail panel (fourier-sampling), never from the booru"
+  # Said beside JAILED_RELEASE_DOOR for a jailing from before the booru
+  # reported its jailings (2026-10-10), which the panel has no row for.
+  UNREPORTED_JAILING = "the jail panel has not been told of this jailing yet: an admin runs script/fourier_report_past_jailings.rb (a dry run first, then -- --apply), after which it is unjailed from the panel"
+
+  concerning :TrollJailMethods do
+    class_methods do
+      def jail_account_names
+        names = Array(Danbooru.config.fourier_jail_release_names) + Array(Danbooru.config.fourier_posting_bot_names) + [Danbooru.config.system_user]
+        names.map { |name| name.to_s.strip.downcase }.compact_blank.uniq
+      end
+
+      # The post_delete mod actions a jail account wrote, with a reason that
+      # starts `reason`. The account is a jail account if the name its
+      # creator held WHEN IT ACTED is on the list, or the name it holds now:
+      #
+      #   - when it acted: a rename of 'sample' away (allowed to the site
+      #     owner) must not release every jailing and hold it wrote.
+      #     update_name! is the only writer of users.name after signup and
+      #     every rename leaves a UserNameChangeRequest, so the name held at
+      #     a moment is the original_name of the first rename after it, or
+      #     the name now;
+      #   - now: the jail's own account renamed ONTO the list keeps what it
+      #     did before. Measured on production 2026-10-10 (read-only): user 6
+      #     was renamed sampling -> sample on 2026-09-14, and every jailing
+      #     it made before that -- the early-September ones -- was written
+      #     under 'sampling'. Judged by the old name alone, each would be
+      #     "not the jail's": release would lift only its tag and leave it
+      #     deleted for good.
+      #
+      # Either way it is an account, never words: an approver who is not a
+      # jail account, then or now, proves nothing by typing "troll jail: ".
+      def jail_deletions(reason = JAIL_DELETION_REASON)
+        held_name = <<~SQL.squish
+          lower(COALESCE(
+            (SELECT renamed.original_name FROM user_name_change_requests renamed
+              WHERE renamed.user_id = mod_actions.creator_id AND renamed.created_at > mod_actions.created_at
+              ORDER BY renamed.created_at, renamed.id LIMIT 1),
+            (SELECT actor.name FROM users actor WHERE actor.id = mod_actions.creator_id)))
+        SQL
+        name_now = "(SELECT lower(actor.name) FROM users actor WHERE actor.id = mod_actions.creator_id)"
+        names = jail_account_names
+        ModAction.where(category: :post_delete, subject_type: "Post")
+                 .where("#{held_name} IN (:names) OR #{name_now} IN (:names)", names: names)
+                 .where("mod_actions.description LIKE ('deleted post #' || mod_actions.subject_id || ', reason: ' || ?)", "#{sanitize_sql_like(reason)}%")
+      end
+    end
+
+    # Whether this post's CURRENT deletion is the jail's: it is deleted, the
+    # latest logged deletion is a jail account's (above), and no undeletion
+    # has been logged since. Both undelete doors log post_undelete
+    # (PostApproval#approve_post, FourierJailController#release!), so "no
+    # human undelete since" is read from the same log. The only unlogged
+    # deletion is the system user's pruning of a pending post, which never
+    # follows an undelete without one being logged in between.
+    def deletion_is_the_jails?
+      return false unless is_deleted?
+
+      latest = ModAction.where(subject: self, category: :post_delete).order(:id).last
+      return false if latest.nil? || !Post.jail_deletions.exists?(id: latest.id)
+
+      !ModAction.where(subject: self, category: :post_undelete).exists?(["id > ?", latest.id])
+    end
+
+    # Whether a jailing the booru reported (a post_jail row) still stands:
+    # nothing has ended it since -- an undeletion (post_undelete, the release
+    # route's or an approval's) or the release route lifting it off another
+    # account's deletion (post_unjail). Read from the booru's own log, never
+    # the tag: any approver can edit the tags of a deleted post, and a
+    # jailing that stood on the tag alone was undone by editing the tag off
+    # and approving (review of the 2026-10-10 build).
+    def jailing_stands?
+      latest = ModAction.where(subject: self, category: [:post_jail, :post_unjail, :post_undelete]).order(:id).last
+      latest.present? && latest.category == "post_jail"
+    end
+
+    # Deleted, and the post carries the jail tag, or its deletion is the
+    # jail's, or a jailing the booru reported stands. The untagged halves are
+    # the four production posts the pill's old jail-off left deleted with the
+    # tag gone (2026-09-20), and a reported jailing whose tag was edited off:
+    # still jailed, and still the panel's to release.
+    def jailed?
+      is_deleted? && (has_tag?(Danbooru.config.troll_jail_tag) || deletion_is_the_jails? || jailing_stands?)
+    end
+
+    # The refusal every ordinary undelete door gives a jailed post, with the
+    # way to the panel when the panel has no row for it.
+    def jail_release_refusal
+      reported = deletion_is_the_jails? || jailing_stands?
+      reported ? JAILED_RELEASE_DOOR : "#{JAILED_RELEASE_DOOR}; #{UNREPORTED_JAILING}"
+    end
+
+    # Ever deleted as a legal hold by a jail account. Forever: nothing
+    # releases a hold, whatever happened to the post after.
+    def legal_hold?
+      Post.jail_deletions(LEGAL_HOLD_REASON).exists?(subject_id: id)
+    end
+
+    # A jailing the booru makes itself -- the banished-tag failsafe, the
+    # pill's jail-on -- finished the same way, so the release route accepts
+    # both and the jail panel hears of both (operator rulings 2026-10-09).
+    # The deletion is the system user's, made on the actor's behalf (the
+    # reason names a moderator), because the release route proves a jailing
+    # by who deleted. delete! logs nothing for the system user (upstream's
+    # routine pruning); a jailing is not routine, so it is logged here. The
+    # post_jail row is the booru's report to the panel
+    # (FourierJailController#index), written even when the post was already
+    # deleted by someone else and only the tag was added -- that deletion
+    # stays its owner's, and release then lifts only the jail.
+    #
+    # Callers jail first and add the tag after, so the tag lands on a post
+    # already reported and #report_jailing_entered has nothing to add; and a
+    # jailing already standing is not reported twice.
+    def jail_by_booru!(reason)
+      CurrentUser.set(user: User.system, safe_mode: false) do
+        unless is_deleted?
+          delete!(reason, user: User.system)
+          ModAction.log("deleted post ##{id}, reason: #{reason}", :post_delete, subject: self, user: User.system)
+        end
+        ModAction.log("jailed post ##{id}, reason: #{reason}", :post_jail, subject: self, user: User.system) unless jailing_stands?
+      end
+    end
+
+    private
+
+    # EVERY WAY IN IS REPORTED (review of the 2026-10-10 build). A post
+    # becomes jailed -- deleted, carrying troll_jail (operator ruling
+    # 2026-10-10) -- not only through the pill and the banished-tag failsafe:
+    # any approver can add the tag to a deleted post, and any deletion of a
+    # post that carries the tag (DELETE /posts/:id, the pill's delete-on, the
+    # pending-post pruner) makes one. Each is a booru-side jailing, which
+    # reaches the panel (operator 2026-10-09), and each is then refused by
+    # every ordinary undelete door; unreported, nothing could ever release
+    # it. So a save that ENTERS that state writes the post_jail row, as the
+    # system user, naming who did it -- unless the jail itself did (its
+    # deletion: sampling already holds the image) or a reported jailing
+    # already stands (#jail_by_booru!'s own).
+    #
+    # Noted before the save and acted on after it, OR-ed in, for the reason
+    # note_banished_tags_gained gives: nested saves replace saved_changes.
+    def note_jailing_entered
+      jail = Danbooru.config.troll_jail_tag
+      return unless is_deleted? && has_tag?(jail)
+      return if !new_record? && is_deleted_in_database && tag_array_was.include?(jail)
+
+      @jailing_entered = (!new_record? && is_deleted_in_database) ? :tagged : :deleted if @jailing_entered.nil?
+    end
+
+    def report_jailing_entered
+      entered = @jailing_entered
+      @jailing_entered = nil
+      return if entered.nil? || !is_deleted? || !has_tag?(Danbooru.config.troll_jail_tag)
+
+      # The deletion's flag, not the mod log: Post#delete! writes its flag
+      # before this save and its post_delete row after it. Its flag is the
+      # newest succeeded one (delete! resolves the pending ones first, and a
+      # deleted post takes no new flag).
+      deletion = flags.succeeded.order(:id).last
+      return if jailing_stands? || jail_deletion_flag?(deletion)
+
+      if entered == :tagged
+        reason = "#{JAIL_DELETION_REASON}#{CurrentUser.user&.name || "an unknown account"} tagged a deleted post #{Danbooru.config.troll_jail_tag}"
+      else
+        reason = "#{JAIL_DELETION_REASON}#{(deletion&.creator || CurrentUser.user)&.name || "an unknown account"} deleted a post tagged #{Danbooru.config.troll_jail_tag}"
+      end
+      ModAction.log("jailed post ##{id}, reason: #{reason}", :post_jail, subject: self, user: User.system)
+    end
+
+    # A deletion flag a jail account wrote with the jail's words.
+    def jail_deletion_flag?(flag)
+      flag.present? && flag.reason.to_s.start_with?(JAIL_DELETION_REASON) && Post.jail_account_names.include?(flag.creator.name.to_s.downcase)
     end
   end
 

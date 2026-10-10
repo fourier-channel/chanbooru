@@ -21,6 +21,13 @@ class PostApproval < ApplicationRecord
     if (post.approver == user || post.approvals.exists?(user: user)) && !policy(user).can_approve_same_post_twice?
       errors.add(:base, "You have previously approved this post and cannot approve it again")
     end
+
+    # Fork: approving a deleted post undeletes it, and a jailed post is
+    # released only from the jail panel (operator ruling 2026-10-09: no
+    # booru-side way to release a jailed post). Post#jailed? says which.
+    if post.jailed?
+      errors.add(:base, post.jail_release_refusal)
+    end
   end
 
   def approve_post

@@ -143,6 +143,17 @@ class ModAction < ApplicationRecord
     creator_user_rule_update: 1111, # a per-user allow or block set or cleared (CreatorUserRule)
     creator_hidden_post_view: 1112, # an admin opened the page of a post its creator hid from them (PostsController#show, Q2)
     creator_group_update: 1113, # a group opened to, or closed to, join requests (CreatorGroup#open_to_requests!; the creator panel, 2026-10-09)
+    # A jailing the booru made itself -- the banished-tag failsafe or the post
+    # page pill's jail-on -- written by the system user (Post#jail_by_booru!).
+    # The jail panel reads these through GET /fourier_jail/release.json
+    # (operator 2026-10-09: "The booru should obviously communicate back to
+    # the panel that is controlling the visibility of posts on the booru.").
+    post_jail: 1114,
+    # The jail panel's release ending a reported jailing that sat on another
+    # account's deletion: the tag lifted, that deletion left standing
+    # (FourierJailController#decide!). Ends Post#jailing_stands?, so the
+    # ordinary undelete door opens again (review of the 2026-10-10 build).
+    post_unjail: 1115,
   }
 
   normalizes :category, with: ->(category) { category.to_s.parameterize.underscore.presence }
