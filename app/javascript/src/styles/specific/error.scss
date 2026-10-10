@@ -1,3 +1,212 @@
 ul.backtrace {
   background: var(--dtext-code-background);
 }
+
+// THE ERROR PAGE ("Oh No!", static/_oh_no.html.erb; operator, 2026-10-10):
+// a centred, readable column -- the title, the contest picture's square, the
+// introduction, then the flowchart of conditionals as numbered nodes on one
+// rail, and the site's own error underneath, quiet.
+//
+// Colours are the page's own names, pointed at upstream's per-theme variables
+// (so the historical preset's light and dark, and the blank layout, read
+// right) and re-pointed at the formant tokens under the Modulation preset,
+// which is the site. Every rule hangs off #page so it outranks the skin's
+// bare heading and paragraph rules without reaching into them.
+.oh-no {
+  --oh-no-ink: var(--text-color);
+
+  // Not upstream's --muted-text-color: on the historical preset's white that
+  // grey is about 3.1:1 at the details line's small size, under WCAG AA's
+  // 4.5:1 (review, 2026-10-10). Its own text colour keeps it legible; the
+  // smaller size and the rule above it keep it quiet.
+  --oh-no-dim: var(--text-color);
+  --oh-no-line: var(--default-border-color);
+  --oh-no-surface: var(--card-background-color);
+  --oh-no-accent: var(--link-color);
+  --oh-no-mono: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+  --oh-no-radius: 6px;
+
+  // The picture's square: sized before anything loads, so nothing below it
+  // moves when the picture arrives (standing rule: no forced reflow).
+  --oh-no-art: min(320px, 70vw);
+
+  // The rail's node: its centre is where the connector runs.
+  --oh-no-node: 1.6rem;
+}
+
+body[data-preset="modulation"] .oh-no {
+  --oh-no-ink: var(--mod-ink);
+  --oh-no-dim: var(--mod-ink-dim);
+  --oh-no-line: var(--mod-line-strong);
+  --oh-no-surface: var(--mod-surface-2);
+  --oh-no-accent: var(--mod-accent);
+  --oh-no-mono: var(--mod-mono);
+  --oh-no-radius: var(--mod-radius-sm);
+}
+
+#page .oh-no {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 40rem;
+  margin: 1.5rem auto 3rem;
+  padding: 0 16px;
+  color: var(--oh-no-ink);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+
+  .oh-no-title {
+    margin: 0 0 1.25rem;
+    padding: 0;
+    border: 0;
+    font-size: clamp(2.6rem, 9vw, 4rem);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: 0.01em;
+    text-align: center;
+    color: var(--oh-no-ink);
+  }
+
+  .oh-no-art {
+    position: relative;
+    width: var(--oh-no-art);
+    height: var(--oh-no-art);
+    margin: 0 auto 1.5rem;
+    border-radius: var(--oh-no-radius);
+    overflow: hidden;
+  }
+
+  // Loaded, the picture is the square: the placeholder under it goes, so
+  // its dashes and icon never show in a non-square picture's letterbox.
+  .oh-no-art.is-loaded .oh-no-art-placeholder { display: none; }
+
+  // Any aspect ratio fits the square whole, letterboxed, never cropped.
+  .oh-no-art-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .oh-no-art-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--oh-no-line);
+    border-radius: var(--oh-no-radius);
+    background: var(--oh-no-surface);
+    color: var(--oh-no-line);
+  }
+
+  .oh-no-art-placeholder-icon {
+    width: 22%;
+    height: 22%;
+  }
+
+  .oh-no-intro {
+    margin: 0 0 1.75rem;
+    text-align: center;
+  }
+
+  // The flowchart: each step a numbered node, joined to the next by a line.
+  .oh-no-flow {
+    counter-reset: oh-no-step;
+    list-style: none;
+    margin: 0 0 2rem;
+    padding: 0;
+  }
+
+  .oh-no-step {
+    position: relative;
+    counter-increment: oh-no-step;
+    padding: 0 0 1.5rem calc(var(--oh-no-node) + 0.9rem);
+
+    &::before {
+      content: counter(oh-no-step);
+      position: absolute;
+      top: 0;
+      left: 0;
+      box-sizing: border-box;
+      width: var(--oh-no-node);
+      height: var(--oh-no-node);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--oh-no-accent);
+      border-radius: 50%;
+      background: var(--oh-no-surface);
+      color: var(--oh-no-accent);
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    // The connector, from under this node to the next one.
+    &:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: calc(var(--oh-no-node) + 0.25rem);
+      bottom: 0.25rem;
+      left: calc(var(--oh-no-node) / 2 - 1px);
+      width: 2px;
+      background: var(--oh-no-line);
+    }
+
+    &:last-child { padding-bottom: 0; }
+
+    p { margin: 0 0 0.4rem; }
+    p:last-child { margin-bottom: 0; }
+  }
+
+  .oh-no-question {
+    margin: 0 0 0.35rem;
+    padding: 0;
+    border: 0;
+    min-height: var(--oh-no-node);
+    display: flex;
+    align-items: center;
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--oh-no-ink);
+  }
+
+  // A button's or a place's name, as the interface shows it.
+  .oh-no-ui {
+    padding: 0 0.3em;
+    border: 1px solid var(--oh-no-line);
+    border-radius: 4px;
+    background: var(--oh-no-surface);
+    font-family: var(--oh-no-mono);
+    font-size: 0.88em;
+    white-space: nowrap;
+  }
+
+  // The header's purge bin, the size of the text around it, and its colour
+  // too (--mod-ink-dim, as .modnav-reset-half draws it): the sentence sends
+  // the reader to find this icon in the corner, so it must look like the one
+  // there (review, 2026-10-10), not like an accent-green link.
+  .oh-no-bin svg {
+    display: inline-block;
+    width: 1.15em;
+    height: 1.15em;
+    vertical-align: -0.2em;
+    color: var(--oh-no-dim);
+  }
+
+  .oh-no-details {
+    padding-top: 1rem;
+    border-top: 1px solid var(--oh-no-line);
+    font-size: 0.85rem;
+    color: var(--oh-no-dim);
+    text-align: center;
+
+    p { margin: 0 0 0.35rem; }
+
+    ul.backtrace {
+      overflow-x: auto;
+      text-align: left;
+    }
+  }
+}

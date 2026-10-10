@@ -27,8 +27,14 @@ class ApplicationControllerTest < ActionDispatch::IntegrationTest
       assert_equal("Request body not allowed for GET request", response.parsed_body["message"])
     end
 
+    # fourier: upstream posts this to root_path, which upstream routes to the
+    # post listing. This fork's root is the landing page (landing#show), which
+    # answers HTML only, so a JSON request to it is 406 whatever the method
+    # override does. What the test guards -- X-Http-Method-Override turning a
+    # POST into a GET -- is checked against the post listing it meant, signed
+    # in, since listings are members-only here (2026-10-10).
     should "return 200 OK for a POST request overridden to be a GET request" do
-      post root_path, headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json", "X-Http-Method-Override": "GET" }, env: { RAW_POST_DATA: "tags=touhou" }
+      post_auth posts_path, create(:user), headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json", "X-Http-Method-Override": "GET" }, env: { RAW_POST_DATA: "tags=touhou" }
 
       assert_response 200
     end
@@ -298,7 +304,8 @@ class ApplicationControllerTest < ActionDispatch::IntegrationTest
           # try to submit a form with cookies but without the csrf token
           put user_path(@user), headers: { HTTP_COOKIE: headers["Set-Cookie"] }, params: { user: { enable_safe_mode: "true" }}
           assert_response 403
-          assert_equal("Error: Can't verify CSRF token authenticity.", css_select("p").first.content)
+          # The error is the "Oh No!" page's details line (operator, 2026-10-10).
+          assert_equal("Details: Can't verify CSRF token authenticity.", css_select(".oh-no-details p").first.content)
           assert_equal(false, @user.reload.enable_safe_mode)
         end
       end
@@ -332,7 +339,8 @@ class ApplicationControllerTest < ActionDispatch::IntegrationTest
         get news_updates_path
 
         assert_response 403
-        assert_select "h1", /Access Denied/
+        assert_select "h1", "Oh No!"
+        assert_select ".oh-no-details p", text: /You do not have permission to visit this page/
       end
 
       should "render a json response for json requests" do

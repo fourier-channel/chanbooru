@@ -1,19 +1,23 @@
 <% page_title "Access Denied" %>
 
-<h1>Access Denied</h1>
+<%# The same "Oh No!" page as static/error (operator, 2026-10-10), so a
+    refusal and a missing record look alike; the refusal's own sentence and
+    its sign-in links are the details line. %>
+<%= render layout: "static/oh_no" do %>
+  <p>
+    Details:
+    <%# Fork: a refusal that says why (and what to do) is shown as it was raised; the bare one keeps upstream's words. %>
+    <% if @message.present? && @message != "Access denied" %>
+      <%= @message %>
+    <% else %>
+      You do not have permission to visit this page.
+    <% end %>
 
-<p>
-  <%# Fork: a refusal that says why (and what to do) is shown as it was raised; the bare one keeps upstream's words. %>
-  <% if @message.present? && @message != "Access denied" %>
-    <%= @message %>
-  <% else %>
-    You do not have permission to visit this page.
-  <% end %>
+    <% if CurrentUser.user.is_anonymous? %>
+      Try <%= link_to "logging in", main_app.login_path(url: request.fullpath) %> or
+      <%= link_to "signing up", main_app.new_user_path %>.
+    <% end %>
+  </p>
 
-  <% if CurrentUser.user.is_anonymous? %>
-    Try <%= link_to "logging in", main_app.login_path(url: request.fullpath) %> or
-    <%= link_to "signing up", main_app.new_user_path %>.
-  <% end %>
-</p>
-
-<%= link_to "Go back", :back, :rel => "prev" %>
+  <p><%= link_to "Go back", :back, rel: "prev" %></p>
+<% end %>

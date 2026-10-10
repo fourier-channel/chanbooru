@@ -1,21 +1,21 @@
 <% page_title "Error: #{@exception.class}" %>
 
-<h1>Error</h1>
+<%# The page is the shared "Oh No!" walk-through (operator, 2026-10-10); this
+    file supplies only its quiet details line, the error the site knows. %>
+<%= render layout: "static/oh_no" do %>
+  <% if @message.present? %>
+    <p>Details: <%= @message %></p>
+  <% else %>
+    <p>Details: Unexpected error: <%= @exception.class %>.</p>
 
-<% if @message.present? %>
-  <p>Error: <%= @message %></p>
-<% else %>
-  <p>Unexpected error: <%= @exception.class %>.</p>
+    <% if @backtrace.present? %>
+      <ul class="backtrace font-monospace p-4 mb-4">
+        <li><%= @exception.class.to_s %> exception raised</li>
 
-  <% if @backtrace.present? %>
-    <h3>Details</h3>
-
-    <ul class="backtrace font-monospace p-4 mb-4">
-      <li><%= @exception.class.to_s %> exception raised</li>
-
-      <% Rails.backtrace_cleaner.clean(@backtrace).each do |b| %>
-        <li class="backtrace-line"><%= b %></li>
-      <% end %>
-    </ul>
+        <% Rails.backtrace_cleaner.clean(@backtrace).each do |b| %>
+          <li class="backtrace-line"><%= b %></li>
+        <% end %>
+      </ul>
+    <% end %>
   <% end %>
 <% end %>

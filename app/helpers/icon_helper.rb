@@ -269,6 +269,23 @@ module IconHelper
     svg_icon_tag("help", viewBox: "0 0 512 512", **options)
   end
 
+  # Fork: the purge rectangle's bin (ModulationNavbarComponent), drawn inline
+  # rather than from the sprite because it is a stroked outline, not a filled
+  # FontAwesome glyph. One method so the header's button and the error page's
+  # "click the [junk bin icon]" (operator, 2026-10-10) are the same picture;
+  # the stroke is on the element so it draws right outside the header's CSS.
+  def purge_icon(class: nil, **options)
+    klass = binding.local_variable_get(:class)
+    path = "M3.5 6.5h17M9 6.5v-2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5.5 6.5l1.2 13a1.6 1.6 0 0 0 1.6 1.5h7.4a1.6 1.6 0 0 0 " \
+           "1.6-1.5l1.2-13M10 10.5v6.5M14 10.5v6.5"
+    tag.svg(
+      "class": ["icon purge-icon", klass].compact.join(" "), "viewBox": "0 0 24 24", "fill": "none", "stroke": "currentColor",
+      "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", "focusable": "false", **options,
+    ) do
+      tag.path(d: path)
+    end
+  end
+
   def info_icon(**options)
     svg_icon_tag("info", viewBox: "0 0 512 512", **options)
   end

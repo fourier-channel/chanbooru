@@ -47,7 +47,8 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
         get_auth edit_creator_gallery_path(@gallery), user
 
         assert_response 403
-        assert_select "h1", "Access Denied"
+        # The shared "Oh No!" error page (operator, 2026-10-10); the refusal is its details line.
+        assert_select "h1", "Oh No!"
         assert_select "p", text: /This page can only be edited by its owner, the Matrix account @alice:41chan\.net, or by an admin\./
         # The remedy names WHERE the sign-in button is (browser recheck, 2026-10-09).
         assert_select "p", text: %r{open http://\S+/creators/#{@gallery.slug}, use "Sign in with Matrix" there as @alice:41chan\.net, then open Edit page again}

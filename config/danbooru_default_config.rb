@@ -901,6 +901,22 @@ module Danbooru
       "https://sample.41chan.net/"
     end
 
+    # The picture on the error page ("Oh No!", static/_oh_no.html.erb). The
+    # operator is running a contest to design it (2026-10-10), so until a
+    # winner is chosen this is nil and the page draws a quiet placeholder in
+    # the same pre-sized square. Setting this one URL is the whole drop-in,
+    # in the local config or as DANBOORU_ERROR_PAGE_IMAGE_URL in the
+    # environment (DANBOORU_ERROR_PAGE_IMAGE_ALT for its description); any
+    # aspect ratio fits the square, letterboxed.
+    def error_page_image_url
+    end
+
+    # What the error page's picture says to a reader who cannot see it. Set it
+    # with the winner's URL to describe their picture.
+    def error_page_image_alt
+      "An illustration for the error page"
+    end
+
     # The shared secret a sign-up provider signs creator-group membership
     # changes with (POST /webhooks/receive?source=creator_membership, design
     # CREATOR_VISIBILITY Q5: "the signed endpoint for a payment provider is

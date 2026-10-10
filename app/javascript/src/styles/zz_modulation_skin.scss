@@ -371,7 +371,7 @@ body[data-preset="modulation"] {
      above no matter how many classes it names. Add a root here when a new
      Modulation component lands. */
   #page {
-    .modulation, .modgal, .creator-gallery {
+    .modulation, .modgal, .creator-gallery, .oh-no {
       h1, h2, h3 {
         padding-bottom: 0;
         border-bottom: 0;

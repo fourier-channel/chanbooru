@@ -1,0 +1,73 @@
+<%# THE ERROR PAGE ("Oh No!"), shared by static/error and static/access_denied
+    so a refusal and a missing record are one page, not two copies. The words
+    are the operator's, verbatim (2026-10-10): a signed-out viewer met a bare
+    "Error" heading top-left, and the page now walks them through why they
+    might be here, in the order they would check.
+
+    The page's own error is the yielded block, shown under the walk-through,
+    small: a specific sentence ("That record was not found.", a refusal's own
+    remedy) beats a generic one whenever the site has it.
+
+    The picture is a contest's to fill (operator, 2026-10-10). Its square is
+    sized before anything loads, so a picture arriving late, or never, moves
+    nothing (standing rule: no element pushes others out of place); one
+    config value, Danbooru.config.error_page_image_url, drops the winner in. %>
+<div class="oh-no">
+  <h1 class="oh-no-title">Oh No!</h1>
+
+  <%# The placeholder is always drawn, and the picture laid over it (review,
+      2026-10-10): while the picture loads the square shows the placeholder,
+      not a page-coloured gap; a picture that fails hides itself instead of
+      drawing the browser's broken-image symbol; a loaded one marks the
+      square so the placeholder's dashes do not show in its letterbox. %>
+  <div class="oh-no-art">
+    <div class="oh-no-art-placeholder" aria-hidden="true">
+      <%= image_icon(class: "oh-no-art-placeholder-icon") %>
+    </div>
+    <% if Danbooru.config.error_page_image_url.present? %>
+      <%= tag.img src: Danbooru.config.error_page_image_url, alt: Danbooru.config.error_page_image_alt, class: "oh-no-art-image", decoding: "async",
+                  onload: "this.parentNode.classList.add('is-loaded')", onerror: "this.hidden = true" %>
+    <% end %>
+  </div>
+
+  <p class="oh-no-intro">You have reached the error page.  Which error, we cannot say for sure, because that's just the way computers work.  The following flowchart of conditionals may help:</p>
+
+  <%# A flowchart of conditionals: each step is reached by answering "yes,
+      and still here" to the one above it, so the steps are numbered nodes on
+      one rail rather than a loose list of tips. role="list" because
+      Safari/VoiceOver drops the list semantics of a list styled
+      list-style: none, and the order is the point (review, 2026-10-10). %>
+  <ol class="oh-no-flow" role="list">
+    <li class="oh-no-step">
+      <h2 class="oh-no-question">Have you registered?</h2>
+      <p>The majority of this site is only available to registered viewers.</p>
+      <p>You may register by clicking <span class="oh-no-ui">"Manage Session"</span>, <span class="oh-no-ui">"Booru: Log In"</span> and then <span class="oh-no-ui">"Create Account"</span>.</p>
+    </li>
+
+    <li class="oh-no-step">
+      <h2 class="oh-no-question">Are you already registered, but still here?</h2>
+      <p>Your login token may be stale.  Click the <span class="oh-no-ui">"Manage Session"</span> button and check your logins for any amber or red lamps.  If so, follow the instructions on the panel.</p>
+    </li>
+
+    <li class="oh-no-step">
+      <h2 class="oh-no-question">Registered, logged in with fresh tokens, and yet, here you are again?</h2>
+      <%# The bin is the header's own purge icon (IconHelper#purge_icon), not a
+          button: the working one is in the corner, and the sentence says so. %>
+      <p>Try performing a full purge of site data by clicking the <span class="oh-no-bin" role="img" aria-label="junk bin icon"><%= purge_icon %></span> in the upper right corner.  This will log you out of the services, purge your cache of all site data (with only a few exceptions) and give you a fresh start.  Try logging in again.</p>
+    </li>
+
+    <li class="oh-no-step">
+      <h2 class="oh-no-question">Registered, newly logged in with a brand new set of tokens, and this page keeps popping up?</h2>
+      <p>It's possible this surface is not intended to be available to your user level--or at all.</p>
+    </li>
+
+    <li class="oh-no-step">
+      <h2 class="oh-no-question">So you're registered, session tokens fresh out the box, and absolutely sure something is supposed to be here?</h2>
+      <p>You may report the bug to <span class="oh-no-ui">@Fourier:41chan.net</span> in the appropriate channel under <span class="oh-no-ui">"get help"</span> in the 41chan Matrix Homeserver.</p>
+    </li>
+  </ol>
+
+  <div class="oh-no-details">
+    <%= yield %>
+  </div>
+</div>
