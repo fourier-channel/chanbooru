@@ -105,17 +105,13 @@ class StaticControllerTest < ActionDispatch::IntegrationTest
       assert_equal("", response.body)
     end
 
-    should "render the 404 page when page_not_found_pool_id is configured" do
-      as(create(:user)) do
-        @post = create(:post, tag_string: "artist:bkub")
-        @pool = create(:pool, post_ids: [@post.id])
-        Danbooru.config.stubs(:page_not_found_pool_id).returns(@pool.id)
-      end
-
+    # Fork: upstream's pool picture is gone; the 404 is the "Oh No!" page
+    # (test/functional/error_page_test.rb), whose picture is its own.
+    should "render the Oh No! page" do
       get "/qwoiqogieqg"
 
       assert_response 404
-      assert_select "#c-static #a-not-found img", count: 1
+      assert_select ".oh-no .oh-no-details p", text: "Details: There is nothing at this address."
     end
   end
 

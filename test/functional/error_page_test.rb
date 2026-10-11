@@ -151,6 +151,27 @@ class ErrorPageTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # An address no route answers (the retired booru /sample/ among them) is
+  # the same page (operator, 2026-10-11): it was upstream's own "Page not
+  # found" template, which a signed-in viewer met while a signed-out one,
+  # refused earlier by MembersOnly, already got this page.
+  context "An address nothing answers" do
+    should "be the Oh No! page, signed in" do
+      get_auth "/sample/", create(:user)
+
+      assert_response 404
+      assert_oh_no_page(details: "Details: There is nothing at this address.")
+      assert_select "#a-not-found", count: 0
+    end
+
+    should "be the Oh No! page, signed out" do
+      get "/qwoiqogieqg"
+
+      assert_response 404
+      assert_select ".oh-no h1.oh-no-title", text: "Oh No!", count: 1
+    end
+  end
+
   context "A refusal raised with its own sentence" do
     should "show that sentence as the details line" do
       gallery = CreatorGallery.create!(slug: "alice", matrix_id: "@alice:41chan.net", title: "Alice")
