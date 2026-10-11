@@ -89,13 +89,34 @@ class FourierTagSource < ApplicationRecord
     # Not resolved -- the name IS the tag -- and not private: it is put on the
     # post and filed as a character below. A name sent in `oc` and not
     # declared comes back with why and what to do (the return value).
+    #
+    # THE OLD SHAPES ARE READ, NOT REFUSED (operator, 2026-10-11: "I'll still
+    # need oc_<name> or <name>_oc to be recognized as an alias since
+    # pre-existing images all use it"). A name in one of the 2026-09-19 shapes
+    # (LEGACY_ORIGINAL_CHARACTER) is read as <name>_(<that same recorded
+    # creator's localpart>) and then checked and declared exactly as if it had
+    # been sent that way. The booru is the one place this happens: the tunnel
+    # forwards the name as written. No recorded creator on this homeserver
+    # means nothing to read it as, so it is refused by name like any other.
+    # Refusals are keyed by the name SENT, and an old-shape name's says what
+    # it was read as.
     sent = fetch.call(:oc).map { |n| Tag.normalize_name(n) }.uniq
     poster = FourierPostCreator.where(post_id: post.id).pick(:mxid) if sent.any?
     home = Danbooru.config.fourier_matrix_server_name
     localpart = ArtistClaim.localpart(poster)
     localpart = nil unless poster.to_s.casecmp?("@#{localpart}:#{home}")
-    refused = sent.index_with { |name| original_character_refusal(name, post, poster, localpart) }.compact
-    oc = sent - refused.keys
+    read_as = sent.index_with do |name|
+      base = legacy_original_character(name)
+      base ? "#{base}_(#{localpart || "<creator>"})" : name
+    end
+    refused = read_as.to_h do |name, as|
+      why = original_character_refusal(as, post, poster, localpart)
+      if why && as != name
+        why = localpart ? "#{name} was read as #{as}, the poster's own name in brackets: #{why}" : "#{name} is the old shape of #{as}: #{why}"
+      end
+      [name, why]
+    end.compact
+    oc = read_as.except(*refused.keys).values.uniq
     refused.each_value { |why| Rails.logger.warn("[tag-hub] original character not declared: #{why}") }
 
     creator = (lists[:creator] + lists[:both]).uniq - oc
@@ -275,8 +296,31 @@ class FourierTagSource < ApplicationRecord
   # original_character_refusal's to decide (the post's recorded creator, by
   # their own name), and who may claim one is CharacterClaim's (the gallery
   # of that name). It replaced the oc_<name> shapes of 2026-09-19, which recorded no
-  # owner and gave every creator the same name.
+  # owner and gave every creator the same name; those are read as this
+  # shape (LEGACY_ORIGINAL_CHARACTER).
   ORIGINAL_CHARACTER = /\A([a-z0-9][^()]*)_\(([^()]+)\)\z/
+
+  # The four shapes the 2026-09-19 rule accepted, which recorded no owner:
+  # oc_<name>, character_oc_<name>, <name>_oc, <name>_character_oc. Every
+  # pre-existing OC image carries one, so they are still read -- as
+  # <name>_(<owner>), the owner being the post's recorded creator at post
+  # time (record_partition!) or the one named to
+  # script/fourier_original_characters.rb --oc-owner for the tags already on
+  # posts. Group 1 or 2 is <name>. The same pattern as the old rule's
+  # /\A(?:(?:character_)?oc_[a-z0-9].*|.*[a-z0-9]_(?:character_)?oc)\z/,
+  # with the suffix forms' name taken shortest-first so moss_character_oc is
+  # moss and not moss_character.
+  LEGACY_ORIGINAL_CHARACTER = /\A(?:character_)?oc_([a-z0-9].*)\z|\A(.*?[a-z0-9])_(?:character_)?oc\z/
+
+  # <name> from a name in one of the old shapes, nil for any other name. A
+  # name already ending in a creator in brackets is that creator's, whatever
+  # it starts with, so it is never read as an old shape.
+  def self.legacy_original_character(name)
+    return nil if ORIGINAL_CHARACTER.match?(name)
+
+    match = LEGACY_ORIGINAL_CHARACTER.match(name)
+    match && (match[1] || match[2])
+  end
 
   # Why `name`, sent in the hub's `oc` list for `post`, is not declared; nil
   # when it is. The creator's own name in brackets (CharacterClaim's name
@@ -290,8 +334,7 @@ class FourierTagSource < ApplicationRecord
   # name, and one claim lookup for a general tag with posts.
   def self.original_character_refusal(name, post, poster, localpart)
     match = ORIGINAL_CHARACTER.match(name)
-    # The hint turns a 2026-09-19 oc_ name into the shape that replaced it.
-    base = match ? match[1] : name.sub(/\A(?:character_)?oc_|_(?:character_)?oc\z/, "")
+    base = match ? match[1] : name
     home = Danbooru.config.fourier_matrix_server_name
     if match.nil?
       return "#{name} is not an original character's name: name it #{base}_(#{localpart || "<creator>"}), " \

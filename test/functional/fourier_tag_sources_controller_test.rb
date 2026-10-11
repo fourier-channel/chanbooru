@@ -41,6 +41,17 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       assert_response :success
       assert_match(/has no recorded creator/, response.parsed_body.dig("original_characters_not_declared", "maple_(saber)"))
     end
+
+    # An old-shape name (oc_<name>, operator 2026-10-11) is answered under the
+    # name that was sent, saying what it was read as.
+    should "say what an old-shape original character was read as when it is not declared" do
+      FourierPostCreator.create!(post: @post, mxid: "@saber:41chan.net", recorded_by: @bot.id)
+      create(:tag, name: "maple_(saber)", category: TagCategory::COPYRIGHT)
+      post_auth "/posts/#{@post.id}/tag_sources.json", @bot, as: :json, params: { auto: %w[a], oc: %w[oc_maple] }
+
+      assert_response :success
+      assert_match(/oc_maple was read as maple_\(saber\).*filed as copyright/, response.parsed_body.dig("original_characters_not_declared", "oc_maple"))
+    end
   end
 
   # THE READ IS A DOOR (review, 2026-09-24). Post#hidden_as_deleted? says a

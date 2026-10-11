@@ -9,9 +9,14 @@ require "test_helper"
 # creator (FourierPostCreator), never the posting bot's, and only for an
 # account on this homeserver. The prompt's private creator lists are never
 # read for it, a name under a creator prefix is never one, and a tag that
-# already has posts is never re-filed at post time. The oc_<name> shapes of
-# 2026-09-19 are no longer read. A name that is not declared is said, with
-# why and what to do, in the hub's answer.
+# already has posts is never re-filed at post time. A name in one of the
+# 2026-09-19 shapes (oc_<name>, character_oc_<name>, <name>_oc,
+# <name>_character_oc) is the old way of saying the same thing (operator,
+# 2026-10-11: "I'll still need oc_<name> or <name>_oc to be recognized"): it
+# is read as <name>_(<the recorded creator's localpart>) and then checked
+# exactly like that name. A name that is not declared is said, with why and
+# what to do, in the hub's answer -- for an old-shape name, with what it was
+# read as.
 class FourierOriginalCharacterTest < ActiveSupport::TestCase
   setup do
     CreatorPrefixes.reset!
@@ -123,15 +128,60 @@ class FourierOriginalCharacterTest < ActiveSupport::TestCase
     end
   end
 
-  should "no longer read the oc_ shapes" do
+  should "read every 2026-09-19 shape as the poster's own <name>_(<localpart>), and declare that" do
     creator!("@saber:41chan.net")
 
-    refused = record({ oc: %w[oc_maple maple_oc] })
+    assert_equal({}, record({ oc: %w[oc_Maple character_oc_pine birch_oc cedar_character_oc] }))
 
-    assert_equal(%w[maple_oc oc_maple], refused.keys.sort)
-    assert_match(/not an original character's name: name it maple_\(saber\)/, refused["oc_maple"])
+    tags = @post.reload.tag_array
+    %w[maple_(saber) pine_(saber) birch_(saber) cedar_(saber)].each do |name|
+      assert_includes(tags, name)
+      assert(Tag.find_by_name(name).character?, name)
+      assert(FourierTagSource.find_by!(post_id: @post.id, tag: name).public?, name)
+    end
+    %w[oc_maple character_oc_pine birch_oc cedar_character_oc].each do |name|
+      assert_not_includes(tags, name)
+      assert_nil(Tag.find_by_name(name), name)
+    end
+  end
+
+  should "read two old shapes of one name as one character" do
+    creator!("@saber:41chan.net")
+
+    assert_equal({}, record({ oc: %w[oc_maple maple_oc maple_(saber)] }))
+
+    assert_equal(1, @post.reload.tag_array.count("maple_(saber)"))
+    assert_equal(1, FourierTagSource.where(post_id: @post.id, tag: "maple_(saber)").count)
+  end
+
+  should "say what an old-shape name was read as when the name it was read as is refused, in the answer and the log" do
+    creator!("@saber:41chan.net")
+    create(:tag, name: "maple_(saber)", category: TagCategory::COPYRIGHT)
+    Rails.logger.stubs(:warn)
+    Rails.logger.expects(:warn).with(regexp_matches(/oc_maple was read as maple_\(saber\).*filed as copyright/))
+
+    refused = record({ oc: ["oc_maple"] })
+
+    assert_equal(["oc_maple"], refused.keys)
+    assert_match(/oc_maple was read as maple_\(saber\), the poster's own name in brackets: maple_\(saber\) is filed as copyright: ask an admin/, refused["oc_maple"])
+    assert_not_includes(@post.reload.tag_array, "maple_(saber)")
+  end
+
+  should "read nothing under anyone's name for an old-shape name while the post has no recorded creator" do
+    refused = record({ oc: %w[oc_maple] })
+
+    assert_match(%r{oc_maple is the old shape of maple_\(<creator>\).*post ##{@post.id} has no recorded creator.*POST /fourier/posts/#{@post.id}/creator.json}, refused["oc_maple"])
     assert_nil(Tag.find_by_name("oc_maple"))
-    assert_not_includes(@post.reload.tag_array, "oc_maple")
+    assert_empty(Tag.where("name LIKE 'maple%'"))
+  end
+
+  should "read nothing for an old-shape name from an account on another homeserver" do
+    creator!("@saber:elsewhere.example")
+
+    refused = record({ oc: %w[maple_oc] })
+
+    assert_match(/maple_oc is the old shape of maple_\(<creator>\).*@saber:elsewhere\.example is not an account on 41chan\.net/, refused["maple_oc"])
+    assert_empty(Tag.where("name LIKE 'maple%'"))
   end
 
   should "refuse someone else's name, and say whose post it is" do
