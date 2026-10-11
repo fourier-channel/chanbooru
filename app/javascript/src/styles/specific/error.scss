@@ -3,7 +3,7 @@ ul.backtrace {
 }
 
 // THE ERROR PAGE ("Oh No!", static/_oh_no.html.erb; operator, 2026-10-10):
-// a centred, readable column -- the title, the contest picture's square, the
+// a centred, readable column -- the title, the picture's square, the
 // introduction, then the flowchart of conditionals as numbered nodes on one
 // rail, and the site's own error underneath, quiet.
 //
@@ -83,6 +83,21 @@ body[data-preset="modulation"] .oh-no {
   // Loaded, the picture is the square: the placeholder under it goes, so
   // its dashes and icon never show in a non-square picture's letterbox.
   .oh-no-art.is-loaded .oh-no-art-placeholder { display: none; }
+
+  // The picture links to its post page (as a slide does); the link is the
+  // whole square, so the letterbox is part of the target.
+  .oh-no-art-link {
+    position: absolute;
+    inset: 0;
+    display: block;
+    border-radius: var(--oh-no-radius);
+
+    // Inset: the square clips anything drawn outside it.
+    &:focus-visible {
+      outline: 2px solid var(--oh-no-accent);
+      outline-offset: -2px;
+    }
+  }
 
   // Any aspect ratio fits the square whole, letterboxed, never cropped.
   .oh-no-art-image {

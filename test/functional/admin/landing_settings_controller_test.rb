@@ -158,4 +158,102 @@ class Admin::LandingSettingsControllerTest < ActionDispatch::IntegrationTest
       assert_not_equal "b -no_train", LandingCategory.find_by(key: "new")&.board
     end
   end
+
+  # THE ERROR PAGE'S PICTURES (operator, 2026-10-11): a small section on this
+  # console, saved by the same update action as the slide speed (no new
+  # routes). Each listed id says whether the error page can draw it -- by the
+  # hero band's own anonymous rule -- and a post it cannot draw is never drawn
+  # here either: no thumbnail, no media address, not even for an admin.
+  context "the error page's pictures" do
+    setup do
+      CreatorPrefixes.reset!
+      CreatorTagRelease.reset_cache!
+      @admin = create(:admin_user)
+      @uploader = create(:builder_user) # no upload limit: these tests post many
+      @ok = as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape") }
+    end
+
+    teardown do
+      CreatorPrefixes.reset!
+    end
+
+    should "save the ids from the same update action, and say what was saved" do
+      other = as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape") }
+      put_auth admin_landing_setting_path, @admin, params: { landing_setting: { error_page_post_ids_text: "#{@ok.id},\n#{other.id} #{@ok.id}" }}
+
+      assert_redirected_to admin_landing_setting_path
+      assert_equal [@ok.id, other.id], LandingSetting.current.error_page_post_ids
+      assert_match(/2 posts/, flash[:notice])
+      assert_match(/2 shown/, flash[:notice])
+    end
+
+    should "leave the slide speed alone when only the pictures are saved, and the reverse" do
+      LandingSetting.current.update!(advance_ms: 8000, error_page_post_ids: [@ok.id])
+      put_auth admin_landing_setting_path, @admin, params: { landing_setting: { error_page_post_ids_text: "" }}
+      assert_equal 8000, LandingSetting.current.advance_ms
+      assert_equal [], LandingSetting.current.error_page_post_ids
+
+      LandingSetting.current.update!(error_page_post_ids: [@ok.id])
+      put_auth admin_landing_setting_path, @admin, params: { landing_setting: { advance_ms: "9000" }}
+      assert_equal [@ok.id], LandingSetting.current.error_page_post_ids
+    end
+
+    should "refuse an id that names no post, naming it, and keep what was typed" do
+      put_auth admin_landing_setting_path, @admin, params: { landing_setting: { error_page_post_ids_text: "#{@ok.id} 999999991" }}
+
+      assert_response :unprocessable_entity
+      assert_match(/#999999991/, response.body)
+      assert_select "textarea[name='landing_setting[error_page_post_ids_text]']", text: /999999991/
+      assert_equal [], LandingSetting.current.error_page_post_ids
+    end
+
+    should "be refused to a user who is not an admin" do
+      put_auth admin_landing_setting_path, create(:moderator_user), params: { landing_setting: { error_page_post_ids_text: @ok.id.to_s }}
+
+      assert_response 403
+      assert_equal [], LandingSetting.current.error_page_post_ids
+    end
+
+    should "say for each id whether it is shown, and draw no picture of one that is skipped" do
+      gallery = CreatorGallery.create!(matrix_id: "@hidden:41chan.net", slug: "hidden-console", user: create(:user))
+      tier = CreatorGroup.make!(gallery, name: "41chan_hidden_tier_1", tier: 1, by: gallery.user)
+      tunnel = create(:builder_user, name: "tunnel")
+      hidden = as(tunnel) { create(:post, uploader: tunnel, tag_string: "ep_landscape") }
+      FourierPostCreator.create!(post: hidden, mxid: gallery.matrix_id, recorded_by: tunnel.id)
+      gallery.set_default_audience!("groups", by: gallery.user, group_ids: [tier.id])
+      CreatorVisibility.forget!
+      # Its own uploader: a deleted upload counts against its uploader's limit.
+      deleter = create(:builder_user)
+      deleted = as(deleter) { create(:post, uploader: deleter, tag_string: "ep_landscape") }
+      deleted.update!(is_deleted: true)
+      jailed = as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape #{Danbooru.config.troll_jail_tag}") }
+      gated = as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape child") }
+      video = as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape", file_ext: "mp4") }
+      setting = LandingSetting.current
+      setting.update!(error_page_post_ids: [@ok.id, deleted.id, jailed.id, hidden.id, gated.id, video.id])
+      LandingSetting.connection.execute("UPDATE landing_settings SET error_page_post_ids = array_append(error_page_post_ids, 999999994) WHERE id = #{setting.id}")
+
+      get_auth admin_landing_setting_path, @admin
+      assert_response :success
+
+      line = ->(id) { "[data-error-page-post='#{id}']" }
+      assert_select "#{line[@ok.id]}[data-status=shown]", 1
+      assert_select "#{line[@ok.id]} img[src='#{@ok.media_asset.variant(:"180x180").file_url}']", 1
+      {
+        deleted => /deleted or jailed/,
+        jailed => /deleted or jailed/,
+        hidden => /hidden by its creator/,
+        gated => /gated for signed-out visitors/,
+        video => /not an image/,
+      }.each do |post, reason|
+        assert_select "#{line[post.id]}[data-status=skipped]", { text: reason }, "post ##{post.id}"
+        assert_select "#{line[post.id]} img", 0
+        assert_select "#{line[post.id]} a", 0
+        # No address of its media anywhere on the page: not a thumbnail, not
+        # a link, not an attribute.
+        assert_no_match(/#{post.md5}/, response.body, "post ##{post.id}'s media is named on the console")
+      end
+      assert_select "#{line[999_999_994]}[data-status=skipped]", text: /missing/
+    end
+  end
 end

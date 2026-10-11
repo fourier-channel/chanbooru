@@ -8,12 +8,13 @@
 # highest-scoring is the same twelve images forever. The categories are named
 # for what they are, so a visitor can tell which they are looking at.
 #
-# Everything is viewer-scoped, and #showable? IS THE GATE -- not PostQuery.
+# Everything is viewer-scoped, and LandingShowcase.showable? IS THE GATE --
+# not PostQuery -- for the hero band and the error page's pictures alike.
 # This comment used to say PostQuery applied the viewer's safe mode, browsing
 # tier and gating rules, and that is not true on this path: posts_with_timeout
 # never calls with_implicit_metatags, which is also why deleted posts are
 # excluded by hand below. Every rule that decides whether a viewer may see a
-# post is in #showable?, and anything added to the gate elsewhere has to be
+# post is in .showable?, and anything added to the gate elsewhere has to be
 # added there too. Slides also carry the blacklist attributes -- a showcase is
 # the worst possible place to be shown something the viewer asked never to see.
 class LandingShowcase
@@ -53,6 +54,51 @@ class LandingShowcase
   end
 
   delegate :any?, to: :categories
+
+  # Visible to THIS viewer -- THE GATE, as a class method so it is ONE rule.
+  #
+  # The hero band asks it for every slide (#showable? below delegates), and
+  # the error page's pictures ask it as the signed-out visitor and as the
+  # viewer in front of them (ErrorPagePicture; operator, 2026-10-11: reuse
+  # the hero band's mechanic). A second copy of these lines would be a second
+  # gate that drifts; a rule added here reaches both.
+  #
+  # Post#visible? already asks all three questions (safe mode, level, ban), so
+  # repeating them here was redundant -- and worse than redundant: those repeats
+  # were called without a viewer, which makes them fall back to the CurrentUser
+  # thread-global. Outside a request that is nil, they raise, and the rescue
+  # turned the exception into "nothing is showable", so the landing page came
+  # back empty with no error anywhere. It failed only where CurrentUser was not
+  # set, which is every context except the one it was tried in.
+  def self.showable?(post, viewer)
+    return false unless post.is_image? || post.is_video?
+    # Deleted posts never belong in a showcase, whoever is looking.
+    #
+    # Post#visible? asks about safe mode, level and bans; it does NOT ask about
+    # is_deleted. Nor does the query compensate: this class builds a PostQuery
+    # and calls posts_with_timeout directly, which skips with_implicit_metatags
+    # and therefore the implicit -status:deleted (the trap ArchivePulse
+    # documents at length). So a deleted post was excluded only when a gated
+    # tag happened to trip levelblocked? -- true for troll_jail and an
+    # anonymous viewer, false for an ordinary deletion, and false for anyone
+    # who can see deleted posts. The operator, at level 60, saw exactly that:
+    # jail an image and it stays in the carousel for them.
+    #
+    # Checked against the tag as well as the flag, matching
+    # ModulationPostComponent#jailed?, so a jailing whose delete half failed is
+    # still kept out.
+    return false if post.is_deleted?
+    return false if post.has_tag?(Danbooru.config.troll_jail_tag)
+    # A released post keeps its banished tag, and an admin whose reveal is
+    # off is not shown one anywhere (Post#hidden_as_banished?).
+    return false if post.hidden_as_banished?(viewer)
+    # Everything Post#hidden_from? withholds -- a post under a creator prefix
+    # hidden from this viewer included (aichan_, 2026-10-07): this class skips
+    # the implicit metatags, so the post's own rule is the only guard here.
+    return false if post.hidden_from?(viewer)
+
+    post.visible?(viewer)
+  end
 
   private
 
@@ -212,43 +258,9 @@ class LandingShowcase
     out
   end
 
-  # Visible to THIS viewer.
-  #
-  # Post#visible? already asks all three questions (safe mode, level, ban), so
-  # repeating them here was redundant -- and worse than redundant: those repeats
-  # were called without a viewer, which makes them fall back to the CurrentUser
-  # thread-global. Outside a request that is nil, they raise, and the rescue
-  # turned the exception into "nothing is showable", so the landing page came
-  # back empty with no error anywhere. It failed only where CurrentUser was not
-  # set, which is every context except the one it was tried in.
+  # The gate for this showcase's viewer; see LandingShowcase.showable?.
   def showable?(post)
-    return false unless post.is_image? || post.is_video?
-    # Deleted posts never belong in a showcase, whoever is looking.
-    #
-    # Post#visible? asks about safe mode, level and bans; it does NOT ask about
-    # is_deleted. Nor does the query compensate: this class builds a PostQuery
-    # and calls posts_with_timeout directly, which skips with_implicit_metatags
-    # and therefore the implicit -status:deleted (the trap ArchivePulse
-    # documents at length). So a deleted post was excluded only when a gated
-    # tag happened to trip levelblocked? -- true for troll_jail and an
-    # anonymous viewer, false for an ordinary deletion, and false for anyone
-    # who can see deleted posts. The operator, at level 60, saw exactly that:
-    # jail an image and it stays in the carousel for them.
-    #
-    # Checked against the tag as well as the flag, matching
-    # ModulationPostComponent#jailed?, so a jailing whose delete half failed is
-    # still kept out.
-    return false if post.is_deleted?
-    return false if post.has_tag?(Danbooru.config.troll_jail_tag)
-    # A released post keeps its banished tag, and an admin whose reveal is
-    # off is not shown one anywhere (Post#hidden_as_banished?).
-    return false if post.hidden_as_banished?(viewer)
-    # Everything Post#hidden_from? withholds -- a post under a creator prefix
-    # hidden from this viewer included (aichan_, 2026-10-07): this class skips
-    # the implicit metatags, so the post's own rule is the only guard here.
-    return false if post.hidden_from?(viewer)
-
-    post.visible?(viewer)
+    self.class.showable?(post, viewer)
   end
 
   def slide_for(post)

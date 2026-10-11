@@ -1561,7 +1561,8 @@ CREATE TABLE public.landing_settings (
     updated_by_id integer,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
-    advance_ms integer DEFAULT 6000 NOT NULL
+    advance_ms integer DEFAULT 6000 NOT NULL,
+    error_page_post_ids integer[] DEFAULT '{}'::integer[] NOT NULL
 );
 
 
@@ -8715,6 +8716,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261011000000'),
 ('20261009000000'),
 ('20261007120000'),
 ('20261007110000'),

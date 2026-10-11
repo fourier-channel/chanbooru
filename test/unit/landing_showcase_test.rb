@@ -165,6 +165,22 @@ class LandingShowcaseTest < ActiveSupport::TestCase
     end
   end
 
+  # ONE GATE, TWO TENANTS (operator, 2026-10-11): the error page's pictures
+  # are shown to a signed-out visitor by the same rule as the hero band's
+  # slides, so the rule is one class method both ask -- not a copy of it that
+  # can drift. Stubbing it shuts the band, which a copy would not.
+  context "the gate itself" do
+    should "be LandingShowcase.showable?, which the hero band asks for every slide" do
+      user = create(:user)
+      post = as(user) { create(:post, source: BOARD) }
+      assert LandingShowcase.showable?(post, User.anonymous)
+      assert_includes new_ids(User.anonymous), post.id
+
+      LandingShowcase.stubs(:showable?).returns(false)
+      assert_not_includes new_ids(User.anonymous), post.id
+    end
+  end
+
   context "filling the row" do
     setup do
       @user = create(:user)

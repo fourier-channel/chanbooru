@@ -17,7 +17,11 @@
         beside the Categories form below that edits the row the showcase
         actually reads. Two controls for one setting, one of them dead and
         saying otherwise, so the dead one went. %>
-    <%= edit_form_for(@landing_setting, url: admin_landing_setting_path, method: :patch) do |f| %>
+    <%# error_notice: false -- the speed's own error shows under its field and
+        in the flash; a refused save of the error page's pictures below (the
+        same record) must not repeat itself up here. %>
+    <%= edit_form_for(@landing_setting, url: admin_landing_setting_path, method: :patch, error_notice: false,
+                                        html: { id: "landing-setting-speed" }) do |f| %>
       <%= f.input :advance_ms, label: "Slide speed (ms)",
                   hint: "How long a slide holds before the next one. #{LandingSetting::ADVANCE_MS_RANGE.min} to " \
                         "#{LandingSetting::ADVANCE_MS_RANGE.max}; 6000 is six seconds. Below about a second a slide " \
@@ -365,5 +369,59 @@
         sees an empty row once and a fresh search is queued immediately.
       </li>
     </ul>
+
+    <%# THE ERROR PAGE'S PICTURES (operator, 2026-10-11). Saved by the same
+        update action as the slide speed (no new routes). Under the box, one
+        line per SAVED id with what the error page will do with it. A post
+        the error page skips is never drawn here either -- no thumbnail, no
+        link, no media address of any kind, not even for an admin: a jailed
+        or radioactive image must not be displayed anywhere. %>
+    <h2 id="error-page-pictures">Error page pictures</h2>
+    <p class="hint">
+      The picture on the error page ("Oh No!") is one of these posts, drawn at
+      random on each load. A post is drawn only if a signed-out visitor may see
+      it -- the rule the carousel's slides pass -- and the person looking may
+      too. Anything else is skipped, never drawn; with nothing to draw, the
+      page shows its placeholder.
+    </p>
+    <%= edit_form_for(@landing_setting, url: admin_landing_setting_path, method: :patch, html: { id: "landing-setting-error-page" }) do |f| %>
+      <%= f.input :error_page_post_ids_text, as: :text, label: "Post numbers",
+                  input_html: { rows: 3, id: "landing-error-page-post-ids", spellcheck: false },
+                  hint: "Separated by spaces, commas or new lines; up to #{LandingSetting::ERROR_PAGE_POSTS_MAX}. " \
+                        "A repeat is dropped, and a number that is no post is refused by name." %>
+      <%= f.submit "Save pictures" %>
+    <% end %>
+
+    <% if @error_page_statuses.any? %>
+      <% shown = @error_page_statuses.count(&:shown) %>
+      <p class="hint">
+        <strong><%= shown %> of <%= @error_page_statuses.size %></strong> shown on the error page.
+      </p>
+      <ul class="landing-error-pictures">
+        <% @error_page_statuses.each do |status| %>
+          <li class="landing-error-picture" data-error-page-post="<%= status.id %>" data-status="<%= status.shown ? "shown" : "skipped" %>">
+            <span class="landing-error-picture-thumb">
+              <% if status.thumb %>
+                <%= link_to status.url, target: "_blank", tabindex: -1, "aria-hidden": "true" do %>
+                  <%= tag.img src: status.thumb, alt: "", loading: "lazy", decoding: "async" %>
+                <% end %>
+              <% end %>
+            </span>
+            <span class="landing-error-picture-id">
+              <% if status.url %>
+                <%= link_to "##{status.id}", status.url, target: "_blank" %>
+              <% else %>
+                #<%= status.id %>
+              <% end %>
+            </span>
+            <% if status.shown %>
+              <span class="landing-error-picture-status is-shown">shown<%= " -- #{status.reason}" if status.reason %></span>
+            <% else %>
+              <span class="landing-error-picture-status is-skipped">skipped -- <%= status.reason %></span>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
   </div>
 </div>

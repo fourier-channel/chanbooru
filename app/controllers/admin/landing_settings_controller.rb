@@ -4,6 +4,9 @@ module Admin
   # The landing carousel's console: how fast the slides move, and every
   # category's own configuration -- the "new" row's target included, which is
   # a category like the others (see LandingSetting for when that changed).
+  # Also the error page's pictures (operator, 2026-10-11): a small section
+  # saved by #update like the slide speed -- no new routes (ruling
+  # 2026-09-24) -- with each listed post's status (ErrorPagePicture).
   #
   # ONE PAGE, because it is one thing an operator thinks about. The categories
   # live in their own table and save through their own action, but a carousel
@@ -16,6 +19,7 @@ module Admin
       @landing_setting = LandingSetting.current
       authorize @landing_setting
       @landing_categories = LandingCategory.configured
+      @error_page_statuses = error_page_statuses
     end
 
     def update
@@ -27,13 +31,13 @@ module Admin
       if @landing_setting.save
         # Says what was saved. It used to say "The front page now shows ..."
         # about a board nothing read any more.
-        redirect_to admin_landing_setting_path,
-                    notice: "Each slide now holds for #{@landing_setting.advance_ms} ms."
+        redirect_to admin_landing_setting_path, notice: saved_notice
       else
         # Re-render rather than redirect: a redirect would drop what they typed
         # and show them the old value with an error about the new one.
         flash.now[:notice] = @landing_setting.errors.full_messages.join("; ")
         @landing_categories = LandingCategory.configured
+        @error_page_statuses = error_page_statuses
         render :show, status: 422
       end
     end
@@ -65,11 +69,29 @@ module Admin
                     notice: "Carousel saved: #{enabled} of #{@landing_categories.length} categories showing."
       else
         flash.now[:notice] = category_errors.join("; ")
+        @error_page_statuses = error_page_statuses
         render :show, status: 422
       end
     end
 
     private
+
+    # The error page's pictures as SAVED, one line per listed id -- a refused
+    # save is reported by the flash and kept in the text box, not here.
+    def error_page_statuses
+      ErrorPagePicture.statuses(LandingSetting.current, viewer: CurrentUser.user)
+    end
+
+    # What the save changed, in the words of the form that sent it.
+    def saved_notice
+      return "Each slide now holds for #{@landing_setting.advance_ms} ms." unless params[:landing_setting].key?(:error_page_post_ids_text)
+
+      listed = @landing_setting.error_page_post_ids.size
+      return "Error page pictures saved: none listed, so the page draws its placeholder." if listed.zero?
+
+      shown = ErrorPagePicture.statuses(@landing_setting, viewer: CurrentUser.user).count(&:shown)
+      "Error page pictures saved: #{listed} #{"post".pluralize(listed)} listed, #{shown} shown on the error page."
+    end
 
     # The submitted rows, merged onto what is configured now.
     #
