@@ -1,9 +1,11 @@
 # frozen_string_literal: true
 
 # THE SITE MASCOTS' TAGS (operator, 2026-10-11): one copyright tag for the
-# site, one character tag per mascot under her full name, her nickname
-# aliased to it, each character implying the site and `mascot`, and a wiki
-# page each saying who she is and which Matrix account is hers.
+# site, one character tag per mascot under her TRUE name in the form
+# <name>_(41chan) -- "sample_(41chan)", "tunnel_(41chan)": "Those are the
+# 'true' character names and should be the default format" -- the names she
+# is called by aliased to it, each character implying the site and `mascot`,
+# and a wiki page each saying who she is and which Matrix account is hers.
 #
 #   bin/rails runner script/fourier_mascot_tags.rb -- --as NAME             dry run
 #   bin/rails runner script/fourier_mascot_tags.rb -- --as NAME --apply     write
@@ -19,7 +21,7 @@
 # an EXISTING wiki page is never overwritten (edit it on the site instead).
 #
 # The ownership is the copyright tag: tag a post `neru-chan` and the alias
-# makes it `tonneru-chan`, whose implications add `41chan` and `mascot`.
+# makes it `tunnel_(41chan)`, whose implications add `41chan` and `mascot`.
 # NOT `41chan_<anything>`: since 2026-10-04 that prefix is a creator tag, so
 # `41chan_mascot` would read as a creator named "mascot".
 require "optparse"
@@ -27,23 +29,25 @@ require "optparse"
 SITE = "41chan"
 MASCOT = "mascot"
 
-# One row per mascot. `nickname` is the name she is usually called, aliased
-# to her full name; nil when she has none.
+# One row per mascot: her tag (her true name, qualified by the site), the
+# name the wiki calls her, and `called` -- the names she goes by, each
+# aliased to her tag and listed as the wiki's other names. The first is the
+# one the wiki says she is usually called.
 MASCOTS = [
   {
-    tag: "fourier-chan", nickname: nil, matrix: "@fourier:41chan.net",
+    tag: "fourier_(41chan)", name: "Fourier", called: %w[fourier-chan], matrix: "@fourier:41chan.net",
     about: "She is the site's guide, who welcomes newcomers and answers when someone asks for help.",
   },
   {
-    tag: "tonneru-chan", nickname: "neru-chan", matrix: "@tunnel:41chan.net",
-    about: "She is the site's tunnel, who carries images and their tags between the site's systems. Her name is [i]tonneru[/i], \"tunnel\".",
+    tag: "tunnel_(41chan)", name: "Tunnel", called: %w[neru-chan tonneru-chan], matrix: "@tunnel:41chan.net",
+    about: "She is the site's tunnel, who carries images and their tags between the site's systems. Neru-chan is short for Tonneru-chan, [i]tonneru[/i] being \"tunnel\".",
   },
   {
-    tag: "sampuru-chan", nickname: "puru-chan", matrix: "@sample:41chan.net",
-    about: "She is the site's sampler, who gathers the archive and reports its numbers. Her name is [i]sampuru[/i], \"sample\".",
+    tag: "sample_(41chan)", name: "Sample", called: %w[puru-chan], matrix: "@sample:41chan.net",
+    about: "She is the site's sampler, who gathers the archive and reports its numbers.",
   },
   {
-    tag: "yoi-chan", nickname: nil, matrix: "@yoi:41chan.net",
+    tag: "yoi_(41chan)", name: "Yoi", called: %w[yoi-chan], matrix: "@yoi:41chan.net",
     about: "She is the site's reporter on its own health. Her name is literally 41chan: [i]yo[/i] (4) and [i]i[/i] (1).",
   },
 ].freeze
@@ -51,10 +55,8 @@ MASCOTS = [
 def display_name(name) = name.sub(/\A./, &:upcase)
 
 def mascot_wiki(row)
-  name = display_name(row[:tag])
-  called = row[:nickname] ? ", usually called #{display_name(row[:nickname])}," : ""
   <<~DTEXT.strip
-    #{name}#{called} is one of [[#{SITE}]]'s site mascots. #{row[:about]}
+    #{row[:name]}, usually called #{display_name(row[:called].first)}, is one of [[#{SITE}]]'s site mascots. #{row[:about]}
 
     h4. Accounts
 
@@ -68,7 +70,7 @@ end
 
 def site_wiki
   lines = MASCOTS.map do |row|
-    row[:nickname] ? "* [[#{row[:tag]}]] (#{display_name(row[:nickname])})" : "* [[#{row[:tag]}]]"
+    "* [[#{row[:tag]}]] (#{row[:called].map { |name| display_name(name) }.join(", ")})"
   end
   <<~DTEXT.strip
     41chan is the site this booru belongs to. A post tagged with one of its site mascots is tagged 41chan too.
@@ -110,7 +112,7 @@ end
 
 tags = { SITE => "copyright", MASCOT => "general" }.merge(MASCOTS.to_h { |row| [row[:tag], "character"] })
 wikis = { SITE => site_wiki, MASCOT => MASCOT_WIKI }.merge(MASCOTS.to_h { |row| [row[:tag], mascot_wiki(row)] })
-aliases = MASCOTS.select { |row| row[:nickname] }.map { |row| [row[:nickname], row[:tag]] }
+aliases = MASCOTS.flat_map { |row| row[:called].map { |name| [name, row[:tag]] } }
 implications = MASCOTS.flat_map { |row| [[row[:tag], SITE], [row[:tag], MASCOT]] }
 
 failures = []
@@ -155,7 +157,7 @@ ActiveRecord::Base.transaction do
       end
 
       row = MASCOTS.find { |m| m[:tag] == title }
-      other_names = (row && row[:nickname]) ? [row[:nickname]] : []
+      other_names = row ? row[:called] : []
       say.call("wiki #{title}: #{page ? "deleted page, restored with" : "new page"}#{" (other names: #{other_names.join(", ")})" if other_names.any?}\n#{body.gsub(/^/, "      ")}")
       next unless apply
 
@@ -166,7 +168,7 @@ ActiveRecord::Base.transaction do
       end
     end
 
-    # 3. Nicknames aliased to full names. A nickname tag already holding posts
+    # 3. The names she is called aliased to her tag. A nickname tag already holding posts
     #    has them moved onto the full name by the alias itself.
     aliases.each do |from, to|
       if TagAlias.active.exists?(antecedent_name: from, consequent_name: to)
