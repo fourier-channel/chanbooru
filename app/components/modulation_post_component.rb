@@ -116,6 +116,15 @@ class ModulationPostComponent < ApplicationComponent
     end
   end
 
+  # Whose each claimed original character is (CharacterClaim): tag =>
+  # { name:, href: }, for the character pills only, which hold only tags this
+  # viewer can see. No query without a character tag; one with, and one more
+  # for a signed-out viewer when a claim was found (their name is the @slug
+  # already in the tag, linked only to a promoted gallery).
+  def oc_owners
+    @oc_owners ||= CharacterClaim.owners(category_tags[:character].to_a, viewer)
+  end
+
   # The colour-coded unitag row, in a deliberate order (creator, both, auto,
   # pending); meta lives in its own collapsible section, not here.
   def unitag_pills
@@ -366,6 +375,8 @@ class ModulationPostComponent < ApplicationComponent
       # write is authorised again at /posts/:id.
       can_edit: policy.update?,
       cat_tags: category_tags,
+      # "by <creator>" beside a claimed original character's pill.
+      oc_owners: oc_owners,
       settings: settings,
       presets: nav_presets.map { |p| p.slice(:key, :label, :search, :prev, :next, :history) },
       active_key: active_preset_key,

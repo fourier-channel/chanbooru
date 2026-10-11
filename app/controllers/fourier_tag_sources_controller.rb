@@ -26,17 +26,20 @@ class FourierTagSourcesController < ApplicationController
     # that, an upsert can only add, and a name the old normaliser mangled
     # would sit beside its corrected self forever.
     replace = ActiveModel::Type::Boolean.new.cast(sources.delete("replace_creator"))
-    FourierTagSource.record_partition!(post, sources, CurrentUser.user, replace_creator: replace)
+    not_declared = FourierTagSource.record_partition!(post, sources, CurrentUser.user, replace_creator: replace)
     FourierTagPropagation.fan_out!(post) # single write path -> fan out the public projection
 
     # Return the PUBLIC-SAFE projection so the caller writes the Matrix state
     # event from the canonical store rather than recomputing it -- private creator
-    # tags never leave here.
+    # tags never leave here. An original character the hub would not declare
+    # is named with why, never dropped in silence (only the recorded creator's
+    # own name declares one, operator ruling 2026-10-11).
     render json: {
       post_id: post.id,
       recorded: FourierTagSource.where(post_id: post.id).count,
       projection: FourierTagSource.matrix_projection(post),
-    }, status: :ok
+      original_characters_not_declared: not_declared.presence,
+    }.compact, status: 200
   end
 
   # POST /posts/tag_source_models

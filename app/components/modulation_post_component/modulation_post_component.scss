@@ -850,6 +850,29 @@ body:has(.modulation) {
     padding: 0.3rem 0.85rem;
   }
 
+  // A claimed original character's pill and its "by <creator>": the mark is
+  // quiet text beside the pill, not a second pill. A gallery title may run to
+  // 120 characters, so the mark wraps under the pill and breaks inside a long
+  // word rather than pushing the page wider than a phone.
+  .mod-oc {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .mod-oc-owner {
+    color: var(--mod-ink-dim);
+    font-size: 0.78rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-decoration: none;
+  }
+
+  a.mod-oc-owner:hover, a.mod-oc-owner:focus-visible { text-decoration: underline; }
+
   // --- pills (the unitag colour language) --------------------------------
   .mod-unitag, .mod-group-pills, .mod-meta-tags {
     display: flex;

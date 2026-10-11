@@ -190,6 +190,13 @@ class Artist < ApplicationRecord
         errors.add(:name, "'#{name}' is a #{tag.category_name.downcase} tag; artist entries can only be created for artist tags")
       end
 
+      # fourier: an entry would re-file an empty tag as an artist
+      # (update_tag_category); a claimed original character stays a character
+      # (CharacterClaim, OC ownership 2026-10-11).
+      if (claim = CharacterClaim.standing_on([name]).first)
+        errors.add(:name, "'#{name}' is @#{claim.slug}'s original character; artist entries can only be created for artist tags")
+      end
+
       if tag&.is_deprecated?
         errors.add(:name, "'#{name}' is an ambiguous tag; try another name")
       end

@@ -62,6 +62,9 @@ class FourierTagSource < ApplicationRecord
   # name -- and the old rule, first list wins, would have filed that tag as
   # creator-only and PRIVATE, hiding a tag the autotagger had put on the
   # public post. After resolution a name in both creator and auto is `both`.
+  #
+  # @return [Hash{String => String}] each name sent as an original character
+  #   (`oc`) that was not declared, with why and what to do; {} when none
   def self.record_partition!(post, sources, user, replace_creator: false)
     now = Time.zone.now
     fetch = ->(k) { Array(sources[k.to_s] || sources[k.to_sym]).map(&:to_s).reject(&:blank?) }
@@ -73,10 +76,27 @@ class FourierTagSource < ApplicationRecord
     spectrum = lists[:spectrum].to_set
     hydra = lists[:hydra].to_set
     model_bits = ->(t) { (spectrum.include?(t) ? SPECTRUM : 0) | (hydra.include?(t) ? HYDRA : 0) }
-    # ORIGINAL CHARACTERS (oc_<name>, operator 2026-09-19): the creator naming
-    # a character in the prompt. Not resolved -- the name IS the tag -- and
-    # not private: it is put on the post and filed as a character below.
-    oc = fetch.call(:oc).map { |n| Tag.normalize_name(n) }.uniq.grep(ORIGINAL_CHARACTER)
+    # ORIGINAL CHARACTERS (operator ruling 2026-10-11): <name>_(<localpart>),
+    # the creator naming their OWN character, with their own Matrix name in
+    # brackets, in the hub's `oc` list -- the list a creator makes public by
+    # putting a name in it. Never read from the prompt's creator lists: those
+    # are the creator's alone (FourierCreatorPrivacy), so a name there in this
+    # shape stays a private creator row like any other. Declared only under
+    # the account RECORDED as this post's creator (FourierPostCreator), on this
+    # homeserver -- `user` is the posting bot, never the creator, and no
+    # recorded creator means nothing is declared under anyone's name -- and
+    # only for a name CharacterClaim's name rule accepts for that creator.
+    # Not resolved -- the name IS the tag -- and not private: it is put on the
+    # post and filed as a character below. A name sent in `oc` and not
+    # declared comes back with why and what to do (the return value).
+    sent = fetch.call(:oc).map { |n| Tag.normalize_name(n) }.uniq
+    poster = FourierPostCreator.where(post_id: post.id).pick(:mxid) if sent.any?
+    home = Danbooru.config.fourier_matrix_server_name
+    localpart = ArtistClaim.localpart(poster)
+    localpart = nil unless poster.to_s.casecmp?("@#{localpart}:#{home}")
+    refused = sent.index_with { |name| original_character_refusal(name, post, poster, localpart) }.compact
+    oc = sent - refused.keys
+    refused.each_value { |why| Rails.logger.warn("[tag-hub] original character not declared: #{why}") }
 
     creator = (lists[:creator] + lists[:both]).uniq - oc
     auto = (lists[:auto] + lists[:both]).uniq
@@ -98,7 +118,7 @@ class FourierTagSource < ApplicationRecord
       where(post_id: post.id).where("source & ? > 0", CREATOR).delete_all if replace_creator
       upsert_all(rows.uniq { |r| r[:tag] }, unique_by: %i[post_id tag]) if rows.any?
     end
-    rows.size
+    refused
   end
 
   # Posts per call to record_models!, and to the route that serves it.
@@ -248,16 +268,63 @@ class FourierTagSource < ApplicationRecord
     moved
   end
 
-  # oc_<name>, character_oc_<name>, <name>_oc, <name>_character_oc -- both
-  # shapes, with or without "character" (operator, 2026-09-19). Bare "oc" is
-  # nobody's name. The same rule the tunnel's parser applies.
-  ORIGINAL_CHARACTER = /\A(?:(?:character_)?oc_[a-z0-9].*|.*[a-z0-9]_(?:character_)?oc)\z/
+  # An original character's tag: <name>_(<creator>), a name and then, in
+  # brackets, the Matrix localpart of the creator whose character it is
+  # (operator ruling 2026-10-11: "<name>_(<creator>) is THE OC tag"). Group 1
+  # is the name, group 2 the creator. Who may declare one at post time is
+  # original_character_refusal's to decide (the post's recorded creator, by
+  # their own name), and who may claim one is CharacterClaim's (the gallery
+  # of that name). It replaced the oc_<name> shapes of 2026-09-19, which recorded no
+  # owner and gave every creator the same name.
+  ORIGINAL_CHARACTER = /\A([a-z0-9][^()]*)_\(([^()]+)\)\z/
+
+  # Why `name`, sent in the hub's `oc` list for `post`, is not declared; nil
+  # when it is. The creator's own name in brackets (CharacterClaim's name
+  # rule: no creator prefix, no qualifier the booru reserves), and a tag that
+  # can be filed as a character without taking anything from anyone: absent,
+  # already a character, or general and EMPTY (or general and the poster's by
+  # a standing claim). A general tag with posts is never re-filed here -- a
+  # creator whose name is a common qualifier (`food`, say) would otherwise
+  # re-file every <x>_(food) -- and the remedy is a claim, which an admin
+  # reviews. One tag lookup per
+  # name, and one claim lookup for a general tag with posts.
+  def self.original_character_refusal(name, post, poster, localpart)
+    match = ORIGINAL_CHARACTER.match(name)
+    # The hint turns a 2026-09-19 oc_ name into the shape that replaced it.
+    base = match ? match[1] : name.sub(/\A(?:character_)?oc_|_(?:character_)?oc\z/, "")
+    home = Danbooru.config.fourier_matrix_server_name
+    if match.nil?
+      return "#{name} is not an original character's name: name it #{base}_(#{localpart || "<creator>"}), " \
+             "the character's name then the creator's own Matrix name in brackets"
+    elsif poster.nil?
+      return "post ##{post.id} has no recorded creator, so #{name} was not declared under anyone's name. Fix: record who made it " \
+             "(POST /fourier/posts/#{post.id}/creator.json), then send the tags again"
+    elsif localpart.nil?
+      return "#{poster} is not an account on #{home}: only a #{home} account's own name in brackets declares an original character, so #{name} was not declared"
+    elsif !match[2].casecmp?(localpart)
+      return "#{name} names #{match[2]}, but post ##{post.id} was made by #{poster}: only the poster's own name declares an original character. Name it #{base}_(#{localpart})"
+    end
+
+    reason = CharacterClaim.name_refusal(name, localpart, CreatorPrefixes.entries, fix: "name it")
+    return reason if reason
+
+    tag = Tag.find_by_name(name)
+    if tag && !(tag.general? || tag.character?)
+      "#{name} is filed as #{tag.category_name.downcase}: ask an admin to re-file it as a character, then send the tags again"
+    elsif tag&.general? && tag.post_count.positive? && CharacterClaim.standing_on([name]).none? { |claim| claim.slug.casecmp?(localpart) }
+      "#{name} is already a general tag on #{tag.post_count} #{"post".pluralize(tag.post_count)}, so it is not re-filed as a character at post time: " \
+        "claim it from your creator page (an admin reviews a name that has history), then send the tags again"
+    end
+  rescue CreatorPrefixes::ConfigError => e
+    "the creator-prefix list is broken, so #{name} cannot be checked and was not declared (#{e.message}): fix the list, then send the tags again"
+  end
 
   # An original character is DECLARED, not merely recorded: the name goes on
   # the post (public, so it is searchable and lands on the character shelf)
-  # and its tag is filed under the character category. A tag that already
-  # has a category other than general keeps it -- this never re-files
-  # somebody's artist or copyright tag because a prompt said oc_.
+  # and a general tag is filed under the character category. Only names
+  # original_character_refusal passed reach here, so that general tag is an
+  # empty one (or the poster's own by a claim): nobody's artist, copyright or
+  # well-used general tag is re-filed because a name in brackets matched.
   def self.declare_original_characters!(post, names, user)
     missing = names - post.tag_array
     if missing.any?

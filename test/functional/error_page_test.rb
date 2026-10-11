@@ -172,14 +172,16 @@ class ErrorPageTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # The flowchart is for errors the site cannot explain; a refusal that says
+  # why and what to do leads the page instead, under the title, once.
   context "A refusal raised with its own sentence" do
-    should "show that sentence as the details line" do
+    should "show that sentence first, under the title, and not again below" do
       gallery = CreatorGallery.create!(slug: "alice", matrix_id: "@alice:41chan.net", title: "Alice")
       get_auth edit_creator_gallery_path(gallery), create(:user)
 
       assert_response 403
-      assert_select ".oh-no h1.oh-no-title", text: "Oh No!"
-      assert_select ".oh-no-details p", text: /\ADetails:\s+This page can only be edited by its owner/
+      assert_select ".oh-no h1.oh-no-title + p.oh-no-reason", text: /\AThis page can only be edited by its owner/
+      assert_select ".oh-no-details", text: /This page can only be edited by its owner/, count: 0
     end
   end
 

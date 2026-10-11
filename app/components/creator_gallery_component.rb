@@ -31,6 +31,16 @@ class CreatorGalleryComponent < ApplicationComponent
     gallery.creator_gallery_messages
   end
 
+  # The creator's original characters: their standing claims (CharacterClaim),
+  # one query. A member gets links to each one's posts and wiki page; a
+  # signed-out visitor, who reaches only a promoted gallery, gets the names,
+  # because both links lead to members-only pages.
+  def characters
+    @characters ||= CharacterClaim.where(creator_gallery_id: gallery.id).standing.map(&:tag_name).sort
+  end
+
+  def member? = MembersOnly.member?(viewer)
+
   def thumb(post)
     post.visible?(viewer) && !post.hidden_from?(viewer) ? post.preview_file_url : nil
   rescue StandardError

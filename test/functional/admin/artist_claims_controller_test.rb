@@ -125,4 +125,73 @@ class Admin::ArtistClaimsControllerTest < ActionDispatch::IntegrationTest
       assert_select "#top.modnav .modnav-pill", text: /Claims/, count: 0
     end
   end
+
+  # Original characters share the queue (OC ownership, ruled 2026-10-11):
+  # the same two routes with kind=character, a second table, and the claims
+  # an admin decides counted in the same pill.
+  context "original character claims" do
+    setup do
+      as(@admin) { create(:post, tag_string: "pine_(maple)") }
+      @character = CharacterClaim.prepare(@gallery, @maple, "pine").first
+      @character.file!
+    end
+
+    should "be listed in their own table, pending first, with the rule as it stands" do
+      get_auth admin_artist_claims_path, @admin
+
+      assert_response :success
+      assert_select "#character-claims tr#character-claim-#{@character.id}", text: /pine_\(maple\).*pending.*rule holds/m
+      assert_select "#character-claims tr#character-claim-#{@character.id} .character-claim-waits", text: "waits because it is on 1 post"
+      assert_select "#character-claims tr#character-claim-#{@character.id} form[action='#{approve_admin_artist_claim_path(@character, kind: "character")}']", count: 1
+    end
+
+    should "be approved and rejected with kind=character, leaving artist claims alone" do
+      post_auth approve_admin_artist_claim_path(@character), @admin, params: { kind: "character" }
+
+      assert_redirected_to admin_artist_claims_path(anchor: "character-claims")
+      assert(@character.reload.approved?)
+      assert(@claim.reload.pending?)
+      assert_match(/pine_\(maple\)/, flash[:notice])
+
+      post_auth reject_admin_artist_claim_path(@character), @admin, params: { kind: "character", note: "approval withdrawn" }
+      assert(@character.reload.rejected?)
+      assert_equal("approval withdrawn", @character.note)
+    end
+
+    should "scroll each table inside its own box, so a phone does not scroll the page" do
+      get_auth admin_artist_claims_path, @admin
+
+      %w[artist-claims artist-claims-decided character-claims].each do |id|
+        assert_select ".overflow-auto > table##{id}", count: 1
+      end
+    end
+
+    should "flag a decided claim that no longer stands" do
+      @character.approve!(by: @admin)
+      create(:tag_alias, antecedent_name: "pine_(maple)", consequent_name: "pine_tree")
+
+      get_auth admin_artist_claims_path, @admin
+      assert_select "#character-claims tr#character-claim-#{@character.id}", text: /aliased to pine_tree/
+    end
+
+    should "be forbidden to a moderator" do
+      post_auth approve_admin_artist_claim_path(@character), @moderator, params: { kind: "character" }
+
+      assert_response 403
+      assert(@character.reload.pending?)
+    end
+
+    should "answer any other kind with a 400 that names the allowed ones" do
+      post_auth approve_admin_artist_claim_path(@character), @admin, params: { kind: "bogus" }
+
+      assert_response 400
+      assert_includes(response.body, "kind must be character or absent")
+      assert(@character.reload.pending?)
+    end
+
+    should "count in the Claims pill" do
+      get_auth posts_path(preset: "modulation"), @admin
+      assert_select "#top.modnav a.modnav-pill[href='#{admin_artist_claims_path}']", text: /Claims\s*2/, count: 1
+    end
+  end
 end

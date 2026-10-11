@@ -68,8 +68,10 @@ class BulkUpdateRequest::Command
   # (CreatorControl) -- so the commands that would otherwise let a builder or a
   # moderator approve ask this and answer ADMIN (CREATOR_VISIBILITY section 3,
   # 2026-10-07). A broken prefix list answers yes: refusing is the safe side.
+  # A claimed original character counts too (CharacterClaim, OC ownership
+  # 2026-10-11): what points at it or from it is an admin's to approve.
   def touches_creator_tag?
-    affected_tags.any? { |name| CreatorPrefixes.locked?(name) }
+    affected_tags.any? { |name| CreatorPrefixes.locked?(name) } || CharacterClaim.claimed?(affected_tags)
   rescue CreatorPrefixes::ConfigError
     true
   end

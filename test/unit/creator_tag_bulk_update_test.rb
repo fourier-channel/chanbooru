@@ -100,4 +100,43 @@ class CreatorTagBulkUpdateTest < ActiveSupport::TestCase
       @posts.each { |post| assert_includes post.reload.tag_array, "weapon", "post ##{post.id} (#{post.tag_string})" }
     end
   end
+
+  # A claimed original character (OC ownership, ruled 2026-10-11): what points
+  # at it or from it is an admin's to approve, and moving it away would orphan
+  # the claim on a name with no wiki and no posts (TagMover moves both), so a
+  # move away is refused while the claim stands.
+  context "a claimed original character" do
+    setup do
+      CreatorPrefixes.reset!
+      saber = create(:user)
+      gallery = CreatorGallery.create!(slug: "saber", matrix_id: "@saber:41chan.net", user: saber)
+      CharacterClaim.prepare(gallery, saber, "maple").first.file!
+      %w[pine_(saber) fir_(saber)].each { |name| create(:tag, name: name, category: Tag.categories.character, post_count: 10) }
+      Tag.find_by_name("maple_(saber)").update!(post_count: 10)
+    end
+
+    should "make an implication touching it an admin's, and leave one between unclaimed characters a moderator's" do
+      assert_not approvable_by?(@moderator, "imply maple_(saber) -> pine_(saber)")
+      assert approvable_by?(@admin, "imply maple_(saber) -> pine_(saber)")
+      assert approvable_by?(@moderator, "imply fir_(saber) -> pine_(saber)")
+    end
+
+    should "refuse an alias or rename away from it, naming the order to do it in" do
+      remedy = "maple_(saber) is @saber's claimed character: an admin withdraws the claim first; the creator files on the new name after the move"
+      ["alias maple_(saber) -> pine_(saber)", "rename maple_(saber) -> maple_leaf_(saber)"].each do |script|
+        bur = build(:bulk_update_request, script: script)
+
+        assert_not bur.valid?, script
+        assert_includes bur.errors.full_messages.join, remedy, script
+      end
+    end
+
+    should "allow an alias into it, at admin level" do
+      script = "alias maple_nickname -> maple_(saber)"
+
+      assert build(:bulk_update_request, script: script).valid?
+      assert_not approvable_by?(@builder, script)
+      assert approvable_by?(@admin, script)
+    end
+  end
 end

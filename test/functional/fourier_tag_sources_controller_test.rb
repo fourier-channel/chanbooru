@@ -31,6 +31,16 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       assert rows["m"].spectrum?, "m was reported by spectrum"
       refute rows["m"].hydra?, "m was not reported by hydra"
     end
+
+    # An original character the hub would not declare is said in the answer,
+    # with why and what to do, never dropped in silence (operator ruling
+    # 2026-10-11: only the recorded creator's own name declares one).
+    should "say which original characters it did not declare, and why" do
+      post_auth "/posts/#{@post.id}/tag_sources.json", @bot, as: :json, params: { auto: %w[a], oc: %w[maple_(saber)] }
+
+      assert_response :success
+      assert_match(/has no recorded creator/, response.parsed_body.dig("original_characters_not_declared", "maple_(saber)"))
+    end
   end
 
   # THE READ IS A DOOR (review, 2026-09-24). Post#hidden_as_deleted? says a

@@ -146,8 +146,9 @@ class ModulationNavbarComponent < NavbarComponent
                                                  .group("creator_galleries.slug").order(Arel.sql("min(creator_join_requests.created_at)")).count
   end
 
-  # Counted once, and only for the admins who can see the entry at all.
+  # Counted once, and only for the admins who can see the entry at all: the
+  # creator claims and the original character claims the queue holds.
   def pending_claim_count
-    @pending_claim_count ||= ArtistClaim.pending.count
+    @pending_claim_count ||= ArtistClaim.pending.count + CharacterClaim.pending.count
   end
 end

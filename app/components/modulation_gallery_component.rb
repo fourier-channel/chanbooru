@@ -287,6 +287,16 @@ class ModulationGalleryComponent < ApplicationComponent
     end
   end
 
+  # Whose original character a wiki excerpt is (CharacterClaim, OC ownership
+  # 2026-10-11): { name:, href: } as this viewer may be told, nil otherwise.
+  # One query for a claimable title, none for any other excerpt.
+  def excerpt_owner
+    return @excerpt_owner if defined?(@excerpt_owner)
+
+    title = post_set.wiki_page&.title if excerpt&.dig(:kind) == "wiki"
+    @excerpt_owner = title && CharacterClaim.owners([title], viewer)[title]
+  end
+
   # A summary, not the article: the wiki page is one click away and a long entry
   # would push the posts off the screen the viewer came for.
   def excerpt_summary

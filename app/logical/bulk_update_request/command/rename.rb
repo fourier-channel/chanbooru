@@ -20,6 +20,8 @@ class BulkUpdateRequest::Command::Rename < BulkUpdateRequest::Command::CreateAli
   end
 
   def validate(errors:, **)
+    return if refused_as_claimed_character?(errors)
+
     new_tag ||= Tag.new(name: @new_name)
 
     if old_tag.nil?

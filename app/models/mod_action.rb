@@ -154,6 +154,14 @@ class ModAction < ApplicationRecord
     # (FourierJailController#decide!). Ends Post#jailing_stands?, so the
     # ordinary undelete door opens again (review of the 2026-10-10 build).
     post_unjail: 1115,
+    # Original-character claims (CharacterClaim, OC ownership 2026-10-11),
+    # subject the Tag. Readable by everyone a mod log is: an OC claim hides
+    # nothing, and its result is shown on posts. Named by slug, never by
+    # matrix_id. character_claim_reject also records an admin withdrawing an
+    # approval.
+    character_claim_approve: 1116,
+    character_claim_reject: 1117,
+    character_claim_release: 1118,
   }
 
   normalizes :category, with: ->(category) { category.to_s.parameterize.underscore.presence }

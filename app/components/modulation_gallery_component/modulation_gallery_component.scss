@@ -175,6 +175,16 @@ body:has(.modgal) {
     &:hover { color: var(--mod-accent); }
   }
 
+  // A claimed original character's "Original character of <creator>".
+  .modgal-excerpt-owner {
+    margin: 0.3rem 0 0;
+    font-size: 0.8rem;
+    color: var(--mod-ink-dim);
+    overflow-wrap: anywhere;
+    a { color: inherit; }
+    a:hover, a:focus-visible { color: var(--mod-accent); }
+  }
+
   .modgal-excerpt-body {
     margin: 0.45rem 0 0;
     font-size: 0.85rem;

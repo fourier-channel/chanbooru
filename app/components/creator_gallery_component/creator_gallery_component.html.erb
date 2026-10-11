@@ -21,6 +21,24 @@
     <p class="modcreator-bio"><%= gallery.bio %></p>
   <% end %>
 
+  <% if characters.any? %>
+    <div class="modcreator-characters">
+      <h2 class="modcreator-characters-title">Characters</h2>
+      <ul>
+        <% characters.each do |tag| %>
+          <li>
+            <% if member? %>
+              <%= link_to tag.tr("_", " "), helpers.posts_path(tags: tag) %>
+              <%= link_to "wiki", helpers.wiki_page_path(tag), class: "modcreator-characters-wiki" %>
+            <% else %>
+              <%= tag.tr("_", " ") %>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
   <% if messages.any? %>
     <div class="modcreator-blog">
       <% messages.each do |m| %>

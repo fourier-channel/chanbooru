@@ -3,6 +3,9 @@
 class TagPolicy < ApplicationPolicy
   def can_change_category?
     return false if record.artist.present? && record.category == Tag.categories.artist
+    # Fork: a claimed original character stays a character unless an admin
+    # re-files it (CharacterClaim, OC ownership 2026-10-11).
+    return user.is_admin? if CharacterClaim.claimed?([record.name])
     return true if user.is_admin?
     return true if user.is_builder? && record.post_count < 1_000
     record.post_count < 50

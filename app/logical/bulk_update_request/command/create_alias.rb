@@ -27,11 +27,31 @@ class BulkUpdateRequest::Command::CreateAlias < BulkUpdateRequest::Command
   end
 
   def validate(context:, errors:)
+    return if refused_as_claimed_character?(errors)
+
     tag_alias = TagAlias.new(creator: User.system, antecedent_name: @old_name, consequent_name: @new_name)
     tag_alias.save(context: context)
     if tag_alias.errors.present?
       errors.add(:base, "Can't create alias [[#{tag_alias.antecedent_name}]] -> [[#{tag_alias.consequent_name}]] (#{tag_alias.errors.full_messages.join("; ")})")
     end
+  end
+
+  # fourier: an alias or rename moves the tag's posts and its wiki page to the
+  # new name (TagMover), which would leave a claimed original character's
+  # claim on a name with neither (CharacterClaim, OC ownership 2026-10-11).
+  # So the move waits for the claim to end. An alias INTO a claimed tag stays
+  # allowed, at admin level (touches_creator_tag?). What TagMover carries
+  # along -- <old>_(cosplay), an artist's <old>_(style) -- never holds a
+  # claim: CharacterClaim::RESERVED_QUALIFIERS refuses those names.
+  #
+  # @return [Boolean] true when it refused
+  def refused_as_claimed_character?(errors)
+    claim = CharacterClaim.standing_on([@old_name]).first
+    return false if claim.nil?
+
+    errors.add(:base, "Can't move [[#{@old_name}]] -> [[#{@new_name}]] (#{@old_name} is @#{claim.slug}'s claimed character: " \
+                      "an admin withdraws the claim first; the creator files on the new name after the move)")
+    true
   end
 
   def old_tag

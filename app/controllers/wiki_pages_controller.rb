@@ -67,10 +67,14 @@ class WikiPagesController < ApplicationController
 
   def revert
     @wiki_page, _found_by = WikiPage.find_by_id_or_title(params[:id])
-    authorize @wiki_page
-
     @version = @wiki_page.versions.find(params[:version_id])
-    @wiki_page.revert_to!(@version)
+
+    # Fork: a revert sets the version's title, so it is authorized as the
+    # edit it is, after the version is applied -- as update assigns before it
+    # authorizes -- or a claimed character's page could be reverted onto or
+    # off its title by someone WikiPagePolicy refuses to rename it for.
+    @wiki_page.revert_to(@version)
+    authorize(@wiki_page).save!
 
     respond_with(@wiki_page, notice: "Page was reverted")
   end

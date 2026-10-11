@@ -14,6 +14,8 @@ class CreatorGallery < ApplicationRecord
   # Claims are history (who asked, who decided), so a gallery that has filed
   # one is not deleted out from under it.
   has_many :artist_claims, dependent: :restrict_with_error
+  # The same for its original characters (CharacterClaim).
+  has_many :character_claims, dependent: :restrict_with_error
   # The creator's visibility panel (CREATOR_VISIBILITY sections 4-5). The
   # database cascades these away with the gallery; nothing else depends on
   # them.

@@ -2,8 +2,13 @@
 
 <%# The page is the shared "Oh No!" walk-through (operator, 2026-10-10); this
     file supplies only its quiet details line, the error the site knows. %>
-<%= render layout: "static/oh_no" do %>
-  <% if @message.present? %>
+<%# A policy refusal reaches this template only when the policy said why
+    (ApplicationController: denial_message); that sentence leads the page. %>
+<% reason = @message.presence if @exception.is_a?(Pundit::NotAuthorizedError) %>
+<%= render layout: "static/oh_no", locals: { reason: reason } do %>
+  <% if reason %>
+    <p><%= link_to "Go back", :back, rel: "prev" %></p>
+  <% elsif @message.present? %>
     <p>Details: <%= @message %></p>
   <% else %>
     <p>Details: Unexpected error: <%= @exception.class %>.</p>

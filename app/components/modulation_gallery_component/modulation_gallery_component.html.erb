@@ -94,6 +94,11 @@
         <span class="modgal-excerpt-kind"><%= excerpt[:kind] %></span>
         <%= link_to excerpt[:title], excerpt[:href], class: "modgal-excerpt-title" %>
       </div>
+      <% if excerpt_owner %>
+        <p id="wiki-page-original-character" class="modgal-excerpt-owner">
+          Original character of <%= excerpt_owner[:href] ? link_to(excerpt_owner[:name], excerpt_owner[:href]) : excerpt_owner[:name] %>.
+        </p>
+      <% end %>
       <% if excerpt_summary.present? %>
         <p class="modgal-excerpt-body"><%= excerpt_summary %></p>
       <% end %>

@@ -134,6 +134,7 @@
         <% if policy(wiki_page).edit? %>
           <%= link_to "", edit_wiki_page_path(wiki_page.id), "data-shortcut": "e", style: "display: none;" %>
         <% end %>
+        <%= render "wiki_pages/original_character", title: wiki_page.title %>
         <% if wiki_page.other_names.present? %>
           <%= wiki_page_other_names_list(wiki_page) %>
         <% end %>

@@ -2040,6 +2040,16 @@ class Post < ApplicationRecord
         tag_list = deprecated_tags.map { |tag| "[[#{tag}]]" }.to_sentence
         warnings.add(:base, "The following tags are deprecated and could not be added: #{tag_list}")
       end
+
+      # fourier: upstream skips a refused re-file (char:, gen:, ...) in
+      # silence. On a claimed original character the refusal is the claim's
+      # (TagPolicy), so it is said, naming whose. Asked only for an ask that
+      # was not carried out.
+      asked = post_edit.tag_categorization_terms.to_h { |term| [::Tag.normalize_name(term.value), ::Tag.categories.value_for(term.name)] }
+      refused = asked.empty? ? [] : ::Tag.where(name: asked.keys).reject { |tag| tag.category == asked[tag.name] }.map(&:name)
+      CharacterClaim.standing_on(refused).each do |claim|
+        warnings.add(:base, "[[#{claim.tag_name}]] is @#{claim.slug}'s original character: its category stays character. Ask an admin.")
+      end
     end
 
     def removed_tags_are_valid

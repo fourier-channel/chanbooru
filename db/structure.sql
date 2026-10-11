@@ -480,6 +480,42 @@ ALTER SEQUENCE public.bulk_update_requests_id_seq OWNED BY public.bulk_update_re
 
 
 --
+-- Name: character_claims; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.character_claims (
+    id bigint NOT NULL,
+    creator_gallery_id bigint NOT NULL,
+    tag_name character varying NOT NULL,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    approver_id bigint,
+    decided_at timestamp(6) without time zone,
+    note text DEFAULT ''::text NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: character_claims_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.character_claims_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: character_claims_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.character_claims_id_seq OWNED BY public.character_claims.id;
+
+
+--
 -- Name: comment_votes; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3482,6 +3518,13 @@ ALTER TABLE ONLY public.bulk_update_requests ALTER COLUMN id SET DEFAULT nextval
 
 
 --
+-- Name: character_claims id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.character_claims ALTER COLUMN id SET DEFAULT nextval('public.character_claims_id_seq'::regclass);
+
+
+--
 -- Name: comment_votes id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -4035,6 +4078,14 @@ ALTER TABLE ONLY public.bans
 
 ALTER TABLE ONLY public.bulk_update_requests
     ADD CONSTRAINT bulk_update_requests_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: character_claims character_claims_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.character_claims
+    ADD CONSTRAINT character_claims_pkey PRIMARY KEY (id);
 
 
 --
@@ -4998,6 +5049,27 @@ CREATE INDEX index_bulk_update_requests_on_tags ON public.bulk_update_requests U
 --
 
 CREATE INDEX index_bulk_update_requests_on_user_id_and_created_at ON public.bulk_update_requests USING btree (user_id, created_at);
+
+
+--
+-- Name: index_character_claims_on_creator_gallery_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_character_claims_on_creator_gallery_id ON public.character_claims USING btree (creator_gallery_id);
+
+
+--
+-- Name: index_character_claims_on_tag_name_and_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_character_claims_on_tag_name_and_status ON public.character_claims USING btree (tag_name, status);
+
+
+--
+-- Name: index_character_claims_one_approved_per_tag; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_character_claims_one_approved_per_tag ON public.character_claims USING btree (tag_name) WHERE ((status)::text = 'approved'::text);
 
 
 --
@@ -8286,6 +8358,14 @@ ALTER TABLE ONLY public.favorite_groups
 
 
 --
+-- Name: character_claims fk_rails_7b1e9d5f91; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.character_claims
+    ADD CONSTRAINT fk_rails_7b1e9d5f91 FOREIGN KEY (approver_id) REFERENCES public.users(id);
+
+
+--
 -- Name: creator_join_requests fk_rails_7f2ea19324; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8630,6 +8710,14 @@ ALTER TABLE ONLY public.post_disapprovals
 
 
 --
+-- Name: character_claims fk_rails_ebffa6c930; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.character_claims
+    ADD CONSTRAINT fk_rails_ebffa6c930 FOREIGN KEY (creator_gallery_id) REFERENCES public.creator_galleries(id);
+
+
+--
 -- Name: creator_tag_releases fk_rails_edbbf9a2f7; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8716,6 +8804,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261011100000'),
 ('20261011000000'),
 ('20261009000000'),
 ('20261007120000'),

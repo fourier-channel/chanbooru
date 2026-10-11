@@ -18,11 +18,16 @@
 # CLAIMS. Filing an ArtistClaim on a creator tag for the page's linked account
 # is that account's act alone, under that verified identity: the claim is the
 # creator's word. An admin decides it (Admin::ArtistClaimsController).
+# The same holds for a claim on an original character, <name>_(<slug>)
+# (CharacterClaim, ruled 2026-10-11): filed and released by the linked
+# account under that verified identity, approved on filing when the name is
+# clean and by an admin otherwise.
 #
 # ONE ROUTE. Linking, unlinking and filing a claim are explicit acts on the
 # gallery, so they ride its own update route (PATCH creators/:slug with
-# link_account, unlink_account or claim_tag) rather than new routes (operator
-# ruling 2026-09-24: "do not build new routes, reuse existing routes").
+# link_account, unlink_account, claim_tag, claim_character or
+# release_character) rather than new routes (operator ruling 2026-09-24: "do
+# not build new routes, reuse existing routes").
 #
 # THE PANEL (CREATOR_VISIBILITY sections 4-5 and Q5; built 2026-10-09). Who
 # sees a creator's posts is set on this page's edit screen and written through
@@ -128,6 +133,7 @@ class CreatorGalleriesController < ApplicationController
     skip_authorization
     @panel_refusal = panel_refusal
     @claims = @gallery.artist_claims.order(created_at: :desc, id: :desc)
+    @character_claims = @gallery.character_claims.order(created_at: :desc, id: :desc)
     @signed_in_owner = owner_signed_in?
     # The creator tags this page may claim: one per non-master prefix in the
     # live list, named for the page's Matrix localpart, among tags that exist.
@@ -175,6 +181,8 @@ class CreatorGalleriesController < ApplicationController
     return link_account if params[:link_account].present?
     return unlink_account if params[:unlink_account].present?
     return file_claim(params[:claim_tag]) if params[:claim_tag].present?
+    return file_character_claim(params[:claim_character]) if params.key?(:claim_character)
+    return release_character_claim(params[:release_character]) if params[:release_character].present?
     return panel_write if params[:panel].present?
 
     if @gallery.update(gallery_params)
@@ -274,6 +282,50 @@ class CreatorGalleriesController < ApplicationController
   rescue ActiveRecord::RecordInvalid => e # a race with another filing, between the check and the save
     redirect_back_or_to edit_creator_gallery_path(@gallery), notice: "Not filed: #{e.record.errors.full_messages.join("; ")}"
   end
+
+  # File a claim on an original character for this page's linked account:
+  # CharacterClaim.prepare completes a bare name with the page's slug and
+  # decides, and CharacterClaim#file! approves a clean name at once. The tag
+  # is made at approval, so a refused or waiting claim leaves none behind.
+  def file_character_claim(input)
+    require_character_claimant!
+    claim, refusal = CharacterClaim.prepare(@gallery, CurrentUser.user, input)
+    return redirect_to(characters_path, notice: "Not filed: #{refusal}") if refusal
+
+    waits = claim.file!
+    if waits.empty?
+      redirect_to characters_path, notice: "Claim on #{claim.tag_name} approved: the name was unused, so #{claim.tag_name} is yours now. Its wiki page is yours to write."
+    else
+      redirect_to characters_path, notice: "Claim on #{claim.tag_name} filed. An admin will review it: #{waits.to_sentence}."
+    end
+  rescue ActiveRecord::RecordInvalid => e # a race with another filing, between the check and the save
+    redirect_to characters_path, notice: "Not filed: #{e.record.errors.full_messages.join("; ")}"
+  rescue ActiveRecord::RecordNotUnique
+    redirect_to characters_path, notice: "Not filed: #{claim.tag_name} gained an approved claim meanwhile. Reload this page to see it."
+  end
+
+  # Give an original character up: the page's linked account, under the same
+  # gate as filing. Only this page's approved claims are reachable.
+  def release_character_claim(id)
+    require_character_claimant!
+    claim = @gallery.character_claims.approved.find_by(id: id)
+    return redirect_to(characters_path, notice: "That is not one of this page's approved claims (it may already be released). Reload this page.") if claim.nil?
+
+    claim.release!(by: CurrentUser.user)
+    redirect_to characters_path, notice: "Released #{claim.tag_name}: its wiki page is open to everyone's edits again. The tag and its page stay."
+  end
+
+  # Filing and releasing are the creator's acts alone: the verified identity,
+  # signed in as the page's linked, unbanned booru account. No admin override.
+  def require_character_claimant!
+    require_owner_signed_in!
+    return if @gallery.user_id == CurrentUser.user.id
+
+    raise User::PrivilegeError, "Link this page to your booru account before claiming an original character: use \"Link this page " \
+                                "to my booru account\" on this page, signed in to the booru as yourself."
+  end
+
+  def characters_path = edit_creator_gallery_path(@gallery, anchor: "creator-characters")
 
   # --- join requests: the visitor's acts (reached through update) ---
 

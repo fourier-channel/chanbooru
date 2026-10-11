@@ -5,8 +5,11 @@
     might be here, in the order they would check.
 
     The page's own error is the yielded block, shown under the walk-through,
-    small: a specific sentence ("That record was not found.", a refusal's own
-    remedy) beats a generic one whenever the site has it.
+    small: a specific sentence ("That record was not found.") beats a generic
+    one whenever the site has it. A refusal that names its own reason and
+    remedy (`reason`, from a policy's denial_message or a PrivilegeError's own
+    sentence) is shown first instead, under the title: the flowchart is for
+    the errors the site cannot explain, and this one it can.
 
     The picture is a booru post, drawn at random on each load from the posts
     listed on the landing console (operator, 2026-10-11) -- only ever one a
@@ -16,6 +19,9 @@
     others out of place). %>
 <div class="oh-no">
   <h1 class="oh-no-title">Oh No!</h1>
+  <% if local_assigns[:reason].present? %>
+    <p class="oh-no-reason"><%= reason %></p>
+  <% end %>
 
   <%# The placeholder is always drawn, and the picture laid over it (review,
       2026-10-10): while the picture loads the square shows the placeholder,

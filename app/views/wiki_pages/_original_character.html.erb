@@ -1,0 +1,10 @@
+<%# A claimed original character's line (CharacterClaim, OC ownership 2026-10-11): whose it is, and -- on its own page, for a viewer who may not edit it -- who does. One query, none for a title no claim could have. %>
+<% owner = CharacterClaim.owners([title], CurrentUser.user)[title] %>
+<% if owner %>
+  <p id="wiki-page-original-character" class="fineprint">
+    Original character of <%= owner[:href] ? link_to(owner[:name], owner[:href]) : owner[:name] %>.
+    <% if local_assigns[:wiki_page] && !policy(wiki_page).update? %>
+      Its wiki page is kept by its creator: only they or an admin edit it. To suggest a change, message them from their creator page.
+    <% end %>
+  </p>
+<% end %>

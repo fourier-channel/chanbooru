@@ -60,6 +60,49 @@
       </p>
     </section>
 
+    <%# --- original characters: the creator's own, <name>_(<slug>) (CharacterClaim, 2026-10-11) --- %>
+    <% if @signed_in_owner || CurrentUser.user.is_admin? %>
+      <section id="creator-characters">
+        <h2>Characters</h2>
+        <% if @character_claims.any? %>
+          <ul class="modcreator-character-claims">
+            <% @character_claims.each do |claim| %>
+              <li>
+                <%= link_to claim.tag_name, wiki_page_path(claim.tag_name) %> - <%= claim.status %><%= " (#{claim.note})" if claim.note.present? %>
+                <% if claim.approved? && @signed_in_owner && @gallery.user_id == CurrentUser.user.id %>
+                  <%= form_with url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-inline-form",
+                        data: { confirm: "Release #{claim.tag_name}? Its wiki page opens to everyone's edits again; the tag and the page stay." } do %>
+                    <%= hidden_field_tag :release_character, claim.id %>
+                    <button type="submit" class="button-outline-danger">Release</button>
+                  <% end %>
+                <% end %>
+              </li>
+            <% end %>
+          </ul>
+        <% end %>
+
+        <% if @signed_in_owner && @gallery.user_id == CurrentUser.user.id %>
+          <%= form_with url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-inline-form modcreator-character-form" do %>
+            <label for="claim_character">Claim a character</label>
+            <span class="modcreator-character-name">
+              <%= text_field_tag :claim_character, nil, placeholder: "name", required: true, autocomplete: "off", size: nil %><span class="modcreator-character-slug">_(<%= @gallery.slug %>)</span>
+            </span>
+            <button type="submit" class="button-primary">Claim</button>
+          <% end %>
+          <p class="fineprint">
+            An original character's tag is its name with your name in brackets: maple becomes maple_(<%= @gallery.slug %>).
+            A name nobody has used yet (no posts, no wiki page, no alias) is yours at once; one that has been used waits for an
+            admin. Once it is yours, only you and admins edit its wiki page and only an admin changes its category. Anyone can
+            still tag posts with it, fan art included.
+          </p>
+        <% elsif @signed_in_owner %>
+          <p class="fineprint">Link this page to your booru account (above) to claim your original characters.</p>
+        <% else %>
+          <p class="fineprint">Read-only here: the creator files and releases their claims. Claims that wait are decided in <%= link_to "the claims queue", admin_artist_claims_path(anchor: "character-claims") %>.</p>
+        <% end %>
+      </section>
+    <% end %>
+
     <%# --- curated posts --- %>
     <h2>Featured posts</h2>
     <%= form_with url: creator_gallery_add_post_path(@gallery), method: :post, class: "modcreator-inline-form" do %>

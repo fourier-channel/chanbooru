@@ -13,7 +13,9 @@
     </p>
 
     <h2 class="mb-2">Waiting</h2>
-    <table id="artist-claims" class="striped w-full mb-8">
+    <%# Each table scrolls inside its own box, so a phone scrolls the table and not the page. %>
+    <div class="overflow-auto mb-8">
+    <table id="artist-claims" class="striped w-full">
       <thead>
         <tr><th>Tag</th><th>Matrix account</th><th>Booru account</th><th>Filed</th><th>Rule now</th><th></th></tr>
       </thead>
@@ -53,8 +55,10 @@
         <% end %>
       </tbody>
     </table>
+    </div>
 
     <h2 class="mb-2">Decided</h2>
+    <div class="overflow-auto">
     <table id="artist-claims-decided" class="striped w-full">
       <thead>
         <tr><th>Tag</th><th>Matrix account</th><th>Answer</th><th>By</th><th>When</th><th>Note</th><th></th></tr>
@@ -82,5 +86,69 @@
         <% end %>
       </tbody>
     </table>
+    </div>
+
+    <h2 class="mt-8 mb-2">Original characters</h2>
+    <p class="fineprint mb-4">
+      A creator claiming <code>name_(their name)</code> as their own character. A name nobody had used (no posts, no wiki
+      page, no alias) was approved when filed; the ones here waiting had history, so look first: a series that happens to
+      share the creator's name, say. An approved claim gives its creator their character's wiki page and fixes its
+      category at character; it changes nothing about who sees posts. Decisions are in the public mod log.
+    </p>
+    <div class="overflow-auto">
+    <table id="character-claims" class="striped w-full">
+      <thead>
+        <tr><th>Tag</th><th>Creator</th><th>Booru account</th><th>Status</th><th>When</th><th>Note</th><th>Rule now</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% (@character_pending + @character_decided).each do |claim| %>
+          <tr id="character-claim-<%= claim.id %>">
+            <td><%= link_to claim.tag_name, posts_path(tags: claim.tag_name) %></td>
+            <td><%= link_to "@#{claim.creator_gallery.slug}", creator_gallery_path(claim.creator_gallery) %></td>
+            <td>
+              <% if claim.creator_gallery.user %>
+                <%= link_to_user claim.creator_gallery.user %>
+              <% else %>
+                <span class="fineprint">not linked</span>
+              <% end %>
+            </td>
+            <td><%= claim.status %><%= " by #{claim.approver.name}" if claim.approver && (claim.approved? || claim.rejected?) %><%= " by its creator" if claim.released? %></td>
+            <td><%= time_ago_in_words_tagged(claim.decided_at || claim.created_at) %></td>
+            <td><%= claim.note.presence || "-" %></td>
+            <td>
+              <% if !claim.pending? && !claim.approved? %>
+                -
+              <% elsif @character_refusals.nil? %>
+                <span class="fineprint">cannot check</span>
+              <% elsif @character_refusals[claim.id] %>
+                <span class="fineprint"><%= @character_refusals[claim.id] %></span>
+              <% else %>
+                rule holds
+              <% end %>
+              <% if claim.pending? && @character_waits[claim.id].present? %>
+                <div class="character-claim-waits fineprint">waits because <%= @character_waits[claim.id].to_sentence %></div>
+              <% end %>
+            </td>
+            <td class="space-y-2">
+              <% if claim.pending? %>
+                <%= button_to "Approve", approve_admin_artist_claim_path(claim, kind: "character"), method: :post, class: "button-primary" %>
+                <%= form_with url: reject_admin_artist_claim_path(claim, kind: "character"), method: :post, class: "flex flex-wrap items-center gap-2" do |f| %>
+                  <%= f.text_field :note, placeholder: "why (shown in the mod log)", size: 16 %>
+                  <%= f.submit "Reject", class: "button-outline-danger" %>
+                <% end %>
+              <% elsif claim.approved? %>
+                <%= button_to "Withdraw", reject_admin_artist_claim_path(claim, kind: "character"), method: :post, class: "button-outline-danger",
+                      params: { note: "approval withdrawn" },
+                      form: { data: { confirm: "Withdraw the approval of #{claim.tag_name}? Its creator loses the wiki page; the tag and the page stay." } } %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+        <% if @character_pending.empty? && @character_decided.empty? %>
+          <tr><td colspan="8" class="fineprint">No original character claims yet.</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+    </div>
   </div>
 </div>

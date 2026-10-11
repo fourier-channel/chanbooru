@@ -71,6 +71,21 @@ body[data-preset="modulation"] .oh-no {
     color: var(--oh-no-ink);
   }
 
+  // A refusal that explains itself: its reason and remedy, before the
+  // picture and the flowchart, set off as a card so it reads as the answer.
+  .oh-no-reason {
+    margin: 0 auto 1.25rem;
+    max-width: 40rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--oh-no-line);
+    border-left: 3px solid var(--oh-no-accent);
+    border-radius: var(--oh-no-radius);
+    background: var(--oh-no-surface);
+    color: var(--oh-no-ink);
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
   .oh-no-art {
     position: relative;
     width: var(--oh-no-art);

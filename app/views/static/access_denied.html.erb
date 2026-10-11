@@ -3,14 +3,13 @@
 <%# The same "Oh No!" page as static/error (operator, 2026-10-10), so a
     refusal and a missing record look alike; the refusal's own sentence and
     its sign-in links are the details line. %>
-<%= render layout: "static/oh_no" do %>
+<%# Fork: a refusal that says why (and what to do) leads the page, under
+    the title, as it was raised; the bare one keeps upstream's words below. %>
+<% reason = @message if @message.present? && @message != "Access denied" %>
+<%= render layout: "static/oh_no", locals: { reason: reason } do %>
   <p>
-    Details:
-    <%# Fork: a refusal that says why (and what to do) is shown as it was raised; the bare one keeps upstream's words. %>
-    <% if @message.present? && @message != "Access denied" %>
-      <%= @message %>
-    <% else %>
-      You do not have permission to visit this page.
+    <% unless reason %>
+      Details: You do not have permission to visit this page.
     <% end %>
 
     <% if CurrentUser.user.is_anonymous? %>
