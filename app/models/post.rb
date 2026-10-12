@@ -2146,8 +2146,9 @@ class Post < ApplicationRecord
   # uploader is the bot, which is the design working rather than an exception to
   # it -- there, nobody outside admins sees a deleted post at all.
   #
-  # And a JAILED post does not exist for an admin who has not asked to see
-  # it (hidden_as_banished?, operator 2026-09-24). It is answered here, not
+  # And a JAILED or banished-tagged post does not exist for anyone but an
+  # admin who has asked to see it and the pipeline's accounts
+  # (hidden_as_banished?, operator 2026-09-24) -- deleted or not. It is answered here, not
   # beside it, because this is the predicate every door already asks -- the
   # post page, its json, the md5 lookup, modulation.json -- and a door added
   # later that asks this one gets both rules without knowing there are two.

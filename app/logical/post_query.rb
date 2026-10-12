@@ -303,8 +303,9 @@ class PostQuery
     [-AST.metatag("status", "deleted")]
   end
 
-  # A jailed or banished-tagged post is not in an admin's results unless that
-  # admin has switched reveal_banished on -- status:deleted included, since
+  # A jailed or banished-tagged post is in nobody's results but an admin who
+  # has switched reveal_banished on, and the pipeline's accounts (see
+  # TagBanishment.withholds_posts_from?) -- status:deleted included, since
   # the terms are AND-ed onto whatever was asked. The query-level half of
   # Post#hidden_as_banished?, here for the reason deleted_metatags gives: a
   # filter over results never sees the count, the paginator or the

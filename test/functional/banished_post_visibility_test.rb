@@ -67,8 +67,11 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
       @jailed = jailed_post(@uploader)
       @released = released_post(@uploader)
       # troll_jail on a live post: a jailing whose delete half never landed.
-      @half_jailed = as(@uploader) { create(:post, tag_string: "landscape #{JAIL}", source: BOARD, uploader: @uploader) }
-      @plain = as(@uploader) { create(:post, tag_string: "landscape", source: BOARD, uploader: @uploader) }
+      # md5s as the booru holds them, 32 hex: the factory's default is longer,
+      # and an md5: search -- the media gate's question, the bot's lookup --
+      # matches nothing for it, which would pass a "not found" check vacuously.
+      @half_jailed = as(@uploader) { create(:post, tag_string: "landscape #{JAIL}", source: BOARD, uploader: @uploader, md5: SecureRandom.hex(16)) }
+      @plain = as(@uploader) { create(:post, tag_string: "landscape", source: BOARD, uploader: @uploader, md5: SecureRandom.hex(16)) }
       @deleted = as(@uploader) { create(:post, tag_string: "landscape", source: BOARD, uploader: @uploader) }
       @deleted.update!(is_deleted: true)
 
@@ -79,6 +82,76 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
 
       assert @jailed.is_deleted? && @jailed.has_tag?(JAIL), "fixture: the booru jails a post created with gore"
       assert_not @released.is_deleted?, "fixture: the released post is live"
+    end
+
+    # THE HALF THAT WAS MISSING (2026-10-12). Until then the rule withheld
+    # these posts from admins only and left everyone else to the deletion, so
+    # the two LIVE ones -- released, and half-jailed -- were hidden from an
+    # admin and served to a member, a moderator and a signed-out reader. The
+    # setup built @member and nothing asked it.
+    context "a member, a moderator and a signed-out reader" do
+      setup do
+        @moderator = create(:moderator_user)
+      end
+
+      should "get a 404 from the post page of a live banished-tagged or jailed post" do
+        [@member, @moderator].each do |viewer|
+          [@released, @half_jailed].each do |post|
+            get_auth post_path(post), viewer
+            assert_response 404, "#{viewer.level_string} on post ##{post.id} (#{post.tag_string})"
+          end
+          get_auth post_path(@plain), viewer
+          assert_response :success, "#{viewer.level_string} still reaches an ordinary post"
+        end
+      end
+
+      should "not find them in a search, or in its count" do
+        [@member, @moderator].each do |viewer|
+          ids = search_ids(viewer, "landscape")
+          assert_includes ids, @plain.id
+          assert_not_includes ids, @released.id, viewer.level_string
+          assert_not_includes ids, @half_jailed.id, viewer.level_string
+          assert_empty search_ids(viewer, "gore"), viewer.level_string
+        end
+      end
+
+      # The question fourier-auth's media gate asks, signed out, before it
+      # releases an image: an empty answer is a refused image.
+      should "answer the media gate's signed-out md5 ask with nothing" do
+        [@released, @half_jailed].each do |post|
+          get posts_path(format: :json), params: { tags: "md5:#{post.md5}", only: "md5,is_deleted,source", limit: 1 }
+          assert_response :success
+          assert_empty response.parsed_body, "post ##{post.id} (#{post.tag_string})"
+        end
+        get posts_path(format: :json), params: { tags: "md5:#{@plain.md5}", only: "md5,is_deleted,source", limit: 1 }
+        assert_equal [@plain.md5], response.parsed_body.pluck("md5"), "an ordinary post is still answered"
+      end
+
+      should "not be shown a released one on the landing page" do
+        [@member, User.anonymous].each do |viewer|
+          assert_not_includes landing_ids(viewer), @released.id
+        end
+      end
+    end
+
+    # The pipeline acts on these posts and must see them: the booru's system
+    # user jails as itself (the @jailed fixture, deleted by
+    # Post#jail_on_banished_tags, proves that half), and the sampling bot's
+    # jail sync finds a post by md5 to tag and delete it -- including a
+    # half-jailed one whose delete it has to finish.
+    context "the sampling bot" do
+      should "find a half-jailed post by md5, to finish jailing it" do
+        bot = create(:approver_user, name: "sample")
+        assert_equal [@half_jailed.id], search_ids(bot, "md5:#{@half_jailed.md5}")
+        get_auth post_path(@half_jailed), bot
+        assert_response :success
+      end
+
+      should "not make a member who is not an editor a pipeline account" do
+        assert TagBanishment.withholds_posts_from?(@member)
+        assert TagBanishment.withholds_posts_from?(User.anonymous)
+        assert_not TagBanishment.withholds_posts_from?(User.system)
+      end
     end
 
     context "an admin with reveal_banished OFF" do
@@ -226,10 +299,14 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
         end
       end
 
-      should "see a released one exactly as before" do
+      # Not "as before" (2026-10-12): a released post keeps its banished tag,
+      # and the banishment, not the jail, now withholds it -- from everyone
+      # but an admin with reveal on. Releasing lifts the jail; showing the
+      # post takes the banished tag off it.
+      should "not see a released one that still carries a banished tag" do
         get_auth post_path(@released), @member
-        assert_response :success
-        assert_includes search_ids(@member, "landscape"), @released.id
+        assert_response 404
+        assert_not_includes search_ids(@member, "landscape"), @released.id
       end
     end
 
