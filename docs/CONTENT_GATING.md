@@ -294,6 +294,15 @@ The `sample` bot is below Admin and cannot see deleted posts either: a lookup
 for an image it has jailed returns nothing, which is why release goes through
 the fork's own route.
 
+**A jailing is two writes, and only the second one hides the post.** Sampling
+adds `troll_jail`, then deletes. Deleting needs Approver (37) or above, so the
+bot must hold that level; if the delete is refused, the post is left LIVE with
+`troll_jail` on it. Such a post is not hidden the way a jailed post is: the jail
+tag withholds it only from an admin whose reveal is off (`hidden_as_banished?`),
+and for everyone else it is just a gated post (gate 1) -- listed without its
+image below Gold, and fully visible at Gold and above. Sampling logs every
+refused delete as "booru did NOT change".
+
 Inherited from upstream and unchanged: a taken-down post is hidden from
 viewers below Moderator, and a banned post from viewers below Approver.
 
@@ -307,7 +316,11 @@ viewers below Moderator, and a banned post from viewers below Approver.
 
 | | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
 |---|---|---|---|---|---|---|---|
-| a jailed post | hidden | hidden | hidden | hidden | hidden | hidden | sees |
+| jailed: tagged and deleted | hidden | hidden | hidden | hidden | hidden | hidden | sees |
+| half-jailed: tagged, delete refused | hidden | listed, no image (capped) | listed, no image | sees | sees | hidden | sees |
+
+The second row is a failure, not a state anyone chose: note that it is open
+to Gold and above while hidden from an admin.
 
 In both, the bot that uploaded the post (`sample` or `tunnel`) can still open
 it by direct link; no person below Admin can. A published page never shows a
@@ -329,11 +342,25 @@ Three mechanisms. They are easy to conflate and they do different things.
   `reveal_banished` on. The operator's words: "hidden to me without a specific
   toggle on, and apparently missing/deleted from the server altogether for
   everyone else."
-- **The post is jailed by the booru itself** (failsafe, 2026-09-24): a live
-  post that GAINS a banished tag is tagged `troll_jail` and deleted in the same
-  save, and the jailing is reported to sampling's jail panel. From then on gate
-  4 governs it. A post released from the jail keeps its tags and is not
-  re-jailed.
+- **The post is jailed by the booru itself** (failsafe, 2026-09-24): a post
+  that GAINS a banished tag -- including one created with it -- is tagged
+  `troll_jail` and deleted by the booru's system user, and the jailing is
+  reported to sampling's jail panel. From then on gate 4 governs it.
+
+**What actually withholds a banished-tag post is its DELETION, not the
+banishment.** The operator's rule (2026-09-24) is that such a post "is
+supposed to immediately disappear from the booru view surface for all but an
+admin with the setting explicitly ON". The code implements the admin half
+only: `Post#hidden_as_banished?` withholds the post from an admin whose reveal
+is off, and from nobody else; everyone below admin is kept out because the
+post is deleted. So a banished-tag post that is LIVE is shown to every viewer
+below admin whom its other gates allow, with nothing in the way but the
+enforced blacklist in their browser -- while an admin without reveal cannot see
+it. That is the rule inverted. A post becomes live this way when it is
+released from the jail (it keeps its tags, and a released post is never
+re-jailed), or when a jailing's delete is refused (gate 4). **Open in
+chanbooru.** On 2026-10-12 no live post carried a banished tag; all 275 that
+did were deleted.
 
 **The enforced blacklist** (`enforced_blacklist`, 2026-09-04) is applied to
 every viewer, stored in no account and editable by nobody from the site. It
@@ -341,10 +368,15 @@ holds every banished tag plus four conjunctions, for example
 
     insect rating:e -pokemon_(creature) -pokemon_(species)
 
-It is a view filter: it hides a matching post in listings and does not remove
-it, so the post is still reachable by direct link. An admin with
-`reveal_banished` on has the banished names taken out of their copy; the
-conjunctions stay.
+**It is a filter in the browser, not a gate on the server.** The booru sends a
+matching post to everyone it is visible to, and the browser hides it: the
+thumbnail in listings and the image on the post's own page. An enforced rule
+always hides outright -- nobody can switch it to blur or turn it off. But the
+post's page, its tags and its image URL are still served, and the image file
+loads for anyone who opens that URL. It stops casual viewing, not access.
+
+For an admin with `reveal_banished` on, the banished words stop filtering
+anything; the four conjunctions still filter.
 
 **The user blacklist** is the viewer's own, and it starts EMPTY (since
 2026-09-04): a new account and a signed-out viewer have nothing in it. A line
@@ -355,15 +387,23 @@ accounts.
 
 | | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
 |---|---|---|---|---|---|---|---|
-| the post (now jailed) | hidden | hidden | hidden | hidden | hidden | hidden | sees |
+| the post, jailed and deleted (the normal case) | hidden | hidden | hidden | hidden | hidden | hidden | sees |
+| the same post if live (released, or a refused delete): its page | gate 10 | loads, image hidden in browser | loads, image hidden in browser | loads, image hidden in browser | loads, image hidden in browser | hidden | sees |
+| ... and its image file, by URL | loads | loads | loads | loads | loads | loads | loads |
 | the word `gore` in tag lists and autocomplete | absent | absent | absent | absent | absent | absent | shown |
+
+Rows two and three are the open gap above. The admin's image loads in row
+three while their page is hidden: the media gate asks as a signed-out reader
+first, and a signed-out reader may see a live post whose only problem is a
+banished tag.
 
 **Example 2: a post tagged `insect` and rated explicit, not Pokemon.**
 
 | | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
 |---|---|---|---|---|---|---|---|
-| in listings | filtered out | filtered out | filtered out | filtered out | filtered out | filtered out | filtered out |
-| by direct link | its page (gate 10) | sees | sees | sees | sees | sees | sees |
+| its thumbnail in listings | hidden in browser | hidden in browser | hidden in browser | hidden in browser | hidden in browser | hidden in browser | hidden in browser |
+| its own page | gate 10; image hidden in browser | loads, image hidden in browser | same | same | same | same | same |
+| its image file, by URL | loads | loads | loads | loads | loads | loads | loads |
 
 ---
 
@@ -612,7 +652,8 @@ moderators room, and fails closed.
 | an admin cannot see a jailed post | 4 and 5 -- switch `reveal_banished` on |
 | post listed, image replaced by a prompt | 1 -- gated, signed in below Gold |
 | a post is missing from a count as well as a page | 1, 4, 8 or 9 -- query level, not render level |
-| a post is hidden in listings but opens by direct link | 5 -- the enforced blacklist or the viewer's own, which are view filters |
+| a post is hidden in listings but its page opens | 5 -- the enforced blacklist or the viewer's own: browser filters, not server gates |
+| a post tagged `troll_jail` is live (not deleted) | 4 -- a jailing whose delete was refused; check the bot is at Approver (37) |
 | a tag exists on a post but nowhere in autocomplete | 5 (banished) or 8 (a hidden prefix such as `aichan_`) |
 | a Discord post is invisible to everyone but admins | 8 -- `aichan_` is admins only |
 | a tag shows for one viewer and not another on the same post | 6 -- a creator-private tag: only the creator sees it |
