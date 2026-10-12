@@ -76,47 +76,57 @@ class FourierTagSource < ApplicationRecord
     spectrum = lists[:spectrum].to_set
     hydra = lists[:hydra].to_set
     model_bits = ->(t) { (spectrum.include?(t) ? SPECTRUM : 0) | (hydra.include?(t) ? HYDRA : 0) }
-    # ORIGINAL CHARACTERS (operator ruling 2026-10-11): <name>_(<localpart>),
-    # the creator naming their OWN character, with their own Matrix name in
-    # brackets, in the hub's `oc` list -- the list a creator makes public by
-    # putting a name in it. Never read from the prompt's creator lists: those
-    # are the creator's alone (FourierCreatorPrivacy), so a name there in this
-    # shape stays a private creator row like any other. Declared only under
-    # the account RECORDED as this post's creator (FourierPostCreator), on this
-    # homeserver -- `user` is the posting bot, never the creator, and no
-    # recorded creator means nothing is declared under anyone's name -- and
-    # only for a name CharacterClaim's name rule accepts for that creator.
-    # Not resolved -- the name IS the tag -- and not private: it is put on the
-    # post and filed as a character below. A name sent in `oc` and not
-    # declared comes back with why and what to do (the return value).
+    # ORIGINAL CHARACTERS, from the hub's `oc` list -- the list a creator
+    # makes public by putting a name in it. Never read from the prompt's
+    # creator lists: those are the creator's alone (FourierCreatorPrivacy). A
+    # name in `oc` is DECLARED -- put on the post, public, filed as a
+    # character (declare_original_characters!) -- when it is:
     #
-    # THE OLD SHAPES ARE READ, NOT REFUSED (operator, 2026-10-11: "I'll still
-    # need oc_<name> or <name>_oc to be recognized as an alias since
-    # pre-existing images all use it"). A name in one of the 2026-09-19 shapes
-    # (LEGACY_ORIGINAL_CHARACTER) is read as <name>_(<that same recorded
-    # creator's localpart>) and then checked and declared exactly as if it had
-    # been sent that way. The booru is the one place this happens: the tunnel
-    # forwards the name as written. No recorded creator on this homeserver
-    # means nothing to read it as, so it is refused by name like any other.
-    # Refusals are keyed by the name SENT, and an old-shape name's says what
-    # it was read as.
+    #   <name>_(<the poster's own localpart>)  (operator ruling 2026-10-11),
+    #       the poster being the account RECORDED as this post's creator
+    #       (FourierPostCreator) on this homeserver -- `user` is the posting
+    #       bot, never the creator -- and the name passing
+    #       original_character_refusal. Refused by name otherwise, in the
+    #       return value.
+    #   <name>_(<anyone>) that is already an established original character
+    #       (a character tag implying `original`), whoever posted it
+    #       (2026-10-12). Declaring confers no ownership.
+    #   one of the 2026-09-19 shapes (LEGACY_ORIGINAL_CHARACTER), whoever
+    #       posted it (operator, 2026-10-12: "continue to accept the
+    #       pre-existing format but prepare for them to be changed manually for
+    #       the first few. so oc_kayla will, for example, become the
+    #       kayla_(selphdestruct) tag itself"): AS ITSELF while no alias moves
+    #       it, and as the alias's consequent once one does. NEVER read from
+    #       the poster -- "Many of these characters belong to other creators,
+    #       I'll just be the first one to post them."
+    #
+    # OFFERED OR DECLARED, told apart by the lists alone (the contract with
+    # fourier-tunnel's prompt-tags.js). A qualified name in `oc` that is ALSO
+    # in the creator lists (creator or both, as sent, before resolution) is
+    # OFFERED: the tunnel sends every qualified prompt term that is not the
+    # poster's own -- every one, where it knows no poster -- both ways. An
+    # offer is declared when it is the recorded creator's own or an
+    # established original character, and otherwise says NOTHING: not
+    # declared, not refused (saber_(fate) is not an error), the private
+    # creator row it arrived as -- on a post with no recorded creator too.
+    # A name in `oc` ALONE is the tunnel's "the poster's own", in no other
+    # list: one the booru does not declare is refused by name, never dropped
+    # in silence. Refusals are keyed by the name SENT.
     sent = fetch.call(:oc).map { |n| Tag.normalize_name(n) }.uniq
-    poster = FourierPostCreator.where(post_id: post.id).pick(:mxid) if sent.any?
+    legacy = sent.select { |name| legacy_original_character(name) }
+    qualified = sent.grep(ORIGINAL_CHARACTER)
+    offered = qualified & (fetch.call(:creator) + fetch.call(:both)).map { |n| Tag.normalize_name(n) }
+    poster = FourierPostCreator.where(post_id: post.id).pick(:mxid) if (sent - legacy).any?
     home = Danbooru.config.fourier_matrix_server_name
     localpart = ArtistClaim.localpart(poster)
     localpart = nil unless poster.to_s.casecmp?("@#{localpart}:#{home}")
-    read_as = sent.index_with do |name|
-      base = legacy_original_character(name)
-      base ? "#{base}_(#{localpart || "<creator>"})" : name
-    end
-    refused = read_as.to_h do |name, as|
-      why = original_character_refusal(as, post, poster, localpart)
-      if why && as != name
-        why = localpart ? "#{name} was read as #{as}, the poster's own name in brackets: #{why}" : "#{name} is the old shape of #{as}: #{why}"
-      end
-      [name, why]
-    end.compact
-    oc = read_as.except(*refused.keys).values.uniq
+    moved = legacy.empty? ? {} : TagAlias.active.where(antecedent_name: legacy).pluck(:antecedent_name, :consequent_name).to_h
+    own = localpart ? qualified.select { |name| ORIGINAL_CHARACTER.match(name)[2].casecmp?(localpart) } : []
+    established = (qualified - own).empty? ? [] : TagImplication.tags_implied_to([CharacterClaim::ORIGINAL]).where(name: qualified - own, category: TagCategory::CHARACTER).pluck(:name)
+    silent = offered - own - established
+    as_legacy = legacy.map { |name| moved.fetch(name, name) }
+    refused = (sent - legacy - as_legacy - established - silent).index_with { |name| original_character_refusal(name, post, poster, localpart) }.compact
+    oc = (as_legacy + (own - refused.keys) + established).uniq
     refused.each_value { |why| Rails.logger.warn("[tag-hub] original character not declared: #{why}") }
 
     creator = (lists[:creator] + lists[:both]).uniq - oc
@@ -130,7 +140,7 @@ class FourierTagSource < ApplicationRecord
     add.call(auto - both,    AUTO,           APPROVED, true)
     add.call(lists[:meta],   META,           APPROVED, true)
     add.call(lists[:pending], HUMAN,         PENDING,  true)
-    declare_original_characters!(post, oc, user) if oc.any?
+    declare_original_characters!(post, oc, user, refile: oc - moved.values) if oc.any?
     transaction do
       # A re-read of the bytes replaces the previous read: every row that
       # carries the creator bit goes, `both` included -- a tag still in both
@@ -295,18 +305,21 @@ class FourierTagSource < ApplicationRecord
   # is the name, group 2 the creator. Who may declare one at post time is
   # original_character_refusal's to decide (the post's recorded creator, by
   # their own name), and who may claim one is CharacterClaim's (the gallery
-  # of that name). It replaced the oc_<name> shapes of 2026-09-19, which recorded no
-  # owner and gave every creator the same name; those are read as this
-  # shape (LEGACY_ORIGINAL_CHARACTER).
+  # of that name). It replaced the oc_<name> shapes of 2026-09-19, which
+  # recorded no owner and gave every creator the same name
+  # (LEGACY_ORIGINAL_CHARACTER).
   ORIGINAL_CHARACTER = /\A([a-z0-9][^()]*)_\(([^()]+)\)\z/
 
   # The four shapes the 2026-09-19 rule accepted, which recorded no owner:
   # oc_<name>, character_oc_<name>, <name>_oc, <name>_character_oc. Every
-  # pre-existing OC image carries one, so they are still read -- as
-  # <name>_(<owner>), the owner being the post's recorded creator at post
-  # time (record_partition!) or the one named to
-  # script/fourier_original_characters.rb --oc-owner for the tags already on
-  # posts. Group 1 or 2 is <name>. The same pattern as the old rule's
+  # pre-existing OC image carries one, so they are still accepted, and their
+  # owners are learned only from the operator, one tag at a time (2026-10-12:
+  # the poster is not the creator). Until a tag is moved, a name in this shape
+  # is declared as itself (record_partition!); the operator moves it onto
+  # <name>_(<creator>) -- script/fourier_original_characters.rb --map, or an
+  # alias or rename request -- and the move gives <creator> the character
+  # (CharacterClaim.take_up_on_move!). Group 1 or 2 is <name>. The same
+  # pattern as the old rule's
   # /\A(?:(?:character_)?oc_[a-z0-9].*|.*[a-z0-9]_(?:character_)?oc)\z/,
   # with the suffix forms' name taken shortest-first so moss_character_oc is
   # moss and not moss_character.
@@ -364,11 +377,15 @@ class FourierTagSource < ApplicationRecord
 
   # An original character is DECLARED, not merely recorded: the name goes on
   # the post (public, so it is searchable and lands on the character shelf)
-  # and a general tag is filed under the character category. Only names
-  # original_character_refusal passed reach here, so that general tag is an
-  # empty one (or the poster's own by a claim): nobody's artist, copyright or
-  # well-used general tag is re-filed because a name in brackets matched.
-  def self.declare_original_characters!(post, names, user)
+  # and each name in `refile` that is a general tag is filed under the
+  # character category. Those are the poster's own names, which
+  # original_character_refusal passed (so an empty general tag, or the
+  # poster's own by a claim), established characters (already characters),
+  # and legacy names declared as themselves (the 2026-09-19 rule, which filed
+  # them so) -- never an alias's consequent, whose category is whoever made
+  # the alias's: nobody's artist, copyright or well-used general tag is
+  # re-filed because a name matched.
+  def self.declare_original_characters!(post, names, user, refile:)
     missing = names - post.tag_array
     if missing.any?
       CurrentUser.scoped(user || User.system) do
@@ -377,7 +394,7 @@ class FourierTagSource < ApplicationRecord
       end
     end
     CurrentUser.scoped(user || User.system) do
-      names.each do |name|
+      refile.each do |name|
         tag = Tag.find_or_create_by_name(name)
         # A tag is versioned and its version needs an updater; the hub's own
         # API user is the honest one, since it is the hub declaring this.

@@ -11,8 +11,8 @@ class BulkUpdateRequest::Command::Rename < BulkUpdateRequest::Command::CreateAli
     /\Arename (?<old_name>\S+) -> (?<new_name>\S+)\z/i
   end
 
-  def process!(**)
-    TagMover.new(@old_name, @new_name).move!
+  def process!(approver:, **)
+    TagMover.new(@old_name, @new_name, approver: approver).move!
   end
 
   def to_dtext
@@ -20,7 +20,7 @@ class BulkUpdateRequest::Command::Rename < BulkUpdateRequest::Command::CreateAli
   end
 
   def validate(errors:, **)
-    return if refused_as_claimed_character?(errors)
+    return if refused_as_claimed_character?(errors) || refused_ownership?(errors)
 
     new_tag ||= Tag.new(name: @new_name)
 

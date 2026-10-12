@@ -83,7 +83,7 @@ module Admin
       standing = CharacterClaim.where(id: approved.map(&:id)).standing.map(&:id)
       tags = Tag.where(name: approved.map(&:tag_name)).pluck(:name)
       (@character_pending + approved).to_h do |claim|
-        why = CharacterClaim.refusal(claim.tag_name, claim.creator_gallery)
+        why = CharacterClaim.refusal(claim.tag_name, claim.slug)
         why ||= "the tag #{claim.tag_name} no longer exists" if claim.approved? && tags.exclude?(claim.tag_name)
         why ||= "no longer stands" if claim.approved? && standing.exclude?(claim.id)
         [claim.id, why]
@@ -95,10 +95,10 @@ module Admin
       back = admin_artist_claims_path(anchor: "character-claims")
       if verdict == :approve
         claim.approve!(by: CurrentUser.user)
-        redirect_to back, notice: "Approved: #{claim.tag_name} is @#{claim.creator_gallery.slug}'s original character."
+        redirect_to back, notice: "Approved: #{claim.tag_name} is @#{claim.slug}'s original character."
       else
         claim.reject!(by: CurrentUser.user, note: params[:note].to_s.strip)
-        redirect_to back, notice: "Rejected: @#{claim.creator_gallery.slug}'s claim on #{claim.tag_name}."
+        redirect_to back, notice: "Rejected: @#{claim.slug}'s claim on #{claim.tag_name}."
       end
     rescue ActiveRecord::RecordInvalid => e
       redirect_to back, notice: "Not #{(verdict == :approve) ? "approved" : "rejected"}: #{e.record.errors.full_messages.join("; ")}"

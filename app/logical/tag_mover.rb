@@ -5,20 +5,27 @@
 # tag, including aliases, implications, *_(cosplay) and *_(style) tags, artist
 # and wiki pages, saved searches, blacklists, and retags the posts themselves.
 class TagMover
-  attr_reader :old_tag, :new_tag, :user
+  attr_reader :old_tag, :new_tag, :user, :approver
 
   # Initialize a tag move.
   # @param old_name [String] the name of the tag to move
   # @param new_name [String] the new tag name
   # @param user [User] the user to credit for all edits in moving the tag
-  def initialize(old_name, new_name, user: User.system)
+  # @param approver [User] fourier: who approved the move, when it decides
+  #   something in their name (move_character_claim!); `user` otherwise
+  def initialize(old_name, new_name, user: User.system, approver: nil)
     @old_tag = Tag.find_or_create_by_name(old_name)
     @new_tag = Tag.find_or_create_by_name(new_name)
     @user = user
+    @approver = approver || user
   end
 
   # Perform the tag move.
   def move!
+    # fourier: refused before anything moves (CharacterClaim.move_refusal).
+    refusal = CharacterClaim.move_refusal(old_tag.name, new_tag.name)
+    raise CharacterClaim::MoveRefused, "#{refusal} (nothing was moved)" if refusal
+
     CurrentUser.scoped(user) do
       move_tag_category!
       move_aliases!
@@ -32,7 +39,18 @@ class TagMover
       rewrite_wiki_links!
       move_posts!
       move_tag_sources!
+      move_character_claim!
     end
+  end
+
+  # fourier: OWNERSHIP ON MOVE (operator, 2026-10-12). A legacy oc_<name> tag
+  # moved onto <name>_(<q>) makes the target <q>'s original character, decided
+  # by whoever approved the move -- held for <q> until their gallery exists
+  # (CharacterClaim.take_up_on_move!). Here because every alias and every
+  # rename runs through this one method. Last, once the tag is where it goes.
+  def move_character_claim!
+    outcome = CharacterClaim.take_up_on_move!(old_tag.name, new_tag.name, approver)
+    DanbooruLogger.info("character claim: #{old_tag.name} -> #{new_tag.name}: #{outcome}") if outcome
   end
 
   # The provenance sidecar the redesigned tag UI draws from. Without this a

@@ -42,15 +42,35 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       assert_match(/has no recorded creator/, response.parsed_body.dig("original_characters_not_declared", "maple_(saber)"))
     end
 
-    # An old-shape name (oc_<name>, operator 2026-10-11) is answered under the
-    # name that was sent, saying what it was read as.
-    should "say what an old-shape original character was read as when it is not declared" do
+    # THE WIRE CONTRACT with fourier-tunnel (2026-10-12): every qualified
+    # prompt term that is not the poster's own arrives in BOTH the private
+    # creator list and `oc`, and every legacy shape in `oc`. The booru
+    # declares a legacy name (as itself, or as its alias's consequent) and an
+    # established original character, keeps the rest as the private creator
+    # rows they were sent as, and says nothing about them: not a refusal.
+    should "declare a legacy name and keep someone else's qualified name private, with nothing reported" do
       FourierPostCreator.create!(post: @post, mxid: "@saber:41chan.net", recorded_by: @bot.id)
-      create(:tag, name: "maple_(saber)", category: TagCategory::COPYRIGHT)
-      post_auth "/posts/#{@post.id}/tag_sources.json", @bot, as: :json, params: { auto: %w[a], oc: %w[oc_maple] }
+      sources = { auto: %w[a], creator: %w[saber_(fate)], oc: %w[oc_maple saber_(fate)] }
+      post_auth "/posts/#{@post.id}/tag_sources.json", @bot, as: :json, params: sources
 
       assert_response :success
-      assert_match(/oc_maple was read as maple_\(saber\).*filed as copyright/, response.parsed_body.dig("original_characters_not_declared", "oc_maple"))
+      assert_nil(response.parsed_body["original_characters_not_declared"])
+      rows = FourierTagSource.where(post_id: @post.id).index_by(&:tag)
+      assert(rows["oc_maple"].public?)
+      assert_not(rows["saber_(fate)"].public?)
+      assert_includes(@post.reload.tag_array, "oc_maple")
+    end
+
+    # A Discord post records no creator, and the tunnel offers every
+    # qualified name on it: an offer is silent there too.
+    should "say nothing about an offered name on a post with no recorded creator" do
+      sources = { auto: %w[a], both: %w[a], creator: %w[saber_(fate)], oc: %w[oc_maple saber_(fate)] }
+      post_auth "/posts/#{@post.id}/tag_sources.json", @bot, as: :json, params: sources
+
+      assert_response :success
+      assert_nil(response.parsed_body["original_characters_not_declared"])
+      assert_not(FourierTagSource.find_by!(post_id: @post.id, tag: "saber_(fate)").public?)
+      assert_includes(@post.reload.tag_array, "oc_maple")
     end
   end
 

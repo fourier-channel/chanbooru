@@ -31,9 +31,14 @@ class FourierTagSourcesController < ApplicationController
 
     # Return the PUBLIC-SAFE projection so the caller writes the Matrix state
     # event from the canonical store rather than recomputing it -- private creator
-    # tags never leave here. An original character the hub would not declare
-    # is named with why, never dropped in silence (only the recorded creator's
-    # own name declares one, operator ruling 2026-10-11).
+    # tags never leave here. A name in `oc` the hub refused to declare is
+    # named with why, never dropped in silence (FourierTagSource.
+    # record_partition!): a name sent in `oc` alone -- the tunnel's "the
+    # poster's own" -- that the recorded creator's rule does not pass, or the
+    # recorded creator's own name that fails it. A name OFFERED (in `oc` and
+    # the creator lists) that is neither the recorded creator's own nor an
+    # established original character is not a refusal and is not named: it
+    # stays the private creator row the tunnel also sent it as.
     render json: {
       post_id: post.id,
       recorded: FourierTagSource.where(post_id: post.id).count,

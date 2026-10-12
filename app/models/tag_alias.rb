@@ -33,7 +33,7 @@ class TagAlias < TagRelationship
   end
 
   def process!
-    TagMover.new(antecedent_name, consequent_name, user: User.system).move!
+    TagMover.new(antecedent_name, consequent_name, user: User.system, approver: approver).move!
   end
 
   # We don't want a -> b && b -> c chains if the b -> c alias was created

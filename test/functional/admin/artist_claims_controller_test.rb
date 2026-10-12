@@ -193,5 +193,28 @@ class Admin::ArtistClaimsControllerTest < ActionDispatch::IntegrationTest
       get_auth posts_path(preset: "modulation"), @admin
       assert_select "#top.modnav a.modnav-pill[href='#{admin_artist_claims_path}']", text: /Claims\s*2/, count: 1
     end
+
+    # Ownership a legacy tag's move assigned to a creator with no page yet
+    # (CharacterClaim::HELD, 2026-10-12): listed with the name it waits for,
+    # not counted as waiting for an admin, and withdrawable before the page.
+    should "list a claim held for a creator with no page, and let an admin withdraw it" do
+      as(@admin) { create(:post, tag_string: "oc_kayla") }
+      as(@admin) { TagAlias.approve!(antecedent_name: "oc_kayla", consequent_name: "kayla_(selphdestruct)", approver: @admin) }
+      held = CharacterClaim.held.find_by!(tag_name: "kayla_(selphdestruct)")
+
+      get_auth admin_artist_claims_path, @admin
+      assert_response :success
+      assert_select "#character-claims tr#character-claim-#{held.id}", text: /kayla_\(selphdestruct\).*@selphdestruct.*no creator page yet.*held by #{@admin.name}/m
+      assert_select "#character-claims tr#character-claim-#{held.id} form[action='#{reject_admin_artist_claim_path(held, kind: "character")}']", count: 1
+
+      post_auth reject_admin_artist_claim_path(held), @admin, params: { kind: "character", note: "wrong creator" }
+      assert_redirected_to admin_artist_claims_path(anchor: "character-claims")
+      assert_match(/@selphdestruct's claim on kayla_\(selphdestruct\)/, flash[:notice])
+      assert_equal([CharacterClaim::REJECTED, nil], held.reload.slice(:status, :creator_gallery_id).values)
+      assert_match(/withdrew @selphdestruct's held claim on original character kayla_\(selphdestruct\): wrong creator/, ModAction.last.description)
+
+      CreatorGallery.create!(slug: "selphdestruct", matrix_id: "@selphdestruct:41chan.net")
+      assert(held.reload.rejected?, "a withdrawn hold is not taken up by the gallery")
+    end
   end
 end

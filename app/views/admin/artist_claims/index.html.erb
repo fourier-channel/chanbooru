@@ -93,7 +93,9 @@
       A creator claiming <code>name_(their name)</code> as their own character. A name nobody had used (no posts, no wiki
       page, no alias) was approved when filed; the ones here waiting had history, so look first: a series that happens to
       share the creator's name, say. An approved claim gives its creator their character's wiki page and fixes its
-      category at character; it changes nothing about who sees posts. Decisions are in the public mod log.
+      category at character; it changes nothing about who sees posts. Decisions are in the public mod log. A claim
+      <em>held</em> for a name was given by moving an old <code>oc_</code> tag onto <code>name_(creator)</code>, decided by
+      whoever approved the move, for a creator with no page yet: it is approved the moment their page is made.
     </p>
     <div class="overflow-auto">
     <table id="character-claims" class="striped w-full">
@@ -104,15 +106,21 @@
         <% (@character_pending + @character_decided).each do |claim| %>
           <tr id="character-claim-<%= claim.id %>">
             <td><%= link_to claim.tag_name, posts_path(tags: claim.tag_name) %></td>
-            <td><%= link_to "@#{claim.creator_gallery.slug}", creator_gallery_path(claim.creator_gallery) %></td>
             <td>
-              <% if claim.creator_gallery.user %>
+              <% if claim.creator_gallery %>
+                <%= link_to "@#{claim.slug}", creator_gallery_path(claim.creator_gallery) %>
+              <% else %>
+                @<%= claim.slug %> <span class="fineprint">no creator page yet</span>
+              <% end %>
+            </td>
+            <td>
+              <% if claim.creator_gallery&.user %>
                 <%= link_to_user claim.creator_gallery.user %>
               <% else %>
                 <span class="fineprint">not linked</span>
               <% end %>
             </td>
-            <td><%= claim.status %><%= " by #{claim.approver.name}" if claim.approver && (claim.approved? || claim.rejected?) %><%= " by its creator" if claim.released? %></td>
+            <td><%= claim.status %><%= " by #{claim.approver.name}" if claim.approver && (claim.approved? || claim.rejected? || claim.held?) %><%= " by its creator" if claim.released? %></td>
             <td><%= time_ago_in_words_tagged(claim.decided_at || claim.created_at) %></td>
             <td><%= claim.note.presence || "-" %></td>
             <td>
@@ -136,7 +144,7 @@
                   <%= f.text_field :note, placeholder: "why (shown in the mod log)", size: 16 %>
                   <%= f.submit "Reject", class: "button-outline-danger" %>
                 <% end %>
-              <% elsif claim.approved? %>
+              <% elsif claim.approved? || claim.held? %>
                 <%= button_to "Withdraw", reject_admin_artist_claim_path(claim, kind: "character"), method: :post, class: "button-outline-danger",
                       params: { note: "approval withdrawn" },
                       form: { data: { confirm: "Withdraw the approval of #{claim.tag_name}? Its creator loses the wiki page; the tag and the page stay." } } %>

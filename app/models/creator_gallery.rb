@@ -33,7 +33,12 @@ class CreatorGallery < ApplicationRecord
   # it cannot be unset again.
   AUDIENCES = %w[public groups private].freeze
 
-  validates :slug, presence: true, uniqueness: true, format: { with: %r{\A[a-z0-9._=\-/]+\z} }
+  # A slug is the Matrix localpart, spelled as the homeserver issues it. Also
+  # what a tag's <q> must be for a move onto <name>_(<q>) to give <q> anything
+  # (CharacterClaim.move_refusal).
+  SLUG = %r{\A[a-z0-9._=\-/]+\z}
+
+  validates :slug, presence: true, uniqueness: true, format: { with: SLUG }
   validates :matrix_id, presence: true, uniqueness: true
   validates :style, inclusion: { in: STYLES }
   validates :title, length: { maximum: 120 }
@@ -92,6 +97,10 @@ class CreatorGallery < ApplicationRecord
 
   before_validation :default_contact
   after_create :close_groups_named_for_me
+  # Ownership a tag move assigned to this name before this page existed
+  # (CharacterClaim::HELD) is this page's from the moment it is saved under
+  # that name.
+  after_save -> { CharacterClaim.take_up_held!(self) }, if: :saved_change_to_slug?
 
   # URL key is the slug (Matrix localpart), not the numeric id.
   def to_param = slug

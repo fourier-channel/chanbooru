@@ -2,21 +2,28 @@
 
 require "test_helper"
 
-# THE ORIGINAL-CHARACTER RULE at post time (operator ruling 2026-10-11): a
-# creator names their own character <name>_(<their Matrix localpart>) in the
-# hub's `oc` list, and the hub declares it -- on the post, public, filed as a
-# character -- only under the name of the account recorded as the post's
-# creator (FourierPostCreator), never the posting bot's, and only for an
-# account on this homeserver. The prompt's private creator lists are never
-# read for it, a name under a creator prefix is never one, and a tag that
-# already has posts is never re-filed at post time. A name in one of the
-# 2026-09-19 shapes (oc_<name>, character_oc_<name>, <name>_oc,
-# <name>_character_oc) is the old way of saying the same thing (operator,
-# 2026-10-11: "I'll still need oc_<name> or <name>_oc to be recognized"): it
-# is read as <name>_(<the recorded creator's localpart>) and then checked
-# exactly like that name. A name that is not declared is said, with why and
-# what to do, in the hub's answer -- for an old-shape name, with what it was
-# read as.
+# THE ORIGINAL-CHARACTER RULE at post time. A name in the hub's `oc` list is
+# declared -- on the post, public, filed as a character -- when it is:
+#
+# - <name>_(<the poster's own localpart>) (operator ruling 2026-10-11), the
+#   poster being the account recorded as the post's creator
+#   (FourierPostCreator), never the posting bot, and only on this homeserver;
+#   checked by CharacterClaim's name rule, and never re-filing a general tag
+#   that already has posts. Refused by name, with the fix, otherwise.
+# - <name>_(<anyone>) that is ALREADY an established original character (a
+#   character tag implying `original`), from anyone's prompt (2026-10-12).
+#   Declaring confers no ownership.
+# - a name in one of the 2026-09-19 shapes (oc_<name>, character_oc_<name>,
+#   <name>_oc, <name>_character_oc), whoever posted it (operator, 2026-10-12:
+#   "continue to accept the pre-existing format but prepare for them to be
+#   changed manually for the first few"): as ITSELF while no alias moves it,
+#   and as the alias's consequent once one does. Never rewritten from the
+#   poster -- the poster is not the creator.
+#
+# A qualified name that is neither the poster's own nor an established
+# original character is an ordinary private prompt term: kept (the tunnel
+# sends it in the creator list too), never declared, and never reported as a
+# refusal -- saber_(fate) is not an error.
 class FourierOriginalCharacterTest < ActiveSupport::TestCase
   setup do
     CreatorPrefixes.reset!
@@ -128,69 +135,118 @@ class FourierOriginalCharacterTest < ActiveSupport::TestCase
     end
   end
 
-  should "read every 2026-09-19 shape as the poster's own <name>_(<localpart>), and declare that" do
+  should "declare every 2026-09-19 shape with no alias AS ITSELF, whoever posted it: on the post, public, a character" do
     creator!("@saber:41chan.net")
 
-    assert_equal({}, record({ oc: %w[oc_Maple character_oc_pine birch_oc cedar_character_oc] }))
+    assert_equal({}, record({ oc: %w[oc_Kayla character_oc_pine birch_oc cedar_character_oc] }))
 
     tags = @post.reload.tag_array
-    %w[maple_(saber) pine_(saber) birch_(saber) cedar_(saber)].each do |name|
+    %w[oc_kayla character_oc_pine birch_oc cedar_character_oc].each do |name|
       assert_includes(tags, name)
       assert(Tag.find_by_name(name).character?, name)
       assert(FourierTagSource.find_by!(post_id: @post.id, tag: name).public?, name)
     end
-    %w[oc_maple character_oc_pine birch_oc cedar_character_oc].each do |name|
-      assert_not_includes(tags, name)
-      assert_nil(Tag.find_by_name(name), name)
+    assert_empty(Tag.where("name LIKE '%(saber)'"), "never rewritten from the poster")
+    assert_equal(0, CharacterClaim.count)
+  end
+
+  should "declare a legacy name as itself with no recorded creator, or one on another homeserver" do
+    assert_equal({}, record({ oc: %w[oc_kayla] }))
+    assert_includes(@post.reload.tag_array, "oc_kayla")
+
+    @post = as(@tunnel) { create(:post, uploader: @tunnel, tag_string: "landscape") }
+    creator!("@saber:elsewhere.example")
+    assert_equal({}, record({ oc: %w[maple_oc] }))
+    assert_includes(@post.reload.tag_array, "maple_oc")
+  end
+
+  should "keep a legacy tag's category when it is filed as something other than general" do
+    create(:tag, name: "oc_kayla", category: TagCategory::COPYRIGHT)
+
+    assert_equal({}, record({ oc: %w[oc_kayla] }))
+
+    assert(Tag.find_by_name("oc_kayla").copyright?)
+    assert_includes(@post.reload.tag_array, "oc_kayla")
+  end
+
+  should "declare a legacy name an alias has moved as the alias's consequent, whoever posted it" do
+    creator!("@saber:41chan.net")
+    create(:tag, name: "kayla_(selphdestruct)", category: TagCategory::CHARACTER)
+    create(:tag_alias, antecedent_name: "oc_kayla", consequent_name: "kayla_(selphdestruct)")
+
+    assert_equal({}, record({ oc: %w[oc_kayla], creator: %w[oc_kayla] }))
+
+    tags = @post.reload.tag_array
+    assert_includes(tags, "kayla_(selphdestruct)")
+    assert_not_includes(tags, "oc_kayla")
+    assert_not_includes(tags, "kayla_(saber)")
+    row = FourierTagSource.find_by!(post_id: @post.id, tag: "kayla_(selphdestruct)")
+    assert(row.public?, "declared, not the private creator row the prompt list would make")
+    assert_nil(FourierTagSource.find_by(post_id: @post.id, tag: "oc_kayla"))
+    assert_equal(0, CharacterClaim.count, "declaring confers no ownership")
+  end
+
+  should "never re-file an alias's consequent: its category is whoever made the alias's" do
+    create(:tag, name: "kayla", category: TagCategory::GENERAL, post_count: 40)
+    create(:tag_alias, antecedent_name: "kayla_oc", consequent_name: "kayla")
+
+    assert_equal({}, record({ oc: %w[kayla_oc] }))
+
+    assert(Tag.find_by_name("kayla").general?)
+    assert_includes(@post.reload.tag_array, "kayla")
+  end
+
+  should "declare two legacy shapes moved onto one tag as one character" do
+    creator!("@saber:41chan.net")
+    create(:tag, name: "kayla_(selphdestruct)", category: TagCategory::CHARACTER)
+    create(:tag_alias, antecedent_name: "oc_kayla", consequent_name: "kayla_(selphdestruct)")
+    create(:tag_alias, antecedent_name: "kayla_oc", consequent_name: "kayla_(selphdestruct)")
+
+    assert_equal({}, record({ oc: %w[oc_kayla kayla_oc kayla_(selphdestruct)] }))
+
+    assert_equal(1, @post.reload.tag_array.count("kayla_(selphdestruct)"))
+    assert_equal(1, FourierTagSource.where(post_id: @post.id, tag: "kayla_(selphdestruct)").count)
+  end
+
+  context "an established original character" do
+    setup do
+      @boss = create(:admin_user)
+      create(:tag, name: "kayla_(selphdestruct)", category: TagCategory::CHARACTER)
+      create(:tag, name: "original", category: TagCategory::COPYRIGHT)
+      as(@boss) { TagImplication.approve!(antecedent_name: "kayla_(selphdestruct)", consequent_name: "original", approver: @boss) }
+    end
+
+    should "be declared from anyone's prompt, conferring nothing" do
+      creator!("@saber:41chan.net")
+
+      assert_equal({}, record({ oc: %w[kayla_(selphdestruct)], creator: %w[kayla_(selphdestruct)] }))
+
+      assert_includes(@post.reload.tag_array, "kayla_(selphdestruct)")
+      assert(FourierTagSource.find_by!(post_id: @post.id, tag: "kayla_(selphdestruct)").public?)
+      assert_equal(0, CharacterClaim.count)
+    end
+
+    should "be declared even while the post has no recorded creator" do
+      assert_equal({}, record({ oc: %w[kayla_(selphdestruct)] }))
+
+      assert_includes(@post.reload.tag_array, "kayla_(selphdestruct)")
     end
   end
 
-  should "read two old shapes of one name as one character" do
+  should "keep someone else's qualified name, not an established original character, as a silent private prompt term" do
     creator!("@saber:41chan.net")
+    create(:tag, name: "saber_(fate)", category: TagCategory::CHARACTER, post_count: 900)
 
-    assert_equal({}, record({ oc: %w[oc_maple maple_oc maple_(saber)] }))
+    refused = record({ oc: %w[saber_(fate) maple_(bob)], creator: %w[saber_(fate) maple_(bob)] })
 
-    assert_equal(1, @post.reload.tag_array.count("maple_(saber)"))
-    assert_equal(1, FourierTagSource.where(post_id: @post.id, tag: "maple_(saber)").count)
-  end
-
-  should "say what an old-shape name was read as when the name it was read as is refused, in the answer and the log" do
-    creator!("@saber:41chan.net")
-    create(:tag, name: "maple_(saber)", category: TagCategory::COPYRIGHT)
-    Rails.logger.stubs(:warn)
-    Rails.logger.expects(:warn).with(regexp_matches(/oc_maple was read as maple_\(saber\).*filed as copyright/))
-
-    refused = record({ oc: ["oc_maple"] })
-
-    assert_equal(["oc_maple"], refused.keys)
-    assert_match(/oc_maple was read as maple_\(saber\), the poster's own name in brackets: maple_\(saber\) is filed as copyright: ask an admin/, refused["oc_maple"])
-    assert_not_includes(@post.reload.tag_array, "maple_(saber)")
-  end
-
-  should "read nothing under anyone's name for an old-shape name while the post has no recorded creator" do
-    refused = record({ oc: %w[oc_maple] })
-
-    assert_match(%r{oc_maple is the old shape of maple_\(<creator>\).*post ##{@post.id} has no recorded creator.*POST /fourier/posts/#{@post.id}/creator.json}, refused["oc_maple"])
-    assert_nil(Tag.find_by_name("oc_maple"))
-    assert_empty(Tag.where("name LIKE 'maple%'"))
-  end
-
-  should "read nothing for an old-shape name from an account on another homeserver" do
-    creator!("@saber:elsewhere.example")
-
-    refused = record({ oc: %w[maple_oc] })
-
-    assert_match(/maple_oc is the old shape of maple_\(<creator>\).*@saber:elsewhere\.example is not an account on 41chan\.net/, refused["maple_oc"])
-    assert_empty(Tag.where("name LIKE 'maple%'"))
-  end
-
-  should "refuse someone else's name, and say whose post it is" do
-    creator!("@saber:41chan.net")
-
-    refused = record({ oc: ["maple_(bob)"] })
-
-    assert_match(/maple_\(bob\) names bob, but post ##{@post.id} was made by @saber:41chan.net/, refused["maple_(bob)"])
+    assert_equal({}, refused, "not a refusal: saber_(fate) is not an error")
+    %w[saber_(fate) maple_(bob)].each do |name|
+      row = FourierTagSource.find_by!(post_id: @post.id, tag: name)
+      assert_not(row.public?, name)
+      assert_not_includes(@post.reload.tag_array, name)
+    end
     assert_nil(Tag.find_by_name("maple_(bob)"))
+    assert(Tag.find_by_name("saber_(fate)").character?)
   end
 
   should "declare nothing under anyone's name while the post has no recorded creator" do
@@ -200,6 +256,45 @@ class FourierOriginalCharacterTest < ActiveSupport::TestCase
     assert_not(refused.key?("pine_(tunnel)"), "a creator-list name is an ordinary private creator row")
     assert_not(FourierTagSource.find_by!(post_id: @post.id, tag: "pine_(tunnel)").public?, "named for the bot, not the creator")
     assert_nil(Tag.find_by_name("maple_(saber)"))
+  end
+
+  # THE CONTRACT WITH THE TUNNEL: a qualified name in `oc` that is ALSO in the
+  # creator lists (creator or both) is OFFERED -- declared if it is the
+  # recorded creator's own or an established original character, otherwise
+  # a silent private term. A Discord post records no creator, and the tunnel
+  # offers every qualified name there: saber_(fate) is not an error on it.
+  should "say nothing about an offered name while the post has no recorded creator, keeping it private" do
+    refused = record({ oc: %w[saber_(fate) maple_(bob)], creator: %w[saber_(fate)], both: %w[maple_(bob)], auto: %w[maple_(bob)] })
+
+    assert_equal({}, refused, "an offer is never a refusal")
+    assert_not(FourierTagSource.find_by!(post_id: @post.id, tag: "saber_(fate)").public?)
+    assert_not_includes(@post.reload.tag_array, "saber_(fate)")
+  end
+
+  should "say nothing about an offered name from an account on another homeserver" do
+    creator!("@saber:elsewhere.example")
+
+    assert_equal({}, record({ oc: %w[saber_(fate)], creator: %w[saber_(fate)] }))
+    assert_not(FourierTagSource.find_by!(post_id: @post.id, tag: "saber_(fate)").public?)
+  end
+
+  # A name in `oc` ALONE is the tunnel saying "the poster's own". If the
+  # booru's recorded creator is someone else, it is not declared -- and it is
+  # in no other list, so silence would lose it: it is refused by name.
+  should "refuse by name, never drop, a name sent in oc alone that is not the recorded creator's" do
+    creator!("@alice:41chan.net")
+
+    refused = record({ oc: %w[maple_(saber)] })
+
+    assert_match(/maple_\(saber\) names saber, but post ##{@post.id} was made by @alice:41chan\.net/, refused["maple_(saber)"])
+  end
+
+  should "declare an offered name that is the recorded creator's own" do
+    creator!("@saber:41chan.net")
+
+    assert_equal({}, record({ oc: %w[maple_(saber)], creator: %w[maple_(saber)] }))
+    assert_includes(@post.reload.tag_array, "maple_(saber)")
+    assert(FourierTagSource.find_by!(post_id: @post.id, tag: "maple_(saber)").public?)
   end
 
   should "declare nothing for an account on another homeserver" do

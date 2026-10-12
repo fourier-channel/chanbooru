@@ -27,7 +27,7 @@ class BulkUpdateRequest::Command::CreateAlias < BulkUpdateRequest::Command
   end
 
   def validate(context:, errors:)
-    return if refused_as_claimed_character?(errors)
+    return if refused_as_claimed_character?(errors) || refused_ownership?(errors)
 
     tag_alias = TagAlias.new(creator: User.system, antecedent_name: @old_name, consequent_name: @new_name)
     tag_alias.save(context: context)
@@ -52,6 +52,19 @@ class BulkUpdateRequest::Command::CreateAlias < BulkUpdateRequest::Command
     errors.add(:base, "Can't move [[#{@old_name}]] -> [[#{@new_name}]] (#{@old_name} is @#{claim.slug}'s claimed character: " \
                       "an admin withdraws the claim first; the creator files on the new name after the move)")
     true
+  end
+
+  # fourier: a move from a legacy oc_<name> tag onto <name>_(<q>) gives <q>
+  # the character (CharacterClaim.take_up_on_move!), and one whose target the
+  # claim rule refuses would give nobody anything -- so it is refused here,
+  # when the request is filed and again when it is approved, by name and with
+  # the fix, rather than failing in the background job.
+  #
+  # @return [Boolean] true when it refused
+  def refused_ownership?(errors)
+    why = CharacterClaim.move_refusal(@old_name, @new_name)
+    errors.add(:base, "Can't move [[#{@old_name}]] -> [[#{@new_name}]] (the move would make #{@new_name} an original character: #{why})") if why
+    why.present?
   end
 
   def old_tag

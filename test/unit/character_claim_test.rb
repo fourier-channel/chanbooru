@@ -13,7 +13,7 @@ class CharacterClaimTest < ActiveSupport::TestCase
   end
 
   def refusal(name, gallery = @gallery)
-    CharacterClaim.refusal(name, gallery)
+    CharacterClaim.refusal(name, gallery&.slug)
   end
 
   setup do

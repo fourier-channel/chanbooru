@@ -485,14 +485,16 @@ ALTER SEQUENCE public.bulk_update_requests_id_seq OWNED BY public.bulk_update_re
 
 CREATE TABLE public.character_claims (
     id bigint NOT NULL,
-    creator_gallery_id bigint NOT NULL,
+    creator_gallery_id bigint,
     tag_name character varying NOT NULL,
     status character varying DEFAULT 'pending'::character varying NOT NULL,
     approver_id bigint,
     decided_at timestamp(6) without time zone,
     note text DEFAULT ''::text NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
-    updated_at timestamp(6) without time zone NOT NULL
+    updated_at timestamp(6) without time zone NOT NULL,
+    creator_slug character varying,
+    CONSTRAINT character_claims_held_for_a_slug_or_a_gallery CHECK ((((creator_gallery_id IS NOT NULL) AND ((status)::text <> 'held'::text)) OR ((creator_gallery_id IS NULL) AND (creator_slug IS NOT NULL) AND ((status)::text = ANY ((ARRAY['held'::character varying, 'rejected'::character varying])::text[])))))
 );
 
 
@@ -5052,6 +5054,13 @@ CREATE INDEX index_bulk_update_requests_on_user_id_and_created_at ON public.bulk
 
 
 --
+-- Name: index_character_claims_held_by_slug; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_character_claims_held_by_slug ON public.character_claims USING btree (creator_slug) WHERE ((status)::text = 'held'::text);
+
+
+--
 -- Name: index_character_claims_on_creator_gallery_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5070,6 +5079,13 @@ CREATE INDEX index_character_claims_on_tag_name_and_status ON public.character_c
 --
 
 CREATE UNIQUE INDEX index_character_claims_one_approved_per_tag ON public.character_claims USING btree (tag_name) WHERE ((status)::text = 'approved'::text);
+
+
+--
+-- Name: index_character_claims_one_held_per_tag; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_character_claims_one_held_per_tag ON public.character_claims USING btree (tag_name) WHERE ((status)::text = 'held'::text);
 
 
 --
@@ -8804,6 +8820,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261012000000'),
 ('20261011100000'),
 ('20261011000000'),
 ('20261009000000'),

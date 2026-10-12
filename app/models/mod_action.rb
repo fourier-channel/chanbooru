@@ -158,10 +158,14 @@ class ModAction < ApplicationRecord
     # subject the Tag. Readable by everyone a mod log is: an OC claim hides
     # nothing, and its result is shown on posts. Named by slug, never by
     # matrix_id. character_claim_reject also records an admin withdrawing an
-    # approval.
+    # approval. character_claim_hold records ownership a tag move assigned to
+    # a creator with no gallery yet (CharacterClaim::HELD), by the approver of
+    # the move; its approval is logged as character_claim_approve, by that same
+    # approver, the moment the gallery is made.
     character_claim_approve: 1116,
     character_claim_reject: 1117,
     character_claim_release: 1118,
+    character_claim_hold: 1119,
   }
 
   normalizes :category, with: ->(category) { category.to_s.parameterize.underscore.presence }

@@ -1,63 +1,103 @@
 # frozen_string_literal: true
 
-# ORIGINAL CHARACTERS (operator rulings 2026-10-11): an original character's
-# tag is <name>_(<creator>), a creator claims and keeps it (CharacterClaim),
-# and every approved claim implies the copyright tag `original`.
+# ORIGINAL CHARACTERS (operator rulings 2026-10-11 and 2026-10-12): an
+# original character's tag is <name>_(<creator>), a creator owns theirs
+# (CharacterClaim), and every owned one implies the copyright tag `original`.
+# The tags from the 2026-09-19 rule (oc_<name>, character_oc_<name>,
+# <name>_oc, <name>_character_oc) recorded no owner, and the poster of an
+# image is not its character's creator (operator, 2026-10-12: "Many of these
+# characters belong to other creators, I'll just be the first one to post
+# them"). So their owners come from the operator, and from nowhere else.
 #
-#   bin/rails runner script/fourier_original_characters.rb -- --as NAME [--oc-owner LOCALPART]           dry run
-#   bin/rails runner script/fourier_original_characters.rb -- --as NAME [--oc-owner LOCALPART] --apply   write
+#   bin/rails runner script/fourier_original_characters.rb -- --as NAME                                   dry run + template
+#   bin/rails runner script/fourier_original_characters.rb -- --as NAME --map OLD=CREATOR [--map ...]     dry run of a map
+#   bin/rails runner script/fourier_original_characters.rb -- --as NAME --map-file PATH --apply           write
 #
-# NAME is the booru admin every write is made as.
+# NAME is the booru admin every write is made as, and the approver of every
+# move. --map OLD=CREATOR names one tag's creator by their Matrix name; it can
+# be given any number of times. --map-file PATH reads "OLD CREATOR" pairs, one
+# per line, "#" comment lines and blank lines ignored; PATH "-" reads stdin,
+# for a container whose tree is read-only:
+#
+#   ssh <host> 'docker exec -i <container> bin/rails runner script/fourier_original_characters.rb -- --as NAME --map-file - --apply' < map.txt
 #
 # ALWAYS: `original` exists as a copyright tag with a wiki page -- created
 # when missing, re-filed as copyright when filed otherwise (the dry run says
-# how many posts it carries first), and an existing wiki page never
-# overwritten.
+# how many posts it carries first), an existing wiki page never overwritten.
 #
-# WITH --oc-owner LOCALPART, the tags in the four 2026-09-19 shapes
-# (oc_<name>, character_oc_<name>, <name>_oc, <name>_character_oc) are
-# LOCALPART's (operator, 2026-10-11: "oc_name is my personal tag"), and each
-# one is moved onto <name>_(LOCALPART):
-#   - alias <old> -> <name>_(LOCALPART) (TagAlias.approve!): its posts, wiki
-#     and provenance move, and anyone typing the old name gets the new one;
-#     two old shapes of one name land on the same tag;
+# ALWAYS LISTED: every legacy tag, with its category, post count, the
+# recorded posters of its posts (FourierPostCreator) -- shown to help the
+# operator remember, never used to decide -- and whether it is mapped or
+# already moved; then a ready-to-fill template of "OLD <creator>" lines for
+# the ones neither mapped nor moved, which saves straight to a --map-file.
+#
+# EACH MAPPED TAG, on --apply, is moved onto <name>_(CREATOR):
 #   - the target filed as a character, implying `original` (and `original`
 #     put back to copyright after: upstream gives an EMPTY umbrella tag the
 #     category of the tag implying it);
-#   - when a creator gallery has the slug LOCALPART, its claim on the target,
-#     APPROVED by NAME (an admin decision, in the mod log) unless one already
-#     stands.
-# A target the claim rule refuses (CharacterClaim.name_refusal), or an alias
-# the booru refuses, is reported REFUSED with why, and then the WHOLE RUN
-# writes nothing, --apply or not, and exits 1.
+#   - alias OLD -> <name>_(CREATOR) (TagAlias.approve!): its posts, wiki and
+#     provenance move, and anyone typing the old name gets the new one;
+#   - CREATOR's ownership, by the move itself (TagMover ->
+#     CharacterClaim.take_up_on_move!), approved by NAME: at once when a
+#     creator gallery named CREATOR exists, otherwise HELD for that name and
+#     approved the moment the gallery is made.
+# UNMAPPED tags are untouched, and listed.
 #
-# WITHOUT --oc-owner those tags are only reported: each with its category,
-# post count and the recorded creators of its posts (FourierPostCreator).
+# REFUSED, by name, and then the WHOLE RUN writes nothing, --apply or not,
+# and exits 1: a malformed map line, a map line naming a tag that is not a
+# legacy tag, a CREATOR that is not a Matrix name, one tag mapped to two
+# creators, a target the claim rule refuses (CharacterClaim.move_refusal: a
+# creator prefix, a qualifier the booru reserves such as cosplay), a mapped
+# tag already aliased somewhere else, or anything the booru itself refuses.
 #
 # ALWAYS REPORTED, never changed: every tag already named <name>_(<slug>) for
 # an existing creator gallery, with its post count and whether it has a wiki
-# page -- the names whose claim will wait for an admin because they have
-# history.
+# page.
 #
-# Running it again after --apply changes nothing: every step says it is
-# already done.
+# Running it again with the same map after --apply changes nothing: every
+# step says it is already done.
 require "optparse"
 
 as_name = nil
 apply = false
-owner = nil
+pairs = [] # [where, old, creator] in the order given
+malformed = []
 parser = OptionParser.new do |opts|
   # A write is asked for by its whole name, never an abbreviation.
   opts.require_exact = true
   opts.on("--as NAME") { |name| as_name = name }
-  opts.on("--oc-owner LOCALPART") { |localpart| owner = localpart }
+  opts.on("--map OLD=CREATOR") do |arg|
+    old, creator, extra = arg.split("=")
+    if old.blank? || creator.blank? || !extra.nil?
+      malformed << "--map #{arg.inspect} is not OLD=CREATOR (the legacy tag, \"=\", then the creator's Matrix name)"
+    else
+      pairs << ["#{old}=#{creator}", old, creator]
+    end
+  end
+  opts.on("--map-file PATH") do |path|
+    where = (path == "-") ? "stdin" : path
+    text = (path == "-") ? $stdin.read : File.read(path)
+    text.each_line.with_index(1) do |line, number|
+      next if line.strip.empty? || line.strip.start_with?("#")
+
+      fields = line.split
+      if fields.size == 2
+        pairs << ["#{where} line #{number} (#{fields.join(" ")})", *fields]
+      else
+        malformed << "#{where}: line #{number} #{line.strip.inspect} is not \"OLD CREATOR\" (two words: the legacy tag, then the creator's Matrix name)"
+      end
+    end
+  rescue SystemCallError => e
+    malformed << "--map-file #{path}: #{e.message}"
+  end
   opts.on("--apply") { apply = true }
 end
 begin
   parser.parse!(ARGV.reject { |arg| arg == "--" })
 rescue OptionParser::ParseError => e
   warn "FAIL: #{e.message}"
-  warn "fix:  --as <your booru admin name> [--oc-owner <matrix localpart>] [--apply], spelled out in full; without --apply it is a dry run."
+  warn "fix:  --as <your booru admin name> [--map OLD=CREATOR ...] [--map-file PATH|-] [--apply], spelled out in full; " \
+       "without --apply it is a dry run. (--oc-owner is gone: every tag's creator is named on its own.)"
   exit 2
 end
 
@@ -65,14 +105,6 @@ admin = User.find_by_name(as_name.to_s)
 if admin.nil? || !admin.is_admin?
   warn "FAIL: #{as_name.inspect} is #{admin.nil? ? "no booru account" : "not an admin"}."
   warn "fix:  --as <your booru admin name>; the change is made as that account."
-  exit 2
-end
-
-# A Matrix localpart as the homeserver issues it: lower case, and only the
-# characters the Matrix grammar allows.
-if !owner.nil? && !owner.match?(%r{\A[a-z0-9._=/-]+\z})
-  warn "FAIL: --oc-owner #{owner.inspect} is not a Matrix localpart."
-  warn "fix:  --oc-owner <the owner's Matrix name without @ or :server, in lower case>, e.g. --oc-owner saber"
   exit 2
 end
 
@@ -87,24 +119,41 @@ DTEXT
 # as a Postgres regex.
 old_rule = "^((character_)?oc_[a-z0-9].*|.*[a-z0-9]_(character_)?oc)$"
 # The regex finds candidates; the booru's own reading decides, so a name that
-# already ends in a creator in brackets (oc_(series)) is never listed as one.
+# already ends in a creator in brackets (oc_maple_(saber)) is never listed.
 old_tags = Tag.where("name ~ ?", old_rule).order(:name).pluck(:name, :category, :post_count)
               .select { |name, _, _| FourierTagSource.legacy_original_character(name) }
+legacy = old_tags.to_set(&:first)
+moved = TagAlias.active.where(antecedent_name: legacy.to_a).pluck(:antecedent_name, :consequent_name).to_h
 slugs = CreatorGallery.pluck(:slug)
 named = slugs.empty? ? [] : Tag.where("substring(name from '_\\(([^()]+)\\)$') IN (?)", slugs).order(:name).pluck(:name, :post_count)
 wikis = WikiPage.where(title: named.map(&:first), is_deleted: false).pluck(:title).to_set
-gallery = owner && CreatorGallery.find_by(slug: owner)
-# Old-shape tags no alias has moved yet: what a run without --oc-owner leaves.
-moved = TagAlias.active.where(antecedent_name: old_tags.map(&:first)).pluck(:antecedent_name).to_set
-unmoved = old_tags.count { |name, _, _| moved.exclude?(name) }
+
+# THE MAP, checked whole before anything is written: every refusal by name.
+refused = malformed.map { |why| "map #{why}" }
+map = {}
+pairs.each do |where, old_input, creator|
+  old = Tag.normalize_name(old_input)
+  why = nil
+  if legacy.exclude?(old)
+    why = "#{old} is not a legacy original-character tag (one of the oc_ tags this lists): name one of those"
+  elsif !creator.match?(CreatorGallery::SLUG)
+    why = "#{creator} is not a creator's name: their Matrix name, without @ or :server, in lower case (e.g. selphdestruct)"
+  elsif map.key?(old) && map[old] != creator
+    why = "#{old} is mapped twice: to #{map[old]} and to #{creator}; keep the right one"
+  end
+  next refused << "map #{where}: #{why}" if why
+
+  map[old] = creator
+end
+refused.each { |why| puts "REFUSED #{why}" }
 
 total = 2 + old_tags.size + named.size
 step = 0
 say = ->(line) { puts "[#{step += 1}/#{total}] #{line}" }
 detail = ->(line) { puts "      #{line}" }
-refused = []
 writes = 0
 touched = [original] # whose category caches a rolled-back run must forget
+posters_of = {}
 
 # ONE TRANSACTION. The booru's own relationship validations and callbacks
 # create the tags they name, so anything that asked them would leave empty
@@ -138,54 +187,44 @@ ActiveRecord::Base.transaction do
       page ? page.update!(body: original_wiki, is_deleted: false) : WikiPage.create!(title: original, body: original_wiki)
     end
 
-    # 3. The old rule's tags, and who posted them; with --oc-owner, each moved
-    # onto <name>_(owner).
+    # 3. Every legacy tag; each MAPPED one moved onto <name>_(creator).
     old_tags.each do |name, category, count|
-      posters = FourierPostCreator.where(post_id: Post.raw_tag_match(name).select(:id)).distinct.order(:mxid).pluck(:mxid)
-      say.call("oc_ tag #{name}: #{TagCategory.reverse_mapping[category]}, #{count} #{"post".pluralize(count)}, " \
-               "posted by #{posters.any? ? posters.join(", ") : "no recorded creator"}")
-      next if owner.nil?
-
+      posters = posters_of[name] = FourierPostCreator.where(post_id: Post.raw_tag_match(name).select(:id)).distinct.order(:mxid).pluck(:mxid)
+      creator = map[name]
       base = FourierTagSource.legacy_original_character(name)
-      target = "#{base}_(#{owner})"
+      target = creator && "#{base}_(#{creator})"
+      state = moved[name] ? "aliased to #{moved[name]}" : "not mapped"
+      state = "mapped to #{target}" if creator
+      say.call("oc_ tag #{name}: #{TagCategory.reverse_mapping[category]}, #{count} #{"post".pluralize(count)}, " \
+               "posted by #{posters.any? ? posters.join(", ") : "no recorded creator"}, #{state}")
+      next if creator.nil?
+
       touched.push(name, target)
       refuse = lambda do |why|
-        refused << "#{name} -> #{target}: #{why}"
-        detail.call("REFUSED #{refused.last}")
+        refused << why
+        detail.call("REFUSED #{why}")
       end
 
-      why = CharacterClaim.name_refusal(target, owner, CreatorPrefixes.entries)
-      probe = Tag.new(name: target)
-      why ||= "#{target} is not a valid tag name: #{probe.errors.full_messages.join("; ")}" if probe.invalid?(:name)
+      standing = TagAlias.active.find_by(antecedent_name: name)
+      if standing && standing.consequent_name != target
+        next refuse.call("#{name} -> #{target}: #{name} is already aliased to #{standing.consequent_name}: an admin removes that alias " \
+                         "(/tag_aliases), or map #{name} to that tag's creator, then run this again")
+      end
+      why = CharacterClaim.move_refusal(name, target)
       next refuse.call(why) if why
 
       # Each move in a savepoint of its own, so a refusal the database raises
       # leaves the outer transaction able to report the rest.
       ActiveRecord::Base.transaction(requires_new: true) do
-        # The alias.
-        standing = TagAlias.active.find_by(antecedent_name: name)
-        if standing&.consequent_name == target
-          detail.call("alias #{name} -> #{target}: already in place")
-        elsif standing
-          next refuse.call("#{name} is already aliased to #{standing.consequent_name}: an admin removes that alias " \
-                           "(/tag_aliases), or names that tag's owner, then run this again")
-        else
-          detail.call("alias #{name} -> #{target}: #{count} #{"post".pluralize(count)} #{(count == 1) ? "moves" : "move"}")
-          writes += 1
-          TagAlias.approve!(antecedent_name: name, consequent_name: target, approver: admin)
-        end
-
         # The target, a character.
         tag = Tag.find_by_name(target)
-        if tag.character?
+        if tag&.character?
           detail.call("#{target}: already a character")
-        elsif tag.general?
-          detail.call("#{target}: general -> character")
+        elsif tag.nil? || tag.general?
+          detail.call("#{target}: #{tag ? "general" : "new tag"} -> character")
           writes += 1
-          tag.update!(category: TagCategory::CHARACTER, updater: admin)
-        else
-          next refuse.call("#{target} is filed as #{tag.category_name.downcase} (from #{name}): an admin re-files #{name} " \
-                           "as a character, then run this again")
+          tag ? tag.update!(category: TagCategory::CHARACTER, updater: admin) : Tag.find_or_create_by_name(target, category: "character", current_user: admin)
+          tag = Tag.find_by_name(target)
         end
 
         # Implying `original`, which stays copyright.
@@ -199,20 +238,33 @@ ActiveRecord::Base.transaction do
           umbrella.update!(category: Tag.categories.copyright, updater: admin) unless umbrella.copyright?
         end
 
-        # The owner's claim, when the owner has a gallery.
-        if gallery.nil?
-          detail.call("no creator gallery #{owner}: no claim filed (one can be filed from the creator page once it exists)")
-        elsif CharacterClaim.standing_on([target]).any?
-          detail.call("claim #{target} for @#{owner}: already stands")
-        else
-          detail.call("claim #{target} for @#{owner}: approved by #{admin.name}")
+        # The alias; its move assigns the ownership (TagMover).
+        moving = standing.nil?
+        if moving
+          detail.call("alias #{name} -> #{target}: #{count} #{"post".pluralize(count)} #{(count == 1) ? "moves" : "move"}")
           writes += 1
-          claim = CharacterClaim.pending.find_by(tag_name: target, creator_gallery: gallery)
-          claim ||= CharacterClaim.create!(creator_gallery: gallery, tag_name: target)
-          claim.approve!(by: admin)
+          TagAlias.approve!(antecedent_name: name, consequent_name: target, approver: admin)
+        else
+          detail.call("alias #{name} -> #{target}: already in place")
         end
-      rescue ActiveRecord::RecordInvalid, ActiveRecord::StatementInvalid => e
-        refuse.call(e.respond_to?(:record) ? e.record.errors.full_messages.join("; ") : e.message)
+
+        # Who owns it now: the move's doing, read back, never assumed.
+        claim = CharacterClaim.standing_on([target]).first
+        held = CharacterClaim.held.find_by(tag_name: target)
+        if claim
+          detail.call("owner of #{target}: @#{claim.slug}, #{moving ? "approved by #{admin.name}" : "already stands"}")
+        elsif held
+          detail.call("owner of #{target}: held for @#{held.creator_slug}, approved by #{held.approver&.name || admin.name} " \
+                      "the moment a creator gallery named #{held.creator_slug} exists#{" (already held)" unless moving}")
+        else
+          # Only reachable for an alias made before moves assigned ownership,
+          # or a claim since withdrawn or released: said, not re-granted.
+          statuses = CharacterClaim.where(tag_name: target).pluck(:status)
+          detail.call("owner of #{target}: none (#{statuses.any? ? "its claims are #{statuses.join(", ")}" : "no claim"}); " \
+                      "the alias was made earlier, so no move assigned one now: an admin settles it at /admin/artist_claims")
+        end
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::StatementInvalid, CharacterClaim::MoveRefused => e
+        refuse.call("#{name} -> #{target}: #{e.respond_to?(:record) ? e.record.errors.full_messages.join("; ") : e.message}")
         raise ActiveRecord::Rollback
       end
     end
@@ -230,21 +282,30 @@ end
 # the database: forget what those steps cached.
 touched.each { |name| Cache.delete("tag-category:#{Cache.hash(name)}") } if !apply || refused.any?
 
-if owner.nil?
-  puts "oc_ tags from the 2026-09-19 rule: #{old_tags.size}, reported only (--oc-owner <localpart> moves them onto <name>_(<localpart>)). " \
-       "Tags named for an existing creator: #{named.size}, reported only."
-else
-  puts "oc_ tags from the 2026-09-19 rule: #{old_tags.size}, each moved onto <name>_(#{owner}). Tags named for an existing creator: #{named.size}, reported only."
+# The template: every legacy tag neither mapped nor already moved, one
+# "OLD <creator>" line each, ready to fill and save as a --map-file.
+unmapped = old_tags.map(&:first).reject { |name| map.key?(name) || moved.key?(name) }
+if unmapped.any?
+  puts "--- map template: put each creator's Matrix name in place of <creator>, delete the lines you are not mapping yet, " \
+       "and pass the file with --map-file (an unfilled line is refused) ---"
+  old_tags.each do |name, _, count|
+    next unless unmapped.include?(name)
+
+    posters = posters_of[name]
+    puts "# #{name}: #{count} #{"post".pluralize(count)}, posted by #{posters.any? ? posters.join(", ") : "no recorded creator"}"
+    puts "#{name} <creator>"
+  end
+  puts "--- end of template ---"
 end
+
+puts "Legacy oc_ tags: #{old_tags.size}; mapped this run: #{map.size}. Tags named for an existing creator: #{named.size}, reported only."
+puts "#{unmapped.size} legacy #{"tag".pluralize(unmapped.size)} not mapped, left as they are: #{unmapped.join(", ")}." if unmapped.any?
 
 if refused.any?
   puts "REFUSED: #{refused.size}. The whole run wrote nothing:"
   refused.each { |line| puts "  #{line}" }
   warn "fix:  settle each REFUSED line as it says, then run this again; nothing is written while any line is refused."
   exit 1
-elsif writes.zero? && owner.nil? && unmoved.positive?
-  # Not "every step is done": without --oc-owner these were only reported.
-  puts "nothing written: #{unmoved} oc_ #{"tag".pluralize(unmoved)} above #{(unmoved == 1) ? "has" : "have"} not moved; --oc-owner <localpart> moves them."
 elsif writes.zero?
   puts "nothing to write: every step is already done."
 elsif apply
