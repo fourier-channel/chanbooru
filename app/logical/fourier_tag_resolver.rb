@@ -23,9 +23,22 @@
 #   3. an UNQUALIFIED name matches a QUALIFIED identifying tag when exactly one
 #      exists for that stem: hilda -> hilda_(pokemon). Identifying kinds only
 #      (artist, character, copyright), non-empty only, and only when unique --
-#      two candidates is a guess, and a guess here mis-attributes a picture;
+#      two candidates is a guess, and a guess here mis-attributes a picture --
+#      and never an ORIGINAL CHARACTER (below);
 #   4. a QUALIFIED name the booru does not have matches its stem when the stem
-#      is an identifying tag: hatsune_miku_(vocaloid) -> hatsune_miku.
+#      is an identifying tag AND the bracket names a SERIES (a copyright tag):
+#      hatsune_miku_(vocaloid) -> hatsune_miku.
+#
+# THE BRACKET HAS TWO MEANINGS (2026-10-12). Since the original-character
+# rule (an OC is <name>_(<creator>)), the bracket names a series in
+# hilda_(pokemon) and a CREATOR in kayla_(selphdestruct) -- the operator:
+# "multiple conflicting uses of the same dataspace by different things".
+# Steps 3 and 4 guess across the bracket, and were written for series only:
+# on OC names step 3 turned any prompt's plain "kayla" into selphdestruct's
+# character, and step 4 turned a not-yet-known kayla_(alice) into whatever
+# existing character is called kayla. So step 3 never lands on an original
+# character (a tag implying `original`, or one with a standing claim), and
+# step 4 folds only a series' bracket.
 #
 # What it never does: invent a tag, or move a name that already exists. A name
 # nothing matches is returned as itself.
@@ -48,7 +61,10 @@ module FourierTagResolver
     stems = open.values.grep_v(QUALIFIER).uniq
     if stems.any?
       patterns = stems.map { |s| "#{s.gsub(/([\\%_])/) { "\\#{$1}" }}\\_(%" }
-      candidates = Tag.nonempty.where(category: IDENTIFYING).where("tags.name LIKE ANY (ARRAY[?])", patterns).pluck(:name)
+      candidates = Tag.nonempty.where(category: IDENTIFYING).where("tags.name LIKE ANY (ARRAY[?])", patterns)
+                      .where.not(name: TagImplication.active.where(consequent_name: "original").select(:antecedent_name))
+                      .where.not(name: CharacterClaim.where(status: [CharacterClaim::APPROVED, CharacterClaim::HELD]).select(:tag_name))
+                      .pluck(:name)
       by_stem = candidates.group_by { |n| n.sub(QUALIFIER, "") }
       open.each do |k, v|
         c = by_stem[v]
@@ -57,11 +73,14 @@ module FourierTagResolver
     end
 
     # 4. qualified but unknown -> its stem, when the stem is an identifying tag
+    #    and the bracket is a series (a copyright tag), never a creator
     qualified = open.select { |_, v| v.match?(QUALIFIER) }
     if qualified.any?
       stem_of = qualified.transform_values { |v| v.sub(QUALIFIER, "") }
+      bracket_of = qualified.transform_values { |v| v[/_\(([^()]*)\)\z/, 1] }
       known = Tag.nonempty.where(category: IDENTIFYING, name: stem_of.values.uniq).pluck(:name).to_set
-      stem_of.each { |k, stem| map[k] = stem if known.include?(stem) }
+      series = Tag.where(category: TagCategory::COPYRIGHT, name: bracket_of.values.uniq).pluck(:name).to_set
+      stem_of.each { |k, stem| map[k] = stem if known.include?(stem) && series.include?(bracket_of[k]) }
     end
 
     map

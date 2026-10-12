@@ -11,8 +11,18 @@ class BulkUpdateRequest::Command::Rename < BulkUpdateRequest::Command::CreateAli
     /\Arename (?<old_name>\S+) -> (?<new_name>\S+)\z/i
   end
 
+  # fourier: a LEGACY original-character tag (oc_<name> and its shapes) is
+  # moved as an alias, not a bare rename (2026-10-12). Old images' prompts
+  # still say oc_kayla, and with no redirect left the hub would declare
+  # oc_kayla as itself again on the next one, splitting the character in two
+  # and missing the ownership the move settled. The alias runs the same
+  # TagMover, so the move and its ownership are otherwise identical.
   def process!(approver:, **)
-    TagMover.new(@old_name, @new_name, approver: approver).move!
+    if FourierTagSource.legacy_original_character(@old_name)
+      TagAlias.approve!(antecedent_name: @old_name, consequent_name: @new_name, approver: approver)
+    else
+      TagMover.new(@old_name, @new_name, approver: approver).move!
+    end
   end
 
   def to_dtext

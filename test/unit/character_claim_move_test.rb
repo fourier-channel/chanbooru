@@ -56,6 +56,11 @@ class CharacterClaimMoveTest < ActiveSupport::TestCase
 
       claim = CharacterClaim.approved.find_by!(tag_name: "kayla_(selphdestruct)")
       assert_equal([@gallery.id, @boss.id], [claim.creator_gallery_id, claim.approver_id])
+      # A rename leaves no redirect, but a legacy name must keep one: old
+      # images' prompts still say oc_kayla, and an unredirected oc_kayla would
+      # be declared as itself again, splitting the character in two.
+      assert(TagAlias.active.exists?(antecedent_name: "oc_kayla", consequent_name: "kayla_(selphdestruct)"),
+             "a rename of a legacy tag leaves the alias an alias request would")
     end
 
     should "get it from an alias request, every shape counting" do
