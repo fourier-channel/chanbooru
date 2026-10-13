@@ -3,6 +3,12 @@
 <section id="search-box">
   <h2>Search</h2>
 
+  <%# Fork: signed out, a search would be refused (MembersOnly; 2026-10-13),
+      so the box is replaced by how to sign in. %>
+  <% if MembersOnly.default_deny? && MembersOnly.signed_out?(CurrentUser.user, request) %>
+    <p>Searching is for registered viewers: <%= link_to "sign in", main_app.login_path(url: request.fullpath) %> through "Manage Session", "Booru: Log In".</p>
+  <% else %>
+
   <%= form_tag(path, method: "get", id: "search-box-form", class: "flex") do %>
     <% if current_page?(action: "index") %>
       <% if params[:random] %>
@@ -22,5 +28,6 @@
     <%= hidden_field_tag :z, 5 %>
 
     <button id="search-box-submit" type="submit"><%= search_icon %></button>
+  <% end %>
   <% end %>
 </section>

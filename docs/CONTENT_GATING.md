@@ -5,7 +5,14 @@ Every rule that decides whether a viewer gets an account, sees a post, an
 image, or a tag. First written 2026-08-30 from the code and the running site;
 re-traced 2026-09-11; re-traced 2026-10-12 against chanbooru's `chanbooru`
 branch, fourier-auth and its edge Worker, production's own config files and
-production's database.
+production's database; brought up to date 2026-10-13 for the flagged-tag
+quarantine and the end of the reveal setting (chanbooru 98a61151d,
+fourier-auth 05e6c6f and 7f2be3e, fourier-sampling 0891d0c).
+
+**Committed is not deployed.** Gates 4, 5 and 12 below describe that code. It
+reaches production in one deploy, chanbooru first; until then the live booru
+still has the reveal setting, no flagged tags, and a banished list in its
+config file.
 
 CANON. Lives in `fourier-basis`; hydrated into chanbooru and rendered into the
 public site by `coherence hydrate`. This file is the only copy anyone edits.
@@ -19,8 +26,9 @@ is untracked in chanbooru; production mounts the canon copy at
 prefix list at `ops/hetzner/danbooru/creator_prefixes.yml`. Both were
 byte-identical to production on 2026-10-12.
 
-There are twelve independent gates. They are not layers of one system and they
-do not share a switch: a post can pass eleven and be withheld by the twelfth.
+There are thirteen independent gates. They are not layers of one system and
+they do not share a switch: a post can pass twelve and be withheld by the
+thirteenth.
 When a user reports "this page doesn't work", the question is *which gate*,
 and this document exists so that question has an answer that does not require
 reading Ruby.
@@ -28,7 +36,7 @@ reading Ruby.
 Gates 0 to 6 are the original Rails gates, numbered in the order they were
 built. Gate 7 is different in kind: it lives at Cloudflare and at the reverse
 proxy, and it acts before the application sees the request at all. Gates 8 to
-11 were added after 2026-09-12 and are numbered in the order they were built.
+12 were added after 2026-09-12 and are numbered in the order they were built.
 The numbers are stable on purpose: the access matrix in fourier-coherence
 (`coherence/accessmatrix.py`) labels its probes by them.
 
@@ -44,8 +52,8 @@ each kind of viewer gets. The columns are always the same:
 | Member | level 20 |
 | Gold+ | levels 30 to 37: Gold, Platinum, Builder, Contributor, Approver |
 | Moderator | level 40 |
-| Admin | levels 50 and 60 (Admin, Owner) with `reveal_banished` OFF, the default |
-| Admin, reveal | an admin who has switched `reveal_banished` ON in their own settings |
+| Admin | levels 50 and 60 (Admin, Owner) |
+| Pipeline | the booru's system user and the posting bots (`sample`, `tunnel`), which uploaded every post |
 
 And the cells:
 
@@ -56,9 +64,8 @@ And the cells:
 | **hidden** | absent from search, counts, paging and neighbours; its page and image answer as if it did not exist |
 | **capped** | sees it, under gate 2's browsing cap |
 
-A viewer the columns do not cover (the post's creator, the pipeline's bots, a
-reader of a published page) is named below the matrix when a section treats
-them differently.
+A viewer the columns do not cover (the post's creator, a reader of a published
+page) is named below the matrix when a section treats them differently.
 
 **Uploaders are always bots.** Every post on this booru is made by the
 pipeline -- the `sample` account (4chan) or the `tunnel` account (Matrix and
@@ -153,7 +160,7 @@ by this gate, so it can keep working on the post.
 
 **Example: `loli`**
 
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
+| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
 | a post tagged `loli` | hidden | listed, no image (capped) | listed, no image | sees | sees | sees | sees |
 
@@ -192,10 +199,10 @@ that is gone. The status page is admin-only (`status_page_visibility_level`).
 
 **Example:** an ordinary post, `1girl solo`, with no gated tag.
 
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
+| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
 | the post | see gate 10 | capped: 20 results, one page | sees | sees | sees | sees | sees |
-| a retired section | 404 | 404 | 404 | 404 | 404 | 404 (Owner: opens) | 404 (Owner: opens) |
+| a retired section | 404 | 404 | 404 | 404 | 404 | 404 (Owner: opens) | 404 |
 
 ---
 
@@ -222,7 +229,12 @@ booru cannot be reached the gate answers 503 -- it fails closed. A Matrix
 upload's file is refused on this route unless a visible post that is not a
 Matrix upload also holds it; it is served through the Matrix route only.
 
-**Matrix images follow the room.** fourier-auth reads Synapse's own database --
+**Matrix images follow the room -- and the quarantine.** A Matrix image whose
+booru post is jailed, or carries a banished or flagged tag (gates 4, 5, 12),
+is refused at this route too, to everyone but an admin reaching a flagged one
+through the booru (fourier-auth reads the booru's quarantine document every
+30 s, and on a failed read keeps the last good one for 30 minutes before
+refusing every Matrix image). Otherwise fourier-auth reads Synapse's own database --
 which room the media was posted in, whether the viewer is joined -- and uses
 Synapse's HTTP API only to validate the token. Synapse's authenticated-media
 endpoint is NOT used: it authenticates the token but does not enforce room
@@ -236,17 +248,19 @@ upload that never became a post is visible only to an admin (and to the bot
 that uploaded it).
 
 **Caching.** The Worker caches an ALLOW, never a denial, keyed on a hash of the
-credential: 60 seconds for booru media, 240 for Matrix media. The gate keeps
-its own 120-second cache of allows. So a just-jailed image can stay readable
-for about three minutes, and a viewer who leaves a room can read its media for
-about four.
+credential: 60 seconds for booru media, 150 for Matrix media (240 until
+2026-10-12). The gate keeps its own 120-second cache of allows. So a
+just-jailed or just-flagged image can stay readable for about three minutes,
+and a viewer who leaves a room can read its media for about two and a half.
 
 `?w=` / `?h=` snap to the 180, 360 and 720 thumbnails rendered at upload; with
 neither, the original is served; `?dl=1` serves it as an attachment.
 
-**Not re-verified 2026-10-12:** that no user-posted media is held at rest on
-the homeserver. That is the design; fourier-auth's MEDIA-URLS.md recorded it
-as violated (2.3 GB held) on 2026-08-15, and nobody has checked since.
+**Nothing at rest on the homeserver, and no fallback** (verified 2026-10-13).
+Synapse's media store holds no files: every upload goes to R2, and a daily
+purge frees the local copy once R2 lists it. An image R2 does not hold is
+refused (404, "media not in object storage") -- there is no other source,
+and fourier-auth refuses to start if asked for one (MEDIA-URLS.md).
 
 **Example 1: an image on a post tagged `1girl`, scraped from 4chan.** The
 image follows the post's VISIBILITY, so this row is the post's own row from
@@ -255,14 +269,14 @@ gates 1, 4, 5, 8 and 9 -- and a signed-out visitor's image loads even where gate
 ask for any md5, provided it has exactly the shape fourier-auth sends
 (`MembersOnly#anonymous_md5_ask?`).
 
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
+| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
 | the image | loads | loads | loads | loads | loads | loads | loads |
 
 **Example 2: the image on a Matrix upload, creator tag `41chan_alice`, posted
 in a room called #art.**
 
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
+| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
 | joined to #art, with a Matrix session | -- | loads | loads | loads | loads | loads | loads |
 | not joined to #art, or no Matrix session | refused | refused | refused | refused | refused | refused | refused |
@@ -279,92 +293,79 @@ upstream, which hides deleted posts at the RENDER layer while still returning
 and counting them. The one exception is the bot that uploaded the post, which
 can still open it by direct link and keep working on it; no person can.
 
-**Jailed means deleted** (operator, 2026-10-10). A jailed post is a deleted
-post carrying `troll_jail`, and it follows exactly these rules -- there is no
-second, jail-specific visibility layer. What the jail adds is that it is
-withheld even from an admin until that admin switches `reveal_banished` on
-(gate 5), and that it is released only from sampling's jail panel through
-`POST /fourier_jail/release`: the booru's own tag pill refuses to take
-`troll_jail` or the deletion off a jailed post. When the booru jails a post
-itself (a moderator's pill, or gate 5's banished-tag failsafe), it reports the
-jailing back to the panel through `GET /fourier_jail/release.json?since=`, so
-no jailing is invisible to the place that controls it.
+**Jailed means deleted** (operator, 2026-10-10): a jailed post is a deleted
+post carrying `troll_jail`. But a jailed post is withheld from **everyone
+except the pipeline** -- admins included -- whether or not its deletion landed
+(`TagBanishment.post_tags` holds `troll_jail` beside every banished name;
+`Post#hidden_as_banished?`). Nothing on the booru shows a jailed post to a
+person. Moderation of jailed posts happens in sampling's jail panel, which is
+also the only place a post is released (`POST /fourier_jail/release`): the
+booru's own tag pill refuses to take `troll_jail` or the deletion off a jailed
+post. When the booru jails a post itself (a moderator's pill, gate 5's
+banished-tag failsafe, a one-click Banish from gate 12's queue), it reports
+the jailing to the panel (`GET /fourier_jail/release.json?since=`), so no
+jailing is invisible to the place that controls it.
 
-The `sample` bot is below Admin and cannot see deleted posts either: a lookup
-for an image it has jailed returns nothing, which is why release goes through
-the fork's own route.
+**A jailing is two writes.** Sampling adds `troll_jail`, then deletes, and the
+delete needs Approver (37). If it is refused, the post is left live with the
+tag -- and is still hidden from every person, because the tag alone withholds
+it (fixed 2026-10-12; until then such a post was visible to Gold and above).
+Sampling logs every refused delete as "booru did NOT change", and
+`tools/jail-apply.ts --booru-only --md5 <list>` finishes it.
 
-**A jailing is two writes, and only the second one hides the post.** Sampling
-adds `troll_jail`, then deletes. Deleting needs Approver (37) or above, so the
-bot must hold that level; if the delete is refused, the post is left LIVE with
-`troll_jail` on it. Such a post is not hidden the way a jailed post is: the jail
-tag withholds it only from an admin whose reveal is off (`hidden_as_banished?`),
-and for everyone else it is just a gated post (gate 1) -- listed without its
-image below Gold, and fully visible at Gold and above. Sampling logs every
-refused delete as "booru did NOT change".
+**The bots keep their level.** Danbooru's monthly approver pruning demotes any
+Approver with too few approvals; it exempts the pipeline accounts since
+chanbooru 98a61151d. On 2026-10-12 it had demoted `sample` to Contributor and
+every jail delete was refused for a night.
 
 Inherited from upstream and unchanged: a taken-down post is hidden from
 viewers below Moderator, and a banned post from viewers below Approver.
 
 **Example 1: a post a moderator deleted (`status:deleted`).**
 
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
+| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| a deleted post | hidden | hidden | hidden | hidden | hidden | sees | sees |
+| a deleted post | hidden | hidden | hidden | hidden | hidden | sees | sees its own |
 
-**Example 2: a jailed post, tagged `troll_jail`.**
+**Example 2: a jailed post, tagged `troll_jail` -- deleted, or not.**
 
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
+| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| jailed: tagged and deleted | hidden | hidden | hidden | hidden | hidden | hidden | sees |
-| half-jailed: tagged, delete refused | hidden | listed, no image (capped) | listed, no image | sees | sees | hidden | sees |
+| a jailed post | hidden | hidden | hidden | hidden | hidden | hidden | sees |
 
-The second row is a failure, not a state anyone chose: note that it is open
-to Gold and above while hidden from an admin.
-
-In both, the bot that uploaded the post (`sample` or `tunnel`) can still open
-it by direct link; no person below Admin can. A published page never shows a
-jailed image.
+A published page never shows a jailed image (gate 11).
 
 ---
 
 ## 5. Banished tags and the blacklists
 
-Three mechanisms. They are easy to conflate and they do different things.
+Three mechanisms, easy to conflate.
 
-**Banished tags** (`banished_tags`, 2026-09-04) do two things.
+**Banished tags** are words removed from the site, and with them every post
+that carries one. Since chanbooru 98a61151d (operator rulings 2026-10-12):
 
-    guro scat gore ryona death corpse snuff dismemberment decapitation
-    severed_head torture mutilation feces fart pooping
+- **The list is in the database** (`TagQuarantine` rows in the banished
+  state), not a config file. A tag is banished with ONE click from gate 12's
+  review queue; the booru then jails every post carrying it, through its own
+  jail (BanishTagJob), and reports each to sampling's jail panel. A post that
+  gains a banished tag later is jailed the moment it does.
+- **The words are gone for everyone but the pipeline**: tag listings,
+  autocomplete, tag panels, related tags -- admins included. There is no
+  reveal setting any more. The operator: "the booru itself will never be the
+  surface that shows banished tags, ever. The troll jail panel in sampling
+  will be used for moderation."
+- **The posts are withheld from everyone but the pipeline**, deleted or not --
+  a post released from the jail keeps its tags, and stays withheld while it
+  carries a banished one. Releasing lifts the jail, not the banishment.
+- **Unbanishing happens in sampling's jail panel** and nowhere on the booru:
+  it takes the name off the list (`POST /fourier_jail/release.json` with
+  `unbanish`, naming who pressed it in the mod log) and releases no jailed
+  post -- that stays the panel's per-post release.
 
-- **The words are removed** from tag listings, autocomplete and the tag panels
-  for everyone, admins included, unless an admin has switched
-  `reveal_banished` on. The operator's words: "hidden to me without a specific
-  toggle on, and apparently missing/deleted from the server altogether for
-  everyone else."
-- **The post is jailed by the booru itself** (failsafe, 2026-09-24): a post
-  that GAINS a banished tag -- including one created with it -- is tagged
-  `troll_jail` and deleted by the booru's system user, and the jailing is
-  reported to sampling's jail panel. From then on gate 4 governs it.
-
-**What actually withholds a banished-tag post is its DELETION, not the
-banishment.** The operator's rule (2026-09-24) is that such a post "is
-supposed to immediately disappear from the booru view surface for all but an
-admin with the setting explicitly ON". The code implements the admin half
-only: `Post#hidden_as_banished?` withholds the post from an admin whose reveal
-is off, and from nobody else; everyone below admin is kept out because the
-post is deleted. So a banished-tag post that is LIVE is shown to every viewer
-below admin whom its other gates allow, with nothing in the way but the
-enforced blacklist in their browser -- while an admin without reveal cannot see
-it. That is the rule inverted. A post becomes live this way when it is
-released from the jail (it keeps its tags, and a released post is never
-re-jailed), or when a jailing's delete is refused (gate 4). **Open in
-chanbooru.** On 2026-10-12 no live post carried a banished tag; all 275 that
-did were deleted.
-
-**The enforced blacklist** (`enforced_blacklist`, 2026-09-04) is applied to
-every viewer, stored in no account and editable by nobody from the site. It
-holds every banished tag plus four conjunctions, for example
+**The enforced blacklist** (`enforced_blacklist`) is applied to every viewer,
+stored in no account and editable by nobody from the site. It now holds only
+four conjunctions -- banished posts are withheld on the server, so the list
+need not carry their names -- for example
 
     insect rating:e -pokemon_(creature) -pokemon_(species)
 
@@ -375,9 +376,6 @@ always hides outright -- nobody can switch it to blur or turn it off. But the
 post's page, its tags and its image URL are still served, and the image file
 loads for anyone who opens that URL. It stops casual viewing, not access.
 
-For an admin with `reveal_banished` on, the banished words stop filtering
-anything; the four conjunctions still filter.
-
 **The user blacklist** is the viewer's own, and it starts EMPTY (since
 2026-09-04): a new account and a signed-out viewer have nothing in it. A line
 is AND-ed and `-` excludes. Changing the default does not touch existing
@@ -385,24 +383,18 @@ accounts.
 
 **Example 1: a post that gains `gore`.**
 
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
+| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| the post, jailed and deleted (the normal case) | hidden | hidden | hidden | hidden | hidden | hidden | sees |
-| the same post if live (released, or a refused delete): its page | gate 10 | loads, image hidden in browser | loads, image hidden in browser | loads, image hidden in browser | loads, image hidden in browser | hidden | sees |
-| ... and its image file, by URL | loads | loads | loads | loads | loads | loads | loads |
+| the post (jailed), and its image | hidden | hidden | hidden | hidden | hidden | hidden | sees |
+| the same post released from the jail, still tagged `gore` | hidden | hidden | hidden | hidden | hidden | hidden | sees |
 | the word `gore` in tag lists and autocomplete | absent | absent | absent | absent | absent | absent | shown |
-
-Rows two and three are the open gap above. The admin's image loads in row
-three while their page is hidden: the media gate asks as a signed-out reader
-first, and a signed-out reader may see a live post whose only problem is a
-banished tag.
 
 **Example 2: a post tagged `insect` and rated explicit, not Pokemon.**
 
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
+| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| its thumbnail in listings | hidden in browser | hidden in browser | hidden in browser | hidden in browser | hidden in browser | hidden in browser | hidden in browser |
-| its own page | gate 10; image hidden in browser | loads, image hidden in browser | same | same | same | same | same |
+| its thumbnail in listings | hidden in browser | hidden in browser | hidden in browser | hidden in browser | hidden in browser | hidden in browser | not a browser |
+| its own page | gate 10; image hidden in browser | loads, image hidden in browser | same | same | same | same | loads |
 | its image file, by URL | loads | loads | loads | loads | loads | loads | loads |
 
 ---
@@ -436,7 +428,7 @@ prompts, and the creator-only rule closed that.
 **Example: `masterpiece` on a Matrix upload by `41chan_alice`, present only
 because her prompt contained it.**
 
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
+| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
 | the tag `masterpiece` on that post | absent | absent | absent | absent | absent | absent | absent |
 
@@ -533,7 +525,7 @@ also locked: only an admin or an editor account may add or remove them.
 
 **Example: `aichan_someone`, a Discord post.**
 
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
+| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
 | the post and image | hidden | hidden | hidden | hidden | hidden | sees | sees |
 | the tag name in lists and autocomplete | absent | absent | absent | absent | absent | shown | shown |
@@ -562,9 +554,9 @@ Moderators can neither see nor act on it.
 
 **Example: a post by `41chan_alice`, set to private, with bob named.**
 
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
+| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| a viewer alice has not named | hidden | hidden | hidden | hidden | hidden | sees (logged) | sees (logged) |
+| a viewer alice has not named | hidden | hidden | hidden | hidden | hidden | sees (logged) | sees |
 | bob, named, signed in | -- | sees | sees | sees | sees | sees | sees |
 
 Also **sees**: alice herself. If alice blocks carol, carol is hidden from it
@@ -602,7 +594,7 @@ door open for exactly that ask.
 
 **Example: a `1girl` post that is not on the landing page.**
 
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Admin, reveal |
+| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
 | its post page | 404 | capped | sees | sees | sees | sees | sees |
 | its image, by URL | loads | loads | loads | loads | loads | loads | loads |
@@ -618,9 +610,12 @@ The publication IS the operator's grant (ruling 2026-10-02), separate from the
 booru's browsing rules. While the page is live, a reader holding it gets a
 cookie for that page, and fourier-auth releases each image the page lists --
 including one the booru would hide from that reader, such as a gated one.
-**A jailed image is never released**: it is redacted from the page before it is
-published. When the page expires or is taken down, the grant ends with it. If
-sampling cannot be reached the gate answers 503.
+**A jailed, banished or flagged image is never released**: the page withholds
+it ("Purposely disregarded"), with no digest and no tag name in what it sends.
+Sampling reads the booru's quarantine document every 60 seconds; if it cannot,
+the last good read governs for 30 minutes, and never read or past that, the
+page withholds every image. When the page expires or is taken down, the grant
+ends with it. If sampling cannot be reached the gate answers 503.
 
 The console itself is a separate door: `GET /verify?gate=sample` opens
 `sample.41chan.net` only to a Matrix account at power level 70 or above in the
@@ -632,6 +627,79 @@ moderators room, and fails closed.
 |---|---|---|
 | the `loli` image | sees, whoever they are, signed in or not | refused unless the viewer's own gates allow it |
 | the `troll_jail` image | never on the page | refused |
+| an image carrying a flagged tag | withheld on the page | refused |
+
+---
+
+## 12. Flagged tags -- a review quarantine
+
+Since chanbooru 98a61151d (operator rulings 2026-10-12). An admin can FLAG any
+tag for review: "the tag's entire existence should immediately
+disappear--but not as severe as banished because the idea is to immediately
+flag any tag for review by admins."
+
+- **Who still sees:** Admin and Owner levels ("I did mean 'owner' danbooru
+  level"), every post; the booru's system user; and the posting bots on their
+  OWN posts -- which is every post, since only the bots upload -- so they keep
+  working on them, and the names everywhere, because they tag with them.
+- **Everyone else:** every post carrying the tag, and the tag's name, are gone
+  at every door -- search, counts, pages, images, tag lists, autocomplete --
+  including posts that gain the tag later.
+- **Review:** a "Flagged tags" queue on the admin console (who flagged it,
+  when, how many posts). **Release** puts everything back at once. **Banish**
+  is one click: the tag becomes banished (gate 5) and its posts are jailed.
+  Both are written to the mod log.
+- **Reach: everywhere, like the jail.** fourier-auth refuses a flagged image
+  at the Matrix route and in publication grants; sampling withholds it from
+  its external and published views; the tunnel stops writing the name into
+  Matrix rooms' tag state, and rewrites that state when a flag changes.
+- A flag jails nothing and hides nothing from an admin. That is the
+  difference from a banishment.
+
+**Example: a post carrying a tag an admin has flagged.**
+
+| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
+|---|---|---|---|---|---|---|---|
+| the post and its image | hidden | hidden | hidden | hidden | hidden | sees | sees its own |
+| the tag's name in tag lists and autocomplete | absent | absent | absent | absent | absent | shown | shown |
+
+---
+
+## Every gate at once -- the combination matrix
+
+One example from each gate, and what each kind of viewer gets of the POST
+(the post's own page) and of the IMAGE (the file, as the media gate answers
+for it), written post / image in each cell. Green sees it. Grey names the FIRST gate that stops
+that viewer, taking the gates in the order a request meets them: the edge
+challenge (7) passes every browser and stops every script, so it is not a
+column; then the signed-out default-deny (10); then the rules about the post.
+That is why a signed-out POST cell is almost always gate 10 -- the page is
+closed before the post's own rules are asked -- while its IMAGE cell names
+the post's rule: the media gate asks the booru directly, through the one door
+gate 10 leaves open for it.
+
+The creator-private TAGS of gate 6 and the grant of a published page (gate
+11) are not about a viewer's level, so they are not rows here; see their
+sections.
+
+| example -- post / image | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
+|---|---|---|---|---|---|---|---|
+| `1girl`, on the newest page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| `1girl`, not shown signed out | {no: gate 10} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| `loli` (gate 1) | {no: gate 10} / {no: gate 1} | {yes: listed} / {no: gate 1} | {yes: listed} / {no: gate 1} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| deleted by a moderator (gate 4) | {no: gate 10} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} | {yes: its own} / {yes: its own} |
+| `troll_jail` (gate 4) | {no: gate 10} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} |
+| `gore`, banished (gate 5) | {no: gate 10} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {yes} / {yes} |
+| `insect rating:e` (gate 5, enforced blacklist) | {no: gate 10} / {yes} | {yes: page; image hidden in browser} / {yes} | {yes: page; image hidden in browser} / {yes} | {yes: page; image hidden in browser} / {yes} | {yes: page; image hidden in browser} / {yes} | {yes: page; image hidden in browser} / {yes} | {yes} / {yes} |
+| `aichan_someone` (gate 8) | {no: gate 10} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {yes} / {yes} | {yes} / {yes} |
+| creator set private (gate 9) | {no: gate 10} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {yes: sees, logged} / {yes} | {yes} / {yes} |
+| a flagged tag (gate 12) | {no: gate 10} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {yes} / {yes} | {yes: its own} / {yes: its own} |
+| Matrix upload, viewer not in its room (gate 3) | {no: gate 10} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {yes: via R2} |
+
+Pipeline is the booru's system user and the posting bots. "Its own" is every
+post, since only the bots upload. "Listed" means the post appears in results
+with its image withheld. The pipeline reads a Matrix image's file from R2
+directly, never through the Matrix route.
 
 ---
 
@@ -645,16 +713,18 @@ moderators room, and fails closed.
 | cannot register | 0 -- no token, or a spent, expired or revoked one |
 | a booru image is broken but the post page loads | 3 -- the image follows its post: deleted, jailed, gated or hidden for this reader. A 503 means the booru or sampling was unreachable |
 | a Matrix upload's image is broken | 3 -- the viewer is not in the room it was posted in, or has no Matrix session |
-| a just-jailed image still loads for a minute or two | 3 -- the decision caches, about three minutes at most |
+| a just-jailed or just-flagged image still loads for a minute or two | 3 -- the decision caches, about three minutes at most |
 | search returns exactly 20, and no second page | 2 -- browsing tier |
 | a section 404s for everyone | 2 -- retired |
-| a post 404s for one viewer and loads for another | 1 (signed out), 4 (deleted or jailed), 8 (creator prefix), 9 (creator visibility) or 10 (signed out) |
-| an admin cannot see a jailed post | 4 and 5 -- switch `reveal_banished` on |
+| a post 404s for one viewer and loads for another | 1 (signed out), 4 (deleted or jailed), 8 (creator prefix), 9 (creator visibility), 10 (signed out) or 12 (a flagged tag: only admins see it) |
+| nobody, admins included, can see a jailed or banished post | 4 and 5 -- by design; moderate it in sampling's jail panel |
 | post listed, image replaced by a prompt | 1 -- gated, signed in below Gold |
-| a post is missing from a count as well as a page | 1, 4, 8 or 9 -- query level, not render level |
+| a post is missing from a count as well as a page | 1, 4, 5, 8, 9 or 12 -- query level, not render level |
 | a post is hidden in listings but its page opens | 5 -- the enforced blacklist or the viewer's own: browser filters, not server gates |
-| a post tagged `troll_jail` is live (not deleted) | 4 -- a jailing whose delete was refused; check the bot is at Approver (37) |
-| a tag exists on a post but nowhere in autocomplete | 5 (banished) or 8 (a hidden prefix such as `aichan_`) |
+| a post tagged `troll_jail` is live (not deleted) | 4 -- a jailing whose delete was refused (still hidden from every person); check the bot is at Approver (37), then `jail-apply.ts --booru-only` |
+| a tag exists on a post but nowhere in autocomplete | 5 (banished), 8 (a hidden prefix such as `aichan_`) or 12 (flagged, for anyone below Admin) |
+| a tag vanished, and its posts with it, for everyone but admins | 12 -- flagged for review; Release or Banish from the admin console's queue |
+| a banished tag needs to come back | 5 -- unbanish from sampling's jail panel; the booru has no surface for it |
 | a Discord post is invisible to everyone but admins | 8 -- `aichan_` is admins only |
 | a tag shows for one viewer and not another on the same post | 6 -- a creator-private tag: only the creator sees it |
 | an image on a published page loads, the same image on the booru does not | 11 -- the published page is its own grant |

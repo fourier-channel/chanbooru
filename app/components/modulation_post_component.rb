@@ -417,7 +417,22 @@ class ModulationPostComponent < ApplicationComponent
       # admins only, nil for everyone else, so no one below admin is told a
       # tag id or which names are flagged.
       quarantine: quarantine_payload,
+      # Which pills link to a tag search: nil for every one (a member), else
+      # the names a signed-out viewer may open a search for -- a featured
+      # creator's tag (MembersOnly.anonymous_post_listing). Every other pill
+      # is drawn as a label rather than a link that 404s (2026-10-13).
+      tag_links: tag_links,
     }
+  end
+
+  # @return [Array<String>, nil] see payload[:tag_links]. Asked of the viewer,
+  #   not the request (this builder is context-free): a non-member under the
+  #   default-deny is a signed-out viewer here.
+  def tag_links
+    return nil unless MembersOnly.default_deny? && !MembersOnly.member?(viewer)
+
+    featured = MembersOnly.anonymous_featured_tags
+    post.tag_array.select { |name| featured.include?(name) }
   end
 
   # @return [Hash, nil] tag_ids: {name => id} for this post's tags (one

@@ -59,6 +59,25 @@ body:has(.modgal) {
   *, *::before, *::after { box-sizing: border-box; }
 
   // --- search bar (primary control) --------------------------------------
+  // Signed out, the search bar's place holds one line on how to sign in.
+  .modgal-signin {
+    margin: 0;
+    padding-top: 1rem;
+    color: var(--mod-ink-dim);
+
+    a { color: var(--mod-accent); }
+  }
+
+  .modgal-signin-ui {
+    padding: 0 0.3em;
+    border: 1px solid var(--mod-line);
+    border-radius: 4px;
+    background: var(--mod-surface);
+    font-family: var(--mod-mono);
+    font-size: 0.88em;
+    white-space: nowrap;
+  }
+
   .modgal-search {
     display: flex;
     gap: 0.5rem;

@@ -248,7 +248,10 @@
     // the tag for review, or releases a flagged one, through PATCH
     // /tags/:id.json -- the tag's own route, the same verbs as its edit page.
     const flaggedSet = () => new Set(((cur && cur.quarantine) || {}).flagged || []);
-    const pillAnchor = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + (flaggedSet().has(t) ? " mod-pill--flagged" : "") + hypeOf(t) + '" data-tag="' + esc(t) + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot' + lampClass(t) + '"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
+    // tag_links: null = every pill links; else only the named ones do, and
+    // the rest are labels (a signed-out viewer's search would 404).
+    const linksTo = (t) => !(cur && cur.tag_links) || cur.tag_links.includes(t);
+    const pillAnchor = (t, b, dot, extra) => { const el = linksTo(t) ? "a" : "span"; return '<' + el + ' class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + (flaggedSet().has(t) ? " mod-pill--flagged" : "") + hypeOf(t) + '" data-tag="' + esc(t) + '"' + (el === "a" ? ' href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow"' : "") + '>' + (dot ? '<span class="mod-pill-dot' + lampClass(t) + '"></span>' : "") + esc(t.replace(/_/g, " ")) + "</" + el + ">"; };
     const lockButton = (t) => {
       const q = cur && cur.quarantine;
       if (!q || !(q.tag_ids || {})[t]) return "";

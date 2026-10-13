@@ -62,6 +62,24 @@ class ModulationGalleryComponent < ApplicationComponent
   #
   # Every other term survives, `order:` included, so the filter composes with
   # the search rather than replacing it.
+  # The search box, sort and board filter, offered only where they work. A
+  # signed-out viewer may list the newest posts and a featured creator's tag
+  # and nothing else (MembersOnly.anonymous_post_listing), and autocomplete is
+  # no door open to them, so every keystroke and click 404'd (2026-10-13: 123
+  # autocomplete 404s in a day). The rule stays; the controls do not show.
+  def searchable?
+    !(MembersOnly.default_deny? && MembersOnly.signed_out?(viewer, request))
+  end
+
+  # A tag pill's link, or nil for a plain label. A signed-out viewer may open
+  # a tag search only for a featured creator's tag (MembersOnly), so every
+  # other pill is drawn for them as a label rather than a link that 404s.
+  def tag_href(tag)
+    return routes.posts_path(tags: tag.name) if searchable?
+
+    routes.posts_path(tags: tag.name) if (@featured_tags ||= MembersOnly.anonymous_featured_tags).include?(tag.name)
+  end
+
   def board_href(board)
     rest = query_terms.reject { |t| BOARDS.any? { |b| b[:source] == t.downcase } }
     rest << board[:source] unless board_active?(board)

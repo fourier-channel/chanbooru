@@ -9,6 +9,7 @@
       controls rather than as a transplanted sidebar section. %>
   <%= render BlacklistComponent.new(user: viewer, inline: true) %>
 
+  <% if searchable? %>
   <%# Primary control: tag search ("sort by via tag search"). %>
   <form class="modgal-search" action="/posts" method="get" role="search">
     <input type="hidden" name="preset" value="modulation">
@@ -40,6 +41,11 @@
                   "aria-current": (board_active?(board) ? "true" : nil) %>
     <% end %>
   </nav>
+  <% else %>
+    <%# Signed out, the search box, sort and board filter would all be
+        refused (MembersOnly): one line saying how to sign in instead. %>
+    <p class="modgal-signin">Searching is for registered viewers: <%= link_to "sign in", routes.login_path(url: request.fullpath) %> through <span class="modgal-signin-ui">"Manage Session"</span>, <span class="modgal-signin-ui">"Booru: Log In"</span>.</p>
+  <% end %>
 
   <%# Facet tags for this search, in the post view's colour language -- here the
       grouping dimension is tag category. Unitag = one colour-coded frame;
@@ -60,8 +66,9 @@
             on both morphs into its new position while one that is only on one
             of them pops. A sanitised name would collide; the ID cannot. %>
         <% unitag_list.each do |tag, key| %>
-          <%= link_to posts_path(tags: tag.name), class: pill_classes(tag), rel: "nofollow", data: { tag: tag.name },
-                      style: "view-transition-name: tag-#{tag.id}; view-transition-class: modgal-tagpill" do %>
+          <% href = tag_href(tag) %>
+          <%= content_tag(href ? :a : :span, { href: href, class: pill_classes(tag), rel: ("nofollow" if href), data: { tag: tag.name },
+                      style: "view-transition-name: tag-#{tag.id}; view-transition-class: modgal-tagpill" }.compact) do %>
             <span class="<%= dot_classes(tag) %>" aria-hidden="true"></span><%= tag.name.tr("_", " ") %>
           <% end %>
         <% end %>
@@ -73,8 +80,9 @@
             <span class="mod-group-label"><%= key %></span>
             <div class="mod-group-pills">
               <% tags.each do |tag| %>
-                <%= link_to posts_path(tags: tag.name), class: pill_classes(tag), rel: "nofollow", data: { tag: tag.name },
-                            style: "view-transition-name: gtag-#{tag.id}; view-transition-class: modgal-tagpill" do %>
+                <% href = tag_href(tag) %>
+                <%= content_tag(href ? :a : :span, { href: href, class: pill_classes(tag), rel: ("nofollow" if href), data: { tag: tag.name },
+                            style: "view-transition-name: gtag-#{tag.id}; view-transition-class: modgal-tagpill" }.compact) do %>
                   <span class="<%= dot_classes(tag) %>" aria-hidden="true"></span><%= tag.name.tr("_", " ") %>
                 <% end %>
               <% end %>
