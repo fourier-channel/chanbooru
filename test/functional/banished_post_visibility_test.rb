@@ -45,10 +45,12 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
                    .find { |c| c[:key] == "new" }.to_h[:slides].to_a.pluck(:id)
   end
 
-  # The enforced rules the blacklist box is initialised with on this page.
-  def enforced_rules_on_page
+  # Every rule the blocklist engine is initialised with on this page. Since
+  # 2026-10-13 that is the viewer's own list and nothing else: the enforced
+  # list is gone, and the server's withholding is the gate.
+  def rules_on_page
     init = css_select("#blacklist-box").first&.attribute("x-init")&.value.to_s
-    JSON.parse(init[/blacklist\.initialize\(.*?,\s*(\[.*\])\)\z/m, 1] || "[]")
+    JSON.parse(init[/\Ablacklist\.initialize\((\[.*\]),/m, 1] || "[]").pluck("rule")
   end
 
   context "With the rule on" do
@@ -220,14 +222,14 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
       # 2026-10-12) -- not even censored behind a click in the blacklist
       # box, which every page sends to every viewer. Nothing is lost: no
       # post carrying one reaches anyone the box is drawn for.
-      should "never send a banished name in the enforced blacklist rules" do
+      should "never send a banished name, nor any rule the viewer did not write" do
         [@admin, @member].each do |user|
           get_auth posts_path, user, params: { tags: "landscape" }
 
           assert_response :success
-          assert_not_includes enforced_rules_on_page, "gore", user.level_string
+          assert_equal Blocklist.parse(user.blacklisted_tags).map(&:rule), rules_on_page, user.level_string
           assert_no_match(/\bgore\b/, response.body, user.level_string)
-          assert(enforced_rules_on_page.any? { |r| r.start_with?("arthropod ") }, "the conjunction rules stay")
+          assert_not(rules_on_page.any? { |r| r.start_with?("arthropod ") }, "the enforced conjunctions are gone")
         end
       end
     end
@@ -256,15 +258,13 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
         assert_not_includes search_ids(@admin, "status:deleted"), @jailed.id
       end
 
-      should "not be offered a reveal toggle, nor the banished names among the enforced rules" do
+      should "not be offered a reveal toggle, nor a banished name among the page's rules" do
         get_auth posts_path, @admin, params: { tags: "landscape" }
 
         assert_response :success
         assert_no_match(/Reveal banished/, response.body)
-        rules = enforced_rules_on_page
-        assert_not_includes rules, "gore"
-        # the conjunction rules are not banishment, and stay
-        assert(rules.any? { |r| r.start_with?("arthropod ") })
+        assert_not_includes rules_on_page, "gore"
+        assert_no_match(/\bgore\b/, response.body)
       end
 
       should "have no reveal setting to switch on" do

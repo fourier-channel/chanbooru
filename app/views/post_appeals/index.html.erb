@@ -2,7 +2,6 @@
   <div id="a-index">
     <h1>Appeals</h1>
     <%= render "search" %>
-    <%= render BlacklistComponent.new(user: CurrentUser.user, inline: true) %>
 
     <%= table_for @post_appeals, width: "100%" do |t| %>
       <% t.column "Post", width: "1%" do |post_appeal| %>

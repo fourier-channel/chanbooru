@@ -3,11 +3,8 @@
     way it was left. %>
 <section class="modgal" x-data="{ view: '<%= initial_view %>',
   setView(v) { this.view = v; fetch('/modulation/settings', { method: 'PATCH', credentials: 'same-origin', headers: { 'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content, 'Content-Type': 'application/json' }, body: JSON.stringify({ gallery_view: v }) }).catch(() => {}); } }">
-  <%# The blacklist control. Upstream puts it in the sidebar, which this gallery
-      hides -- so without it here the viewer's blacklist had no controls AND was
-      never initialised. Rendered inline so it reads as part of the search
-      controls rather than as a transplanted sidebar section. %>
-  <%= render BlacklistComponent.new(user: viewer, inline: true) %>
+  <%# The blocklist control and its engine live in the header (BlocklistComponent),
+      one per page, so the cards below are filtered without a box here. %>
 
   <% if searchable? %>
   <%# Primary control: tag search ("sort by via tag search"). %>

@@ -22,7 +22,7 @@ class SignedOutSearchBoxTest < ActionDispatch::IntegrationTest
       get posts_path(preset: "modulation")
 
       assert_response :success
-      assert_select "input[data-autocomplete='tag-query']", 0
+      assert_select ".modgal-search input[data-autocomplete='tag-query']", 0
       assert_select "select.modgal-sort", 0
       assert_select "nav.modgal-boards", 0
       assert_select ".modgal-signin a[href^='/login']", text: "sign in"
@@ -48,7 +48,7 @@ class SignedOutSearchBoxTest < ActionDispatch::IntegrationTest
       get_auth posts_path(preset: "modulation"), create(:user)
 
       assert_response :success
-      assert_select "input[data-autocomplete='tag-query']", 1
+      assert_select ".modgal-search input[data-autocomplete='tag-query']", 1
       assert_select "select.modgal-sort", 1
       assert_select "nav.modgal-boards", 1
       assert_select ".modgal-signin", 0

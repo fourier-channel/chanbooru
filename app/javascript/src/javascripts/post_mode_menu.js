@@ -6,6 +6,11 @@ let PostModeMenu = {};
 
 PostModeMenu.initialize = function() {
   if ($("#c-posts").length || $("#c-favorites").length || $("#c-pools").length) {
+    // Fork: the mode and the tag scripts live in this browser's storage. Where
+    // the browser blocks storage the menu is left out and posts open as plain
+    // links, rather than every listing page throwing on load.
+    try { localStorage.getItem("mode"); } catch { return; }
+
     this.initialize_selector();
     this.initialize_preview_link();
     this.initialize_edit_form();

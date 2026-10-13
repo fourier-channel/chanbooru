@@ -1,14 +1,18 @@
 <header id="top" class="md:space-y-0 mt-2" x-data="{ menuOpen: false }">
-  <div class="flex items-center justify-between mx-8 sm:mx-2 text-xxl">
+  <div class="relative flex items-center justify-between mx-8 sm:mx-2 text-xxl">
     <div id="app-name-header" class="inline-flex items-center gap-2">
       <%= link_to image_pack_tag("static/danbooru-logo-128x128.png", class: "h-9 hover:brightness-125"), main_app.root_path, id: "app-logo" %>
       <%= link_to Danbooru.config.app_name, main_app.root_path, id: "app-name", class: "font-header font-bold leading-none" %>
     </div>
 
-    <a class="mobile-only cursor-pointer" x-on:click="menuOpen = !menuOpen">
-      <%= menu_icon(class: "block w-6", "x-show": "!menuOpen") %>
-      <%= close_icon(class: "block w-6", "x-show": "menuOpen", "x-cloak": true) %>
-    </a>
+    <%# Fork: the blocklist control, in the same corner as on Modulation. %>
+    <div class="flex items-center gap-2">
+      <%= render BlocklistComponent.new(user: current_user) %>
+      <a class="mobile-only cursor-pointer" x-on:click="menuOpen = !menuOpen">
+        <%= menu_icon(class: "block w-6", "x-show": "!menuOpen") %>
+        <%= close_icon(class: "block w-6", "x-show": "menuOpen", "x-cloak": true) %>
+      </a>
+    </div>
   </div>
 
   <nav id="nav" class="desktop-only mt-2" x-bind:class="{ 'desktop-only': !menuOpen }">

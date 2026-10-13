@@ -29,8 +29,6 @@
       </section>
     <% end %>
 
-    <%= render BlacklistComponent.new(user: CurrentUser.user) %>
-
     <section id="tag-box">
       <h2>Tags</h2>
       <%= render SearchTagListComponent.new(tags: @post_set.sidebar_tags, current_query: params[:tags], search_params: { show_votes: params[:show_votes], size: params[:size] }) %>

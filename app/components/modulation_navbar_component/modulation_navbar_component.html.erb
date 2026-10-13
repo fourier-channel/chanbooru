@@ -105,7 +105,14 @@
         right for the refresh, the same two on every surface. Purge signs out of the booru and the
         gate's session on this host and clears what this site stored (ruling:
         this site only, signed out); it asks first, in place, never with a
-        browser popup. Behaviour: modulation_site_reset.js. %>
+        browser popup. Behaviour: modulation_site_reset.js.
+
+        THE BLOCKLIST IS JOINED TO IT on its left (operator, 2026-10-13:
+        "ubiquitous and located in the same place on every app, but not 'in the
+        way'"): the corner holds both, so the person's one filter sits in the
+        same place on every page. Its panel drops over the page from the bar. %>
+    <div class="modnav-corner">
+    <%= render BlocklistComponent.new(user: current_user) %>
     <div class="modnav-reset" role="group" aria-label="This browser's copy of the booru">
       <button type="button" class="modnav-reset-half" data-act="purge" aria-label="Purge"
               title="Purge: sign out of the booru and delete everything it stored in this browser">
@@ -126,6 +133,7 @@
           <button type="button" data-act="purge-cancel">Cancel</button>
         </div>
       </div>
+    </div>
     </div>
 
     <a class="modnav-burger mobile-only" x-on:click="menuOpen = !menuOpen" aria-label="Menu">

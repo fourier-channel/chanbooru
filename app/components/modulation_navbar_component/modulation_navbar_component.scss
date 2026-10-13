@@ -15,6 +15,7 @@
 // #top, and an id beats a class no matter what order they load in.
 #top.modnav {
   --modnav-col: 1180px;
+
   // The strip's open height, in one place: the strip animates to it and its
   // inner row is laid out at it, so the two must agree.
   --modnav-session-h: 2.2rem;
@@ -61,19 +62,29 @@
   }
 
   // --- hard refresh and purge -----------------------------------------------
-  // One rectangle, each half the option, pinned hard right by an auto margin
-  // (where the reload arrow it replaces stood). The purge question opens UNDER
+  // One rectangle, each half the option, pinned hard right with the
+  // blocklist trigger by .modnav-corner's auto margin (where the reload arrow
+  // it replaces stood). The purge question opens UNDER
   // it as an overlay -- never a browser popup, and never in the flow, so
   // nothing below moves.
+  // The corner: the blocklist trigger joined to the rectangle, pinned hard
+  // right as one unit. NOT positioned, so the blocklist panel resolves
+  // against .modnav-bar and can span the bar at phone width.
+  .modnav-corner {
+    margin-left: auto;
+    flex: none;
+    display: flex;
+    align-items: stretch;
+  }
+
   .modnav-reset {
     position: relative;
-    margin-left: auto;
     flex: none;
     display: inline-grid;
     grid-template-columns: auto auto;
     height: 30px;
     border: 1px solid var(--mod-line);
-    border-radius: var(--mod-radius-sm);
+    border-radius: 0 var(--mod-radius-sm) var(--mod-radius-sm) 0;
     background: var(--mod-surface-2);
   }
 
@@ -97,7 +108,7 @@
       width: 16px;
       height: 16px;
       fill: none;
-      stroke: currentColor;
+      stroke: currentcolor;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
@@ -382,6 +393,7 @@
     top: 100%;
     z-index: 39;
     height: 0;
+
     // Clipped WHILE MOVING so the line does not spill out of a half-open
     // strip, then released once it settles -- see .is-settled below, which is
     // what lets the lamps' tooltips escape the strip instead of being cut off
@@ -420,6 +432,7 @@
     margin: 0 auto;
     padding: 0 1rem;
     white-space: nowrap;
+
     // A last resort only. At full width the monitors fit; if a future one does
     // not, it scrolls here rather than being clipped invisibly.
     overflow-x: auto;
@@ -583,6 +596,7 @@
       background: var(--mod-warn-bg, #1c1a12);
       animation: modnav-session-call 1.6s ease-in-out 3;
     }
+
     &[data-state="alarm"] {
       color: var(--mod-alarm-ink, #ff8b84);
       border-color: var(--mod-alarm-fg, #ff5f56);
@@ -607,7 +621,7 @@
   // Below the column width there is no room to unfurl along the row, so the
   // group wraps to its own line and the panel opens to full width there. It is
   // still a width animation and still never displaces the page body.
-  @media (max-width: 900px) {
+  @media (width <= 900px) {
     .modnav-bar { flex-wrap: wrap; }
 
     // The strip is full width at every size, so it needs no narrow-screen
@@ -663,6 +677,7 @@
 
   .modnav-token-name { font-weight: 600; }
   .modnav-token-life { grid-column: 1; color: var(--mod-ink-dim); }
+
   .modnav-token-value {
     grid-column: 1;
     font-family: var(--mod-mono);
@@ -687,7 +702,7 @@
     color: var(--mod-ink-dim);
     cursor: pointer;
 
-    svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
+    svg { width: 14px; height: 14px; fill: none; stroke: currentcolor; stroke-width: 2; }
     &:disabled { opacity: 0.35; cursor: not-allowed; }
     &:not(:disabled):hover { color: var(--mod-ink); border-color: var(--mod-ink-dim); }
     &.is-lit { color: var(--mod-surface); background: var(--mod-ok-fg); border-color: var(--mod-ok-fg); }

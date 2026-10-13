@@ -12,8 +12,6 @@
   <%= f.submit "Search" %>
 <% end %>
 
-<%= render BlacklistComponent.new(user: CurrentUser.user, inline: true) %>
-
 <div id="p-index-by-comment" class="comments-for-post">
   <div class="list-of-comments list-of-messages">
     <% dtext_references = DText.preprocess(@comments.map(&:body)) %>

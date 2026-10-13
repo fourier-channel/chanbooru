@@ -7,7 +7,7 @@ require "test_helper"
 # Every signed-in post page builds the random preset, whichever mode the viewer
 # is in, and it rolled each neighbour with ORDER BY random() over the whole
 # search. On production data (2026-09-26, 361,780 visible posts) that is a
-# sequential scan evaluating the enforced blacklist -- sixteen
+# sequential scan evaluating the tag exclusions of the day -- sixteen
 # `NOT string_to_array(tag_string, ' ') @> '{tag}'` clauses -- against every
 # row: 44 seconds for one roll, EXPLAIN ANALYZE, and a fresh view rolls both
 # sides. Anonymous viewers get no presets, which is why their post pages

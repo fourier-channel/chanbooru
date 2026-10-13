@@ -84,6 +84,7 @@ en:
         uploader_id: "You"
       user:
         password_confirmation: ""
+        blacklisted_tags: "Blocklist"
       user/email_address:
         address: "Email address"
         normalized_address: "Email address"

@@ -140,7 +140,7 @@ module MembersOnly
     "modulation_session#status" => { formats: %i[json], why: "the Manage Session bar's monitors; reports only what the caller's own request proves" },
     "modulation_session#purge" => { formats: :any, why: "the purge rectangle, the server's half: expires this host's gate cookie and clears this origin's data" },
     "modulation_session#matrix_logout" => { formats: :any, why: "the session bar's sign-out, force-deleting the gate cookie on this host" },
-    "modulation_settings#update" => { formats: %i[json], why: "the session bar's open state and the front page's hero band, kept in the signed-out viewer's own session" },
+    "modulation_settings#update" => { formats: %i[json], why: "the session bar's open state and the front page's hero band, kept in the signed-out viewer's own session; and the header blocklist's edits, checked against the list the browser holds" },
     "static#keyboard_shortcuts" => { formats: %i[html], why: "the '?' key's shortcut sheet" },
 
     # --- the footer, and what machines ask for ---------------------------------

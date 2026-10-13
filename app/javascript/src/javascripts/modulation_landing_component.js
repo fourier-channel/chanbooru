@@ -1749,7 +1749,7 @@ function initLanding(root) {
   });
   const blacklistBox = document.querySelector("#blacklist-box");
   if (!blacklistBox) {
-    console.error("landing carousel: this page has no blacklist (#blacklist-box), so the carousel is not drawn -- render BlacklistComponent in ModulationLandingComponent");
+    console.error("landing carousel: this page has no blocklist engine (#blacklist-box), so the carousel is not drawn -- render BlocklistComponent in the page's header (ModulationNavbarComponent)");
   } else if (blacklistBox.blacklist) {
     start();
   }

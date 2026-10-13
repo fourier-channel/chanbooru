@@ -608,7 +608,8 @@ class ModulationPostComponent < ApplicationComponent
   #
   # A ROLL IS DANBOORU'S OWN Post.random -- a random md5, then the nearest
   # matching post along the md5 index -- never ORDER BY random() over the whole
-  # search. That sort evaluates the enforced blacklist against every visible
+  # search. That sort evaluated every tag exclusion the search carried (then
+  # including the since-removed enforced list) against every visible
   # post: 44 seconds for one roll on production data (2026-09-26), paid by
   # every signed-in post view whatever its mode. Every roll excludes what was
   # already rolled -- the trail passes its ids, and the trail-less branch

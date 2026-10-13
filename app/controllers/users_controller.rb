@@ -104,7 +104,10 @@ class UsersController < ApplicationController
 
   def update
     @user = authorize User.find(params[:id])
-    @user.update(permitted_attributes(@user))
+    # The :blocklist context is what refuses dropping a locked blocklist line
+    # from the settings page's text box (User#validate_blocklist_locks).
+    @user.assign_attributes(permitted_attributes(@user))
+    @user.save(context: [:update, :blocklist])
 
     respond_with(@user, notice: "Settings updated") do |format|
       format.html { redirect_back fallback_location: edit_user_path(@user) }

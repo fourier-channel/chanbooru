@@ -38,7 +38,7 @@
             <%= f.input :receive_email_notifications, as: :boolean, wrapper: "stacked-toggle-switch", hint: "Receive an email when you receive a new dmail." %>
             <%= f.input :time_zone, include_blank: false, hint: "The timezone to use for timestamps." %>
             <%= f.input :comment_threshold, hint: "Comments at or below this score will be hidden by default.", input_html: { min: -100, max: 5 } %>
-            <%= f.input :blacklisted_tags, hint: "Posts with these tags will be hidden. Put each tag on a separate line. <a href='/wiki_pages/help:blacklists'>View help.</a>".html_safe, :input_html => { :data => {:autocomplete => "tag-query"}} %>
+            <%= f.input :blacklisted_tags, hint: "Posts these blocks match are hidden on every page; the same list is the block icon beside the purge button in the header. One block per line: tags on one line hide only posts that have all of them, and a tag starting with - exempts. A line ending in #{Blocklist::LOCK_MARKER} is locked: delete #{Blocklist::LOCK_MARKER} and save before removing the line.", :input_html => { :data => {:autocomplete => "tag-query"}} %>
           </div>
 
           <%= f.button :submit, "Submit" %>

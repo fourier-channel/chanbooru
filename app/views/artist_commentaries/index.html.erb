@@ -12,8 +12,6 @@
       <%= f.submit "Search" %>
     <% end %>
 
-    <%= render BlacklistComponent.new(user: CurrentUser.user, inline: true) %>
-
     <%= table_for @commentaries, width: "100%" do |t| %>
       <% t.column "Post", width: "1%" do |commentary| %>
         <%= post_preview(commentary.post, show_deleted: true) %>

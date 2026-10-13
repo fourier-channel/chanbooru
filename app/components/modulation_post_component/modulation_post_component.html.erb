@@ -8,10 +8,8 @@
   data-payload="<%= payload.to_json %>"
   data-endpoint-base="/posts">
 
-  <%# The blacklist control. This view hides the upstream sidebar it normally
-      lives in, which left the blacklist with no controls and -- because the
-      rules are initialised by this component -- never applied at all. %>
-  <%= render BlacklistComponent.new(user: viewer, inline: true) %>
+  <%# The blocklist control and its engine live in the header
+      (BlocklistComponent), one per page; the stage below carries the marks. %>
 
   <header class="mod-meta">
     <div class="mod-meta-fields" data-region="meta"></div>

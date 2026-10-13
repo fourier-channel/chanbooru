@@ -1,0 +1,265 @@
+// The blocklist: the engine's marks, the header trigger, and the panel.
+//
+// THE PANEL DROPS OVER THE PAGE and never into it (no-forced-reflow law):
+// it is absolute against the header's row -- .modnav-bar in Modulation, the
+// top row in the historical header -- so opening it moves nothing below.
+// The row, not the trigger, is its containing block, so at phone width it
+// can span the screen instead of hanging off the trigger's edge.
+//
+// Colours: the historical theme's tokens by default, Modulation's --mod-*
+// tokens inside the Modulation header -- the same control under both presets.
+
+// What the engine sets on a blocked post. Hidden, always: there is no blur
+// and no switch to show a blocked post (operator, 2026-10-01).
+.blacklisted-hidden.blacklisted-hidden {
+  display: none;
+}
+
+// Hide posts until the engine has run, so a blocked image never paints
+// before the rules are applied. The Modulation views need this for the same
+// reason the upstream ones do.
+.post-preview:not(.blacklist-initialized),
+.image-container:not(.blacklist-initialized),
+.modgal-card:not(.blacklist-initialized) {
+  visibility: hidden;
+}
+
+#blacklist-box {
+  // The historical header's own theme; Modulation's tokens below. (The
+  // --mod-* tokens are defined site-wide, so a fallback chain would paint
+  // the historical header in Modulation's dark.)
+  --bl-line: var(--default-border-color);
+  --bl-line-strong: var(--default-border-color);
+  --bl-surface: var(--body-background-color);
+  --bl-surface-hover: var(--subnav-menu-background-color);
+  --bl-field: var(--form-input-background);
+  --bl-pill: var(--subnav-menu-background-color);
+  --bl-ink: var(--text-color);
+  --bl-ink-dim: var(--muted-text-color);
+  --bl-accent: var(--link-color);
+  --bl-alarm: var(--error-color);
+  --bl-shadow: 0 6px 18px rgb(0 0 0 / 25%);
+  --bl-radius: 4px;
+
+  display: flex;
+  font-size: 0.8rem;
+  line-height: 1.4;
+
+  // Under the id: the Modulation skin styles every button and input as
+  // body[data-preset="modulation"] button, which outranks a class.
+  .blocklist-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    height: 30px;
+    padding: 0 0.5rem 0 0.6rem;
+    border: 1px solid var(--bl-line);
+    border-radius: var(--bl-radius);
+    background: var(--bl-surface);
+    color: var(--bl-ink-dim);
+    font: inherit;
+    font-size: 0.76rem;
+    cursor: pointer;
+
+    &:hover, &[aria-expanded="true"] { color: var(--bl-ink); background: var(--bl-surface-hover); }
+    &:focus-visible { outline: 2px solid var(--bl-accent); outline-offset: -2px; }
+  }
+
+  .blocklist-icon {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  // Room for "99+" whether or not a count is showing.
+  .blocklist-count {
+    min-width: 3ch;
+    font-variant-numeric: tabular-nums;
+    text-align: left;
+    visibility: hidden;
+
+    &.is-shown { visibility: visible; }
+  }
+
+  .blocklist-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 60;
+    box-sizing: border-box;
+    width: min(24rem, 100%);
+    max-height: min(70vh, 32rem);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid var(--bl-line-strong);
+    border-radius: var(--bl-radius);
+    background: var(--bl-surface);
+    box-shadow: var(--bl-shadow);
+    color: var(--bl-ink);
+    text-align: left;
+
+    p { margin: 0; }
+  }
+
+  .blocklist-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .blocklist-title {
+    margin: 0;
+    color: inherit; // upstream themes colour every h2; this one is the panel's text
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  .blocklist-hidden, .blocklist-foot, .blocklist-empty {
+    color: var(--bl-ink-dim);
+    font-size: 0.74rem;
+  }
+
+  .blocklist-add {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .blocklist-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--bl-line-strong);
+    border-radius: var(--bl-radius);
+    background: var(--bl-field);
+    color: var(--bl-ink);
+    font: inherit;
+  }
+
+  .blocklist-block {
+    flex: none;
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--bl-line-strong);
+    border-radius: var(--bl-radius);
+    background: none;
+    color: var(--bl-ink);
+    font: inherit;
+    cursor: pointer;
+
+    &:hover { background: var(--bl-surface-hover); }
+  }
+
+  .blocklist-error {
+    color: var(--bl-alarm);
+    font-size: 0.76rem;
+  }
+
+  // Only the pills scroll, so the autocomplete menu above them is never clipped.
+  .blocklist-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+  }
+
+  .blocklist-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    max-width: 100%;
+    padding: 0.1rem 0.15rem 0.1rem 0.6rem;
+    border: 1px solid var(--bl-line-strong);
+    border-radius: 999px;
+    background: var(--bl-pill);
+
+    &.is-locked { border-color: var(--bl-accent); }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: none;
+      border-radius: 999px;
+      background: none;
+      color: var(--bl-ink-dim);
+      cursor: pointer;
+
+      &:hover { color: var(--bl-ink); background: var(--bl-surface-hover); }
+      &:focus-visible { outline: 2px solid var(--bl-accent); outline-offset: -2px; }
+    }
+
+    svg {
+      width: 14px;
+      height: 14px;
+      fill: none;
+      stroke: currentcolor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .blocklist-pill-lock[aria-pressed="true"] { color: var(--bl-accent); }
+  }
+
+  .blocklist-pill-rule {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .blocklist-pill-count {
+    padding: 0 0.3rem;
+    color: var(--bl-ink-dim);
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// --- in the Modulation header ---------------------------------------------
+// Joined to the purge/refresh rectangle on its left: same height and border,
+// one shared edge. The panel lines up with the corner because the bar's
+// padding is 1rem; at phone width it spans the bar with an 8px gutter.
+#top.modnav #blacklist-box {
+  --bl-line: var(--mod-line);
+  --bl-line-strong: var(--mod-line-strong);
+  --bl-surface: var(--mod-surface-2);
+  --bl-surface-hover: var(--mod-surface-3);
+  --bl-field: var(--mod-surface);
+  --bl-pill: var(--mod-surface);
+  --bl-ink: var(--mod-ink);
+  --bl-ink-dim: var(--mod-ink-dim);
+  --bl-accent: var(--mod-accent);
+  --bl-alarm: var(--mod-alarm-ink);
+  --bl-shadow: var(--mod-raise-lift);
+  --bl-radius: var(--mod-radius-sm);
+
+  .blocklist-trigger {
+    border-right: none;
+    border-radius: var(--bl-radius) 0 0 var(--bl-radius);
+  }
+
+  .blocklist-panel {
+    right: 1rem;
+    width: min(24rem, calc(100% - 2rem));
+  }
+
+  @media (width <= 480px) {
+    .blocklist-panel {
+      left: 8px;
+      right: 8px;
+      width: auto;
+    }
+  }
+}

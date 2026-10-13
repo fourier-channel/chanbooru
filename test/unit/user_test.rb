@@ -358,6 +358,52 @@ class UserTest < ActiveSupport::TestCase
         should_not allow_value("x" * 100_001).for(:blacklisted_tags)
         should_not allow_value((["x"] * 5_001).join("\n")).for(:blacklisted_tags)
         should_not allow_value((["x"] * 5_001).join(" ")).for(:blacklisted_tags)
+
+        should "name the field Blocklist in its errors" do
+          @user.blacklisted_tags = (["x"] * 5_001).join("\n")
+          @user.valid?
+          assert_includes(@user.errors.full_messages, "Blocklist can't have more than 5000 blocks")
+        end
+      end
+
+      # A locked block is removed only after a deliberate unlock: on the
+      # :blocklist context (the settings page, the header panel) a save that
+      # drops a line which was locked is refused, with the steps that work.
+      context "of blocklist locks" do
+        setup do
+          @user.update!(blacklisted_tags: "spider %locked\ncat")
+        end
+
+        should "refuse dropping a locked line, naming the unlock step" do
+          @user.blacklisted_tags = "cat"
+
+          assert_not @user.save(context: [:update, :blocklist])
+          assert_equal(["Blocklist can't drop 'spider': it is locked. To remove it, first delete %locked from the end of its line and save, then remove the line"], @user.errors.full_messages)
+          assert_equal("spider %locked\ncat", @user.reload.blacklisted_tags)
+        end
+
+        should "refuse dropping the line and its marker in one save" do
+          @user.blacklisted_tags = "cat\ndog"
+          assert_not @user.save(context: [:update, :blocklist])
+        end
+
+        should "allow unlocking first, then removing" do
+          @user.blacklisted_tags = "spider\ncat"
+          assert @user.save(context: [:update, :blocklist])
+          @user.blacklisted_tags = "cat"
+          assert @user.save(context: [:update, :blocklist])
+          assert_equal("cat", @user.reload.blacklisted_tags)
+        end
+
+        should "not bind outside the :blocklist context" do
+          @user.blacklisted_tags = ""
+          assert @user.save
+        end
+
+        should "keep the marker through a tag rename" do
+          User.rewrite_blacklists!("spider", "arachnid")
+          assert_equal([["arachnid", true], ["cat", false]], @user.reload.blocklist.map { |b| [b.rule, b.locked] })
+        end
       end
 
       context "of favorite tags" do

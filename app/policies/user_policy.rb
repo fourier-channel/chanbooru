@@ -125,6 +125,9 @@ class UserPolicy < ApplicationPolicy
         custom_style favorite_count statement_timeout favorite_group_limit
         tag_query_limit max_saved_searches theme
       ]
+      # The parsed blocklist, [{rule, locked}], for other apps to read from
+      # GET /profile.json (see Blocklist). Own record only, like the raw text.
+      attributes += %i[blocklist]
     end
 
     attributes += [:last_ip_addr] if policy(:ip_address).show?

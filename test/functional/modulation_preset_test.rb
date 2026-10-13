@@ -108,11 +108,12 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         assert_select ".modgal-card[data-tags][data-rating][data-uploader-id]", 1
       end
 
-      should "render the blacklist controls" do
+      should "render the blocklist control, in the header" do
         get_auth posts_path(preset: "modulation"), @user
 
         assert_response :success
         assert_select "#blacklist-box", 1
+        assert_select "header#top .modnav-corner #blacklist-box", 1
       end
     end
 
@@ -364,17 +365,21 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         assert_not_includes(response.parsed_body.css("li").pluck("data-autocomplete-value"), "gore")
       end
 
-      should "render the enforced rules censored, with no toggle" do
+      # The enforced list is gone (operator, 2026-10-13): server withholding
+      # is the gate, and the person's own blocklist is the only filter.
+      should "send no site-enforced rules to the page" do
         get posts_path(preset: "modulation")
 
         assert_response :success
-        assert_select ".blacklist-enforced .blacklist-censor", Danbooru.config.enforced_blacklist.size
-        assert_select ".blacklist-enforced input[type=checkbox]", 0
+        assert_select ".blacklist-enforced, .blacklist-censor", 0
+        init = css_select("#blacklist-box").first["x-init"]
+        assert_match(/\Ablacklist\.initialize\(\[\], \{/, init)
+        assert_raises(NoMethodError) { Danbooru.config.enforced_blacklist }
       end
 
-      should "start a new account's own blacklist empty" do
+      should "start a new account's own blocklist empty" do
         assert_equal("", User::DEFAULT_BLACKLIST)
-        assert_equal([], User.anonymous.blacklist_rules)
+        assert_equal([], User.anonymous.blocklist)
       end
     end
 

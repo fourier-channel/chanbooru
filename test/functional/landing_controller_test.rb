@@ -109,12 +109,14 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
         assert_equal Danbooru.config.creator_active_window.to_i, config["liveWindow"]
       end
 
-      # Blacklisted posts are never visible (operator, 2026-10-01); the carousel
-      # skips what the page's Blacklist marks, so the page must carry one.
-      should "carry the viewer's blacklist, hidden, for the carousel to obey" do
-        get_auth root_path, @user
+      # Blocked posts are never visible (operator, 2026-10-01); the carousel
+      # skips what the page's Blacklist engine marks, so the page must carry
+      # one -- the header's blocklist control, the same one on every page.
+      should "carry the viewer's blocklist, in the header, for the carousel to obey" do
+        get_auth root_path, @user, params: { preset: "modulation" }
 
-        assert_select ".modland-blacklist[hidden] #blacklist-box", 1
+        assert_select "header#top #blacklist-box", 1
+        assert_select ".modland-blacklist", 0
       end
 
       # Present but hidden: it must never be on screen until the reader has

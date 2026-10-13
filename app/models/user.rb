@@ -76,19 +76,13 @@ class User < ApplicationRecord
   # Personal preferences that are editable by the user, rather than internal flags. These will be cleared when the user deactivates their account.
   USER_PREFERENCE_BOOLEAN_ATTRIBUTES = ACTIVE_BOOLEAN_ATTRIBUTES - %w[is_banned requires_verification is_verified]
 
-  # The blacklist a logged-out visitor gets, and the default for a new account.
-  # User.anonymous is User.new, so this attribute default IS the anonymous
-  # blacklist. Changing it does NOT touch existing accounts: those hold their own
-  # stored value and only ever change it themselves.
-  #
-  # EMPTY since 2026-09-04 by operator ruling. Everything that used to seed it
-  # (the 2026-08-30 auto-jail vocabulary and upstream's guro/scat, minus the
-  # furry line dropped the same day) is now ENFORCED for every viewer via
-  # Danbooru.config.enforced_blacklist -- applied always, stored in no
-  # account, not disableable, rendered censored in the blacklist panel -- and
-  # the single-tag terms are additionally banished from every tag surface
-  # (see TagBanishment). A user's own blacklist starts empty and is entirely
-  # theirs.
+  # The blocklist a new account starts with (the column is upstream's
+  # blacklisted_tags; see Blocklist). EMPTY, and the person's own list is the
+  # only client-side filter there is (operator, 2026-10-13): the enforced
+  # list that used to ride along with it is gone, because server withholding
+  # (jail, banish, flag, creator prefix) is the gate. User.anonymous is
+  # User.new, so this is also the signed-out default, which the browser then
+  # fills from its own storage. Changing it never touches existing accounts.
   DEFAULT_BLACKLIST = ""
 
   # The number of backup codes to generate for a user.
@@ -151,6 +145,7 @@ class User < ApplicationRecord
   validates :level, exclusion: { in: [User::Levels::ANONYMOUS] }, if: :level_changed?
   validate :validate_enable_private_favorites, on: :update
   validate :validate_blacklisted_tags, if: :blacklisted_tags_changed?
+  validate :validate_blocklist_locks, on: :blocklist, if: :blacklisted_tags_changed?
   validate :validate_favorite_tags, if: :favorite_tags_changed?
   validate :validate_custom_css, if: :custom_style_changed?
 
@@ -286,11 +281,24 @@ class User < ApplicationRecord
 
     def validate_blacklisted_tags
       if blacklisted_tags.to_s.lines.size > MAX_BLACKLIST_RULES
-        errors.add(:blacklisted_tags, "can't have more than #{MAX_BLACKLIST_RULES} blacklist rules")
+        errors.add(:blacklisted_tags, "can't have more than #{MAX_BLACKLIST_RULES} blocks")
       end
 
       if blacklisted_tags.to_s.split.size > MAX_BLACKLIST_TAGS
-        errors.add(:blacklisted_tags, "can't have more than #{MAX_BLACKLIST_TAGS} blacklisted tags")
+        errors.add(:blacklisted_tags, "can't have more than #{MAX_BLACKLIST_TAGS} blocked tags")
+      end
+    end
+
+    # A locked block leaves the list only after a deliberate unlock: a save
+    # on the :blocklist context (the settings page, the header panel) that
+    # drops a line which was locked is refused. Removing the marker and the
+    # line in one save is refused too -- unlocking is its own step. Not run on
+    # other contexts, so resetting a deleted account and rewriting lists on a
+    # tag rename are unaffected.
+    def validate_blocklist_locks
+      kept = Blocklist.parse(blacklisted_tags).map(&:rule)
+      Blocklist.parse(blacklisted_tags_was).select(&:locked).reject { |block| kept.include?(block.rule) }.each do |block|
+        errors.add(:blacklisted_tags, "can't drop '#{block.rule}': it is locked. To remove it, first delete #{Blocklist::LOCK_MARKER} from the end of its line and save, then remove the line")
       end
     end
 
@@ -683,9 +691,11 @@ class User < ApplicationRecord
       blacklisted_tags.gsub!(/(?:^| )([-~])?#{Regexp.escape(old_name)}(?: |$)/i) { " #{$1}#{new_name} " }
     end
 
-    # @return [Array<String>] The list of blacklist rules. Each line in the blacklist is a rule.
-    def blacklist_rules
-      blacklisted_tags.to_s.downcase.gsub(/(rating:\w)\w+/, '\1').lines.map(&:strip).compact_blank
+    # @return [Array<Blocklist::Block>] The blocklist, one block per line,
+    #   with each block's lock. Also an API attribute of the person's own
+    #   record (UserPolicy#api_attributes), which is how other apps read it.
+    def blocklist
+      Blocklist.parse(blacklisted_tags)
     end
   end
 

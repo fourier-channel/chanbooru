@@ -9,6 +9,9 @@ class UserDeletionTest < ActiveSupport::TestCase
     @request.stubs(:query_parameters).returns({})
     @request.stubs(:delete).with(:user_id).returns(nil)
     @request.stubs(:delete).with(:last_authenticatd_at).returns(nil)
+    # SessionLoader#logout issues a fresh session (162102359); the mock request
+    # never learned it, so every valid deletion here failed on the call.
+    @request.stubs(:reset_session).returns(nil)
   end
 
   context "an invalid user deletion" do
@@ -69,6 +72,14 @@ class UserDeletionTest < ActiveSupport::TestCase
       @inactive_login_session = create(:login_session, user: @user, status: :logged_out)
       @request.session[:login_id] = @login_session.login_id
       @deletion = UserDeletion.new(user: @user, password: "password", request: @request)
+    end
+
+    # A lock guards against an accidental removal, not against deleting the
+    # account: the reset runs outside the :blocklist validation context.
+    should "clear a blocklist that holds locked blocks" do
+      @user.update!(blacklisted_tags: "spider %locked\ncat")
+      perform_enqueued_jobs { @deletion.delete! }
+      assert_equal("", @user.reload.blacklisted_tags)
     end
 
     should "blank out the email" do
