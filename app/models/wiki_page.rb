@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 class WikiPage < ApplicationRecord
+  # The quarantine's name half (NamesTags, TagQuarantine): rows naming a
+  # flagged or banished tag are withheld from the viewers its name is.
+  prepend NamesTags
+
+  names_tags(->(names) { { title: names } }) { |page| [page.title] }
+
   class RevertError < StandardError; end
 
   META_WIKIS = ["list_of_", "tag_group:", "pool_group:", "howto:", "about:", "help:", "template:", "api:"]

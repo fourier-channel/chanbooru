@@ -2725,6 +2725,46 @@ ALTER SEQUENCE public.tag_implications_id_seq OWNED BY public.tag_implications.i
 
 
 --
+-- Name: tag_quarantines; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tag_quarantines (
+    id bigint NOT NULL,
+    tag_id bigint NOT NULL,
+    state character varying NOT NULL,
+    flagged_by_id bigint,
+    flagged_at timestamp(6) without time zone,
+    banished_by_id bigint,
+    banished_at timestamp(6) without time zone,
+    note text DEFAULT ''::text NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT tag_quarantines_banished_has_a_time CHECK ((((state)::text <> 'banished'::text) OR (banished_at IS NOT NULL))),
+    CONSTRAINT tag_quarantines_flagged_has_a_time CHECK ((((state)::text <> 'flagged'::text) OR (flagged_at IS NOT NULL))),
+    CONSTRAINT tag_quarantines_state CHECK (((state)::text = ANY ((ARRAY['flagged'::character varying, 'banished'::character varying])::text[])))
+);
+
+
+--
+-- Name: tag_quarantines_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.tag_quarantines_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: tag_quarantines_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.tag_quarantines_id_seq OWNED BY public.tag_quarantines.id;
+
+
+--
 -- Name: tag_versions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3912,6 +3952,13 @@ ALTER TABLE ONLY public.tag_implications ALTER COLUMN id SET DEFAULT nextval('pu
 
 
 --
+-- Name: tag_quarantines id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_quarantines ALTER COLUMN id SET DEFAULT nextval('public.tag_quarantines_id_seq'::regclass);
+
+
+--
 -- Name: tag_versions id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -4576,6 +4623,14 @@ ALTER TABLE ONLY public.tag_grants
 
 ALTER TABLE ONLY public.tag_implications
     ADD CONSTRAINT tag_implications_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tag_quarantines tag_quarantines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_quarantines
+    ADD CONSTRAINT tag_quarantines_pkey PRIMARY KEY (id);
 
 
 --
@@ -7211,6 +7266,27 @@ CREATE INDEX index_tag_implications_on_forum_post_id ON public.tag_implications 
 
 
 --
+-- Name: index_tag_quarantines_on_banished_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_tag_quarantines_on_banished_by_id ON public.tag_quarantines USING btree (banished_by_id);
+
+
+--
+-- Name: index_tag_quarantines_on_flagged_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_tag_quarantines_on_flagged_by_id ON public.tag_quarantines USING btree (flagged_by_id);
+
+
+--
+-- Name: index_tag_quarantines_on_tag_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_tag_quarantines_on_tag_id ON public.tag_quarantines USING btree (tag_id);
+
+
+--
 -- Name: index_tag_versions_on_category; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7870,6 +7946,14 @@ ALTER TABLE ONLY public.comment_votes
 
 
 --
+-- Name: tag_quarantines fk_rails_0c6511f43c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_quarantines
+    ADD CONSTRAINT fk_rails_0c6511f43c FOREIGN KEY (flagged_by_id) REFERENCES public.users(id);
+
+
+--
 -- Name: upload_media_assets fk_rails_171271f781; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8147,6 +8231,14 @@ ALTER TABLE ONLY public.user_events
 
 ALTER TABLE ONLY public.forum_post_votes
     ADD CONSTRAINT fk_rails_43fb736f24 FOREIGN KEY (creator_id) REFERENCES public.users(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: tag_quarantines fk_rails_4610b7f979; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_quarantines
+    ADD CONSTRAINT fk_rails_4610b7f979 FOREIGN KEY (tag_id) REFERENCES public.tags(id);
 
 
 --
@@ -8806,6 +8898,14 @@ ALTER TABLE ONLY public.fourier_tag_sources
 
 
 --
+-- Name: tag_quarantines fk_rails_fc92d44f8a; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_quarantines
+    ADD CONSTRAINT fk_rails_fc92d44f8a FOREIGN KEY (banished_by_id) REFERENCES public.users(id);
+
+
+--
 -- Name: creator_user_rules fk_rails_fd8dffc39d; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8820,6 +8920,8 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261012120100'),
+('20261012120000'),
 ('20261012000000'),
 ('20261011100000'),
 ('20261011000000'),

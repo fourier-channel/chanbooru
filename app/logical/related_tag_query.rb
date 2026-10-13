@@ -112,7 +112,7 @@ class RelatedTagQuery
     tags = tags.group_by(&:itself).transform_values(&:size).sort_by { |tag, count| [-count, tag] }.map(&:first)
     tags = tags.take(max_tags)
     tags = Tag.nonempty.undeprecated.named_or_aliased_in_order(tags)
-    tags
+    without_hidden_names(tags)
   end
 
   def favorite_tags
@@ -123,7 +123,7 @@ class RelatedTagQuery
     tags = tag_names.map { |name| names_to_tags[name] || Tag.new(name: name).freeze }
     tags = tags.reject(&:is_deprecated?).reject { |tag| tag.empty? && !tag.metatag? }
 
-    tags
+    without_hidden_names(tags)
   end
 
   # The list of tags mentioned in the wiki page of the queried tag. General tags aren't included when looking up characters.

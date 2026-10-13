@@ -123,12 +123,13 @@ class ModulationGalleryComponent < ApplicationComponent
     routes.post_path(post, q: query_string.presence)
   end
 
-  # The facet tags this viewer may be shown: banished names withheld unless
-  # the admin reveal toggle is on. See TagBanishment.
+  # The facet tags this viewer may be shown: banished names withheld from
+  # all but the pipeline. See TagBanishment.
   def visible_sidebar_tags
     @visible_sidebar_tags ||= begin
       tags = post_set.sidebar_tags
-      TagBanishment.revealed_to?(viewer) ? tags : tags.reject { |t| TagBanishment.banished?(t.name) }
+      shown = TagBanishment.filter(tags.map(&:name), viewer).to_set
+      tags.select { |t| shown.include?(t.name) }
     end
   end
 

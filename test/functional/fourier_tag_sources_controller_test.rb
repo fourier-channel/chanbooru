@@ -316,4 +316,35 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       assert_match(/post_id/, response.parsed_body["error"])
     end
   end
+
+  # FLAGGED-TAG QUARANTINE (operator rulings 2026-10-12): a posting bot keeps
+  # reading and writing its own flagged post; another account's answers as a
+  # missing one; the projection never carries the flagged name.
+  context "a post carrying a flagged tag" do
+    setup do
+      @tunnel = create(:contributor_user, name: "tunnel")
+      @sample = create(:approver_user, name: "sample")
+      @post = as(@tunnel) { create(:post, uploader: @tunnel, md5: SecureRandom.hex(16), tag_string: "a secret_(thing)") }
+      TagQuarantine.create!(tag: Tag.find_by_name("secret_(thing)"), state: "flagged", flagged_at: Time.zone.now)
+    end
+
+    should "answer its uploader, without the flagged name in the projection" do
+      post_auth "/posts/#{@post.id}/tag_sources.json", @tunnel, as: :json, params: { auto: %w[a secret_(thing)] }
+      assert_response :success
+      assert_equal ["a"], response.parsed_body.dig("projection", "tags")
+
+      get_auth "/posts/#{@post.id}/tag_sources.json", @tunnel, params: { scope: "public" }
+      assert_response :success
+      assert_equal ["a"], response.parsed_body["tags"]
+    end
+
+    should "answer another bot 404 for a read and a write, and count it missing for models" do
+      post_auth "/posts/#{@post.id}/tag_sources.json", @sample, as: :json, params: { auto: %w[a] }
+      assert_response 404
+      get_auth "/posts/#{@post.id}/tag_sources.json", @sample, params: { scope: "public" }
+      assert_response 404
+      post_auth fourier_tag_source_models_path(format: :json), @sample, as: :json, params: { posts: [{ post_id: @post.id, hydra: %w[a] }] }
+      assert_equal [@post.id], response.parsed_body["missing_posts"]
+    end
+  end
 end

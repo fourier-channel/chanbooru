@@ -646,6 +646,30 @@ body:has(.modulation) {
   }
   .mod-tagrow > .mod-pill { min-width: 0; }
 
+  // The review quarantine's lock (TagQuarantine), admins only: the same
+  // chrome as the remove control; lit while the tag is flagged.
+  .mod-tagrow-lock {
+    appearance: none;
+    font: inherit;
+    font-size: 0.7rem;
+    line-height: 1;
+    padding: 0.1rem 0.25rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--mod-ink-dim);
+    cursor: pointer;
+    flex: none;
+    opacity: 0.6;
+
+    &.is-on { opacity: 1; }
+    &:hover, &:focus-visible { opacity: 1; background: color-mix(in srgb, var(--mod-ink-dim) 14%, transparent); }
+  }
+
+  // A flagged pill, for the admins who still see it: struck through, so a
+  // tag that is hidden from everyone else never reads as an ordinary one.
+  .mod-pill--flagged { text-decoration: line-through; }
+
   .mod-tagrow-x {
     appearance: none;
     font: inherit;

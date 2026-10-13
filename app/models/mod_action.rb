@@ -40,7 +40,17 @@ class ModAction < ApplicationRecord
     creator_user_rule_update
     creator_hidden_post_view
     creator_group_update
+    tag_flag
+    tag_flag_release
+    tag_banish
+    tag_unbanish
   ].freeze
+
+  # The flagged-tag review queue's decisions (TagQuarantine), and the jail
+  # panel's unbanish. A row about a tag that is banished NOW is shown to
+  # nobody but the pipeline -- an admin never sees a banished name, not even
+  # in an old flag or unbanish row (see .visible); once unbanished, they show.
+  TAG_QUARANTINE_CATEGORIES = %i[tag_flag tag_flag_release tag_banish tag_unbanish].freeze
 
   dtext_attribute :description, inline: true # defines :dtext_description
 
@@ -166,6 +176,13 @@ class ModAction < ApplicationRecord
     character_claim_reject: 1117,
     character_claim_release: 1118,
     character_claim_hold: 1119,
+    # The flagged-tag review queue (TagQuarantine, operator rulings
+    # 2026-10-12), subject the Tag, admins only: a flag, a release back to
+    # normal, and a banish -- whose row never names the tag.
+    tag_flag: 1120,
+    tag_flag_release: 1121,
+    tag_banish: 1122,
+    tag_unbanish: 1123,
   }
 
   normalizes :category, with: ->(category) { category.to_s.parameterize.underscore.presence }
@@ -175,8 +192,14 @@ class ModAction < ApplicationRecord
   end
 
   def self.visible(user)
-    if user.is_admin?
-      all
+    if TagBanishment.pipeline?(user)
+      user.is_admin? ? all : where.not(category: MOD_ONLY_CATEGORIES + ADMIN_ONLY_CATEGORIES)
+    elsif user.is_admin?
+      ids = TAG_QUARANTINE_CATEGORIES.map { |category| categories.fetch(category.to_s) }
+      where.not(sanitize_sql_array([<<~SQL.squish, { categories: ids }]))
+        mod_actions.category IN (:categories) AND mod_actions.subject_type = 'Tag'
+        AND mod_actions.subject_id IN (SELECT tag_id FROM tag_quarantines WHERE state = 'banished')
+      SQL
     elsif user.is_moderator?
       where.not(category: ADMIN_ONLY_CATEGORIES)
     else
@@ -188,16 +211,35 @@ class ModAction < ApplicationRecord
   # shown -- "deleted post #N, reason: troll jail: shock" names the post and
   # why it went. The ApplicationRecord rule keys on belongs_to :post; a mod
   # action names its post through the polymorphic subject instead.
+  #
+  # And one whose subject is a tag, alias, implication or artist entry
+  # (an artist claim's decision) naming a tag the
+  # viewer may not be shown (TagQuarantine: flagged below admin, banished to
+  # all but the pipeline) -- "deprecated tag [[secret_(thing)]]" names it as
+  # plainly as the tag index would.
   def self.without_hidden_posts(user)
+    relation = all
     hidden = Post.hidden_from(user)
-    return all if hidden.nil?
-
     # Correlated, for the reason ApplicationRecord.without_hidden_posts gives.
-    where.not(hidden.where(Post.arel_table[:id].eq(arel_table[:subject_id])).where(arel_table[:subject_type].eq("Post")).arel.exists)
+    relation = relation.where.not(hidden.where(Post.arel_table[:id].eq(arel_table[:subject_id])).where(arel_table[:subject_type].eq("Post")).arel.exists) unless hidden.nil?
+
+    names = TagQuarantine.hidden_names_for(user)
+    return relation if names.empty?
+
+    relation.where.not(sanitize_sql_array([<<~SQL.squish, { names: names }]))
+      (COALESCE(mod_actions.subject_type, '') = 'Tag' AND COALESCE(mod_actions.subject_id, 0) IN (SELECT id FROM tags WHERE name IN (:names)))
+      OR (COALESCE(mod_actions.subject_type, '') = 'TagAlias' AND COALESCE(mod_actions.subject_id, 0) IN (SELECT id FROM tag_aliases WHERE antecedent_name IN (:names) OR consequent_name IN (:names)))
+      OR (COALESCE(mod_actions.subject_type, '') = 'TagImplication' AND COALESCE(mod_actions.subject_id, 0) IN (SELECT id FROM tag_implications WHERE antecedent_name IN (:names) OR consequent_name IN (:names)))
+      OR (COALESCE(mod_actions.subject_type, '') = 'Artist' AND COALESCE(mod_actions.subject_id, 0) IN (SELECT id FROM artists WHERE name IN (:names)))
+    SQL
   end
 
   def hidden_by_post_from?(user)
-    subject_type == "Post" && subject.present? && subject.hidden_from?(user)
+    case subject_type
+    when "Post" then subject.present? && subject.hidden_from?(user)
+    when "Tag", "TagAlias", "TagImplication", "Artist" then subject.present? && subject.hidden_by_post_from?(user)
+    else false
+    end
   end
 
   def self.search(params, current_user)

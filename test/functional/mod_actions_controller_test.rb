@@ -100,5 +100,23 @@ class ModActionsControllerTest < ActionDispatch::IntegrationTest
         assert_redirected_to mod_actions_path(search: { id: mod_action.id })
       end
     end
+
+    # A mod log row whose subject names a quarantined tag (TagQuarantine) is
+    # withheld from the viewers the name is: "deprecated [[secret]]" names it.
+    context "a row about a flagged tag" do
+      should "be listed for an admin and not for a member or a moderator" do
+        admin = create(:admin_user)
+        tag = create(:tag, name: "subject_secret")
+        row = create(:mod_action, category: "tag_deprecate", description: "deprecated [[subject_secret]]", subject: tag, creator: admin)
+        TagQuarantine.flag!(tag, by: admin)
+
+        [create(:user), create(:moderator_user)].each do |user|
+          get_auth mod_actions_path(format: :json), user
+          assert_not_includes response.parsed_body.pluck("id"), row.id, user.level_string
+        end
+        get_auth mod_actions_path(format: :json), admin
+        assert_includes response.parsed_body.pluck("id"), row.id
+      end
+    end
   end
 end

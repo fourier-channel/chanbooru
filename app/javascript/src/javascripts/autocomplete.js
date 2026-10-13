@@ -360,6 +360,7 @@ export default class Autocomplete {
       "search[type]": type,
       "version": Autocomplete.VERSION,
       "limit": limit,
+      "tv": Autocomplete.tagVisibility(),
     });
 
     let items = $(html).find("li").toArray().map(item => {
@@ -368,6 +369,12 @@ export default class Autocomplete {
     });
 
     return items;
+  }
+
+  // The quarantine generation the page was rendered with (meta tag-visibility):
+  // a flagged or banished name flip changes it, and with it the cache key.
+  static tagVisibility() {
+    return $("meta[name=tag-visibility]").attr("content") || "";
   }
 
   static tagPrefixes() {

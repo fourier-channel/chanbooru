@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 class WikiPageVersion < ApplicationRecord
+  # The quarantine's name half (NamesTags, TagQuarantine): rows naming a
+  # flagged or banished tag are withheld from the viewers its name is.
+  prepend NamesTags
+
+  names_tags(->(names) { ["wiki_page_versions.title IN (:names) OR wiki_page_versions.wiki_page_id IN (SELECT id FROM wiki_pages WHERE title IN (:names))", { names: names }] }) { |version| [version.title, version.wiki_page&.title] }
+
   array_attribute :other_names
   dtext_attribute :body, media_embeds: true # defines :dtext_body
 

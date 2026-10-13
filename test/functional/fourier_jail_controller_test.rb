@@ -13,12 +13,32 @@ require "test_helper"
 # the md5 search hides deleted posts below ADMIN, and undeleting is approving,
 # which refuses the bot's own uploads.
 class FourierJailControllerTest < ActionDispatch::IntegrationTest
+  include TagQuarantineTestHelper
+
   JAIL_TAG = "troll_jail"
+
+  # The banished list is rows since 2026-10-12 (TagQuarantine).
+  setup do
+    banish_tags!("gore")
+  end
 
   # An md5 that is actually md5-shaped. The post factory uses
   # SecureRandom.hex(32), which is SIXTY-FOUR hex characters.
   def real_md5
     SecureRandom.hex(16)
+  end
+
+  def quarantine_doc(user, **params)
+    get_auth fourier_jail_release_path(format: :json), user, params: { quarantine: 1, **params }
+    response.parsed_body
+  end
+
+  # The jail panel's unbanish, as `caller`, of "gore" by default.
+  def unbanish(caller = @sample, **params)
+    post_auth fourier_jail_release_path(format: :json), caller, params: { unbanish: "gore", by: "@saber:41chan.net", **params }
+    # The test keeps its own per-request memo across the request; a real
+    # request starts with none.
+    CreatorVisibility.forget!
   end
 
   # A post jailed the way sampling's jailSync jails one: the tag, then DELETE
@@ -379,6 +399,210 @@ class FourierJailControllerTest < ActionDispatch::IntegrationTest
         get_auth fourier_jail_release_path(format: :json), caller
         assert_response 403
       end
+    end
+  end
+
+  # THE QUARANTINE DOCUMENT (FLAGGED-TAG QUARANTINE, operator rulings
+  # 2026-10-12): GET /fourier_jail/release.json?quarantine=1, the one place
+  # fourier-auth, fourier-sampling and fourier-tunnel learn which posts carry
+  # a flagged or banished tag. A new mode of the existing route.
+  context "the quarantine document" do
+    setup do
+      @sample = create(:approver_user, name: "sample")
+      @tunnel = create(:approver_user, name: "tunnel")
+      # Above Member: a reader on the list at Member level is refused (below).
+      @gate = create(:gold_user, name: "gate")
+      @admin = create(:admin_user)
+      uploader = create(:user)
+      @flagged = as(uploader) { create(:post, md5: real_md5, tag_string: "landscape secret_(thing)", source: "mxc://41chan.net/flagged1", uploader: uploader) }
+      @banished = as(uploader) { create(:post, md5: real_md5, tag_string: "landscape banned_thing", uploader: uploader) }
+      @plain = as(uploader) { create(:post, md5: real_md5, tag_string: "landscape", uploader: uploader) }
+      @jail_only = as(uploader) { create(:post, md5: real_md5, tag_string: "landscape #{JAIL_TAG}", uploader: uploader) }
+      flag_tags!("secret_(thing)")
+      banish_tags!("banned_thing")
+    end
+
+    should "list every post carrying a flagged or banished name, with md5 and mxc" do
+      body = quarantine_doc(@tunnel)
+
+      assert_response :success
+      assert_equal [@flagged.id, @banished.id, @jail_only.id], body["posts"].pluck("id")
+      assert_equal({ "id" => @flagged.id, "md5" => @flagged.md5, "mxc" => "mxc://41chan.net/flagged1", "flagged" => true, "banished" => false, "jailed" => false }, body["posts"].first)
+      assert_nil body["posts"].second["mxc"]
+      assert_match(/\A\h{16}\z/, body["generation"])
+      assert_nil body["next_after"]
+    end
+
+    # Session ruling 2026-10-12, from "jailed means deleted" and "shown
+    # nowhere": the Matrix door served jailed Matrix media because the
+    # document left these out.
+    should "include posts that carry only the jail tag, so every door refuses jailed media too" do
+      jailed = quarantine_doc(@sample)["posts"].find { |row| row["id"] == @jail_only.id }
+      assert_equal({ "id" => @jail_only.id, "md5" => @jail_only.md5, "mxc" => nil, "flagged" => false, "banished" => false, "jailed" => true }, jailed)
+    end
+
+    should "give the names to the pipeline, and posts alone to gate" do
+      pipeline = quarantine_doc(@sample)
+      assert_equal ["secret_(thing)"], pipeline["flagged"]
+      assert_equal %w[banned_thing gore], pipeline["banished"]
+
+      gate = quarantine_doc(@gate)
+      assert_response :success
+      assert_nil gate["flagged"]
+      assert_nil gate["banished"]
+      assert_equal pipeline["posts"], gate["posts"]
+      assert_equal pipeline["generation"], gate["generation"]
+    end
+
+    should "answer 304 to a matching If-None-Match, one ETag per kind of reader" do
+      quarantine_doc(@gate)
+      etag = response.headers["ETag"]
+      assert_match(/\A"\h{16}-p"\z/, etag)
+
+      get_auth fourier_jail_release_path(format: :json), @gate, params: { quarantine: 1 }, headers: { "If-None-Match" => etag }
+      assert_response 304
+      assert_empty response.body
+
+      quarantine_doc(@tunnel)
+      assert_match(/-n"\z/, response.headers["ETag"])
+    end
+
+    should "move its generation when a post gains a flagged tag, and when the flag is released" do
+      before = quarantine_doc(@tunnel)["generation"]
+      as(@admin) { @plain.update!(tag_string: "landscape secret_(thing)") }
+      gained = quarantine_doc(@tunnel)
+      assert_not_equal before, gained["generation"]
+      assert_includes gained["posts"].pluck("id"), @plain.id
+
+      TagQuarantine.flagged.destroy_all
+      released = quarantine_doc(@tunnel)
+      assert_equal [@banished.id, @jail_only.id], released["posts"].pluck("id")
+    end
+
+    should "page by post id" do
+      stub_const(TagQuarantine, :DOCUMENT_PAGE_SIZE, 1) do
+        first = quarantine_doc(@tunnel)
+        assert_equal [@flagged.id], first["posts"].pluck("id")
+        assert_equal @flagged.id, first["next_after"]
+
+        second = quarantine_doc(@tunnel, after: first["next_after"])
+        assert_equal [@banished.id], second["posts"].pluck("id")
+        assert_equal @banished.id, second["next_after"]
+
+        third = quarantine_doc(@tunnel, after: second["next_after"])
+        assert_equal [@jail_only.id], third["posts"].pluck("id")
+        assert_nil third["next_after"]
+        assert_equal first["generation"], third["generation"]
+      end
+    end
+
+    should "refuse every other account with 403, naming the setting" do
+      [@admin, create(:approver_user), create(:moderator_user)].each do |caller|
+        get_auth fourier_jail_release_path(format: :json), caller, params: { quarantine: 1 }
+        assert_response 403
+        assert_match(/fourier_quarantine_reader_names/, response.body)
+      end
+    end
+
+    should "refuse a signed-out caller" do
+      get fourier_jail_release_path(format: :json), params: { quarantine: 1 }
+      assert_response 403
+    end
+
+    # The list trusts names, so whoever registers "gate" before the real
+    # account exists would read every quarantined md5. A reader must also be
+    # above Member: a fresh registration is Member, and only an admin raises
+    # an account past it.
+    should "refuse a listed name at Member level, naming the promotion that fixes it" do
+      squatter = @gate
+      squatter.update!(level: User::Levels::MEMBER)
+      get_auth fourier_jail_release_path(format: :json), squatter, params: { quarantine: 1 }
+
+      assert_response 403
+      assert_match(/above Member/, response.body)
+      assert_match(%r{/admin/users/#{squatter.id}/edit}, response.body)
+    end
+
+    should "leave the jail events feed as it was for the jail panel" do
+      get_auth fourier_jail_release_path(format: :json), @sample
+      assert_response :success
+      assert response.parsed_body.key?("events")
+      get_auth fourier_jail_release_path(format: :json), @tunnel
+      assert_response 403
+    end
+  end
+
+  # UNBANISH (operator ruling 2026-10-12): the jail panel lists the booru's
+  # banished tags and can take one off the list, through the jail panel's
+  # door. It records the panel user who pressed it, logs a mod action, and
+  # releases no jailed post.
+  context "unbanishing from the jail panel" do
+    setup do
+      @sample = create(:approver_user, name: "sample")
+      @admin = create(:admin_user)
+      # Jailed by the booru's banished-tag failsafe as it is created.
+      @jailed = create(:post, uploader: @sample, md5: real_md5, tag_string: "landscape gore").reload
+      assert(@jailed.is_deleted && @jailed.has_tag?(JAIL_TAG), "the failsafe should have jailed the fixture")
+    end
+
+    should "take the tag off the banished list, naming the panel user in the mod log" do
+      unbanish
+
+      assert_response :success
+      assert_equal({ "unbanished" => true, "tag" => "gore" }, response.parsed_body)
+      assert_not TagBanishment.banished?("gore")
+      assert_not TagQuarantine.joins(:tag).exists?(tags: { name: "gore" })
+      log = ModAction.where(category: :tag_unbanish).sole
+      assert_equal @sample, log.creator
+      assert_equal "Tag", log.subject_type
+      assert_includes log.description, "gore"
+      assert_includes log.description, "@saber:41chan.net"
+    end
+
+    should "release no jailed post" do
+      unbanish
+
+      assert_equal(true, @jailed.reload.is_deleted)
+      assert(@jailed.has_tag?(JAIL_TAG))
+    end
+
+    should "show the row to admins only while the tag is not banished" do
+      unbanish
+      log = ModAction.where(category: :tag_unbanish).sole
+      assert_includes ModAction.visible(@admin).without_hidden_posts(@admin), log
+      assert_not_includes ModAction.visible(create(:moderator_user)), log
+
+      banish_tags!("gore")
+      assert_not_includes ModAction.visible(@admin), log
+    end
+
+    should "require the panel user who pressed it" do
+      unbanish(by: "")
+      assert_response 422
+      assert_match(/by must name the jail panel user/, response.parsed_body["reason"])
+      assert TagBanishment.banished?("gore")
+
+      unbanish(by: "[[gore]] x")
+      assert_response 422
+      assert TagBanishment.banished?("gore")
+    end
+
+    should "answer a name that is not banished in the body, changing nothing" do
+      flag_tags!("secret_(thing)")
+      unbanish(unbanish: "secret_(thing)")
+      assert_response :success
+      assert_equal false, response.parsed_body["unbanished"]
+      assert_match(/not banished/, response.parsed_body["reason"])
+      assert TagQuarantine.flagged_names.include?("secret_(thing)")
+      assert_empty ModAction.where(category: :tag_unbanish)
+    end
+
+    should "refuse every caller but the jail panel's account" do
+      [@admin, create(:approver_user), create(:approver_user, name: "tunnel")].each do |caller|
+        unbanish(caller)
+        assert_response 403
+      end
+      assert TagBanishment.banished?("gore")
     end
   end
 end

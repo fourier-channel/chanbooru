@@ -30,8 +30,10 @@ class DiscordSlashCommand
       end
     end
 
+    # Fork: as a signed-out visitor -- a wiki page whose title is hidden
+    # from one (a quarantined name, NamesTags) is no wiki page here.
     def wiki_page
-      WikiPage.titled(params[:name]).first
+      WikiPage.without_hidden_posts(User.anonymous).titled(params[:name]).first
     end
 
     def tag
@@ -51,7 +53,7 @@ class DiscordSlashCommand
         search = "#{tag.name} is:sfw -animated -6+girls -comic"
       end
 
-      Post.system_tag_match(search).limit(500).max_by(&:score)
+      Post.user_tag_match(search, User.anonymous).limit(500).max_by(&:score)
     end
 
     def example_embed

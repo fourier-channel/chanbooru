@@ -32,6 +32,9 @@ class BulkUpdateRequest::Command::Rename < BulkUpdateRequest::Command::CreateAli
   def validate(errors:, **)
     return if refused_as_claimed_character?(errors) || refused_ownership?(errors)
 
+    refusal = TagAlias.quarantine_move_refusal(@old_name, @new_name)
+    return errors.add(:base, "Can't rename [[#{@old_name}]] -> [[#{@new_name}]] (#{refusal})") if refusal
+
     new_tag ||= Tag.new(name: @new_name)
 
     if old_tag.nil?

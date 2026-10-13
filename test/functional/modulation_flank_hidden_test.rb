@@ -19,7 +19,7 @@ class ModulationFlankHiddenTest < ActionDispatch::IntegrationTest
   context "a jailed neighbour" do
     setup do
       Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
-      Danbooru.config.stubs(:banished_posts_need_reveal?).returns(true)
+      Danbooru.config.stubs(:banished_posts_withheld?).returns(true)
       @bot = create(:builder_user)
       @admin = create(:admin_user)
       as(@bot) do
@@ -30,17 +30,21 @@ class ModulationFlankHiddenTest < ActionDispatch::IntegrationTest
       @jailed.delete!("troll jail: shock", user: @admin)
     end
 
-    should "never hand an admin with reveal off its thumbnail" do
+    should "never hand an admin its thumbnail" do
       flank_previews(@after, @admin).select { |n| n["id"] == @jailed.id }.each do |n|
-        assert_nil n["thumb"], "reveal off: the jailed neighbour's thumbnail was handed out"
+        assert_nil n["thumb"], "the jailed neighbour's thumbnail was handed out"
       end
     end
 
-    should "flag it deleted for an admin with reveal on, so the strip blurs it" do
-      ModulationSetting.record!(@admin, nil, { "reveal_banished" => "true" })
-      jailed = flank_previews(@after, @admin).select { |n| n["id"] == @jailed.id }
-      assert jailed.any?, "fixture: with reveal on, the jailed post is a neighbour"
-      jailed.each { |n| assert_equal true, n["deleted"] }
+    # No reveal (2026-10-12): no admin is shown a jailed post, so it is no
+    # neighbour of theirs at all; an ordinary deletion still is, blurred.
+    should "not list it as a neighbour for an admin, and flag an ordinary deleted one" do
+      assert flank_previews(@after, @admin).none? { |n| n["id"] == @jailed.id }
+
+      @jailed.update_columns(tag_string: "landscape") # rubocop:disable Rails/SkipsModelValidations -- the jail tag off, past the hooks, leaving an ordinary deletion
+      deleted = flank_previews(@after, @admin).select { |n| n["id"] == @jailed.id }
+      assert deleted.any?, "fixture: an ordinary deleted post is a neighbour for an admin"
+      deleted.each { |n| assert_equal true, n["deleted"] }
     end
   end
 end

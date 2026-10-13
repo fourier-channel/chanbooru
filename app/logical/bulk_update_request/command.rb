@@ -70,8 +70,12 @@ class BulkUpdateRequest::Command
   # 2026-10-07). A broken prefix list answers yes: refusing is the safe side.
   # A claimed original character counts too (CharacterClaim, OC ownership
   # 2026-10-11): what points at it or from it is an admin's to approve.
+  #
+  # And a quarantined tag (TagQuarantine: flagged or banished): an alias or
+  # implication into one makes posts vanish, out of one shows them.
   def touches_creator_tag?
-    affected_tags.any? { |name| CreatorPrefixes.locked?(name) } || CharacterClaim.claimed?(affected_tags)
+    quarantined = TagQuarantine.flagged_names | TagQuarantine.banished_names
+    affected_tags.any? { |name| CreatorPrefixes.locked?(name) || quarantined.include?(name) } || CharacterClaim.claimed?(affected_tags)
   rescue CreatorPrefixes::ConfigError
     true
   end

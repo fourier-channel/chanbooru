@@ -10,7 +10,7 @@ class ModulationSettingsController < ApplicationController
   # Every settable key, in one list -- building the changes hash by hand is
   # how session_bar_open got silently dropped on arrival (the model accepted
   # it; the controller never passed it).
-  KEYS = (ModulationSetting::PANEL_KEYS + %w[reveal_banished]).freeze
+  KEYS = ModulationSetting::PANEL_KEYS
 
   # Self-scoped by construction: the write reaches only the caller's own row
   # or session, so there is no foreign resource to authorize against.

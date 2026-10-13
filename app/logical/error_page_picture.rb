@@ -82,7 +82,7 @@ module ErrorPagePicture
         Status.new(id: id, shown: true, reason: nil, thumb: post.preview_file_url, url: routes.post_path(post))
       else
         # Shown to signed-out visitors but withheld from this account (a
-        # banished tag with the reveal off, a creator's block): no thumbnail.
+        # creator's block): no thumbnail.
         Status.new(id: id, shown: true, reason: "not shown to your own account, so no thumbnail here", thumb: nil, url: nil)
       end
     end
@@ -116,6 +116,8 @@ module ErrorPagePicture
   def skip_reason(post)
     anonymous = User.anonymous
     return "deleted or jailed" if post.is_deleted? || post.has_tag?(Danbooru.config.troll_jail_tag)
+    return "carries a banished tag" if post.tag_array.intersect?(TagBanishment.list)
+    return "carries a tag flagged for review" if post.hidden_as_flagged?(anonymous)
     return "not an image" unless post.is_image?
     return "hidden by its creator" if post.hidden_by_creator?(anonymous) || post.hidden_by_creator_prefix?(anonymous)
     return "gated for signed-out visitors" if post.hidden_from_anonymous?(anonymous) || post.levelblocked?(anonymous)

@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 class TagRelationship < ApplicationRecord
+  # The quarantine's name half (NamesTags, TagQuarantine): rows naming a
+  # flagged or banished tag are withheld from the viewers its name is.
+  prepend NamesTags
+
+  names_tags(->(names) { ["#{table_name}.antecedent_name IN (:names) OR #{table_name}.consequent_name IN (:names)", { names: names }] }) { |relation| [relation.antecedent_name, relation.consequent_name] }
+
   STATUSES = %w[active deleted retired]
 
   self.abstract_class = true

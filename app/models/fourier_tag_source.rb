@@ -206,7 +206,9 @@ class FourierTagSource < ApplicationRecord
     resolved = FourierTagResolver.resolve(wanted.values.flat_map { |l| l[:spectrum] + l[:hydra] })
     resolve = ->(names) { names.map(&:to_s).compact_blank.to_set { |n| resolved.fetch(Tag.normalize_name(n), n) } }
 
-    tag_strings = Post.where(id: wanted.keys).pluck(:id, :tag_string).to_h
+    # A flagged post the caller may not see (TagQuarantine: another bot's
+    # upload) is a missing post here, as on every other door.
+    tag_strings = Post.where(id: wanted.keys).where.not(id: TagQuarantine.hidden_post_ids_for(user)).pluck(:id, :tag_string).to_h
     result = { updated: 0, inserted: 0, skipped: 0, missing_posts: wanted.keys - tag_strings.keys }
     now = Time.zone.now
 
@@ -522,8 +524,13 @@ class FourierTagSource < ApplicationRecord
     rows = scoped.where(tag: current)
     known = rows.pluck(:tag)
     rows = private_visible_to?(post, viewer, request: request) ? rows.or(scoped.where(public: false)) : rows.publicly_visible
+    # A quarantined name the viewer may not be shown (TagQuarantine) -- on a
+    # visible post only a creator's private row can carry one, its tag being
+    # outside tag_string, so the post is not hidden by it.
+    hidden = TagQuarantine.hidden_names_for(viewer)
+    rows = rows.where.not(tag: hidden) if hidden.any?
     rows = rows.to_a
-    unsourced = current - known
+    unsourced = current - known - hidden
     # An unsourced tag has no row, so no model claimed it -- which is exactly
     # what a white lamp says. A tag added by hand from Matrix lands here (the
     # Technetium write goes through Post's own tag edit, and nothing hooks that
@@ -608,6 +615,9 @@ class FourierTagSource < ApplicationRecord
 
     by_post = where(post_id: posts.map(&:id), public: false).pluck(:post_id, :tag).group_by(&:first)
     readable = FourierCreatorPrivacy.readable_post_ids(posts.select { |post| by_post.key?(post.id) }, viewer, request)
+    # A creator's private quarantined name stays out of the page (see
+    # buckets_and_lamps_for).
+    hidden = readable.any? ? TagQuarantine.hidden_names_for(viewer) : []
 
     posts.index_with do |post|
       tags = post.tag_string.to_s.split
@@ -615,7 +625,7 @@ class FourierTagSource < ApplicationRecord
       next tags if rows.blank?
 
       private_tags = rows.map { |(_, tag)| tag }
-      readable.include?(post.id) ? tags | private_tags : tags - private_tags
+      readable.include?(post.id) ? (tags | private_tags) - hidden : tags - private_tags
     end
   end
 
@@ -625,7 +635,13 @@ class FourierTagSource < ApplicationRecord
   def self.matrix_projection(post)
     # Same intersection as for_viewer, for the same reason: a row whose tag has
     # left the post is not provenance for anything.
-    rows = where(post_id: post.id, public: true, status: APPROVED, tag: post.tag_string.to_s.split).to_a
+    #
+    # And never a quarantined name (TagQuarantine: flagged or banished), for
+    # every caller, the posting bots included: Matrix room state is read by
+    # every member of the room, so a name the booru hides must not travel
+    # there in tags, sources or lamps (operator rulings 2026-10-12).
+    quarantined = TagQuarantine.flagged_names | TagQuarantine.banished_names
+    rows = where(post_id: post.id, public: true, status: APPROVED, tag: post.tag_string.to_s.split - quarantined.to_a).to_a
     b = buckets_for(rows)
     { tags: (b[:creator] + b[:auto] + b[:both] + b[:meta]).uniq, sources: b.slice(:creator, :auto, :both, :meta),
       lamp: lamps_for(rows) }

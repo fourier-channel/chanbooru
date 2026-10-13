@@ -13,7 +13,10 @@ class DiscordSlashCommand
 
     def call
       tags = params[:tags]
-      count = PostQuery.normalize(tags).fast_count(timeout: 9_000, estimate_count: false, skip_cache: true)
+      # Fork: counted as a signed-out visitor, with the implicit metatags --
+      # a Discord channel is not a booru session, and an unfiltered count
+      # confirmed hidden posts and names (jailed, flagged, gated).
+      count = PostQuery.normalize(tags, current_user: User.anonymous).with_implicit_metatags.fast_count(timeout: 9_000, estimate_count: false, skip_cache: true)
 
       respond_with("`#{tags}`: #{count} posts")
     end

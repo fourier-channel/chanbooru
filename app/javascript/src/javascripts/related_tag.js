@@ -29,16 +29,22 @@ RelatedTag.initialize_all = function() {
   }
 }
 
+// The quarantine generation the page was rendered with (meta tag-visibility),
+// so a cached answer filtered by older flagged or banished names is a miss.
+RelatedTag.tag_visibility = function() {
+  return $("meta[name=tag-visibility]").attr("content") || "";
+}
+
 RelatedTag.initialize_recent_and_favorite_tags = function(event) {
   let media_asset_id = $("#related-tags-container").attr("data-media-asset-id");
-  $.get("/related_tag.js", { user_tags: true, media_asset_id: media_asset_id });
+  $.get("/related_tag.js", { user_tags: true, media_asset_id: media_asset_id, tv: RelatedTag.tag_visibility() });
 }
 
 RelatedTag.update_related_tags = async function(event) {
   if (event.button === 0 && !event.ctrlKey && !event.shiftKey && !event.metaKey && !event.altKey) {
     event.preventDefault();
     Alpine.store("relatedTags").loading = true;
-    await $.get("/related_tag.js", { query: RelatedTag.current_tag().trim(), limit: RelatedTag.MAX_RELATED_TAGS });
+    await $.get("/related_tag.js", { query: RelatedTag.current_tag().trim(), limit: RelatedTag.MAX_RELATED_TAGS, tv: RelatedTag.tag_visibility() });
     RelatedTag.show();
     Alpine.store("relatedTags").loading = false;
   }

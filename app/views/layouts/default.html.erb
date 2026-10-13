@@ -25,6 +25,8 @@
   <% end %>
 
   <%= tag.meta name: "autocomplete-tag-prefixes", content: AutocompleteService::TAG_PREFIXES.to_json %>
+  <%# The quarantine's names generation (TagQuarantine.names_generation): sent as `tv` by autocomplete and related tags, so a publicly cached answer is keyed on the flagged and banished names it was filtered by. %>
+  <%= tag.meta name: "tag-visibility", content: TagQuarantine.names_generation %>
 
   <%# XXX hack to only load Ruffle on Flash posts %>
   <% if controller_name == "posts" && action_name == "show" && @post&.is_flash? %>

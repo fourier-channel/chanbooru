@@ -30,6 +30,21 @@ class ApproverPrunerTest < ActiveSupport::TestCase
       assert_not_includes(ApproverPruner.inactive_approvers.map(&:id), @user.id)
     end
 
+    # Fork: the pipeline accounts are exempt (2026-10-12: the pruner demoted
+    # the sample bot and broke jail deletes until it was re-promoted by hand).
+    should "never demote or warn the pipeline accounts" do
+      bots = %w[sample tunnel].map { |name| create(:approver, name: name) }
+
+      assert_equal([@approver.id], ApproverPruner.inactive_approvers.map(&:id))
+      ApproverPruner.prune!
+      travel_to(Date.parse("2020-01-20")) { ApproverPruner.dmail_inactive_approvers! }
+
+      bots.each do |bot|
+        assert_equal(User::Levels::APPROVER, bot.reload.level, bot.name)
+        assert_equal(0, bot.dmails.received.count, bot.name)
+      end
+    end
+
     should "dmail inactive approvers" do
       travel_to(Date.parse("2020-01-20")) do
         ApproverPruner.dmail_inactive_approvers!

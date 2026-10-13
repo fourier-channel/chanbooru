@@ -19,13 +19,15 @@ require "test_helper"
 # One rule closes all of them (Post.hidden_from, applied by
 # ApplicationRecord.paginated_search and ApplicationController#authorize), so
 # this file asks each door the same three questions: a signed-out visitor and
-# a member see nothing of a jailed or deleted post, and an admin with
-# reveal_banished on sees what they saw before.
+# a member see nothing of a jailed or deleted post, an admin sees an ordinary
+# deletion as before, and no admin sees a jailed one (no reveal, 2026-10-12).
 #
 # Deleted-post visibility and the banished-post rule are both relaxed under
 # test (the fork restriction pattern), so they are stubbed to the production
 # shape here.
 class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
+  include TagQuarantineTestHelper
+
   JAIL = "troll_jail"
   BOARD = "https://boards.4chan.org/trash/thread/12345#p12346"
   ATTRIBUTION = "Posted by Anonymous in /trash/ thread 12345, post 12346"
@@ -69,14 +71,13 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
   context "With deleted and jailed posts hidden as in production" do
     setup do
       Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
-      Danbooru.config.stubs(:banished_posts_need_reveal?).returns(true)
+      Danbooru.config.stubs(:banished_posts_withheld?).returns(true)
+      banish_tags!("gore")
 
       @bot = create(:builder_user)
       @member = create(:user)
       @fan = create(:gold_user)
       @admin = create(:admin_user)
-      @admin_off = create(:admin_user)
-      ModulationSetting.record!(@admin, nil, { "reveal_banished" => "true" })
 
       as(@bot) do
         @jailed = create(:post, tag_string: "landscape hidden_marker #{JAIL}", source: BOARD, uploader: @bot)
@@ -103,19 +104,19 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
     # asks hidden_beyond_deletion? now, which does not carry banishment --
     # that lives on the deletion side -- so render? must still withhold a
     # jailed post itself, even from a strip that shows deleted posts, and a
-    # RELEASED one (live, banished tag kept) from an admin whose reveal is off.
+    # RELEASED one (live, banished tag kept) from an admin.
     should "not draw a jailed or released banished post in a preview strip" do
       # Created carrying a banished tag, so the booru jails it; then released
       # as a release leaves it: live, the banished tag kept.
       released = as(@admin) { create(:post, tag_string: "landscape #{TagBanishment.list.first}", source: BOARD, uploader: @admin) }
       released.update!(is_deleted: false)
       assert released.reload.tag_array.intersect?(TagBanishment.post_tags)
-      [@admin_off, @member, User.anonymous].each do |user|
+      [@admin, @member, User.anonymous].each do |user|
         assert_not PostPreviewComponent.new(post: @jailed, current_user: user, show_deleted: true).render?, user.name
+        assert_not PostPreviewComponent.new(post: released, current_user: user).render?, user.name
       end
-      assert_not PostPreviewComponent.new(post: released, current_user: @admin_off).render?
-      assert PostPreviewComponent.new(post: released, current_user: @admin).render?
-      assert PostPreviewComponent.new(post: @jailed, current_user: @admin, show_deleted: true).render?
+      assert PostPreviewComponent.new(post: @deleted, current_user: @admin, show_deleted: true).render?, "an ordinary deletion still draws for an admin"
+      assert PostPreviewComponent.new(post: released, current_user: User.system).render?, "the pipeline still sees it"
     end
 
     context "post versions" do
@@ -137,17 +138,12 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
           assert_not_includes json_rows(post_versions_path, user, search: { changed_tags: JAIL }).pluck("post_id"), @jailed.id, who
           assert_not_includes json_rows(post_versions_path, user, search: { tag_matches: "hidden_marker" }).pluck("post_id"), @jailed.id, who
         end
-        assert_includes json_rows(post_versions_path, @admin, search: { changed_tags: JAIL }).pluck("post_id"), @jailed.id
+        assert_not_includes json_rows(post_versions_path, @admin, search: { changed_tags: JAIL }).pluck("post_id"), @jailed.id
       end
 
-      should "still show them to an admin with reveal on, and to the uploader" do
-        assert_not_empty json_ids(post_versions_path, @admin, search: { post_id: @jailed.id })
-        assert_not_empty json_ids(post_versions_path, @bot, search: { post_id: @jailed.id })
-      end
-
-      should "hide a jailed post's versions from an admin with reveal off, as its page is" do
-        assert_empty json_ids(post_versions_path, @admin_off, search: { post_id: @jailed.id })
-        assert_not_empty json_ids(post_versions_path, @admin_off, search: { post_id: @deleted.id })
+      should "hide a jailed post's versions from an admin, as its page is, and show an ordinary deletion's" do
+        assert_empty json_ids(post_versions_path, @admin, search: { post_id: @jailed.id })
+        assert_not_empty json_ids(post_versions_path, @admin, search: { post_id: @deleted.id })
       end
     end
 
@@ -166,10 +162,12 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
         end
       end
 
-      should "still answer for a visible post, and for an admin with reveal on" do
+      should "still answer for a visible post, and an admin for an ordinary deletion but not a jailing" do
         assert_equal 200, status_of(post_artist_commentary_path(@visible), @member)
-        assert_equal 200, status_of(post_artist_commentary_path(@jailed), @admin)
-        assert_not_empty json_ids(artist_commentaries_path, @admin, search: { post_id: @jailed.id })
+        assert_equal 200, status_of(post_artist_commentary_path(@deleted), @admin)
+        assert_not_empty json_ids(artist_commentaries_path, @admin, search: { post_id: @deleted.id })
+        assert_equal 404, status_of(post_artist_commentary_path(@jailed), @admin)
+        assert_empty json_ids(artist_commentaries_path, @admin, search: { post_id: @jailed.id })
       end
     end
 
@@ -225,14 +223,16 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
         [@jailed, @deleted, @visible].each { |post| AITag.create!(media_asset: post.media_asset, tag: tag, score: 80) }
         listed = ->(user) { json_rows(ai_tags_path, user, search: { tag_id: tag.id }, limit: 100).pluck("media_asset_id").sort }
         assert_equal [@visible.media_asset.id], listed.call(@member)
-        assert_equal [@jailed, @deleted, @visible].map { |post| post.media_asset.id }.sort, listed.call(@admin)
+        assert_equal [@deleted, @visible].map { |post| post.media_asset.id }.sort, listed.call(@admin)
       end
 
-      should "still show them to an admin with reveal on" do
-        assert_includes json_rows(post_flags_path, @admin, limit: 100).pluck("post_id"), @jailed.id
-        assert json_rows(mod_actions_path, @admin, limit: 100).any? { |a| a["description"].to_s.include?("##{@jailed.id}") }
-        assert_includes json_rows(post_events_path, @admin, limit: 100).pluck("post_id"), @jailed.id
-        assert_includes json_rows(favorites_path, @admin, search: { user_id: @fan.id }).pluck("post_id"), @jailed.id
+      should "show an admin an ordinary deletion's rows, and none of a jailing's" do
+        assert_includes json_rows(post_flags_path, @admin, limit: 100).pluck("post_id"), @deleted.id
+        assert_not_includes json_rows(post_flags_path, @admin, limit: 100).pluck("post_id"), @jailed.id
+        assert json_rows(mod_actions_path, @admin, limit: 100).any? { |a| a["description"].to_s.include?("##{@deleted.id}") }
+        assert json_rows(mod_actions_path, @admin, limit: 100).none? { |a| a["description"].to_s.include?("##{@jailed.id}") }
+        assert_includes json_rows(favorites_path, @admin, search: { user_id: @fan.id }).pluck("post_id"), @deleted.id
+        assert_not_includes json_rows(favorites_path, @admin, search: { user_id: @fan.id }).pluck("post_id"), @jailed.id
       end
     end
 
@@ -248,9 +248,9 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
         end
       end
 
-      should "still count them for an admin with reveal on" do
-        assert_equal 1, count_for("id:#{@jailed.id}", @admin)
-        assert_operator count_for("status:deleted", @admin), :>=, 2
+      should "count an ordinary deletion for an admin, and not a jailing" do
+        assert_equal 1, count_for("id:#{@deleted.id}", @admin)
+        assert_equal 0, count_for("id:#{@jailed.id}", @admin)
       end
     end
 
@@ -271,10 +271,10 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
         end
       end
 
-      should "still answer an admin with reveal on" do
+      should "not tell an admin either" do
         get_auth related_tag_path(format: :json), @admin, params: { query: JAIL }
         assert_response :success
-        assert_includes response.parsed_body["related_tags"].map { |t| t.dig("tag", "name") }, "hidden_marker"
+        assert_not_includes response.parsed_body["related_tags"].map { |t| t.dig("tag", "name") }, "hidden_marker"
       end
     end
 
@@ -290,11 +290,11 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
         end
       end
 
-      should "still match a hidden post for an admin with reveal on" do
-        mock_iqdb_matches([{ post_id: @jailed.id, score: 99.0 }])
+      should "match an ordinary deletion for an admin, and not a jailing" do
+        mock_iqdb_matches([{ post_id: @jailed.id, score: 99.0 }, { post_id: @deleted.id, score: 95.0 }])
         rows = json_rows(iqdb_queries_path, @admin, hash: "0" * 32)
-        assert_equal [@jailed.id], rows.pluck("post_id")
-        assert_equal 404, status_of(iqdb_queries_path, @admin_off, media_asset_id: @jailed.media_asset.id)
+        assert_equal [@deleted.id], rows.pluck("post_id")
+        assert_equal 404, status_of(iqdb_queries_path, @admin, media_asset_id: @jailed.media_asset.id)
       end
     end
   end

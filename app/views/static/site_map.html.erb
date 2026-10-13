@@ -231,6 +231,11 @@
         <% if policy(ArtistClaim).index? %>
           <li><%= link_to("Creator Claims", admin_artist_claims_path) %></li>
         <% end %>
+
+        <%# fourier: the flagged-tag review queue, admins only (TagQuarantine). %>
+        <% if policy(Tag).can_change_quarantine? %>
+          <li><%= link_to("Flagged Tags", tags_path(search: { quarantine: "flagged" })) %></li>
+        <% end %>
       </ul>
 
       <ul>

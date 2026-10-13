@@ -262,5 +262,159 @@ class TagsControllerTest < ActionDispatch::IntegrationTest
         end
       end
     end
+
+    # THE FLAGGED-TAG REVIEW QUEUE (TagQuarantine, operator rulings
+    # 2026-10-12), on the existing routes: PATCH /tags/:id and POST /tags with
+    # tag[quarantine], and GET /tags?search[quarantine]=flagged.
+    context "the review quarantine" do
+      setup do
+        @admin = create(:admin_user)
+        @owner = create(:owner_user)
+        @moderator = create(:moderator_user)
+        @secret = create(:tag, name: "secret_(thing)", post_count: 0)
+      end
+
+      should "let an admin flag a tag from the edit page, with a note, in the mod log" do
+        put_auth tag_path(@secret), @admin, params: { tag: { quarantine: "flag", quarantine_note: "looks wrong" }}
+
+        assert_redirected_to tags_path(search: { quarantine: "flagged" })
+        row = TagQuarantine.find_by!(tag: @secret)
+        assert row.flagged?
+        assert_equal @admin, row.flagged_by
+        assert_equal "looks wrong", row.note
+        assert_equal "tag_flag", ModAction.last.category
+        assert_equal 0, @secret.versions.count, "a flag is not a tag edit: no tag version"
+      end
+
+      should "let an owner flag one over JSON" do
+        put_auth tag_path(@secret, format: :json), @owner, params: { tag: { quarantine: "flag" }}
+
+        assert_response 204
+        assert TagQuarantine.find_by!(tag: @secret).flagged?
+      end
+
+      should "refuse a moderator, a builder and a member, saying who may" do
+        [@moderator, @user, create(:user)].each do |user|
+          put_auth tag_path(@secret, format: :json), user, params: { tag: { quarantine: "flag" }}
+          assert_response 403, user.level_string
+          assert_match(/only an admin/, response.parsed_body["message"].to_s + response.body)
+        end
+        assert_not TagQuarantine.exists?
+      end
+
+      should "release a flagged tag back to normal" do
+        TagQuarantine.flag!(@secret, by: @admin)
+
+        put_auth tag_path(@secret), @admin, params: { tag: { quarantine: "release", quarantine_note: "fine" }}
+
+        assert_not TagQuarantine.exists?(tag_id: @secret.id)
+        assert_equal "tag_flag_release", ModAction.last.category
+      end
+
+      should "banish a flagged tag in one click, after which even the admin gets a 404 for it" do
+        TagQuarantine.flag!(@secret, by: @admin)
+
+        assert_enqueued_with(job: BanishTagJob) do
+          put_auth tag_path(@secret), @admin, params: { tag: { quarantine: "banish", quarantine_note: "confirmed" }}
+        end
+
+        assert TagQuarantine.find_by!(tag: @secret).banished?
+        assert_equal "tag_banish", ModAction.last.category
+        get_auth tag_path(@secret), @admin
+        assert_response 404
+      end
+
+      should "refuse an unknown verb, and a verb mixed with another attribute" do
+        put_auth tag_path(@secret, format: :json), @admin, params: { tag: { quarantine: "hide" }}
+        assert_response 422
+        assert_match(/flag, release, banish/, response.parsed_body["error"])
+
+        put_auth tag_path(@secret, format: :json), @admin, params: { tag: { quarantine: "flag", category: Tag.categories.character }}
+        assert_response 422
+        assert_not TagQuarantine.exists?
+      end
+
+      should "refuse to release a tag that is not flagged" do
+        put_auth tag_path(@secret, format: :json), @admin, params: { tag: { quarantine: "release" }}
+        assert_response 422
+        assert_match(/not flagged/, response.parsed_body["error"])
+      end
+
+      should "pre-flag a name nobody has used, so the first post carrying it is hidden from the start" do
+        post_auth tags_path, @admin, params: { tag: { name: "never_used_(yet)", quarantine: "flag" }}
+
+        assert_redirected_to tags_path(search: { quarantine: "flagged" })
+        tag = Tag.find_by!(name: "never_used_(yet)")
+        assert TagQuarantine.find_by!(tag: tag).flagged?
+
+        # Only the bots post (operator ruling 2026-10-07); the tunnel's upload
+        # is hidden from a member the moment it lands.
+        tunnel = create(:approver_user, name: "tunnel")
+        post = as(tunnel) { create(:post, tag_string: "landscape never_used_(yet)", uploader: tunnel, md5: SecureRandom.hex(16)) }
+        get_auth post_path(post), create(:user)
+        assert_response 404
+        get_auth post_path(post), tunnel
+        assert_response :success, "the bot keeps its own post"
+      end
+
+      should "refuse a pre-flag from a non-admin, and a POST /tags that is not a flag" do
+        post_auth tags_path(format: :json), @moderator, params: { tag: { name: "whatever", quarantine: "flag" }}
+        assert_response 403
+
+        post_auth tags_path(format: :json), @admin, params: { tag: { name: "whatever" }}
+        assert_response 422
+        assert_nil Tag.find_by(name: "whatever")
+      end
+
+      should "list the flagged tags in the queue for an admin, with who, when, count and note" do
+        TagQuarantine.flag!(@secret, by: @admin, note: "check the source")
+
+        get_auth tags_path, @admin, params: { search: { quarantine: "flagged" }}
+
+        assert_response :success
+        assert_select "h2", text: "Flagged tags"
+        assert_select "td", text: "secret_(thing)"
+        assert_select "td", text: "check the source"
+        assert_select "button[value=release]", 1
+        assert_select "button[value=banish]", 1
+      end
+
+      should "list nothing in the queue for anyone below admin" do
+        TagQuarantine.flag!(@secret, by: @admin)
+
+        get_auth tags_path(format: :json), @moderator, params: { search: { quarantine: "flagged" }}
+
+        assert_response :success
+        assert_equal [], response.parsed_body
+      end
+
+      should "show the Flagged count in the admin navbar while something waits" do
+        TagQuarantine.flag!(@secret, by: @admin)
+
+        get_auth posts_path(preset: "modulation"), @admin
+        assert_select "#top.modnav .modnav-pill", text: /Flagged\s*1/, count: 1
+        get_auth site_map_path, @admin
+        assert_select "a[href='#{tags_path(search: { quarantine: "flagged" })}']", text: "Flagged Tags", count: 1
+        get_auth posts_path(preset: "modulation"), @moderator
+        assert_select "#top.modnav .modnav-pill", text: /Flagged/, count: 0
+      end
+
+      should "offer the switch on the edit page to an admin only" do
+        get_auth edit_tag_path(@secret), @admin
+        assert_select "#tag-quarantine button[value=flag]", 1
+
+        get_auth edit_tag_path(@tag), @user
+        assert_select "#tag-quarantine", 0
+      end
+
+      should "answer a flagged tag's page with 404 for everyone below admin" do
+        TagQuarantine.flag!(@secret, by: @admin)
+
+        get_auth tag_path(@secret), @moderator
+        assert_response 404
+        get_auth tag_path(@secret), @admin
+        assert_response :success
+      end
+    end
   end
 end

@@ -2,20 +2,19 @@
 
 require "test_helper"
 
-# A post carrying the jail tag or a banished tag is withheld from an admin
-# whose reveal_banished is off (operator, 2026-09-24): such a post "is
-# supposed to immediately disappear from the booru view surface for all but
-# an admin with the setting explicitly ON to view it."
+# A post carrying the jail tag or a banished tag is withheld from everyone
+# but the pipeline (operator, 2026-09-24: such a post "is supposed to
+# immediately disappear from the booru view surface"). Admins included, with
+# no toggle (operator, relayed 2026-10-12: "We're also going to be removing
+# the Admin-only 'reveal' option--the booru itself will never be the surface
+# that shows banished tags, ever.").
 #
-# Before this, admins saw jailed posts whatever the toggle said -- they can
-# see deleted posts, and nothing else asked -- while an admin WITH the toggle
-# on still had banished-tagged posts hard-hidden by the enforced blacklist.
-# The toggle meant "show me the names" and nothing about the pictures.
-#
-# The rule is off under test (Danbooru.config.banished_posts_need_reveal?,
-# the fork restriction pattern) and asserted here with it stubbed on, in the
+# The rule is off under test (Danbooru.config.banished_posts_withheld?, the
+# fork restriction pattern) and asserted here with it stubbed on, in the
 # production shape: deleted posts visible from ADMIN up, as in production.
 class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
+  include TagQuarantineTestHelper
+
   JAIL = "troll_jail"
   BOARD = "https://boards.4chan.org/b/thread/953493575#p953493576"
 
@@ -33,10 +32,6 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
       post.update!(tag_string: (post.tag_array - [JAIL]).join(" "))
     end
     post.reload
-  end
-
-  def reveal!(admin)
-    ModulationSetting.record!(admin, nil, { "reveal_banished" => "true" })
   end
 
   def search_ids(user, tags)
@@ -58,8 +53,9 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
 
   context "With the rule on" do
     setup do
-      Danbooru.config.stubs(:banished_posts_need_reveal?).returns(true)
+      Danbooru.config.stubs(:banished_posts_withheld?).returns(true)
       Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
+      banish_tags!("gore")
 
       # An approver, as the sampling bot is: below contributor, a deleted
       # upload counts against the upload limit, and every jailing is one.
@@ -75,9 +71,7 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
       @deleted = as(@uploader) { create(:post, tag_string: "landscape", source: BOARD, uploader: @uploader) }
       @deleted.update!(is_deleted: true)
 
-      @admin_off = create(:admin_user)
-      @admin_on = create(:admin_user)
-      reveal!(@admin_on)
+      @admin = create(:admin_user)
       @member = create(:user)
 
       assert @jailed.is_deleted? && @jailed.has_tag?(JAIL), "fixture: the booru jails a post created with gore"
@@ -154,57 +148,57 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
       end
     end
 
-    context "an admin with reveal_banished OFF" do
+    context "an admin" do
       should "get a 404 from the post page for anything jailed or banished-tagged" do
         [@jailed, @released, @half_jailed].each do |post|
-          get_auth post_path(post), @admin_off
+          get_auth post_path(post), @admin
           assert_response 404, "post ##{post.id} (#{post.tag_string})"
         end
       end
 
       should "still reach an ordinary post and an ordinary deletion" do
         [@plain, @deleted].each do |post|
-          get_auth post_path(post), @admin_off
+          get_auth post_path(post), @admin
           assert_response :success, "post ##{post.id} (#{post.tag_string})"
         end
       end
 
       should "get a 404 from the post's json, modulation.json and the md5 lookup" do
         [@jailed, @released].each do |post|
-          get_auth post_path(post, format: :json), @admin_off
+          get_auth post_path(post, format: :json), @admin
           assert_response 404
 
-          get_auth post_modulation_path(post), @admin_off, as: :json
+          get_auth post_modulation_path(post), @admin, as: :json
           assert_response 404
 
-          get_auth posts_path, @admin_off, params: { md5: post.md5 }
+          get_auth posts_path, @admin, params: { md5: post.md5 }
           assert_response 404
         end
       end
 
       should "not find them in a search, or in its count" do
-        ids = search_ids(@admin_off, "landscape")
+        ids = search_ids(@admin, "landscape")
 
         assert_includes ids, @plain.id
         assert_not_includes ids, @released.id
         assert_not_includes ids, @half_jailed.id
-        assert_equal 2, PostSets::Post.new("landscape", 1, 20, user: @admin_off).post_count, "plain and the ordinary deletion"
+        assert_equal 2, PostSets::Post.new("landscape", 1, 20, user: @admin).post_count, "plain and the ordinary deletion"
       end
 
       should "not find them searching status:deleted, while ordinary deletions still show" do
-        ids = search_ids(@admin_off, "status:deleted")
+        ids = search_ids(@admin, "status:deleted")
 
         assert_includes ids, @deleted.id
         assert_not_includes ids, @jailed.id
       end
 
       should "not find them by naming the tag" do
-        assert_empty search_ids(@admin_off, "gore status:any")
-        assert_empty search_ids(@admin_off, "#{JAIL} status:any")
+        assert_empty search_ids(@admin, "gore status:any")
+        assert_empty search_ids(@admin, "#{JAIL} status:any")
       end
 
       should "not be shown a released one on the landing page" do
-        ids = landing_ids(@admin_off)
+        ids = landing_ids(@admin)
 
         assert_includes ids, @plain.id
         assert_not_includes ids, @released.id
@@ -214,7 +208,7 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
       # their profile, which draws deleted uploads too (show_deleted: true).
       # The sampling bot uploaded every jailed post there is.
       should "not be drawn one in a profile's upload strip" do
-        get_auth user_path(@uploader), @admin_off
+        get_auth user_path(@uploader), @admin
 
         assert_response :success
         assert_select ".user-uploads article[data-id=?]", @plain.id.to_s, 1
@@ -222,72 +216,61 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
         assert_select ".user-uploads article[data-id=?]", @half_jailed.id.to_s, 0
       end
 
-      should "keep the banished names among the enforced blacklist rules" do
-        get_auth posts_path, @admin_off, params: { tags: "landscape" }
+      # The booru never shows a banished name, ever (operator, relayed
+      # 2026-10-12) -- not even censored behind a click in the blacklist
+      # box, which every page sends to every viewer. Nothing is lost: no
+      # post carrying one reaches anyone the box is drawn for.
+      should "never send a banished name in the enforced blacklist rules" do
+        [@admin, @member].each do |user|
+          get_auth posts_path, user, params: { tags: "landscape" }
 
-        assert_response :success
-        assert_includes enforced_rules_on_page, "gore"
+          assert_response :success
+          assert_not_includes enforced_rules_on_page, "gore", user.level_string
+          assert_no_match(/\bgore\b/, response.body, user.level_string)
+          assert(enforced_rules_on_page.any? { |r| r.start_with?("arthropod ") }, "the conjunction rules stay")
+        end
       end
     end
 
-    context "an admin with reveal_banished ON" do
-      should "reach the post page, its json and modulation.json" do
-        [@jailed, @released, @half_jailed].each do |post|
-          get_auth post_path(post), @admin_on
-          assert_response :success, "post ##{post.id} (#{post.tag_string})"
+    # NO REVEAL (2026-10-12). An admin who once had the toggle on is
+    # withheld from like every other admin: the setting is gone, and the
+    # column it was stored in is never read.
+    context "an admin who had reveal_banished on before it was removed" do
+      setup do
+        ModulationSetting.record!(@admin, nil, { "image_cap" => "fit" })
+        ModulationSetting.connection.execute("UPDATE modulation_settings SET reveal_banished = TRUE WHERE user_id = #{@admin.id}")
+      end
 
-          get_auth post_modulation_path(post), @admin_on, as: :json
-          assert_response :success
+      should "still get a 404 from the post page, its json and modulation.json" do
+        [@jailed, @released, @half_jailed].each do |post|
+          get_auth post_path(post), @admin
+          assert_response 404, "post ##{post.id} (#{post.tag_string})"
+
+          get_auth post_modulation_path(post), @admin, as: :json
+          assert_response 404
         end
       end
 
-      should "find them in a search and searching status:deleted" do
-        assert_includes search_ids(@admin_on, "landscape"), @released.id
-        assert_includes search_ids(@admin_on, "status:deleted"), @jailed.id
-        assert_equal 5, PostSets::Post.new("landscape status:any", 1, 20, user: @admin_on).post_count
+      should "not find them in a search or searching status:deleted" do
+        assert_not_includes search_ids(@admin, "landscape"), @released.id
+        assert_not_includes search_ids(@admin, "status:deleted"), @jailed.id
       end
 
-      should "be shown a released one on the landing page" do
-        assert_includes landing_ids(@admin_on), @released.id
-      end
-
-      should "be drawn them in a profile's upload strip" do
-        get_auth user_path(@uploader), @admin_on
+      should "not be offered a reveal toggle, nor the banished names among the enforced rules" do
+        get_auth posts_path, @admin, params: { tags: "landscape" }
 
         assert_response :success
-        assert_select ".user-uploads article[data-id=?]", @released.id.to_s, 1
-        assert_select ".user-uploads article[data-id=?]", @half_jailed.id.to_s, 1
-      end
-
-      should "not have them hard-hidden by the enforced blacklist" do
-        get_auth posts_path, @admin_on, params: { tags: "landscape" }
-
-        assert_response :success
+        assert_no_match(/Reveal banished/, response.body)
         rules = enforced_rules_on_page
-        assert_not_empty rules, "the enforced rules are still rendered"
-        assert_empty rules & Danbooru.config.banished_tags
+        assert_not_includes rules, "gore"
         # the conjunction rules are not banishment, and stay
         assert(rules.any? { |r| r.start_with?("arthropod ") })
       end
 
-      # Seeing a jailed post is not releasing it: there is no booru-side
-      # release (operator ruling 2026-10-09). The pill refuses both halves
-      # and names the jail panel, whose POST /fourier_jail/release is the
-      # one door (asserted below).
-      should "be refused releasing a jailed post from the post page pill" do
-        login_as(@admin_on)
-        get post_path(@jailed)
-        assert_response :success
-
-        patch modulation_moderation_path(@jailed), params: { jail: false }, as: :json
-        assert_response 422
-        assert_equal Post::JAILED_RELEASE_DOOR, response.parsed_body["refused"]
-        patch modulation_moderation_path(@jailed), params: { deleted: false }, as: :json
-        assert_response 422
-
-        @jailed.reload
-        assert @jailed.is_deleted?
-        assert @jailed.has_tag?(JAIL)
+      should "have no reveal setting to switch on" do
+        login_as(@admin)
+        patch modulation_settings_path, params: { reveal_banished: true }, as: :json
+        assert_not response.parsed_body.key?("reveal_banished")
       end
     end
 
@@ -301,8 +284,8 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
 
       # Not "as before" (2026-10-12): a released post keeps its banished tag,
       # and the banishment, not the jail, now withholds it -- from everyone
-      # but an admin with reveal on. Releasing lifts the jail; showing the
-      # post takes the banished tag off it.
+      # but the pipeline. Releasing lifts the jail; showing the post takes
+      # the banished tag off it.
       should "not see a released one that still carries a banished tag" do
         get_auth post_path(@released), @member
         assert_response 404
@@ -310,7 +293,7 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
       end
     end
 
-    should "leave the release route working whatever any admin's toggle says" do
+    should "leave the release route working for the jail panel" do
       bot = create(:approver_user, name: "sample") # the jail panel's account (fourier_jail_release_names)
       post = jailed_post(bot)
 
@@ -324,13 +307,14 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
 
   context "The rule's switch" do
     should "be on outside the test environment and off inside it" do
-      assert_equal false, Danbooru.config.banished_posts_need_reveal?
+      assert_equal false, Danbooru.config.banished_posts_withheld?
 
       Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("production"))
-      assert_equal true, Danbooru.config.banished_posts_need_reveal?
+      assert_equal true, Danbooru.config.banished_posts_withheld?
     end
 
     should "leave an admin's view unchanged while it is off" do
+      banish_tags!("gore")
       post = jailed_post(create(:approver_user))
 
       get_auth post_path(post), create(:admin_user)

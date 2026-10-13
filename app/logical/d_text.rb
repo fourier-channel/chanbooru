@@ -29,20 +29,27 @@ class DText
   #
   # @param [Array<String>] a list of DText strings
   # @return [Hash<Symbol, ActiveRecord::Relation>] The set of wiki pages, tags, artists, posts, and media assets.
-  def self.preprocess(dtext_messages)
+  #
+  # Fork: for `user`. An alias, implication or BUR naming a tag whose name is
+  # hidden from them (TagQuarantine, NamesTags) is not loaded, so its embed
+  # renders the "does not exist" a missing id renders -- POST /dtext_previews
+  # is open to anyone, and walking [ta:N] ids listed every relation. A hidden
+  # name typed as a [[link]] is looked up as no tag, wiki page or artist.
+  def self.preprocess(dtext_messages, user: CurrentUser.user)
     references = Array.wrap(dtext_messages).map { |message| parse_dtext_references(message) }
     references = references.reduce({}) { |all, hash| all.merge(hash) { |_key, left, right| left + right } }
     references.transform_values!(&:uniq)
 
-    tag_aliases = TagAlias.where(id: references[:tag_aliases]).to_a
-    tag_implications = TagImplication.where(id: references[:tag_implications]).to_a
-    bulk_update_requests = BulkUpdateRequest.includes(:approver).where(id: references[:bulk_update_requests]).to_a
+    tag_aliases = TagAlias.without_hidden_posts(user).where(id: references[:tag_aliases]).to_a
+    tag_implications = TagImplication.without_hidden_posts(user).where(id: references[:tag_implications]).to_a
+    bulk_update_requests = BulkUpdateRequest.without_hidden_posts(user).includes(:approver).where(id: references[:bulk_update_requests]).to_a
 
     references[:wiki_pages] ||= []
     references[:wiki_pages] += tag_aliases.pluck(:antecedent_name, :consequent_name).flatten
     references[:wiki_pages] += tag_implications.pluck(:antecedent_name, :consequent_name).flatten
     references[:wiki_pages] += bulk_update_requests.pluck(:tags).flatten
     references[:wiki_pages].uniq!
+    references[:wiki_pages] -= TagQuarantine.hidden_names_for(user)
 
     wiki_pages = WikiPage.where(title: references[:wiki_pages])
     tags = Tag.where(name: references[:wiki_pages])

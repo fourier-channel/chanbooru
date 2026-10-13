@@ -216,12 +216,26 @@ class ApplicationRecord < ActiveRecord::Base
     # every upload), uploads?only=posts, a visible post's parent or children.
     # Each of those serialized a deleted or jailed post's tags, source and id
     # to whoever asked, while the post's own page was a 404 (2026-10-02).
+    #
+    # And a nested record that NAMES a tag hidden from the viewer -- a tag,
+    # or an alias, implication, wiki link, AI tag or artist entry naming a
+    # quarantined one (NamesTags, TagQuarantine): /tags.json?only=
+    # consequent_aliases, /artists.json?only=tag_alias, /wiki_pages.json?only=
+    # dtext_links, /posts/:id.json?only=ai_tags. Only those: a nested record
+    # about a hidden POST keeps the narrower rule above (its post left out).
     private def serializable_add_includes(options = {})
       viewer = CurrentUser.user
+      hidden = lambda do |record|
+        if record.is_a?(Post)
+          record.hidden_from?(viewer)
+        else
+          (record.is_a?(Tag) || record.is_a?(NamesTags)) && record.hidden_by_post_from?(viewer)
+        end
+      end
       super do |association, records, opts|
         if records.respond_to?(:to_ary)
-          yield association, records.to_ary.reject { |record| record.is_a?(Post) && record.hidden_from?(viewer) }, opts
-        elsif !(records.is_a?(Post) && records.hidden_from?(viewer))
+          yield association, records.to_ary.reject(&hidden), opts
+        elsif !hidden.call(records)
           yield association, records, opts
         end
       end

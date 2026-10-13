@@ -34,9 +34,10 @@ class CreatorGalleryComponent < ApplicationComponent
   # The creator's original characters: their standing claims (CharacterClaim),
   # one query. A member gets links to each one's posts and wiki page; a
   # signed-out visitor, who reaches only a promoted gallery, gets the names,
-  # because both links lead to members-only pages.
+  # because both links lead to members-only pages. Never a name hidden from
+  # the viewer (a quarantined name, TagQuarantine).
   def characters
-    @characters ||= CharacterClaim.where(creator_gallery_id: gallery.id).standing.map(&:tag_name).sort
+    @characters ||= CharacterClaim.where(creator_gallery_id: gallery.id).standing.map(&:tag_name).reject { |name| TagQuarantine.hidden_name?(name, viewer) }.sort
   end
 
   def member? = MembersOnly.member?(viewer)

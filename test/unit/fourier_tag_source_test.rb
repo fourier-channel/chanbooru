@@ -174,6 +174,23 @@ class FourierTagSourceTest < ActiveSupport::TestCase
       end
     end
 
+    # A creator's private row is the one place a name can reach a member on
+    # a post that is still visible: its tag is not in tag_string, so the post
+    # is not hidden by it. A flagged or banished name is withheld from the
+    # creator there too (TagQuarantine; review pass 2026-10-12).
+    should "withhold a quarantined name from the creator's own private rows" do
+      @post.update!(tag_string: "a")
+      FourierTagSource.record_partition!(@post, { "creator" => %w[secret plain_private], "auto" => ["a"] }, @user)
+      TagQuarantine.create!(tag: Tag.find_or_create_by_name("secret"), state: "flagged", flagged_at: Time.zone.now)
+      CreatorVisibility.forget!
+
+      mine = FourierTagSource.for_viewer(@post, @user)
+      assert_equal ["plain_private"], mine[:creator]
+      assert_not_includes FourierTagSource.live_read(@post, @user)[:tag_string].split, "secret"
+      assert_not_includes FourierTagSource.buckets_and_lamps_for(@post, @user).last.values.flatten, "secret"
+      assert_not_includes FourierTagSource.blacklist_tags_for([@post], @user)[@post], "secret"
+    end
+
     # The 2026-09-20 fix stands for PUBLIC rows: a tag removed from tag_string
     # leaves its row behind, and that row is drawn for nobody -- the creator
     # included. Only the creator's PRIVATE rows are exempt from the
@@ -291,6 +308,24 @@ class FourierTagSourceTest < ActiveSupport::TestCase
       proj = FourierTagSource.matrix_projection(@post)
       refute_includes proj[:tags], "troll_jail"
       assert_includes proj[:tags], "a"
+    end
+
+    # FLAGGED-TAG QUARANTINE (operator rulings 2026-10-12): a flagged or
+    # banished name never travels to Matrix room state, in tags, sources or
+    # lamps, whoever asks -- the posting bots included.
+    should "strip flagged and banished names from the matrix projection" do
+      @post.update!(tag_string: "a flagged_x banished_x")
+      FourierTagSource.record_partition!(@post, { "auto" => %w[a flagged_x banished_x], "hydra" => %w[a flagged_x banished_x] }, @user)
+      TagQuarantine.create!(tag: Tag.find_by_name("flagged_x"), state: "flagged", flagged_at: Time.zone.now)
+      TagQuarantine.create!(tag: Tag.find_by_name("banished_x"), state: "banished", banished_at: Time.zone.now)
+
+      proj = FourierTagSource.matrix_projection(@post)
+      assert_equal ["a"], proj[:tags]
+      assert_equal ["a"], proj[:sources].values.flatten.uniq
+      assert_equal ["a"], proj[:lamp].values.flatten.uniq
+
+      TagQuarantine.where(tag: Tag.find_by_name("flagged_x")).destroy_all
+      assert_includes FourierTagSource.matrix_projection(@post)[:tags], "flagged_x", "a release puts it back"
     end
   end
 end

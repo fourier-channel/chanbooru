@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 class TagVersion < ApplicationRecord
+  # The quarantine's name half (NamesTags, TagQuarantine): rows naming a
+  # flagged or banished tag are withheld from the viewers its name is.
+  prepend NamesTags
+
+  names_tags(->(names) { ["tag_versions.name IN (:names) OR tag_versions.tag_id IN (SELECT id FROM tags WHERE name IN (:names))", { names: names }] }) { |version| [version.name, version.tag&.name] }
+
   include VersionFor
 
   version_for :tag

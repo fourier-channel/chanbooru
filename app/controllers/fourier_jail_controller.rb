@@ -49,11 +49,25 @@
 # `deleted` and `jailed` in a 422 are the post's state after the answer, so
 # the caller can tell a finished release from a stuck one without reading the
 # post back, which it cannot do for a deleted post.
+#
+# UNBANISH, the panel's other verb (operator ruling 2026-10-12): POST
+# /fourier_jail/release.json with unbanish=<tag name>&by=<panel user>
+# [&note=]. The panel lists the booru's banished tags (it reads their names
+# in the quarantine document) and can take one off the list; the booru
+# records which panel user pressed it in the mod log (tag_unbanish). It
+# releases no jailed post -- that stays the per-post release above. Who in
+# the panel may press it is the panel's own gate, not the booru's. A booru
+# older than this verb answers an unbanish as a release with no md5: 422,
+# "md5 must be 32 hex characters".
 class FourierJailController < ApplicationController
   respond_to :json
 
   # Kept in step with fourier-sampling's JAIL_TAG (src/booru/jailSync.ts).
   JAIL_TAG = "troll_jail"
+
+  # The panel user an unbanish names: a Matrix user id or a plain name. No
+  # spaces or brackets, so it cannot carry DText into the mod log row.
+  PANEL_USER = %r{\A[A-Za-z0-9@._=/+:-]{1,255}\z}
 
   NOT_THE_JAILS = "deleted, but not by the jail: its current deletion is not a jailing, and release never undoes another deletion"
   A_LEGAL_HOLD = "a legal hold (troll jail: radioactive): release never undeletes or untags one"
@@ -79,7 +93,17 @@ class FourierJailController < ApplicationController
   # `since`; `more` says a full page was answered and the cursor reached its
   # end. `jailed` is the post's state NOW, so a jailing already released or
   # undone is not listed as standing.
+  #
+  # GET /fourier_jail/release.json?quarantine=1[&after=<post id>]: the
+  # QUARANTINE DOCUMENT instead (FLAGGED-TAG QUARANTINE, operator rulings
+  # 2026-10-12) -- every post carrying a flagged or banished tag, by id, md5
+  # and mxc, a snapshot, never an event feed; the names to a pipeline reader
+  # only. Read by sample, tunnel and gate (fourier_quarantine_reader_names),
+  # above Member level, never by anyone else. See TagQuarantine.document
+  # for the body (the jail tag's posts are in it too).
   def index
+    return quarantine_document if params[:quarantine].to_s.truthy?
+
     jail_panel_only!
 
     since = params[:since].to_i
@@ -98,6 +122,7 @@ class FourierJailController < ApplicationController
       actor, moderator = case reason
       when /\A#{Regexp.escape(Post::JAIL_DELETION_REASON)}moderator (\S+), from the post page\z/o then ["pill moderator", $1]
       when "#{Post::JAIL_DELETION_REASON}banished tag" then ["banished tag", nil]
+      when /\A#{Regexp.escape(Post::JAIL_DELETION_REASON)}(\S+) banished a tag, from the review queue\z/o then ["banish", $1]
       when /\A#{Regexp.escape(Post::JAIL_DELETION_REASON)}(\S+) (?:tagged a deleted post|deleted a post tagged) /o then ["booru user", $1]
       else ["booru user", nil]
       end
@@ -115,6 +140,7 @@ class FourierJailController < ApplicationController
 
   def create
     jail_panel_only!
+    return unbanish if params.key?(:unbanish)
 
     # 422, not 404, for a malformed md5. A 404 from this route has to mean one
     # thing only -- "this booru has no release endpoint" -- so the caller can
@@ -141,6 +167,60 @@ class FourierJailController < ApplicationController
   end
 
   private
+
+  # Take a banished tag off the list, for the jail panel (see the header).
+  # A name that is not banished is answered in the body, 200, so a retry of
+  # an unbanish that already landed is not a failure.
+  def unbanish
+    name = params[:unbanish].to_s
+    panel_user = params[:by].to_s
+    unless panel_user.match?(PANEL_USER)
+      return render json: { unbanished: false, reason: "by must name the jail panel user who pressed unbanish (their Matrix id, e.g. @name:41chan.net: 1-255 of A-Z a-z 0-9 @ . _ = / + : -); the booru records it in the mod log" }, status: 422
+    end
+
+    not_banished = { unbanished: false, tag: name, reason: "not banished: no banished tag has this name" }
+    row = TagQuarantine.banished.joins(:tag).find_by(tags: { name: name })
+    return render json: not_banished if row.nil?
+
+    begin
+      row.unbanish!(by: CurrentUser.user, panel_user: panel_user, note: params[:note].to_s)
+    rescue TagQuarantine::Refused, ActiveRecord::RecordNotFound
+      # Unbanished or changed by another request since the lookup.
+      return render json: not_banished
+    end
+    render json: { unbanished: true, tag: name }
+  end
+
+  # The quarantine document, ETag'd per generation and per kind of reader
+  # (the names go to the pipeline alone, so the two bodies differ).
+  #
+  # The list trusts names, and a name is anyone's to register: whoever
+  # signed up as "gate" before the real account existed would read every
+  # quarantined md5 and mxc. So a reader must ALSO be above Member -- a fresh
+  # registration is Member, and only an admin raises an account past it
+  # (session ruling 2026-10-12).
+  def quarantine_document
+    names = Array(Danbooru.config.fourier_quarantine_reader_names).map { |name| name.to_s.downcase }
+    user = CurrentUser.user
+    unless !user.is_anonymous? && names.include?(user.name.to_s.downcase)
+      raise User::PrivilegeError, "the quarantine document is read by fourier_quarantine_reader_names alone (Danbooru.config); add this account there, or call as one of: #{names.join(", ").presence || "nobody"}"
+    end
+    unless user.level > User::Levels::MEMBER
+      raise User::PrivilegeError, "#{user.name} is on fourier_quarantine_reader_names but is #{user.level_string}: a reader must be above Member, so an account that merely registered the name cannot read the quarantine document. If this is the real #{user.name} account, an admin promotes it (Gold or above) at /admin/users/#{user.id}/edit; if not, rename or ban it and create the real one"
+    end
+    skip_authorization # gated on the reader list above
+
+    after = params[:after].presence&.to_i
+    doc = TagQuarantine.document(reader: user, after: after)
+    etag = %{"#{doc[:generation]}-#{TagBanishment.pipeline?(user) ? "n" : "p"}"}
+    response.headers["ETag"] = etag
+    response.headers["Cache-Control"] = "private, no-cache"
+    if request.headers["If-None-Match"].to_s.split(/\s*,\s*/).include?(etag)
+      head 304
+    else
+      render json: doc
+    end
+  end
 
   def jail_panel_only!
     names = Array(Danbooru.config.fourier_jail_release_names).map { |name| name.to_s.downcase }

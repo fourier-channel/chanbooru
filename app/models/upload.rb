@@ -122,8 +122,8 @@ class Upload < ApplicationRecord
     end
   end
 
-  def self.ai_tags_match(tag_string, score_range: (50..))
-    upload_media_assets = MediaAssetQuery.search(tag_string, relation: UploadMediaAsset.joins(:media_asset), foreign_key: :media_asset_id, score_range: score_range)
+  def self.ai_tags_match(tag_string, score_range: (50..), viewer: nil)
+    upload_media_assets = MediaAssetQuery.search(tag_string, relation: UploadMediaAsset.joins(:media_asset), foreign_key: :media_asset_id, score_range: score_range, viewer: viewer)
     where(upload_media_assets.where("upload_media_assets.upload_id = uploads.id").arel.exists)
   end
 
@@ -140,7 +140,7 @@ class Upload < ApplicationRecord
 
     if params[:ai_tags_match].present?
       min_score = params.fetch(:min_score, 50).to_i
-      q = q.ai_tags_match(params[:ai_tags_match], score_range: (min_score..))
+      q = q.ai_tags_match(params[:ai_tags_match], score_range: (min_score..), viewer: current_user)
     end
 
     if params[:is_posted].to_s.truthy?

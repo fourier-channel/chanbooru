@@ -59,22 +59,24 @@ class HiddenDuplicateUploadTest < ActionDispatch::IntegrationTest
   context "With deleted and jailed posts hidden as in production" do
     setup do
       Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
-      Danbooru.config.stubs(:banished_posts_need_reveal?).returns(true)
+      Danbooru.config.stubs(:banished_posts_withheld?).returns(true)
 
       @bot = create(:builder_user)         # the scraper: uploads 4chan threads
       @tunnel = create(:contributor_user)  # the Matrix bridge, level 35 like production's
       @member = create(:user)
       @approver = create(:approver_user)   # the jailing account's tier
       @admin = create(:admin_user)
-      @admin_off = create(:admin_user)
-      ModulationSetting.record!(@admin, nil, { "reveal_banished" => "true" })
 
       as(@bot) do
-        @jailed = create(:post, tag_string: "landscape hidden_marker #{JAIL}", uploader: @bot, rating: "q")
+        @jailed = create(:post, tag_string: "landscape hidden_marker", uploader: @bot, rating: "q")
         @deleted = create(:post, tag_string: "landscape deleted_marker", uploader: @bot, rating: "q")
         @visible = create(:post, tag_string: "landscape", uploader: @bot, rating: "q")
+        # The child first: since 2026-10-12 a post carrying the jail tag is
+        # withheld from the uploader as from everyone but the pipeline, so it
+        # could not be named as a parent once tagged.
         @child = create(:post, tag_string: "landscape", uploader: @bot, parent_id: @jailed.id)
       end
+      @jailed.update_columns(tag_string: "landscape hidden_marker #{JAIL}") # rubocop:disable Rails/SkipsModelValidations -- the jail tag after the child names it
       # The observed shape: the tunnel's OWN post, deleted.
       as(@tunnel) { @own_deleted = create(:post, tag_string: "landscape own_marker", uploader: @tunnel, rating: "q") }
 
@@ -128,18 +130,15 @@ class HiddenDuplicateUploadTest < ActionDispatch::IntegrationTest
         assert_refused(@deleted, before, "approver, deleted")
       end
 
-      should "refuse an admin with reveal off for a jailed post" do
+      # No reveal (2026-10-12): no admin sees a jailed post.
+      should "refuse an admin for a jailed post" do
         before = snapshot(@jailed)
-        create_post_from(upload_of(@jailed, @admin_off), @admin_off)
-        assert_refused(@jailed, before, "admin, reveal off")
+        create_post_from(upload_of(@jailed, @admin), @admin)
+        assert_refused(@jailed, before, "admin, jailed")
       end
 
       should "still merge and redirect for an admin who can see the post" do
-        create_post_from(upload_of(@jailed, @admin), @admin)
-        assert_redirected_to post_path(@jailed)
-        assert_includes @jailed.reload.tag_array, "dup_tag"
-
-        create_post_from(upload_of(@deleted, @admin_off), @admin_off, tags: "admin_tag")
+        create_post_from(upload_of(@deleted, @admin), @admin, tags: "admin_tag")
         assert_redirected_to post_path(@deleted)
         assert_includes @deleted.reload.tag_array, "admin_tag"
       end
@@ -205,10 +204,14 @@ class HiddenDuplicateUploadTest < ActionDispatch::IntegrationTest
         assert_no_match(%r{post ##{@jailed.id}\b}, response.body)
       end
 
-      should "still redirect an admin with reveal on to the post" do
+      should "still redirect an admin to an ordinary deleted post, never a jailed one" do
+        asset = upload_of(@deleted, @admin)
+        get_auth upload_path(asset.upload), @admin
+        assert_redirected_to @deleted
+
         asset = upload_of(@jailed, @admin)
         get_auth upload_path(asset.upload), @admin
-        assert_redirected_to @jailed
+        assert_no_match(%r{/posts/#{@jailed.id}\b}, response.headers["Location"].to_s)
       end
     end
 
@@ -221,10 +224,10 @@ class HiddenDuplicateUploadTest < ActionDispatch::IntegrationTest
         end
       end
 
-      should "still include it for an admin with reveal on" do
+      should "leave it out for an admin too: no reveal" do
         get_auth post_path(@child, format: :json), @admin, params: { only: "id,parent" }
         assert_response :success
-        assert_equal @jailed.id, response.parsed_body.dig("parent", "id")
+        assert_not response.parsed_body.key?("parent"), response.body
       end
     end
 

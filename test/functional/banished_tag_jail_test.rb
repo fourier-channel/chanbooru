@@ -16,7 +16,15 @@ require "test_helper"
 # so a rule keyed on "carries a banished tag" would put it straight back.
 # Only a banished tag this save ADDED fires.
 class BanishedTagJailTest < ActionDispatch::IntegrationTest
+  include TagQuarantineTestHelper
+
   JAIL = "troll_jail"
+
+  # The list is the database since 2026-10-12 (TagQuarantine), not a config
+  # method: these are banished the way the review queue banishes.
+  setup do
+    banish_tags!(%w[gore scat feces])
+  end
   # The same words whichever banished tag it was: see "not name the banished
   # tag where anyone can read it" below.
   REASON = "troll jail: banished tag"
@@ -106,7 +114,7 @@ class BanishedTagJailTest < ActionDispatch::IntegrationTest
     # The reason says WHY, not WHICH (review, 2026-09-24). A deletion flag's
     # reason and the mod log's description are read by anyone, signed in or
     # not (/post_flags, /mod_actions), and a banished NAME is shown to nobody
-    # but an admin who has switched reveal on (TagBanishment). A reason that
+    # but the pipeline (TagBanishment). A reason that
     # named the tag published the names, and which post carried them.
     should "not name the banished tag where anyone can read it" do
       put_auth post_path(@post, format: :json), @member, as: :json, params: { post: { tag_string: "landscape scat gore" }}
@@ -292,6 +300,137 @@ class BanishedTagJailTest < ActionDispatch::IntegrationTest
       put_auth post_path(post, format: :json), member, as: :json, params: { post: { tag_string: "landscape gore" }}
 
       assert_jailed(post, "gore")
+    end
+  end
+
+  # THE LIST IS THE DATABASE (operator ruling 2026-10-12): a name banished
+  # from the review queue is banished at once, with no config edit.
+  context "A name banished from the review queue" do
+    should "jail a post that gains it afterwards" do
+      member = create(:user)
+      post = as(member) { create(:post, tag_string: "landscape", uploader: member) }
+      banish_tags!("brand_new_banished")
+
+      put_auth post_path(post, format: :json), member, as: :json, params: { post: { tag_string: "landscape brand_new_banished" }}
+
+      assert_jailed(post, "brand_new_banished")
+    end
+
+    should "not jail for a name taken out of the list" do
+      TagQuarantine.joins(:tag).where(tags: { name: "gore" }).delete_all
+      CreatorVisibility.forget!
+      member = create(:user)
+      post = as(member) { create(:post, tag_string: "landscape gore", uploader: member) }
+
+      assert_live(post)
+    end
+  end
+
+  # ONE-CLICK BANISH (operator rulings 2026-10-12): Banish in the queue jails
+  # every post carrying the tag through the booru's own jail, as the system
+  # user, and each jailing reaches the jail panel on the feed it already
+  # reads, actor "banish", naming the admin and never the tag.
+  context "One-click banish" do
+    setup do
+      @admin = create(:admin_user)
+      @bot = create(:approver_user, name: "sample")
+      @uploader = create(:user)
+      @live = as(@uploader) { create(:post, tag_string: "landscape secret_(thing)", uploader: @uploader, md5: SecureRandom.hex(16)) }
+      @other = as(@uploader) { create(:post, tag_string: "secret_(thing) sky", uploader: @uploader, md5: SecureRandom.hex(16)) }
+      @plain = as(@uploader) { create(:post, tag_string: "landscape", uploader: @uploader, md5: SecureRandom.hex(16)) }
+      @already = as(@bot) { create(:post, tag_string: "landscape secret_(thing) #{JAIL}", uploader: @bot, md5: SecureRandom.hex(16)) }
+      as(@bot) { @already.delete!("troll jail: shock", user: @bot) }
+      @row = TagQuarantine.flag!(Tag.find_by_name("secret_(thing)"), by: @admin, note: "")
+    end
+
+    should "jail every carrier, as the system user, and leave the rest alone" do
+      perform_enqueued_jobs { @row.banish!(by: @admin, note: "confirmed") }
+
+      [@live, @other].each do |post|
+        post.reload
+        assert post.is_deleted?, "post ##{post.id}"
+        assert post.has_tag?(JAIL), "post ##{post.id}"
+        assert post.jailed?
+        assert_equal [User.system.id], deletion_flags(post).pluck(:creator_id)
+        assert_equal "troll jail: #{@admin.name} banished a tag, from the review queue", deletion_flags(post).last.reason
+      end
+      assert_live(@plain)
+      assert_equal 1, deletion_flags(@already.reload).count, "an already-jailed post is left alone"
+    end
+
+    should "reach the jail panel's feed as actor banish, naming the admin and never the tag" do
+      perform_enqueued_jobs { @row.banish!(by: @admin, note: "") }
+
+      get_auth fourier_jail_release_path(format: :json), @bot
+
+      assert_response :success
+      events = response.parsed_body["events"].select { |e| [@live.id, @other.id].include?(e["post_id"]) }
+      assert_equal [@live.id, @other.id], events.pluck("post_id")
+      assert_equal %w[banish banish], events.pluck("actor")
+      assert_equal [@admin.name, @admin.name], events.pluck("moderator")
+      assert_equal [true, true], events.pluck("jailed")
+      events.each { |e| assert_no_match(/secret/, e["reason"]) }
+    end
+
+    should "jail a released post again: a banish is a deliberate act" do
+      perform_enqueued_jobs { @row.banish!(by: @admin, note: "") }
+      post_auth fourier_jail_release_path, @bot, params: { md5: @live.md5 }
+      assert_equal true, response.parsed_body["released"]
+      assert_live(@live)
+
+      BanishTagJob.perform_now(@row.tag_id, @admin.id)
+
+      assert @live.reload.jailed?
+      assert_equal 2, ModAction.where(subject: @live, category: "post_jail").count
+    end
+
+    should "jail only the posts still left on a rerun" do
+      perform_enqueued_jobs { @row.banish!(by: @admin, note: "") }
+      jailings = ModAction.where(category: "post_jail").count
+
+      BanishTagJob.perform_now(@row.tag_id, @admin.id)
+
+      assert_equal jailings, ModAction.where(category: "post_jail").count
+    end
+
+    # The jail panel can unbanish while the job is queued or running
+    # (operator ruling 2026-10-12): a tag no longer banished jails nothing
+    # more. Each post is asked under its lock, so a long run stops at the
+    # unbanish rather than jailing the rest of a tag that is back to normal.
+    should "jail nothing for a tag unbanished before the job reaches it" do
+      @row.banish!(by: @admin, note: "")
+      @row.reload.unbanish!(by: @bot, panel_user: "@mod:41chan.net", note: "")
+
+      assert_no_difference(-> { ModAction.where(category: "post_jail").count }) do
+        perform_enqueued_jobs
+      end
+      assert_live(@live)
+      assert_live(@other)
+    end
+
+    should "stop jailing mid-run once the tag is unbanished" do
+      perform_enqueued_jobs { @row.banish!(by: @admin, note: "") }
+      post_auth fourier_jail_release_path, @bot, params: { md5: @live.md5 }
+      post_auth fourier_jail_release_path, @bot, params: { md5: @other.md5 }
+      assert_live(@live)
+      row = @row.reload
+      # The unbanish lands while the job is between its first post and the next.
+      Post.any_instance.stubs(:legal_hold?).with do
+        row.unbanish!(by: @bot, panel_user: "@mod:41chan.net", note: "") if TagQuarantine.exists?(row.id)
+        true
+      end.returns(false)
+
+      BanishTagJob.perform_now(@row.tag_id, @admin.id)
+
+      assert_equal 1, [@live, @other].count { |post| post.reload.jailed? }, "the post asked before the unbanish is jailed, the one after is not"
+    end
+
+    should "jail a post that gains the tag after the banish, through the failsafe" do
+      perform_enqueued_jobs { @row.banish!(by: @admin, note: "") }
+
+      as(@admin) { @plain.update!(tag_string: "landscape secret_(thing)") }
+
+      assert_jailed(@plain, "secret_(thing)")
     end
   end
 end

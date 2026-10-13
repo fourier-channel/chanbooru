@@ -1,0 +1,37 @@
+<%# The flagged-tag review queue (TagQuarantine; GET /tags?search[quarantine]=flagged), admins only. %>
+<h2>Flagged tags</h2>
+<p class="fineprint">Every post carrying one of these, and its name, is hidden from everyone below admin; the posting bots keep their own posts. Release puts a tag back to normal. Banish withholds its posts from everyone, admins included, and jails each one; the jail panel hears of every jailing. Nothing un-banishes a tag.</p>
+
+<%= table_for @tags, class: "striped autofit" do |t| %>
+  <% t.column "Name", td: { class: "col-expand" } do |tag| %>
+    <%= link_to tag.name, posts_path(tags: tag.name), class: tag_class(tag) %>
+  <% end %>
+  <% t.column "Posts" do |tag| %>
+    <%= tag.post_count %>
+  <% end %>
+  <% t.column "Flagged by" do |tag| %>
+    <% row = @quarantines[tag.id] %>
+    <%= row&.flagged_by ? link_to_user(row.flagged_by) : "--" %>
+  <% end %>
+  <% t.column "Flagged" do |tag| %>
+    <% row = @quarantines[tag.id] %>
+    <%= row&.flagged_at ? time_ago_in_words_tagged(row.flagged_at) : "--" %>
+  <% end %>
+  <% t.column "Note" do |tag| %>
+    <%= @quarantines[tag.id]&.note %>
+  <% end %>
+  <% t.column "Decide" do |tag| %>
+    <%= form_tag(tag_path(tag), method: :patch, class: "flex items-center gap-1") do %>
+      <%= text_field_tag "tag[quarantine_note]", "", placeholder: "note", size: 20, id: "quarantine-note-#{tag.id}" %>
+      <%= button_tag "Release", name: "tag[quarantine]", value: "release", type: "submit" %>
+      <%= button_tag "Banish", name: "tag[quarantine]", value: "banish", type: "submit", data: { confirm: "Banish #{tag.name}? Every post carrying it is jailed, and the name disappears for everyone, admins included. Nothing un-banishes a tag." } %>
+    <% end %>
+  <% end %>
+<% end %>
+
+<h3>Flag a name</h3>
+<%= form_tag(tags_path, method: :post, class: "flex items-center gap-1") do %>
+  <%= text_field_tag "tag[name]", "", placeholder: "tag name", data: { autocomplete: "tag" } %>
+  <%= text_field_tag "tag[quarantine_note]", "", placeholder: "note", size: 30 %>
+  <%= button_tag "Flag for review", name: "tag[quarantine]", value: "flag", type: "submit" %>
+<% end %>

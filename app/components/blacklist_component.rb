@@ -20,22 +20,15 @@ class BlacklistComponent < ApplicationComponent
     @rules = user.blacklist_rules
   end
 
-  # An admin who has switched reveal_banished on has asked to see the posts
-  # the banished names are on (operator, 2026-09-24), so those names are not
-  # hard-hiding rules for them. The conjunction rules are not banishment and
-  # stay.
+  # The conjunction rules from the config: hard-hiding for every viewer.
+  #
+  # NOT the banished names (operator, relayed 2026-10-12: "the booru itself
+  # will never be the surface that shows banished tags, ever"). This box is
+  # sent to every viewer of every page, and a rule in it is one click from
+  # being read. Nothing is lost by leaving them out: a post carrying a
+  # banished name is withheld server-side from everyone the box is drawn
+  # for (TagBanishment.withholds_posts_from?), so no rule here could match.
   def enforced_rules
-    return Danbooru.config.enforced_blacklist - TagBanishment.list if reveal_banished?
-
     Danbooru.config.enforced_blacklist
-  end
-
-  # The admin escape hatch from tag banishment, surfaced only to admins.
-  def show_reveal_toggle?
-    user.present? && !user.is_anonymous? && user.is_admin?
-  end
-
-  def reveal_banished?
-    (show_reveal_toggle? && ModulationSetting.find_by(user_id: user.id)&.reveal_banished?) || false
   end
 end

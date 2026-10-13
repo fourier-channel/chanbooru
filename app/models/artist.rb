@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 class Artist < ApplicationRecord
+  # The quarantine's name half (NamesTags, TagQuarantine): rows naming a
+  # flagged or banished tag are withheld from the viewers its name is.
+  prepend NamesTags
+
+  names_tags(->(names) { { name: names } }) { |artist| [artist.name] }
+
   extend Memoist
 
   class RevertError < StandardError; end

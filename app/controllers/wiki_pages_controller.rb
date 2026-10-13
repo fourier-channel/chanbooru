@@ -21,6 +21,13 @@ class WikiPagesController < ApplicationController
 
     if request.format.html? && @wiki_page.blank? && found_by == :title
       @wiki_page = WikiPage.new(title: params[:id])
+      # Fork: a title whose tag is hidden from the viewer (a quarantined name,
+      # TagQuarantine) answers exactly as a name never used does -- no tag
+      # colour, history link, relations, OC line or notice.
+      if @wiki_page.tag&.hidden_from?(CurrentUser.user)
+        @wiki_page.association(:tag).target = nil
+        @wiki_page.association(:artist).target = nil
+      end
       respond_with @wiki_page, status: 404
     elsif request.format.html? && @wiki_page.present? && found_by == :id
       redirect_to @wiki_page

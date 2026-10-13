@@ -41,6 +41,12 @@
 # write an admin-only ModAction. Dual-callable: the queue and any later
 # automation call the same two verbs.
 class ArtistClaim < ApplicationRecord
+  # The quarantine's name half (NamesTags, TagQuarantine): rows naming a
+  # flagged or banished tag are withheld from the viewers its name is.
+  prepend NamesTags
+
+  names_tags(->(names) { ["COALESCE(artist_claims.tag_name, '') IN (:names)", { names: names }] }) { |claim| [claim.tag_name, claim.artist&.name] }
+
   PENDING = "pending"
   APPROVED = "approved"
   REJECTED = "rejected"

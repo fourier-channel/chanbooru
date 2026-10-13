@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 class AITag < ApplicationRecord
+  # The quarantine's name half (NamesTags, TagQuarantine): rows naming a
+  # flagged or banished tag are withheld from the viewers its name is.
+  prepend NamesTags
+
+  names_tags(->(names) { ["ai_tags.tag_id IN (SELECT id FROM tags WHERE name IN (:names))", { names: names }] }) { |ai_tag| [ai_tag.tag&.name] }
+
   # Fork: rows name posts: a media asset and the post on it. Listing them is
   # members only (MembersOnly, ApplicationRecord.names_posts?).
   def self.names_posts? = true

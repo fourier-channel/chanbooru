@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 class DtextLink < ApplicationRecord
+  # The quarantine's name half (NamesTags, TagQuarantine): rows naming a
+  # flagged or banished tag are withheld from the viewers its name is.
+  prepend NamesTags
+
+  names_tags(->(names) { ["dtext_links.link_type = 0 AND dtext_links.link_target IN (:names)", { names: names }] }) { |link| link.wiki_link? ? [link.link_target] : [] }
+
   # Fork: rows name posts: an embedded post id. Listing them is
   # members only (MembersOnly, ApplicationRecord.names_posts?).
   def self.names_posts? = true

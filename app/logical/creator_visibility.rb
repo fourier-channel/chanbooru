@@ -339,7 +339,7 @@ module CreatorVisibility
 
   def hidden_tag_names(viewer)
     memoized(:tag_names, viewer) do
-      literal = hidden_ids_literal(viewer)
+      literal = name_hiding_ids_literal(viewer)
       next [] if literal.nil?
 
       Cache.get("creator-hidden-tag-names/#{Cache.hash(literal)}", TAG_NAMES_TTL) do
@@ -359,14 +359,30 @@ module CreatorVisibility
   # @return [Array<String>]
   def hidden_tag_names_among(viewer, names)
     names = names.compact.map(&:to_s).uniq
-    literal = hidden_ids_literal(viewer) unless names.empty?
+    literal = name_hiding_ids_literal(viewer) unless names.empty?
     return [] if literal.nil?
 
-    candidates = Tag.where(name: names, post_count: 1..hidden_ids(viewer).size).pluck(:name)
+    candidates = Tag.where(name: names, post_count: 1..name_hiding_ids(viewer).size).pluck(:name)
     return [] if candidates.empty?
 
     elsewhere = Post.where("string_to_array(posts.tag_string, ' ') @> ARRAY[candidate]").where("posts.id NOT IN (SELECT unnest(?::integer[]))", literal).select(1)
     Post.connection.select_values(Post.sanitize_sql_array(["SELECT candidate FROM unnest(ARRAY[?]::text[]) AS candidate WHERE NOT EXISTS (#{elsewhere.to_sql})", candidates]))
+  end
+
+  # The posts whose tags are withheld with them, for the two methods above:
+  # those a creator hid from `viewer` and those carrying a flagged tag they
+  # may not see (TagQuarantine, 2026-10-12) -- so a character used only on
+  # flagged posts is not listed, offered or counted to someone those posts
+  # do not exist for. A Set, and its '{1,2,3}' literal or nil, per request.
+  def name_hiding_ids(viewer)
+    memoized(:name_hiding_ids, viewer) { hidden_ids(viewer) | TagQuarantine.hidden_post_ids_for(viewer) }
+  end
+
+  def name_hiding_ids_literal(viewer)
+    memoized(:name_hiding_literal, viewer) do
+      ids = name_hiding_ids(viewer)
+      ids.empty? ? nil : "{#{ids.sort.join(",")}}"
+    end
   end
 
   # Would this ADMIN be refused `post` but for being an admin? Q2: "admins

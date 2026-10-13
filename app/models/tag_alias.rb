@@ -5,6 +5,7 @@ class TagAlias < TagRelationship
   # is requested, but not when a BUR is approved (to allow failed BURs to be reapproved)
   validates :antecedent_name, uniqueness: { scope: :status, conditions: -> { active }, on: %i[create update request] }
   validate :absence_of_transitive_relation
+  validate :not_moving_out_of_quarantine
 
   before_create :delete_conflicting_relationships
 
@@ -46,6 +47,28 @@ class TagAlias < TagRelationship
     if tag_alias.present? && tag_alias.consequent_name != antecedent_name
       errors.add(:base, "#{tag_alias.antecedent_name} is already aliased to #{tag_alias.consequent_name}")
     end
+  end
+
+  # Fork: moving a quarantined tag (TagQuarantine) onto a tag that is not
+  # quarantined at least as strictly would show its posts to everyone the
+  # quarantine hides them from -- the move retags them. Refused, with the
+  # way forward; allowed when the new name already carries the same state
+  # (or banished, which is stricter than flagged).
+  def self.quarantine_move_refusal(old_name, new_name)
+    flagged = TagQuarantine.flagged_names
+    banished = TagQuarantine.banished_names
+    if banished.include?(old_name) && banished.exclude?(new_name)
+      "#{old_name} is banished; moving it to #{new_name} would show its posts. Banish #{new_name} first"
+    elsif flagged.include?(old_name) && flagged.exclude?(new_name) && banished.exclude?(new_name)
+      "#{old_name} is flagged for review; moving it to #{new_name} would show its posts to everyone. Flag #{new_name} first, or release #{old_name} from the review queue"
+    end
+  end
+
+  def not_moving_out_of_quarantine
+    return if is_rejected? || is_deleted?
+
+    refusal = TagAlias.quarantine_move_refusal(antecedent_name, consequent_name)
+    errors.add(:base, refusal) if refusal
   end
 
   # Allow aliases to be reversed. If A -> B already exists, but we're trying to

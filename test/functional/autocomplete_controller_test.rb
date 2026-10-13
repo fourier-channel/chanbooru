@@ -131,11 +131,24 @@ class AutocompleteControllerTest < ActionDispatch::IntegrationTest
       should "not set session cookies when the response is publicly cached" do
         create(:tag, name: "azur_lane")
 
-        get autocomplete_index_path(search: { query: "azur", type: "tag_query" })
+        # Fork: publicly cached only with the current quarantine generation
+        # (`tv`, sent by the booru's own JS; TagQuarantine.names_generation).
+        get autocomplete_index_path(search: { query: "azur", type: "tag_query" }, tv: TagQuarantine.names_generation)
 
         assert_response :success
         assert_equal(true, response.cache_control[:public])
         assert_equal({}, response.cookies)
+      end
+
+      should "cache privately for a minute, with no stale serving, without the current generation" do
+        create(:tag, name: "azur_lane")
+
+        get autocomplete_index_path(search: { query: "azur", type: "tag_query" })
+
+        assert_response :success
+        assert_nil(response.cache_control[:public])
+        assert_equal("60", response.cache_control[:max_age].to_s)
+        assert_nil(response.cache_control[:stale_while_revalidate])
       end
     end
   end

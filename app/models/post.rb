@@ -27,7 +27,9 @@ class Post < ApplicationRecord
   NOTE_COPY_TAGS = %w[translated partially_translated check_translation translation_request reverse_translation
                       annotated partially_annotated check_annotation annotation_request]
 
-  RESTRICTED_TAGS_REGEX = /(?:^| )(?:#{Danbooru.config.restricted_tags.join("|")})(?:$| )/o
+  # Each name escaped, so a restricted name shaped like foo_(bar) matches
+  # itself rather than mismatching or raising at class load.
+  RESTRICTED_TAGS_REGEX = /(?:^| )(?:#{Danbooru.config.restricted_tags.map { |tag| Regexp.escape(tag) }.join("|")})(?:$| )/o
 
   RATINGS = {
     g: "General",
@@ -58,6 +60,7 @@ class Post < ApplicationRecord
   validate :validate_child_count
   validate :validate_changed_tags
   validate :validate_creator_prefixed_tags
+  validate :validate_flagged_tags
   validate :validate_tag_count
   validates :md5, uniqueness: { message: ->(post, _data) { "Duplicate of post ##{Post.find_by_md5(post.md5).id}" }}, on: :create
   validates :rating, presence: { message: "not selected" }
@@ -1302,7 +1305,7 @@ class Post < ApplicationRecord
         when "exif"
           exif_matches(value)
         when "ai"
-          ai_tags_include(value)
+          ai_tags_include(value, current_user: current_user)
         when "user"
           uploader_matches(value)
         when "approver"
@@ -1601,12 +1604,16 @@ class Post < ApplicationRecord
         joins(:media_asset).merge(MediaAsset.exif_matches(string))
       end
 
-      def ai_tags_include(value, default_confidence: ">=50")
+      # Fork: a tag whose name is hidden from the searcher (a quarantined
+      # name, TagQuarantine) matches nothing, as a name never used does --
+      # ai:<hidden name> would otherwise list the visible posts the
+      # autotagger scored for it.
+      def ai_tags_include(value, default_confidence: ">=50", current_user: CurrentUser.user)
         name, confidence = value.split(",")
         confidence = (confidence || default_confidence).to_s.delete("%")
 
         tag = Tag.find_by_name_or_alias(name)
-        return none if tag.nil?
+        return none if tag.nil? || TagQuarantine.hidden_name?(tag.name, current_user)
 
         if confidence == "0"
           ai_tags = AITag.joins(:media_asset).where(tag: tag)
@@ -2006,6 +2013,28 @@ class Post < ApplicationRecord
       errors.add(:base, "Tag changes are paused: #{e.message}")
     end
 
+    # A FLAGGED name (TagQuarantine) is added to or removed from a post only
+    # by an account that sees flagged posts -- an admin, the system user
+    # (approved aliases and implications), a posting bot -- because adding
+    # one makes the post vanish for everyone below admin and removing one
+    # brings it back. Judged on the whole diff after aliases and
+    # implications, so a public tag that implies a flagged one is refused
+    # too. The words never name the tag; the refusal does confirm that an
+    # exact typed name is flagged, which any refusal must (rate-limited for
+    # members below builder by validate_changed_tags).
+    def validate_flagged_tags
+      flagged = TagQuarantine.flagged_names
+      return if flagged.empty?
+
+      user = CurrentUser.user
+      return if user.nil? || TagQuarantine.sees_flagged_names?(user)
+
+      changed = (tag_array - tag_array_was) | (tag_array_was - tag_array)
+      return if changed.none? { |name| flagged.include?(name) }
+
+      errors.add(:base, "This edit would add or remove a tag only an admin may change. Ask an admin to make it")
+    end
+
     def validate_tag_count
       if tag_array.size > MAX_TAG_COUNT
         errors.add(:base, "Post cannot have more than #{MAX_TAG_COUNT} tags")
@@ -2146,9 +2175,9 @@ class Post < ApplicationRecord
   # uploader is the bot, which is the design working rather than an exception to
   # it -- there, nobody outside admins sees a deleted post at all.
   #
-  # And a JAILED or banished-tagged post does not exist for anyone but an
-  # admin who has asked to see it and the pipeline's accounts
-  # (hidden_as_banished?, operator 2026-09-24) -- deleted or not. It is answered here, not
+  # And a JAILED or banished-tagged post does not exist for anyone but the
+  # pipeline's accounts (hidden_as_banished?, operator 2026-09-24 and
+  # 2026-10-12) -- deleted or not. It is answered here, not
   # beside it, because this is the predicate every door already asks -- the
   # post page, its json, the md5 lookup, modulation.json -- and a door added
   # later that asks this one gets both rules without knowing there are two.
@@ -2163,11 +2192,9 @@ class Post < ApplicationRecord
     (!user.is_anonymous? && uploader_id == user.id) ? false : true
   end
 
-  # A post carrying the jail tag or a banished tag, withheld from an admin
-  # whose reveal_banished is off -- live or deleted, since a released post
-  # still carries its banished tag. Nobody below admin is affected: the
-  # deletion a jailing leaves is what withholds it from them. The tag test
-  # comes first because it is free and the reveal test reads a row.
+  # A post carrying the jail tag or a banished tag, withheld from everyone
+  # but the pipeline (TagBanishment.withholds_posts_from?) -- live or
+  # deleted, since a released post still carries its banished tag.
   def hidden_as_banished?(user = CurrentUser.user)
     tag_array.intersect?(TagBanishment.post_tags) && TagBanishment.withholds_posts_from?(user)
   end
@@ -2181,11 +2208,45 @@ class Post < ApplicationRecord
 
   # Every reason this post does not exist for `user` other than deletion:
   # gated from a signed-out visitor, under a creator prefix hidden from them,
-  # or hidden by its creator. Split from hidden_from? for the lists whose
-  # deleted posts are their own rule (PostPreviewComponent#render?'s
-  # show_deleted); everything else asks hidden_from?.
+  # carrying a flagged tag, or hidden by its creator. Split from hidden_from?
+  # for the lists whose deleted posts are their own rule
+  # (PostPreviewComponent#render?'s show_deleted); everything else asks
+  # hidden_from?. Flagged sits here, not beside deletion, so writable_by?
+  # never lets a moderator write past it and show_deleted never draws it.
   def hidden_beyond_deletion?(user = CurrentUser.user)
-    hidden_from_anonymous?(user) || hidden_by_creator_prefix?(user) || hidden_by_creator?(user)
+    hidden_from_anonymous?(user) || hidden_by_creator_prefix?(user) || hidden_as_flagged?(user) || hidden_by_creator?(user)
+  end
+
+  # A post carrying a FLAGGED tag (TagQuarantine, operator rulings
+  # 2026-10-12): gone for everyone but Admin level and up and the system user
+  # -- and a posting bot on a post it uploaded itself. Read from tag_string,
+  # so a post that gains the tag later is gone at once, and a release brings
+  # it back at once.
+  def hidden_as_flagged?(user = CurrentUser.user)
+    flagged = TagQuarantine.flagged_names
+    return false if flagged.empty? || tag_array.none? { |t| flagged.include?(t) }
+
+    case TagQuarantine.flagged_posts_visible_to(user)
+    when :all then false
+    when :own then uploader_id != user.id
+    else true
+    end
+  end
+
+  # Whether this post's media is drawn for `user` through the booru door
+  # (/fourier/booru/<md5>) although it came from Matrix (operator ruling
+  # 2026-10-12): a flagged mxc post, for Admin level and up. The Matrix door
+  # refuses quarantined media to every reader, rooms included, so without
+  # this an admin reviewing a flagged Matrix post is drawn a broken image;
+  # the booru door admits it when the reader's own booru session can see the
+  # post. Only a post `user` may see at all: a banished or jailed one is
+  # withheld from admins, and never drawn. Asked by media_asset_file_url in
+  # danbooru_local_config.rb.
+  def matrix_media_by_booru_door?(user = CurrentUser.user)
+    return false unless source.to_s.start_with?("mxc://") && user.present? && user.is_admin?
+
+    flagged = TagQuarantine.flagged_names
+    tag_array.any? { |t| flagged.include?(t) } && !hidden_from?(user)
   end
 
   # Hidden by its creator's panel (CreatorVisibility; design
@@ -2204,7 +2265,7 @@ class Post < ApplicationRecord
   # section 7). Asked by #levelblocked? alone.
   #
   # And never for a post that does not exist for the viewer anyway
-  # (#hidden_from?: deleted, jailed past their reveal, under ANOTHER creator's
+  # (#hidden_from?: deleted, jailed or flagged, under ANOTHER creator's
   # hidden prefix): a widen lifts the level gate and nothing else, so a door
   # that asks only #visible? -- can_see_media? on a nested post -- must not
   # be handed what every other door refuses (fourier-sampling-c2's check c,
@@ -2253,6 +2314,16 @@ class Post < ApplicationRecord
     end
 
     terms << where_array_includes_any(tags, TagBanishment.post_tags) if TagBanishment.withholds_posts_from?(user)
+
+    # Flagged (#hidden_as_flagged?): by name, with the bot's own uploads
+    # excepted. Nothing flagged adds nothing.
+    flagged = TagQuarantine.flagged_names
+    if flagged.any?
+      case TagQuarantine.flagged_posts_visible_to(user)
+      when :none then terms << where_array_includes_any(tags, flagged.to_a)
+      when :own then terms << where_array_includes_any(tags, flagged.to_a).where.not(uploader_id: user.id)
+      end
+    end
 
     prefixed = CreatorPrefixes.hidden_tag_names_for(user)
     terms << where_array_includes_any(tags, prefixed) if prefixed.any?
@@ -2417,19 +2488,19 @@ class Post < ApplicationRecord
   # uploading its file again is not an appeal. The tunnel had uploaded all
   # three of those posts itself, so #hidden_from? alone would have left the
   # observed case exactly as it was. An account that can see deleted posts
-  # (an admin, and an admin with reveal on for a jailed one) keeps upstream's
+  # (an admin, and the pipeline for a jailed one) keeps upstream's
   # merge and redirect.
   def refuses_duplicate_upload_from?(user = CurrentUser.user)
     hidden_from?(user) || (is_deleted? && (user.nil? || !user.can_see_deleted_posts?))
   end
 
   # THE BOORU'S OWN JAIL (2026-09-24). A live post that GAINS a banished tag
-  # (Danbooru.config.banished_tags) is jailed in the same transaction: the
+  # (TagBanishment.list, the database list) is jailed in the same transaction: the
   # jail tag added, then the post deleted -- the end state fourier-sampling's
   # jailSync.ts produces, in its order, with the reason "troll jail: banished
   # tag". The reason does not NAME the tag: a deletion flag's reason and the
   # mod log are read by anyone at /post_flags and /mod_actions, signed in or
-  # not, and a banished name is shown to nobody but an admin with reveal on
+  # not, and a banished name is shown to nobody but the pipeline
   # (TagBanishment). The post's own tags say which, to whoever may see them.
   #
   # Until this, jailing was something only a client did, so it happened only
@@ -2464,7 +2535,10 @@ class Post < ApplicationRecord
     private
 
     def note_banished_tags_gained
-      gained = (tag_array - (new_record? ? [] : tag_array_was)) & Danbooru.config.banished_tags
+      banished = TagBanishment.list
+      return if banished.empty?
+
+      gained = (tag_array - (new_record? ? [] : tag_array_was)) & banished
       @banished_tags_gained = @banished_tags_gained.to_a | gained if gained.any?
     end
 

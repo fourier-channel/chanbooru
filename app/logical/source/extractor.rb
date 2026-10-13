@@ -328,8 +328,9 @@ module Source
     end
 
     def translated_tags
+      hidden = Tag.hidden_names_for(CurrentUser.user, by_creator: false).to_set
       translated_tags = normalized_tags.flat_map(&method(:translate_tag)).uniq
-      translated_tags = translated_tags.reject(&:artist?).reject(&:is_deprecated?)
+      translated_tags = translated_tags.reject(&:artist?).reject(&:is_deprecated?).reject { |tag| hidden.include?(tag.name) }
 
       translated_tags.sort_by do |tag|
         [TagCategory.categorized_list.index(tag.category_name.downcase), tag.name]
@@ -367,8 +368,11 @@ module Source
       "source:#{url}"
     end
 
+    # Fork: as the viewer, not the system user -- the upload page printed
+    # "Found N other posts" and drew previews counting posts hidden from the
+    # uploader (deleted, jailed, flagged, under a hidden creator prefix).
     def related_posts(limit = 5)
-      Post.system_tag_match(related_posts_search_query).paginate(1, limit: limit, page_limit: limit)
+      Post.user_tag_match(related_posts_search_query, CurrentUser.user).paginate(1, limit: limit, page_limit: limit)
     end
 
     # A hash containing the results of any API calls made by the extractor. For debugging purposes only.
@@ -384,7 +388,9 @@ module Source
           display_name: display_name,
           username: username,
           profile_urls: profile_urls,
-          artists: artists.as_json(only: %i[id name]),
+          # Fork: never an artist whose name is hidden from the viewer
+          # (TagQuarantine, NamesTags): GET /source.json is open to anyone.
+          artists: artists.to_a.reject { |artist| artist.names_hidden_tag?(CurrentUser.user) }.as_json(only: %i[id name]),
         },
         published_at: published_at,
         updated_at: updated_at,

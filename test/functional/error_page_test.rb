@@ -8,6 +8,8 @@ require "test_helper"
 # picture -- a booru post drawn from the landing console's list (2026-10-11)
 # -- and the site's own error underneath.
 class ErrorPageTest < ActionDispatch::IntegrationTest
+  include TagQuarantineTestHelper
+
   QUESTIONS = [
     "Have you registered?",
     "Are you already registered, but still here?",
@@ -295,9 +297,12 @@ class ErrorPageTest < ActionDispatch::IntegrationTest
       assert_equal [@ok.id], drawn_ids(10, viewer: blocked).uniq
     end
 
-    should "fall through a released banished post for an admin whose reveal is off" do
-      Danbooru.config.stubs(:banished_tags).returns(["ep_banished_thing"])
-      Danbooru.config.stubs(:banished_posts_need_reveal?).returns(true)
+    # Banished is withheld from everyone but the pipeline, admins included,
+    # with no reveal (2026-10-12): a released banished post is drawn to
+    # nobody, and the console says why.
+    should "fall through a released banished post for everyone" do
+      banish_tags!("ep_banished_thing")
+      Danbooru.config.stubs(:banished_posts_withheld?).returns(true)
       # Released: live, still carrying its banished tag. Written past the
       # tag hooks, which would jail a post tagged with it.
       released = as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape") }
@@ -307,11 +312,24 @@ class ErrorPageTest < ActionDispatch::IntegrationTest
       get_auth artist_path(999_999_999), create(:admin_user)
       assert_select ".oh-no .oh-no-art img", count: 0
 
-      # The hero band's rule shows a released post to a signed-out visitor,
-      # so the error page does too -- this is the admin's own withholding.
       reset!
       get artist_path(999_999_999)
-      assert_select ".oh-no .oh-no-art a[href='#{post_path(released)}'] img", count: 1
+      assert_select ".oh-no .oh-no-art img", count: 0
+      assert_equal "carries a banished tag", ErrorPagePicture.statuses(LandingSetting.current, viewer: create(:admin_user)).sole.reason
+    end
+
+    # A post carrying a FLAGGED tag (TagQuarantine) is gone for everyone
+    # below admin, so a signed-out visitor is never drawn it -- and so nobody
+    # is (the picture is the anonymous rule's).
+    should "fall through a post carrying a flagged tag, and say why on the console" do
+      flag_tags!("ep_flagged_thing")
+      flagged = as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape") }
+      flagged.update_columns(tag_string: "ep_landscape ep_flagged_thing") # rubocop:disable Rails/SkipsModelValidations -- past the lock, as a bot's tagging lands
+      configure_pictures(flagged)
+
+      get artist_path(999_999_999)
+      assert_select ".oh-no .oh-no-art img", count: 0
+      assert_equal "carries a tag flagged for review", ErrorPagePicture.statuses(LandingSetting.current, viewer: create(:admin_user)).sole.reason
     end
 
     should "record a signed-out viewer's draw, so the picture's post page opens for them" do

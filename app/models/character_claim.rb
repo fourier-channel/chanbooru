@@ -46,6 +46,12 @@
 # gallery's account as it is now; WikiPagePolicy asks unbanned?) and keeps
 # the mark: ownership is a fact about the character.
 class CharacterClaim < ApplicationRecord
+  # The quarantine's name half (NamesTags, TagQuarantine): rows naming a
+  # flagged or banished tag are withheld from the viewers its name is.
+  prepend NamesTags
+
+  names_tags(->(names) { { tag_name: names } }) { |claim| [claim.tag_name] }
+
   PENDING = "pending"
   APPROVED = "approved"
   REJECTED = "rejected"

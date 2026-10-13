@@ -27,7 +27,10 @@ class MediaAssetQuery
     @normalized_ast ||= ast.to_cnf.rewrite_opts.trim
   end
 
-  def search(relation: MediaAsset.all, foreign_key: :id, score_range: (50..))
+  # viewer: the searcher, when a person asked (search[ai_tags_match]): a tag
+  # whose name is hidden from them (TagQuarantine) matches nothing. nil for
+  # the site's own checks (new_uploader_blocked_ai_tags), which see all.
+  def search(relation: MediaAsset.all, foreign_key: :id, score_range: (50..), viewer: nil)
     normalized_ast.visit do |node, *children|
       case node.type
       in :all
@@ -37,6 +40,8 @@ class MediaAssetQuery
       in :tag
         tag_name, score = node.name.split(",")
         score_range = score&.delete("%").presence || score_range
+
+        next relation.none if viewer && TagQuarantine.hidden_name?(Tag.find_by_name_or_alias(tag_name)&.name || tag_name, viewer)
 
         ai_tag = AITag.named(tag_name).where_numeric_matches(:score, score_range.to_s)
         relation.where(ai_tag.where(AITag.arel_table[:media_asset_id].eq(relation.arel_table[foreign_key])).arel.exists)

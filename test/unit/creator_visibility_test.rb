@@ -516,7 +516,7 @@ class CreatorVisibilityTest < ActiveSupport::TestCase
     # Jail is every TagBanishment.post_tags name, not only the jail tag.
     should "never allow anyone on a post carrying a banished tag" do
       banished = maple_post("landscape gore_thing")
-      Danbooru.config.stubs(:banished_tags).returns(["gore_thing"])
+      TagQuarantine.create!(tag: Tag.find_by_name("gore_thing"), state: TagQuarantine::BANISHED, banished_at: Time.zone.now)
 
       assert_equal(:default, decide(banished, @member))
       assert_equal(:allowed, decide(@post, @member))

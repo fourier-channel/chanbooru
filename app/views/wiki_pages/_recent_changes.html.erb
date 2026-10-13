@@ -1,7 +1,8 @@
 <section>
   <h2>Recent Changes (<%= link_to "all", wiki_page_versions_path %>)</h2>
   <ul>
-    <% WikiPage.order(updated_at: :desc).includes(:tag).limit(25).each do |page| %>
+    <%# Fork: without the pages the viewer may not be shown (a quarantined title, NamesTags): this sidebar is on every wiki page. %>
+    <% WikiPage.without_hidden_posts(CurrentUser.user).order(updated_at: :desc).includes(:tag).limit(25).each do |page| %>
       <li><%= link_to page.pretty_title, wiki_page_path(page), class: tag_class(page.tag) %></li>
     <% end %>
   </ul>

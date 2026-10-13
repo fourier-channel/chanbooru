@@ -122,8 +122,9 @@ class ArchivePulse
   # ids (which also decide the tag names hidden with them) and hidden creator
   # prefix names, so two strangers still share an entry.
   def cached(name, ttl = CACHE_TTL, &)
-    # The reveal toggle too: two admins at one level see different archives
-    # when one of them has it off (TagBanishment.withholds_posts_from?).
+    # Whether jailed and banished posts are withheld (the pipeline sees them;
+    # TagBanishment.withholds_posts_from?), and the flagged posts this viewer
+    # is denied (hidden_digest).
     Cache.get("archive-pulse/#{name}/#{viewer.level}/#{TagBanishment.withholds_posts_from?(viewer) ? "withheld" : "all"}/#{hidden_digest}", ttl, race_condition_ttl: [ttl, 30.seconds].min, &)
   rescue ActiveRecord::QueryCanceled, ActiveRecord::StatementInvalid
     # A stat that timed out is omitted, not zero. Reporting zero posts because a
@@ -132,6 +133,6 @@ class ArchivePulse
   end
 
   def hidden_digest
-    @hidden_digest ||= Cache.hash([CreatorVisibility.hidden_ids_literal(viewer), CreatorPrefixes.hidden_tag_names_for(viewer).sort].to_json)
+    @hidden_digest ||= Cache.hash([CreatorVisibility.hidden_ids_literal(viewer), CreatorPrefixes.hidden_tag_names_for(viewer).sort, TagQuarantine.hidden_post_ids_for(viewer)].to_json)
   end
 end

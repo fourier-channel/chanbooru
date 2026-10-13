@@ -1,20 +1,26 @@
-<% if tag.present? %>
-  <% if tag.antecedent_alias %>
+<%# Fork: no relation naming a tag whose name is hidden from the viewer (TagQuarantine, Tag.hidden_names_for), and nothing at all for a hidden tag. %>
+<% hidden_names = tag.present? ? Tag.hidden_names_for(CurrentUser.user, by_creator: false).to_set : Set.new %>
+<% if tag.present? && !hidden_names.include?(tag.name) %>
+  <% antecedent_alias = tag.antecedent_alias unless tag.antecedent_alias.nil? || hidden_names.include?(tag.antecedent_alias.consequent_name) %>
+  <% consequent_aliases = tag.consequent_aliases.reject { |ta| hidden_names.include?(ta.antecedent_name) } %>
+  <% antecedent_implications = tag.antecedent_implications.reject { |ti| hidden_names.include?(ti.consequent_name) } %>
+  <% consequent_implications = tag.consequent_implications.reject { |ti| hidden_names.include?(ti.antecedent_name) } %>
+  <% if antecedent_alias %>
     <p class="fineprint">
-      This tag has been aliased to <%= link_to_wiki(tag.antecedent_alias.consequent_name) %>
+      This tag has been aliased to <%= link_to_wiki(antecedent_alias.consequent_name) %>
       (<%= link_to_wiki "learn more", "help:tag_aliases" %>).
     </p>
   <% end %>
 
-  <% if tag.consequent_aliases.present? %>
+  <% if consequent_aliases.present? %>
     <p class="fineprint">
       The following tags are aliased to this tag:
-      <%= to_sentence(tag.consequent_aliases.sort_by(&:antecedent_name).map { |ta| link_to_wiki ta.antecedent_name }) %>
+      <%= to_sentence(consequent_aliases.sort_by(&:antecedent_name).map { |ta| link_to_wiki ta.antecedent_name }) %>
       (<%= link_to_wiki "learn more", "help:tag_aliases" %>).
     </p>
   <% end %>
 
-  <% Tag.automatic_tags_for([tag.name]).tap do |automatic_tags| %>
+  <% Tag.automatic_tags_for([tag.name]).reject { |name| hidden_names.include?(name) }.tap do |automatic_tags| %>
     <% if automatic_tags.present? %>
       <p class="fineprint">
         This tag automatically adds
@@ -24,18 +30,18 @@
     <% end %>
   <% end %>
 
-  <% if tag.antecedent_implications.present? %>
+  <% if antecedent_implications.present? %>
     <p class="fineprint">
       This tag implicates
-      <%= to_sentence(tag.antecedent_implications.sort_by(&:consequent_name).map { |ti| link_to_wiki ti.consequent_name }) %>
+      <%= to_sentence(antecedent_implications.sort_by(&:consequent_name).map { |ti| link_to_wiki ti.consequent_name }) %>
       (<%= link_to_wiki "learn more", "help:tag_implications" %>).
     </p>
   <% end %>
 
-  <% if tag.consequent_implications.present? %>
+  <% if consequent_implications.present? %>
     <p class="fineprint">
       The following tags implicate this tag:
-      <%= to_sentence(tag.consequent_implications.sort_by(&:antecedent_name).map { |ti| link_to_wiki ti.antecedent_name }) %>
+      <%= to_sentence(consequent_implications.sort_by(&:antecedent_name).map { |ti| link_to_wiki ti.antecedent_name }) %>
       (<%= link_to_wiki "learn more", "help:tag_implications" %>).
     </p>
   <% end %>

@@ -78,12 +78,20 @@ class PostVersion < ApplicationRecord
       if searches_tags?(params)
         hidden = private_history_post_ids_hidden_from(current_user, CurrentUser.request)
         q = q.where.not(post_id: hidden) if hidden.present?
+        # A tag search naming a quarantined name hidden from the searcher
+        # (TagQuarantine) matches nothing, as a name never used does.
+        q = q.none if searched_tag_names(params).intersect?(TagQuarantine.hidden_names_for(current_user))
       end
 
       q.apply_default_order(params).redacting_private_tags_for(current_user, CurrentUser.request)
     end
 
     TAG_SEARCH_PARAMS = %w[changed_tags all_changed_tags any_changed_tags tag_matches].freeze
+
+    def searched_tag_names(params)
+      params.to_h.select { |key, _| key.to_s.in?(TAG_SEARCH_PARAMS) || key.to_s.match?(/\A(tags|added_tags|removed_tags)(_|\z)/) }
+            .values.flat_map { |value| Array.wrap(value).flat_map { |v| v.to_s.downcase.scan(/[^[:space:]*]+/) } }.uniq
+    end
 
     def searches_tags?(params)
       params.to_h.any? do |key, value|
@@ -137,8 +145,19 @@ class PostVersion < ApplicationRecord
       # Take each version's post's private creator tags out of the loaded
       # rows, unless the viewer is that post's creator. In memory only: the
       # rows are marked readonly and never saved.
+      #
+      # And every quarantined name hidden from the viewer (TagQuarantine) out
+      # of every row: a visible post's history can hold a flagged name it
+      # once carried.
       def redact_private_tags(versions, user, request)
         versions = versions.to_a
+        quarantined = TagQuarantine.hidden_names_for(user)
+        if quarantined.any?
+          versions.each do |version|
+            named = version.tags.to_s.split | Array(version.added_tags) | Array(version.removed_tags)
+            version.withhold_tags!(quarantined) if named.intersect?(quarantined)
+          end
+        end
         private_tags = FourierTagSource.where(post_id: versions.map(&:post_id).uniq, public: false).pluck(:post_id, :tag)
                                        .group_by(&:first).transform_values { |pairs| pairs.map(&:last) }
         return versions if private_tags.empty?

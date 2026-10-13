@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 class ArtistURL < ApplicationRecord
+  # The quarantine's name half (NamesTags, TagQuarantine): rows naming a
+  # flagged or banished tag are withheld from the viewers its name is.
+  prepend NamesTags
+
+  names_tags(->(names) { ["artist_urls.artist_id IN (SELECT id FROM artists WHERE name IN (:names))", { names: names }] }) { |url| [url.artist&.name] }
+
   normalizes :url, with: ->(url) { ArtistURL.normalize_url(url) }
 
   validates :url, presence: true, length: { maximum: 300, message: "'%{value}' is too long (maximum is 300 characters)" }, uniqueness: { scope: :artist_id }

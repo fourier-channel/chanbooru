@@ -21,7 +21,15 @@ class RelatedTagsController < ApplicationController
     @query = RelatedTagQuery.new(query:, media_asset:, categories:, search_sample_size:, tag_sample_size:, order:, limit:, user: CurrentUser.user)
     authorize @query
 
-    expires_in @query.cache_duration, public: @query.cache_publicly? if request.format.js? && response.cache_control.blank? && params[:user_tags].blank?
+    # Fork: cached publicly only with the current quarantine generation
+    # (`tv`, see AutocompleteController); otherwise a minute, privately.
+    if request.format.js? && response.cache_control.blank? && params[:user_tags].blank?
+      if params[:tv].to_s == TagQuarantine.names_generation
+        expires_in @query.cache_duration, public: @query.cache_publicly?
+      else
+        expires_in 1.minute, public: false
+      end
+    end
     respond_with(@query)
   end
 end

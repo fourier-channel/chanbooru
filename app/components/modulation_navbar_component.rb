@@ -93,6 +93,10 @@ class ModulationNavbarComponent < NavbarComponent
     # work, and the site map's Admin block is the standing way in.
     list << { label: "Claims", href: main_app.admin_artist_claims_path, category: "meta", count: pending_claim_count } if current_user.is_admin? && pending_claim_count > 0
 
+    # Flagged tags waiting for an admin's Release or Banish (TagQuarantine,
+    # operator rulings 2026-10-12). Shown while something waits, like Claims.
+    list << { label: "Flagged", href: main_app.tags_path(search: { quarantine: "flagged" }), category: "meta", count: flagged_tag_count } if current_user.is_admin? && flagged_tag_count > 0
+
     # Join requests waiting for this creator (CREATOR_VISIBILITY Q5; the
     # creator panel, 2026-10-09): the creator is never sent a dmail per
     # request, so this is how they hear. Shown only while something waits,
@@ -144,6 +148,12 @@ class ModulationNavbarComponent < NavbarComponent
     @pending_join_requests ||= CreatorJoinRequest.pending.joins(creator_group: :creator_gallery)
                                                  .where(creator_galleries: { user_id: current_user.id })
                                                  .group("creator_galleries.slug").order(Arel.sql("min(creator_join_requests.created_at)")).count
+  end
+
+  # The flagged tags awaiting review, from the per-request quarantine set:
+  # no query of its own.
+  def flagged_tag_count
+    @flagged_tag_count ||= TagQuarantine.flagged_names.size
   end
 
   # Counted once, and only for the admins who can see the entry at all: the

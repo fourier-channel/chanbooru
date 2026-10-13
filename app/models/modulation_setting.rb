@@ -6,6 +6,12 @@
 # (repo rule 9); a logged-out viewer's copy lives in their Rails session under
 # SESSION_KEY, shaped exactly like the defaults hash.
 class ModulationSetting < ApplicationRecord
+  # The admin reveal_banished toggle is gone (operator, relayed 2026-10-12:
+  # "the booru itself will never be the surface that shows banished tags,
+  # ever"). Its column is left in the table and never read, so a later
+  # migration can drop it without a running release noticing.
+  self.ignored_columns += ["reveal_banished"]
+
   belongs_to :user
 
   # fit: fill the page to the point the collapsed Tags panel is still visible
@@ -82,11 +88,6 @@ class ModulationSetting < ApplicationRecord
     clean["gallery_show_deleted"] = changes["gallery_show_deleted"].to_s.truthy? unless changes["gallery_show_deleted"].nil?
     clean["session_bar_open"] = changes["session_bar_open"].to_s.truthy? unless changes["session_bar_open"].nil?
     clean["hero_band"] = changes["hero_band"].to_s.truthy? unless changes["hero_band"].nil?
-    # Admin-only, row-only: revealing the banished vocabulary is a deliberate
-    # act (see TagBanishment), and it means nothing in an anonymous session.
-    if !changes["reveal_banished"].nil? && user.respond_to?(:is_admin?) && user.is_admin?
-      clean["reveal_banished"] = changes["reveal_banished"].to_s.truthy?
-    end
     return for_viewer(user, session) if clean.empty?
 
     if user.present? && !user.is_anonymous?

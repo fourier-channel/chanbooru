@@ -8,6 +8,8 @@ require "test_helper"
 # asserted that way -- that the default OUTSIDE test is Modulation -- is
 # asserted directly against the config.
 class ModulationPresetTest < ActionDispatch::IntegrationTest
+  include TagQuarantineTestHelper
+
   # A LIVE post carrying a banished tag, which since 2026-09-24 exists only as
   # a released jailing: a post that GAINS a banished tag is jailed on the
   # spot (Post#jail_on_banished_tags), so creating one with the tag jails it,
@@ -317,6 +319,7 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
 
     context "tag banishment" do
       setup do
+        banish_tags!("gore")
         @admin = create(:admin_user)
         @released = released_post("gore plaintag", @admin)
       end
@@ -331,20 +334,19 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         assert_includes(tags, "plaintag")
       end
 
-      should "withhold them from an admin too, until the reveal toggle is on" do
+      # No reveal (operator, relayed 2026-10-12): the booru never shows a
+      # banished name, to an admin either, and there is no toggle to store.
+      should "withhold them from an admin too" do
         login_as(@admin)
         get post_modulation_path(@released, format: :json)
         assert_not_includes(response.parsed_body["tags"].values.flatten, "gore")
-
-        ModulationSetting.record!(@admin, nil, { "reveal_banished" => "true" })
-        get post_modulation_path(@released, format: :json)
-        assert_includes(response.parsed_body["tags"].values.flatten, "gore")
       end
 
-      should "not grant the reveal toggle to a non-admin" do
-        ModulationSetting.record!(@user, nil, { "reveal_banished" => "true" })
-
-        assert_nil(ModulationSetting.find_by(user_id: @user.id))
+      should "store no reveal setting for anyone" do
+        [@user, @admin].each do |user|
+          ModulationSetting.record!(user, nil, { "reveal_banished" => "true" })
+          assert_nil(ModulationSetting.find_by(user_id: user.id), user.level_string)
+        end
       end
 
       should "keep banished names out of the tag listing, even for a signed-in admin" do
@@ -458,6 +460,7 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
       end
 
       should "keep banished names out of the hover category map" do
+        banish_tags!("gore")
         released_post("gore plaintag", @user)
 
         get posts_path(preset: "modulation", tags: "plaintag")

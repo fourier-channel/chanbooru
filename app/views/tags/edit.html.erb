@@ -24,6 +24,41 @@
       <% end %>
       <%= f.button :submit, "Submit" %>
     <% end %>
+
+    <%# The flagged-tag review quarantine (TagQuarantine), admins only. Its
+        own form: a flip is never mixed with a category edit. %>
+    <% if policy(@tag).can_change_quarantine? %>
+      <% quarantine = TagQuarantine.find_by(tag_id: @tag.id) %>
+      <section id="tag-quarantine" class="mt-4">
+        <h2>Review quarantine</h2>
+        <% if quarantine&.flagged? %>
+          <p>Flagged for review<%= " by #{quarantine.flagged_by.name}" if quarantine.flagged_by %> <%= time_ago_in_words_tagged(quarantine.flagged_at) %>.<% if quarantine.note.present? %> Note: <%= quarantine.note %><% end %></p>
+          <p><%= @tag.post_count %> posts carrying it are hidden from everyone below admin. Release brings them back; Banish withholds them from everyone and jails each one.</p>
+        <% else %>
+          <p>Flagging hides every post carrying this tag, and the tag's name, from everyone below admin at once -- the posting bots keep their own posts. <%= @tag.post_count %> posts carry it now.</p>
+          <% implying = @tag.consequent_implications.active.count %>
+          <% if implying > 0 %>
+            <p><%= implying %> tags imply it; posts gaining those vanish too.</p>
+          <% end %>
+          <% aliased = TagAlias.active.find_by(antecedent_name: @tag.name) %>
+          <% if aliased %>
+            <p>Posts typed with this name become <%= link_to_wiki aliased.consequent_name %>: flag <%= aliased.consequent_name %> instead.</p>
+          <% end %>
+        <% end %>
+        <%= form_tag(tag_path(@tag), method: :patch, class: "simple_form") do %>
+          <div class="input">
+            <label for="tag_quarantine_note">Note</label>
+            <%= text_field_tag "tag[quarantine_note]", "", id: "tag_quarantine_note", size: 60 %>
+          </div>
+          <% if quarantine&.flagged? %>
+            <%= button_tag "Release", name: "tag[quarantine]", value: "release", type: "submit" %>
+            <%= button_tag "Banish", name: "tag[quarantine]", value: "banish", type: "submit", data: { confirm: "Banish #{@tag.name}? Every post carrying it is jailed, and the name disappears for everyone, admins included. Nothing un-banishes a tag." } %>
+          <% else %>
+            <%= button_tag "Flag for review", name: "tag[quarantine]", value: "flag", type: "submit" %>
+          <% end %>
+        <% end %>
+      </section>
+    <% end %>
   </div>
 </div>
 

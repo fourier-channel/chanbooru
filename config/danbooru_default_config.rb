@@ -730,10 +730,10 @@ module Danbooru
     end
 
     # Whether a post carrying a banished tag or the jail tag is withheld from
-    # an admin whose reveal_banished is off (operator ruling 2026-09-24: such
-    # a post "is supposed to immediately disappear from the booru view surface
-    # for all but an admin with the setting explicitly ON to view it"). See
-    # TagBanishment.withholds_posts_from?.
+    # everyone but the pipeline (operator ruling 2026-09-24: such a post "is
+    # supposed to immediately disappear from the booru view surface"; and
+    # 2026-10-12: the booru never shows banished tags, ever -- no admin
+    # reveal). See TagBanishment.withholds_posts_from?.
     #
     # HERE, not in danbooru_local_config.rb where the fork's other
     # restrictions sit: that file has been untracked since 2026-09-11 (its
@@ -745,7 +745,7 @@ module Danbooru
     # to every admin search, and the inherited suite asserts admin searches as
     # upstream shapes them. banished_post_visibility_test stubs it true and
     # asserts every door.
-    def banished_posts_need_reveal?
+    def banished_posts_withheld?
       !Rails.env.test?
     end
 
@@ -830,7 +830,7 @@ module Danbooru
     # name here that matches no account.
     #
     # HERE and not in danbooru_local_config.rb for the reason
-    # banished_posts_need_reveal? gives: that file is untracked, and the code
+    # banished_posts_withheld? gives: that file is untracked, and the code
     # cannot run without this. A deployment whose bots are named otherwise
     # overrides it there.
     #
@@ -864,10 +864,32 @@ module Danbooru
     # sampling's record still holding it jailed. fourier-sampling's posting
     # account; not derived from fourier_posting_bot_names, because the tunnel
     # posts and never releases. HERE rather than in the untracked
-    # danbooru_local_config.rb, for the reason banished_posts_need_reveal?
+    # danbooru_local_config.rb, for the reason banished_posts_withheld?
     # gives. Empty means nobody, and the refusal names this setting.
     def fourier_jail_release_names
       %w[sample]
+    end
+
+    # The booru accounts that may read the QUARANTINE DOCUMENT (GET
+    # /fourier_jail/release.json?quarantine=1): every post carrying a flagged
+    # or banished tag or the jail tag, by id, md5 and mxc (FLAGGED-TAG
+    # QUARANTINE, operator rulings 2026-10-12). `sample` (fourier-sampling:
+    # withholds them from its published pages, reads the banished list for
+    # its auto-jail and its unbanish), `tunnel` (fourier-tunnel: stops
+    # writing the names into Matrix room tag state) and `gate` (fourier-auth:
+    # refuses them at the Matrix media door and on publication grants; its
+    # api key is scoped to fourier_jail:index, with no IP list -- ApiKey
+    # refuses private addresses, and fourier-auth calls over the docker
+    # bridge). A NAME IS NOT ENOUGH: each reader must also be above Member,
+    # so whoever registers one of these names first reads nothing -- an
+    # admin promotes the real account (Gold or above), and the refusal says
+    # so. Only the pipeline (TagBanishment.pipeline?) is given the NAMES;
+    # `gate` gets posts alone. HERE rather than
+    # in the untracked danbooru_local_config.rb, for the reason
+    # banished_posts_withheld? gives. Empty means nobody, and the refusal
+    # names this setting.
+    def fourier_quarantine_reader_names
+      %w[sample tunnel gate]
     end
 
     # The Matrix homeserver whose users fourier-tunnel mints `41chan_<localpart>`

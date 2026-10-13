@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 class BulkUpdateRequest < ApplicationRecord
+  # The quarantine's name half (NamesTags, TagQuarantine): rows naming a
+  # flagged or banished tag are withheld from the viewers its name is.
+  prepend NamesTags
+
+  names_tags(->(names) { ["bulk_update_requests.tags && ARRAY[:names]::text[]", { names: names }] }, &:tags)
+
   STATUSES = %w[pending approved rejected processing failed]
 
   attr_accessor :title, :reason
@@ -138,6 +144,14 @@ class BulkUpdateRequest < ApplicationRecord
   end
 
   def validate_script
+    # Fork: a request naming a quarantined tag the requester may not be
+    # shown (TagQuarantine) is refused without naming which -- and BEFORE
+    # the script's own checks, whose words (a rename refused because its
+    # tag "is flagged for review") would say more than the refusal may.
+    if new_record? && processor.affected_tags.intersect?(TagQuarantine.hidden_names_for(CurrentUser.user))
+      return errors.add(:base, "This request names a tag only an admin may change. Ask an admin to make it")
+    end
+
     if processor.invalid?(:request)
       processor.errors.full_messages.each { |error| errors.add(:base, error) }
     end

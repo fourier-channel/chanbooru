@@ -21,7 +21,8 @@ class LegacyController < ApplicationController
   end
 
   def tags
-    @tags = Tag.limit(100).search(params, CurrentUser.user).paginate(params[:page], limit: params[:limit])
+    # Fork: the names the viewer may be shown, as /tags lists them.
+    @tags = Tag.visible_to(CurrentUser.user).limit(100).search(params, CurrentUser.user).paginate(params[:page], limit: params[:limit])
     authorize @tags, policy_class: LegacyControllerPolicy
   end
 

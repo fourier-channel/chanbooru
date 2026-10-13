@@ -241,12 +241,27 @@
       return out;
     };
     const lampClass = (t) => { const m = lampMap(); return m[t] ? " mod-pill-dot--" + m[t] : ""; };
-    const pillAnchor = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + hypeOf(t) + '" data-tag="' + esc(t) + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot' + lampClass(t) + '"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
+    // THE REVIEW QUARANTINE'S QUICK SWITCH (TagQuarantine, operator rulings
+    // 2026-10-12). cur.quarantine is present for an admin alone: a flagged
+    // pill carries a marker whether or not the panel is in edit mode, and in
+    // edit mode each pill grows a lock beside its remove control that flags
+    // the tag for review, or releases a flagged one, through PATCH
+    // /tags/:id.json -- the tag's own route, the same verbs as its edit page.
+    const flaggedSet = () => new Set(((cur && cur.quarantine) || {}).flagged || []);
+    const pillAnchor = (t, b, dot, extra) => '<a class="mod-pill mod-pill--' + b + (extra ? " " + extra : "") + (flaggedSet().has(t) ? " mod-pill--flagged" : "") + hypeOf(t) + '" data-tag="' + esc(t) + '" href="/posts?tags=' + encodeURIComponent(t) + '" rel="nofollow">' + (dot ? '<span class="mod-pill-dot' + lampClass(t) + '"></span>' : "") + esc(t.replace(/_/g, " ")) + "</a>";
+    const lockButton = (t) => {
+      const q = cur && cur.quarantine;
+      if (!q || !(q.tag_ids || {})[t]) return "";
+      const on = flaggedSet().has(t);
+      const words = on ? "release " + t + " from review" : "flag " + t + " for review";
+      return '<button type="button" class="mod-tagrow-lock' + (on ? " is-on" : "") + '" data-act="tag-flag" data-tag="' + esc(t) +
+        '" title="' + esc(words) + '" aria-label="' + esc(words) + '" aria-pressed="' + on + '">&#x1F512;</button>';
+    };
     // The remove control is a SIBLING of the anchor, never inside it: a button
     // nested in an <a> is invalid, and the browsers that tolerate it disagree
     // about which one a click hit. Technetium's panel is built the same way.
     const pill = (t, b, dot, extra) => editing
-      ? '<span class="mod-tagrow">' + pillAnchor(t, b, dot, extra) +
+      ? '<span class="mod-tagrow">' + pillAnchor(t, b, dot, extra) + lockButton(t) +
         '<button type="button" class="mod-tagrow-x" data-act="tag-remove" data-tag="' + esc(t) +
         '" title="remove ' + esc(t) + '" aria-label="remove ' + esc(t) + '">&#215;</button></span>'
       : pillAnchor(t, b, dot, extra);
@@ -791,6 +806,7 @@
       else if (a === "random-clear") clearRandomHistory(act);
       else if (a === "tags-edit") { editing = !editing; editError = ""; renderTags(); }
       else if (a === "tag-remove") { if (!editBusy) commitEdit({ remove: [act.dataset.tag] }); }
+      else if (a === "tag-flag") { if (!editBusy) flagTag(act.dataset.tag); }
       else if (a === "tag-add") { if (!editBusy) addTypedTags(); }
       else if (a === "local-anchor") revealLocal(act.getAttribute("href"));
       else if (a === "signin") window.location.href = "/login?url=" + encodeURIComponent(location.pathname + location.search);
@@ -819,6 +835,36 @@
     function csrfToken() {
       const m = document.querySelector('meta[name="csrf-token"]');
       return m ? m.getAttribute("content") : null;
+    }
+
+    // Flag a tag for review, or release a flagged one (an admin; the lock is
+    // only drawn for one). Not optimistic: the answer decides what every
+    // other viewer sees, so the panel shows it only once the server has it.
+    function flagTag(t) {
+      const q = cur.quarantine || {};
+      const id = (q.tag_ids || {})[t];
+      if (!id) return;
+      const token = csrfToken();
+      if (!token) { editError = "no CSRF token on this page, so the flag would be refused. Fix: reload the page."; renderTags(); return; }
+      const verb = (q.flagged || []).includes(t) ? "release" : "flag";
+      editBusy = true; editError = ""; renderTags();
+      const body = new URLSearchParams({ "tag[quarantine]": verb });
+      fetch("/tags/" + id + ".json", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded", "X-CSRF-Token": token },
+        body: body.toString(),
+      }).then(r => {
+        if (!r.ok) return r.json().then(j => Promise.reject(j.error || j.message || r.status), () => Promise.reject(r.status));
+        cache.clear();
+        return fetchPayload(cur.id, (active() || {}).search);
+      }).then(p => {
+        cur = p; editBusy = false; editError = ""; renderAll();
+      }).catch(why => {
+        editBusy = false;
+        editError = "the " + verb + " of " + t + " was refused (" + why + "). Fix: open the tag's edit page, /tags/" + id + "/edit, which says why.";
+        renderTags();
+      });
     }
 
     // One write, then a forced re-read. The optimistic pass is what makes the

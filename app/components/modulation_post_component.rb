@@ -81,11 +81,7 @@ class ModulationPostComponent < ApplicationComponent
   def tag_view
     @tag_view ||= begin
       raw = FourierTagSource.buckets_and_lamps_for(post, viewer, request: identity_request)
-      if TagBanishment.revealed_to?(viewer)
-        raw
-      else
-        raw.map { |h| h.transform_values { |names| names.reject { |n| TagBanishment.banished?(n) } } }
-      end
+      raw.map { |h| h.transform_values { |names| TagBanishment.filter(names, viewer) } }
     end
   end
 
@@ -417,7 +413,21 @@ class ModulationPostComponent < ApplicationComponent
       # set it for (their own, or every one for an admin), or nil -- nil for
       # everyone else, a moderator included (Q2).
       audience: audience_payload,
+      # The review quarantine's quick switch on each pill (TagQuarantine):
+      # admins only, nil for everyone else, so no one below admin is told a
+      # tag id or which names are flagged.
+      quarantine: quarantine_payload,
     }
+  end
+
+  # @return [Hash, nil] tag_ids: {name => id} for this post's tags (one
+  #   pluck), flagged: the names on it that are flagged -- for an admin; nil
+  #   for anyone else
+  def quarantine_payload
+    return nil unless Pundit.policy!(viewer, Tag).can_change_quarantine?
+
+    names = post.tag_array
+    { tag_ids: Tag.where(name: names).pluck(:name, :id).to_h, flagged: names.select { |name| TagQuarantine.flagged_names.include?(name) }}
   end
 
   # @return [Array<Hash>, nil] { words:, href: } per controlling gallery the

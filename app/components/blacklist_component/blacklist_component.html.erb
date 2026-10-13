@@ -40,20 +40,6 @@
           <% end %>
         <% end %>
 
-        <%# Admin-only escape hatch from tag banishment (TagBanishment): off by
-            default even for admins, by operator ruling. Reloads because the
-            withheld names were never rendered -- there is nothing client-side
-            to un-hide. %>
-        <% if show_reveal_toggle? %>
-          <% menu.with_item do %>
-            <label class="flex items-center link-color cursor-pointer select-none" x-on:click.stop title="Show banished tags everywhere they occur. Off by default, deliberately.">
-              <input type="checkbox" class="w-4 h-full mr-1" <%= "checked" if reveal_banished? %>
-                x-on:change="fetch('/modulation/settings', { method: 'PATCH', credentials: 'same-origin', headers: { 'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content, 'Content-Type': 'application/json' }, body: JSON.stringify({ reveal_banished: $el.checked }) }).then(() => location.reload())">
-              <span>Reveal banished</span>
-            </label>
-          <% end %>
-        <% end %>
-
         <% menu.with_item do %>
           <%= link_to wiki_page_path("help:blacklists"), class: "wiki-link flex items-center", target: "_blank" do %>
             <%= help_icon %><span>Help</span>

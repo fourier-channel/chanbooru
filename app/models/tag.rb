@@ -46,7 +46,7 @@ class Tag < ApplicationRecord
   #
   # The restricted list is signed-out only, matching Post#hidden_from_anonymous?:
   # a signed-in viewer below the threshold still sees those names, because they
-  # already see the listings. The BANISHED list is universal -- see TagBanishment.
+  # already see the listings. Quarantined names -- see TagQuarantine.
   scope :visible_to, ->(user) {
     hidden = hidden_names_for(user)
     hidden.empty? ? all : where.not(name: hidden)
@@ -54,15 +54,16 @@ class Tag < ApplicationRecord
 
   # The tag names `user` may not be shown -- visible_to's rule, as a list, for
   # a surface that holds names rather than a relation (RelatedTagQuery).
-  # Banished names are absent for EVERYONE -- admins included -- unless the
-  # admin has switched reveal_banished on (TagBanishment); restricted names
-  # are absent for a signed-out visitor.
+  # Quarantined names (TagQuarantine): banished ones are absent for everyone
+  # but the pipeline, admins included; flagged ones for everyone below admin
+  # but the posting bots. Restricted names are absent for a signed-out
+  # visitor.
   #
   # by_creator: false leaves out the names found only on posts a creator hid,
   # for a caller asking about a few names exactly (#hidden_from?).
   def self.hidden_names_for(user, by_creator: true)
     names = []
-    names += TagBanishment.list if TagBanishment.list.present? && !TagBanishment.revealed_to?(user)
+    names += TagQuarantine.hidden_names_for(user)
     names += Danbooru.config.restricted_tags if (user.nil? || user.is_anonymous?) && Danbooru.config.restricted_tags.present?
     names += CreatorPrefixes.hidden_tag_names_for(user)
     # Names that exist only on posts their creator hid from `user`
@@ -79,6 +80,11 @@ class Tag < ApplicationRecord
   def hidden_from?(user)
     Tag.hidden_names_for(user, by_creator: false).include?(name) || CreatorVisibility.hidden_tag_names_among(user, [name]).any?
   end
+
+  # A nested association search (Searchable) narrows by the same rule as the
+  # tag index: search[consequent_aliases][antecedent_name]=<hidden name> must
+  # not answer whether the hidden name exists.
+  def self.visible(user) = visible_to(user)
 
   # So ApplicationController#authorize answers such a tag as a missing one,
   # on a read and a write alike.
@@ -456,6 +462,12 @@ class Tag < ApplicationRecord
 
       if params[:hide_empty].to_s.truthy?
         q = q.nonempty
+      end
+
+      # The flagged-tag review queue (TagQuarantine), for admins alone:
+      # anyone else is answered nothing, as visible_to answers them anyway.
+      if params[:quarantine] == "flagged"
+        q = Pundit.policy!(current_user, Tag).can_change_quarantine? ? q.where(id: TagQuarantine.flagged.select(:tag_id)) : q.none
       end
 
       case params[:order]

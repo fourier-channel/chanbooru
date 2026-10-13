@@ -5,6 +5,13 @@
 # maintenance task. Approvers who are facing demotion are sent a weekly warning
 # dmail first.
 #
+# Fork: the pipeline accounts (TagBanishment.pipeline?: the posting bots
+# tunnel and sample) are exempt, permanently. They approve nothing by hand,
+# and on 2026-10-12 02:00 this demoted the sample bot below the level a jail
+# delete needs, so every jailing that night was left half done until the
+# operator re-promoted it by hand. Exempt from the demotion and the warning
+# dmails alike.
+#
 # @see DanbooruMaintenance#monthly
 module ApproverPruner
   module_function
@@ -18,7 +25,7 @@ module ApproverPruner
     recently_promoted_approvers = UserFeedback.where(created_at: APPROVAL_PERIOD.ago..).where_like(:body, "*You gained the ability to approve posts*").pluck(:user_id) # XXX remove in two months
     recently_promoted_approvers += UserFeedback.where(created_at: APPROVAL_PERIOD.ago..).where_like(:body, "*You have been promoted to an Approver*").pluck(:user_id)
 
-    approvers = User.where(level: User::Levels::APPROVER).where.not(id: recently_promoted_approvers)
+    approvers = User.where(level: User::Levels::APPROVER).where.not(id: recently_promoted_approvers).reject { |approver| TagBanishment.pipeline?(approver) }
     approvers.select do |approver|
       approver.post_approvals.where(created_at: APPROVAL_PERIOD.ago..).count < MINIMUM_APPROVALS
     end

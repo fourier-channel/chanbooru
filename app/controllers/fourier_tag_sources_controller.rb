@@ -19,6 +19,10 @@ class FourierTagSourcesController < ApplicationController
     skip_authorization # gated on is_builder? above, not a per-record Pundit policy
 
     post = Post.find(params[:post_id])
+    # A post carrying a flagged tag (TagQuarantine) exists for a posting bot
+    # only when the bot uploaded it: its own tagging keeps working, another
+    # account's flagged post answers as a missing one.
+    raise ActiveRecord::RecordNotFound if post.hidden_as_flagged?(CurrentUser.user)
     sources = params.require(:fourier_tag_source).permit(:replace_creator, creator: [], auto: [], both: [], meta: [], pending: [], oc: [], spectrum: [], hydra: []).to_h
     # replace_creator: a RE-SCAN of the image's own metadata (the tunnel's
     # !rescan). The creator rows this post has are the previous read of the

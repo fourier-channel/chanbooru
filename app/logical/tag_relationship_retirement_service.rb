@@ -30,9 +30,17 @@ module TagRelationshipRetirementService
   def find_and_retire!
     messages = []
 
+    # Fork: a relationship naming a quarantined tag (TagQuarantine) is
+    # retired like any other, but the forum post -- read far more widely
+    # than such a name may travel -- never names it.
+    quarantined = TagQuarantine.flagged_names | TagQuarantine.banished_names
     inactive_relationships.each do |rel|
       rel.update!(status: "retired")
-      messages << "The #{rel.relationship} [[#{rel.antecedent_name}]] -> [[#{rel.consequent_name}]] has been retired."
+      if quarantined.include?(rel.antecedent_name) || quarantined.include?(rel.consequent_name)
+        messages << "A #{rel.relationship} involving a quarantined tag has been retired."
+      else
+        messages << "The #{rel.relationship} [[#{rel.antecedent_name}]] -> [[#{rel.consequent_name}]] has been retired."
+      end
     end
 
     updater = ForumUpdater.new(forum_topic)

@@ -14,8 +14,18 @@ module PostSets
 
     attr_reader :current_user, :page, :format, :tag_string, :post_query, :normalized_query, :show_votes
 
-    delegate :tag, to: :post_query
     alias_method :show_votes?, :show_votes
+
+    # The single tag searched for -- nil when its name is hidden from the
+    # viewer (Tag#hidden_from?: a quarantined name, TagQuarantine), as
+    # RelatedTagQuery#tag does, so a typed hidden name shows no excerpt, wiki
+    # notice, alias list or tag-change notice: 0 results, as for a name never
+    # used. wiki_page and artist follow it.
+    def tag
+      found = post_query.tag
+      found unless found.nil? || found.hidden_from?(current_user)
+    end
+    memoize :tag
 
     def initialize(tags, page = 1, per_page = nil, user: CurrentUser.user, format: "html", show_votes: false)
       @current_user = user
@@ -52,6 +62,8 @@ module PostSets
 
     def wiki_page
       return nil unless post_query.has_single_tag?
+      return nil if post_query.tag.present? && tag.nil?
+
       @wiki_page ||= WikiPage.undeleted.find_by(title: post_query.tag_name)
     end
 
@@ -238,7 +250,7 @@ module PostSets
       # @return [Array<Tag>] the list of most frequently searched tags for the day.
       def popular_tags
         tag_names = ReportbooruService.new.popular_searches(Date.today, limit: MAX_SIDEBAR_TAGS)
-        Tag.where(name: tag_names).to_a.in_order_of(:name, tag_names)
+        Tag.visible_to(current_user).where(name: tag_names).to_a.in_order_of(:name, tag_names)
       end
 
       # @return [Array<Tag>] the list of tags most related to the current search.
@@ -254,7 +266,7 @@ module PostSets
       # Wildcard searches can show up to 100 tags in the sidebar, not 25,
       # because that's how many tags the search itself will use.
       def wildcard_tags
-        Tag.wildcard_matches(post_query.wildcards.first).limit(MAX_WILDCARD_TAGS).to_a
+        Tag.visible_to(current_user).wildcard_matches(post_query.wildcards.first).limit(MAX_WILDCARD_TAGS).to_a
       end
 
       def saved_search_tags

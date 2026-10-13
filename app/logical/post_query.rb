@@ -232,8 +232,18 @@ class PostQuery
   end
 
   # Return a hash mapping aliased tag names to real tag names.
+  # Fork: an alias or abbreviation whose target is a quarantined name hidden
+  # from this viewer (TagQuarantine.hidden_names_for) is not applied: the
+  # resolved search is echoed back -- the page title, the canonical link,
+  # the History link, the random redirect -- and would name the hidden tag
+  # to someone who typed only the alias. Unresolved, the typed name matches
+  # what a name never used matches, and the hidden posts are excluded anyway.
   def aliases
-    TagAlias.aliases_for(tag_names)
+    found = TagAlias.aliases_for(tag_names)
+    return found if found.empty?
+
+    hidden = TagQuarantine.hidden_names_for(current_user)
+    hidden.empty? ? found : found.reject { |_antecedent, consequent| hidden.include?(consequent) }
   end
 
   # Implicit metatags are added by the viewer's situation rather than typed by
@@ -250,7 +260,9 @@ class PostQuery
   #   - hidden by their creator's panel (CreatorVisibility; design
   #     CREATOR_VISIBILITY section 6, ruled 2026-10-07: excluded at QUERY
   #     level, from results, the count, the paginator and the neighbours, as
-  #     gate 1 is).
+  #     gate 1 is);
+  #   - carrying a FLAGGED tag they may not see (TagQuarantine, operator
+  #     rulings 2026-10-12; a posting bot keeps its own uploads).
   #
   # By id rather than by tag: measured on production, excluding two tags made
   # an exact count of every post take 7.9s instead of 0.2s, past the count
@@ -260,7 +272,7 @@ class PostQuery
   # metatag, so the count cache key carries it and one viewer's count is never
   # served to another. Both lists are computed once per request per viewer.
   def hidden_post_metatags
-    ids = (CreatorPrefixes.hidden_post_ids_for(current_user) | CreatorVisibility.hidden_ids(current_user).to_a).sort
+    ids = (CreatorPrefixes.hidden_post_ids_for(current_user) | CreatorVisibility.hidden_ids(current_user).to_a | TagQuarantine.hidden_post_ids_for(current_user)).sort
     ids.empty? ? [] : [-AST.metatag("id", ids.join(","))]
   end
 
@@ -303,8 +315,8 @@ class PostQuery
     [-AST.metatag("status", "deleted")]
   end
 
-  # A jailed or banished-tagged post is in nobody's results but an admin who
-  # has switched reveal_banished on, and the pipeline's accounts (see
+  # A jailed or banished-tagged post is in nobody's results but the
+  # pipeline's accounts (see
   # TagBanishment.withholds_posts_from?) -- status:deleted included, since
   # the terms are AND-ed onto whatever was asked. The query-level half of
   # Post#hidden_as_banished?, here for the reason deleted_metatags gives: a

@@ -61,7 +61,9 @@ module RecommenderService
   # Process a set of recommendations to filter out posts the user uploaded
   # themselves, or has already favorited, or that don't match a tag search.
   def process_recs(recs, post: nil, uploader: nil, favoriter: nil, tags: nil)
-    posts = Post.includes(:media_asset).where(id: recs.map(&:first))
+    # Fork: never a post hidden from the asker (Post.without_hidden_posts:
+    # deleted, jailed, flagged, under a hidden prefix or a creator's narrowing).
+    posts = Post.without_hidden_posts(CurrentUser.user).includes(:media_asset).where(id: recs.map(&:first))
     posts = posts.where.not(id: post.id) if post
     posts = posts.where.not(uploader_id: uploader.id) if uploader
     posts = posts.where.not(id: favoriter.favorites.select(:post_id)) if favoriter
@@ -80,7 +82,7 @@ module RecommenderService
     elsif params[:user_id].present?
       user = User.find(params[:user_id])
     elsif params[:post_id].present?
-      post = Post.find(params[:post_id])
+      post = Post.find_visible!(params[:post_id])
     end
 
     if user.present?

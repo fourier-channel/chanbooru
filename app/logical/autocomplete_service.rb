@@ -138,7 +138,7 @@ class AutocompleteService
   # led to it are checked -- an alias pointing at a gated tag discloses the gated
   # tag just as plainly as naming it.
   def withhold_gated_tags(results)
-    results = withhold_banished_tags(results)
+    results = withhold_quarantined_tags(results)
     results = withhold_hidden_creator_tags(results)
     return results if current_user.present? && !current_user.is_anonymous?
 
@@ -174,13 +174,17 @@ class AutocompleteService
     end
   end
 
-  # Banished names never autocomplete for anyone -- signed in or not, admin
-  # or not -- unless the admin's reveal toggle is on. See TagBanishment.
-  def withhold_banished_tags(results)
-    return results if TagBanishment.list.empty? || TagBanishment.revealed_to?(current_user)
+  # Quarantined names (TagQuarantine) never autocomplete for a viewer they
+  # are hidden from: a banished name for anyone but the pipeline, admins
+  # included; a flagged name for anyone below admin but the posting bots.
+  # The suggestion and the alias that led to it alike.
+  def withhold_quarantined_tags(results)
+    hidden = TagQuarantine.hidden_names_for(current_user)
+    return results if hidden.empty?
 
+    hidden = hidden.to_set
     results.reject do |result|
-      TagBanishment.banished?(result[:value]) || TagBanishment.banished?(result[:antecedent])
+      hidden.include?(result[:value].to_s) || hidden.include?(result[:antecedent].to_s)
     end
   end
 
@@ -392,9 +396,12 @@ class AutocompleteService
     string = string + "*" unless string.include?("*")
     artists = Artist.undeleted.name_matches(string).search({ order: "post_count" }, current_user).limit(limit)
 
-    artists.map do |artist|
+    # Fork: through the same withholding as a tag -- an artist entry is
+    # named for its tag, and a quarantined, prefix-hidden or gated name must
+    # not be offered here when it is withheld everywhere else.
+    withhold_gated_tags(artists.map do |artist|
       { type: "tag", label: artist.pretty_name, value: artist.name, category: Tag.categories.artist }
-    end
+    end)
   end
 
   # Complete a wiki name. Does a `name*` search.
@@ -404,9 +411,10 @@ class AutocompleteService
     string = string + "*" unless string.include?("*")
     wiki_pages = WikiPage.undeleted.title_matches(string).search({ order: "post_count" }, current_user).limit(limit)
 
-    wiki_pages.map do |wiki_page|
+    # Fork: a wiki page is titled with its tag; withheld as the tag is.
+    withhold_gated_tags(wiki_pages.map do |wiki_page|
       { type: "tag", label: wiki_page.pretty_title, value: wiki_page.title, category: wiki_page.tag&.category }
-    end
+    end)
   end
 
   # Complete a user name. Does a `name*` search.
