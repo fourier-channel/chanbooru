@@ -13,7 +13,9 @@ fourier-auth 05e6c6f and 7f2be3e, fourier-sampling 0891d0c).
 moved into the database, the config list removed), then fourier-auth 7f2be3e
 with its edge Worker (version ac3c1b42), fourier-sampling c4b1efc and
 fourier-tunnel 63a75f9 -- each read the booru's quarantine document on its
-first poll (generation 4364f977).
+first poll (generation 4364f977). Then chanbooru 7e659c926 with the box config
+of fourier-basis 344dddf: the enforced blacklist removed, the user's own list
+renamed the blocklist and made the only filter.
 
 CANON. Lives in `fourier-basis`; hydrated into chanbooru and rendered into the
 public site by `coherence hydrate`. This file is the only copy anyone edits.
@@ -338,9 +340,9 @@ A published page never shows a jailed image (gate 11).
 
 ---
 
-## 5. Banished tags and the blacklists
+## 5. Banished tags and the blocklist
 
-Three mechanisms, easy to conflate.
+Two mechanisms, and only the first is a gate.
 
 **Banished tags** are words removed from the site, and with them every post
 that carries one. Since chanbooru 98a61151d (operator rulings 2026-10-12):
@@ -363,24 +365,28 @@ that carries one. Since chanbooru 98a61151d (operator rulings 2026-10-12):
   `unbanish`, naming who pressed it in the mod log) and releases no jailed
   post -- that stays the panel's per-post release.
 
-**The enforced blacklist** (`enforced_blacklist`) is applied to every viewer,
-stored in no account and editable by nobody from the site. It now holds only
-four conjunctions -- banished posts are withheld on the server, so the list
-need not carry their names -- for example
+**The blocklist** is each viewer's own filter, and since chanbooru 7e659c926
+(2026-10-13) the only one. The enforced blacklist -- a site-wide list applied
+to every viewer -- is gone; the operator: it "was a fallback in case banished
+posts were even potentially visible", and banished posts are now withheld on
+the server, so the fallback could only hide a real bug. The user's list was
+the blacklist and is renamed.
 
-    insect rating:e -pokemon_(creature) -pokemon_(species)
+- It lives in a panel joined to the refresh/purge rectangle. Tags are added and
+  removed at will and the view filters as they change.
+- A rule can be **locked**, so it is not removed by accident; locks survive
+  every way the list is written.
+- It starts EMPTY. A line is AND-ed and `-` excludes. Signed out, the list
+  lives in the browser and merges into the account at sign-in.
+- Other apps read it from `GET /profile.json` as `blocklist`, a list of
+  `{rule, locked}` -- not the raw `blacklisted_tags` text, which carries the
+  lock marker.
 
 **It is a filter in the browser, not a gate on the server.** The booru sends a
-matching post to everyone it is visible to, and the browser hides it: the
-thumbnail in listings and the image on the post's own page. An enforced rule
-always hides outright -- nobody can switch it to blur or turn it off. But the
-post's page, its tags and its image URL are still served, and the image file
-loads for anyone who opens that URL. It stops casual viewing, not access.
-
-**The user blacklist** is the viewer's own, and it starts EMPTY (since
-2026-09-04): a new account and a signed-out viewer have nothing in it. A line
-is AND-ed and `-` excludes. Changing the default does not touch existing
-accounts.
+blocked post to everyone it is visible to, and that viewer's browser hides it:
+the thumbnail in listings and the image on the post's page. Its page, its tags
+and its image URL are still served. It decides what one person chooses not to
+see; who MAY see a post is decided by the gates.
 
 **Example 1: a post that gains `gore`.**
 
@@ -390,13 +396,13 @@ accounts.
 | the same post released from the jail, still tagged `gore` | hidden | hidden | hidden | hidden | hidden | hidden | visible |
 | the word `gore` in tag lists and autocomplete | absent | absent | absent | absent | absent | absent | shown |
 
-**Example 2: a post tagged `insect` and rated explicit, not Pokemon.**
+**Example 2: a post tagged `insect`, for a viewer who has blocked `insect`.**
 
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
-|---|---|---|---|---|---|---|---|
-| its thumbnail in listings | hidden in browser | hidden in browser | hidden in browser | hidden in browser | hidden in browser | hidden in browser | not a browser |
-| its own page | gate 10; image hidden in browser | loads, image hidden in browser | same | same | same | same | loads |
-| its image file, by URL | loads | loads | loads | loads | loads | loads | loads |
+| | the viewer who blocked `insect` | every other viewer |
+|---|---|---|
+| its thumbnail in listings | hidden in the browser | shown, as their gates allow |
+| its own page | opens, image hidden in the browser | opens, as their gates allow |
+| its image file, by URL | loads | loads, as their gates allow |
 
 ---
 
@@ -412,9 +418,10 @@ viewer's verified fourier identity -- never anything derived from the post's
 tags.
 
 The tags are withheld from the page itself, including the `data-tags`
-attribute that client-side blacklists match against, because `post.tag_string`
-still contains them. The consequence, and it is the correct trade: **a viewer's
-blacklist cannot match a tag that viewer is not allowed to see.** Posts with no
+attribute that a blocklist matches against in the browser, because
+`post.tag_string` still contains them. The consequence, and it is the correct
+trade: **a viewer's blocklist cannot match a tag that viewer is not allowed to
+see.** Posts with no
 private rows keep their full tag string.
 
 This gate decides TAGS, not the image: the image follows the post's other
@@ -692,7 +699,6 @@ sections.
 | deleted by a moderator (gate 4) | {no: gate 10} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} | {yes: its own} / {yes: its own} |
 | `troll_jail` (gate 4) | {no: gate 10} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} |
 | `gore`, banished (gate 5) | {no: gate 10} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {yes} / {yes} |
-| `insect rating:e` (gate 5, enforced blacklist) | {no: gate 10} / {yes} | {yes: blacklist hides its image} / {yes} | {yes: blacklist hides its image} / {yes} | {yes: blacklist hides its image} / {yes} | {yes: blacklist hides its image} / {yes} | {yes: blacklist hides its image} / {yes} | {yes} / {yes} |
 | `aichan_someone` (gate 8) | {no: gate 10} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {yes} / {yes} | {yes} / {yes} |
 | creator set private (gate 9) | {no: gate 10} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {yes: logged} / {yes} | {yes} / {yes} |
 | a flagged tag (gate 12) | {no: gate 10} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {yes} / {yes} | {yes: its own} / {yes: its own} |
@@ -722,7 +728,7 @@ directly, never through the Matrix route.
 | nobody, admins included, can see a jailed or banished post | 4 and 5 -- by design; moderate it in sampling's jail panel |
 | post listed, image replaced by a prompt | 1 -- gated, signed in below Gold |
 | a post is missing from a count as well as a page | 1, 4, 5, 8, 9 or 12 -- query level, not render level |
-| a post is hidden in listings but its page opens | 5 -- the enforced blacklist or the viewer's own: browser filters, not server gates |
+| a post is hidden in listings but its page opens | 5 -- the viewer's own blocklist: a filter in their browser, not a server gate |
 | a post tagged `troll_jail` is live (not deleted) | 4 -- a jailing whose delete was refused (still hidden from every person); check the bot is at Approver (37), then `jail-apply.ts --booru-only` |
 | a tag exists on a post but nowhere in autocomplete | 5 (banished), 8 (a hidden prefix such as `aichan_`) or 12 (flagged, for anyone below Admin) |
 | a tag vanished, and its posts with it, for everyone but admins | 12 -- flagged for review; Release or Banish from the admin console's queue |
