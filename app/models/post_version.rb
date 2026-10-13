@@ -76,7 +76,7 @@ class PostVersion < ApplicationRecord
       # history of a post whose creator is not asking -- see
       # private_history_post_ids_hidden_from.
       if searches_tags?(params)
-        hidden = private_history_post_ids_hidden_from(current_user, CurrentUser.request)
+        hidden = private_history_post_ids_hidden_from(current_user, CurrentUser.request, names: searched_exact_names(params))
         q = q.where.not(post_id: hidden) if hidden.present?
         # A tag search naming a quarantined name hidden from the searcher
         # (TagQuarantine) matches nothing, as a name never used does.
@@ -91,6 +91,17 @@ class PostVersion < ApplicationRecord
     def searched_tag_names(params)
       params.to_h.select { |key, _| key.to_s.in?(TAG_SEARCH_PARAMS) || key.to_s.match?(/\A(tags|added_tags|removed_tags)(_|\z)/) }
             .values.flat_map { |value| Array.wrap(value).flat_map { |v| v.to_s.downcase.scan(/[^[:space:]*]+/) } }.uniq
+    end
+
+    # The names a tag search spells out, or nil when one of them is a
+    # wildcard (tag_matches=foo*) -- a wildcard can match a name it does not
+    # spell, so it must be checked against every private tag. A leading "-"
+    # (a removed tag) names the same tag.
+    def searched_exact_names(params)
+      values = params.to_h.select { |key, _| key.to_s.in?(TAG_SEARCH_PARAMS) || key.to_s.match?(/\A(tags|added_tags|removed_tags)(_|\z)/) }.values
+      return nil if values.flatten.any? { |value| value.to_s.include?("*") }
+
+      searched_tag_names(params).map { |name| name.delete_prefix("-") }.uniq
     end
 
     def searches_tags?(params)
@@ -115,8 +126,17 @@ class PostVersion < ApplicationRecord
       # (a version that holds a tag added it, or a predecessor did) and that
       # this viewer may not read. A superset is safe: it only narrows a tag
       # search over those posts' histories.
-      def private_history_post_ids_hidden_from(user, request)
-        rows = FourierTagSource.where(public: false).distinct.pluck(:post_id, :tag)
+      #
+      # `names`: the names the search spells out (nil for a wildcard search).
+      # A search can find a private tag in a history only by naming it, so
+      # only private rows with those names matter. Scanning every private row
+      # on every history search passed production's 12 s statement timeout on
+      # 2026-10-13 (sampling's removed_tags_include_any=troll_jail answered
+      # 500); a search naming no private tag now costs one indexed lookup.
+      def private_history_post_ids_hidden_from(user, request, names: nil)
+        rows = FourierTagSource.where(public: false)
+        rows = rows.where(tag: names) unless names.nil?
+        rows = rows.distinct.pluck(:post_id, :tag)
         return [] if rows.empty?
 
         candidates = where(post_id: rows.map(&:first).uniq).where_array_includes_any(:added_tags, rows.map(&:last).uniq).distinct.pluck(:post_id)

@@ -402,6 +402,22 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
       [nil, @member, @admin].each do |user|
         assert_empty own(json_rows(post_versions_path, user, search: { changed_tags: SECRET })), user&.name || "anonymous"
         assert_empty own(json_rows(post_versions_path, user, search: { tag_matches: SECRET })), user&.name || "anonymous"
+        # A wildcard can match a private name it does not spell out.
+        assert_empty own(json_rows(post_versions_path, user, search: { tag_matches: "#{SECRET[0, 4]}*" })), user&.name || "anonymous"
+      end
+    end
+
+    # 2026-10-13: the guard scanned EVERY private creator tag on every history
+    # search, and on production that passed the 12 s statement timeout --
+    # sampling's removed_tags_include_any=troll_jail answered 500. A search
+    # can find a private tag only by naming it (or by a wildcard), so a search
+    # for other names leaves the post searchable; its rows still carry no
+    # private tag (redact_private_tags).
+    should "leave the post findable by a search for a name that is not private, redacted" do
+      [nil, @member, @admin].each do |user|
+        rows = own(json_rows(post_versions_path, user, search: { added_tags_include_any: "landscape" }))
+        assert_not_empty rows, user&.name || "anonymous"
+        assert_not_includes rows.to_json, SECRET, user&.name || "anonymous"
       end
     end
 

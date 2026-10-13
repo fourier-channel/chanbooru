@@ -5886,6 +5886,13 @@ CREATE INDEX index_fourier_tag_sources_on_post_id_and_status ON public.fourier_t
 
 
 --
+-- Name: index_fourier_tag_sources_on_tag_private; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_fourier_tag_sources_on_tag_private ON public.fourier_tag_sources USING btree (tag) WHERE (public = false);
+
+
+--
 -- Name: index_fourier_tag_sources_on_post_id_and_tag; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8920,6 +8927,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261013000000'),
 ('20261012120100'),
 ('20261012120000'),
 ('20261012000000'),

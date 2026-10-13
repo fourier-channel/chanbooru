@@ -9,10 +9,11 @@ production's database; brought up to date 2026-10-13 for the flagged-tag
 quarantine and the end of the reveal setting (chanbooru 98a61151d,
 fourier-auth 05e6c6f and 7f2be3e, fourier-sampling 0891d0c).
 
-**Committed is not deployed.** Gates 4, 5 and 12 below describe that code. It
-reaches production in one deploy, chanbooru first; until then the live booru
-still has the reveal setting, no flagged tags, and a banished list in its
-config file.
+**Deployed 2026-10-13**, in order: chanbooru fe304ff1b (the 15 banished tags
+moved into the database, the config list removed), then fourier-auth 7f2be3e
+with its edge Worker (version ac3c1b42), fourier-sampling c4b1efc and
+fourier-tunnel 63a75f9 -- each read the booru's quarantine document on its
+first poll (generation 4364f977).
 
 CANON. Lives in `fourier-basis`; hydrated into chanbooru and rendered into the
 public site by `coherence hydrate`. This file is the only copy anyone edits.
@@ -59,10 +60,10 @@ And the cells:
 
 | cell | meaning |
 |---|---|
-| **sees** | the post is listed and its image loads |
+| **visible** | the post is listed and its image loads |
 | **listed, no image** | the post appears in results; its image is withheld |
 | **hidden** | absent from search, counts, paging and neighbours; its page and image answer as if it did not exist |
-| **capped** | sees it, under gate 2's browsing cap |
+| **capped** | visible, under gate 2's browsing cap |
 
 A viewer the columns do not cover (the post's creator, a reader of a published
 page) is named below the matrix when a section treats them differently.
@@ -162,9 +163,9 @@ by this gate, so it can keep working on the post.
 
 | | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| a post tagged `loli` | hidden | listed, no image (capped) | listed, no image | sees | sees | sees | sees |
+| a post tagged `loli` | hidden | listed, no image (capped) | listed, no image | visible | visible | visible | visible |
 
-Also **sees**: a signed-in viewer the post's creator has named (gate 9);
+Also **visible** to: a signed-in viewer the post's creator has named (gate 9);
 anyone reading a live published page that shows it (gate 11).
 
 ---
@@ -201,7 +202,7 @@ that is gone. The status page is admin-only (`status_page_visibility_level`).
 
 | | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| the post | see gate 10 | capped: 20 results, one page | sees | sees | sees | sees | sees |
+| the post | see gate 10 | capped: 20 results, one page | visible | visible | visible | visible | visible |
 | a retired section | 404 | 404 | 404 | 404 | 404 | 404 (Owner: opens) | 404 |
 
 ---
@@ -325,13 +326,13 @@ viewers below Moderator, and a banned post from viewers below Approver.
 
 | | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| a deleted post | hidden | hidden | hidden | hidden | hidden | sees | sees its own |
+| a deleted post | hidden | hidden | hidden | hidden | hidden | visible | visible (its own) |
 
 **Example 2: a jailed post, tagged `troll_jail` -- deleted, or not.**
 
 | | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| a jailed post | hidden | hidden | hidden | hidden | hidden | hidden | sees |
+| a jailed post | hidden | hidden | hidden | hidden | hidden | hidden | visible |
 
 A published page never shows a jailed image (gate 11).
 
@@ -385,8 +386,8 @@ accounts.
 
 | | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| the post (jailed), and its image | hidden | hidden | hidden | hidden | hidden | hidden | sees |
-| the same post released from the jail, still tagged `gore` | hidden | hidden | hidden | hidden | hidden | hidden | sees |
+| the post (jailed), and its image | hidden | hidden | hidden | hidden | hidden | hidden | visible |
+| the same post released from the jail, still tagged `gore` | hidden | hidden | hidden | hidden | hidden | hidden | visible |
 | the word `gore` in tag lists and autocomplete | absent | absent | absent | absent | absent | absent | shown |
 
 **Example 2: a post tagged `insect` and rated explicit, not Pokemon.**
@@ -432,7 +433,7 @@ because her prompt contained it.**
 |---|---|---|---|---|---|---|---|
 | the tag `masterpiece` on that post | absent | absent | absent | absent | absent | absent | absent |
 
-Only **alice herself** sees it, and her generation data.
+Visible only to **alice herself**, and her generation data.
 
 ---
 
@@ -527,10 +528,10 @@ also locked: only an admin or an editor account may add or remove them.
 
 | | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| the post and image | hidden | hidden | hidden | hidden | hidden | sees | sees |
+| the post and image | hidden | hidden | hidden | hidden | hidden | visible | visible |
 | the tag name in lists and autocomplete | absent | absent | absent | absent | absent | shown | shown |
 
-Also **sees**: the `tunnel` and `sample` accounts; `someone`, once their claim
+Also **visible** to: the `tunnel` and `sample` accounts; `someone`, once their claim
 on `aichan_someone` is approved. Once the tag is released, the post follows
 gates 1-7 and 9-10 like any other.
 
@@ -556,10 +557,10 @@ Moderators can neither see nor act on it.
 
 | | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| a viewer alice has not named | hidden | hidden | hidden | hidden | hidden | sees (logged) | sees |
-| bob, named, signed in | -- | sees | sees | sees | sees | sees | sees |
+| a viewer alice has not named | hidden | hidden | hidden | hidden | hidden | visible (logged) | visible |
+| bob, named, signed in | -- | visible | visible | visible | visible | visible | visible |
 
-Also **sees**: alice herself. If alice blocks carol, carol is hidden from it
+Also **visible** to: alice herself. If alice blocks carol, carol is hidden from it
 even when a group alice opened would otherwise let her in.
 
 ---
@@ -596,9 +597,9 @@ door open for exactly that ask.
 
 | | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| its post page | 404 | capped | sees | sees | sees | sees | sees |
+| its post page | 404 | capped | visible | visible | visible | visible | visible |
 | its image, by URL | loads | loads | loads | loads | loads | loads | loads |
-| the same post, once shown on the landing page or newest posts | sees | capped | sees | sees | sees | sees | sees |
+| the same post, once shown on the landing page or newest posts | visible | capped | visible | visible | visible | visible | visible |
 
 ---
 
@@ -625,7 +626,7 @@ moderators room, and fails closed.
 
 | | holding the live link | after it expires |
 |---|---|---|
-| the `loli` image | sees, whoever they are, signed in or not | refused unless the viewer's own gates allow it |
+| the `loli` image | visible, whoever they are, signed in or not | refused unless the viewer's own gates allow it |
 | the `troll_jail` image | never on the page | refused |
 | an image carrying a flagged tag | withheld on the page | refused |
 
@@ -638,7 +639,7 @@ tag for review: "the tag's entire existence should immediately
 disappear--but not as severe as banished because the idea is to immediately
 flag any tag for review by admins."
 
-- **Who still sees:** Admin and Owner levels ("I did mean 'owner' danbooru
+- **Still visible to:** Admin and Owner levels ("I did mean 'owner' danbooru
   level"), every post; the booru's system user; and the posting bots on their
   OWN posts -- which is every post, since only the bots upload -- so they keep
   working on them, and the names everywhere, because they tag with them.
@@ -660,7 +661,7 @@ flag any tag for review by admins."
 
 | | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| the post and its image | hidden | hidden | hidden | hidden | hidden | sees | sees its own |
+| the post and its image | hidden | hidden | hidden | hidden | hidden | visible | visible (its own) |
 | the tag's name in tag lists and autocomplete | absent | absent | absent | absent | absent | shown | shown |
 
 ---
@@ -669,8 +670,9 @@ flag any tag for review by admins."
 
 One example from each gate, and what each kind of viewer gets of the POST
 (the post's own page) and of the IMAGE (the file, as the media gate answers
-for it), written post / image in each cell. Green sees it. Grey names the FIRST gate that stops
-that viewer, taking the gates in the order a request meets them: the edge
+for it). Each cell has two halves, POST above IMAGE, and each half reads
+VISIBLE in green or BLOCKED in grey. A BLOCKED half names the FIRST gate that
+stops that viewer, taking the gates in the order a request meets them: the edge
 challenge (7) passes every browser and stops every script, so it is not a
 column; then the signed-out default-deny (10); then the rules about the post.
 That is why a signed-out POST cell is almost always gate 10 -- the page is
@@ -690,9 +692,9 @@ sections.
 | deleted by a moderator (gate 4) | {no: gate 10} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} | {yes: its own} / {yes: its own} |
 | `troll_jail` (gate 4) | {no: gate 10} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} |
 | `gore`, banished (gate 5) | {no: gate 10} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {yes} / {yes} |
-| `insect rating:e` (gate 5, enforced blacklist) | {no: gate 10} / {yes} | {yes: page; image hidden in browser} / {yes} | {yes: page; image hidden in browser} / {yes} | {yes: page; image hidden in browser} / {yes} | {yes: page; image hidden in browser} / {yes} | {yes: page; image hidden in browser} / {yes} | {yes} / {yes} |
+| `insect rating:e` (gate 5, enforced blacklist) | {no: gate 10} / {yes} | {yes: blacklist hides its image} / {yes} | {yes: blacklist hides its image} / {yes} | {yes: blacklist hides its image} / {yes} | {yes: blacklist hides its image} / {yes} | {yes: blacklist hides its image} / {yes} | {yes} / {yes} |
 | `aichan_someone` (gate 8) | {no: gate 10} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {yes} / {yes} | {yes} / {yes} |
-| creator set private (gate 9) | {no: gate 10} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {yes: sees, logged} / {yes} | {yes} / {yes} |
+| creator set private (gate 9) | {no: gate 10} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {yes: logged} / {yes} | {yes} / {yes} |
 | a flagged tag (gate 12) | {no: gate 10} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {yes} / {yes} | {yes: its own} / {yes: its own} |
 | Matrix upload, viewer not in its room (gate 3) | {no: gate 10} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {yes: via R2} |
 
