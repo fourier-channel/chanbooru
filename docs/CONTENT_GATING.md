@@ -587,8 +587,11 @@ the booru:
 
 - the landing page;
 - `/posts` as the newest posts, or one featured creator's first page;
-- a post's own page, only for a post the site has already shown signed-out
-  viewers;
+- a post's own page, only while the site is showing that post to signed-out
+  viewers: it is on the newest posts now, or in a promoted creator's curated
+  set, or a page served to a signed-out viewer rendered it this hour or the
+  last. A thumbnail clicked minutes later still opens; the permission lapses
+  within two hours of the post last being shown (`MembersOnly#anonymous_shown_post?`);
 - promoted creator galleries.
 
 Every listing that names posts (popular, favourites, pools, approvals,
@@ -606,7 +609,7 @@ door open for exactly that ask.
 |---|---|---|---|---|---|---|---|
 | its post page | 404 | capped | visible | visible | visible | visible | visible |
 | its image, by URL | loads | loads | loads | loads | loads | loads | loads |
-| the same post, once shown on the landing page or newest posts | visible | capped | visible | visible | visible | visible | visible |
+| the same post, while it is on the newest posts or within an hour or two of being shown signed out | visible | capped | visible | visible | visible | visible | visible |
 
 ---
 
