@@ -130,7 +130,9 @@ class AutocompleteService
     withhold_gated_tags(results)
   end
 
-  # Drop gated tag names from a signed-out visitor's suggestions.
+  # Drop gated tag names from the suggestions of a viewer below Gold (signed
+  # out, Restricted, Member): below Gold the gated posts do not exist, and
+  # their names follow them (operator, 2026-10-14).
   #
   # The tag index hides these, and leaving autocomplete alone would have made
   # that pointless: typing two letters into the search box is a faster way to
@@ -140,7 +142,7 @@ class AutocompleteService
   def withhold_gated_tags(results)
     results = withhold_quarantined_tags(results)
     results = withhold_hidden_creator_tags(results)
-    return results if current_user.present? && !current_user.is_anonymous?
+    return results if current_user&.is_gold?
 
     gated = Danbooru.config.restricted_tags
     return results if gated.blank?

@@ -120,7 +120,10 @@ class ArchivePulse
   # "last upload" would otherwise be served to the other, saying that hidden
   # posts exist and when they arrived. A digest of the viewer's hidden post
   # ids (which also decide the tag names hidden with them) and hidden creator
-  # prefix names, so two strangers still share an entry.
+  # prefix names, so two strangers still share an entry. And of the gated
+  # posts gate 1 lets the viewer see below Gold (Post.gated_allowed_ids,
+  # 2026-10-13: a creator's allow or their own upload), or one member a
+  # creator named would be served another's count, or the reverse.
   def cached(name, ttl = CACHE_TTL, &)
     # Whether jailed and banished posts are withheld (the pipeline sees them;
     # TagBanishment.withholds_posts_from?), and the flagged posts this viewer
@@ -133,6 +136,6 @@ class ArchivePulse
   end
 
   def hidden_digest
-    @hidden_digest ||= Cache.hash([CreatorVisibility.hidden_ids_literal(viewer), CreatorPrefixes.hidden_tag_names_for(viewer).sort, TagQuarantine.hidden_post_ids_for(viewer)].to_json)
+    @hidden_digest ||= Cache.hash([CreatorVisibility.hidden_ids_literal(viewer), CreatorPrefixes.hidden_tag_names_for(viewer).sort, TagQuarantine.hidden_post_ids_for(viewer), Post.gated_allowed_ids_literal(viewer)].to_json)
   end
 end

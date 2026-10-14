@@ -237,6 +237,9 @@ module MembersOnly
   #     secret: 4chan's archives publish one for every image, so an md5 ask
   #     free to pick its own `only=` read any post's tags twenty at a time.
   #     The three fields say only "a post the asker may see holds this file".
+  #     The ask is admitted on its shape alone (anonymous_md5_ask?); which
+  #     rows it answers is anonymous_md5_rows: a post the site has shown
+  #     signed out, and nothing else.
   # Not `md5=` (a redirect to the post page), not `random=`. The Modulation
   # panel's remembered sort is not applied for them either (PostsController).
   ANONYMOUS_MD5_QUERY = /\Amd5:[0-9a-f]{32}(,[0-9a-f]{32}){0,19}\z/i
@@ -263,6 +266,26 @@ module MembersOnly
     tags.match?(ANONYMOUS_MD5_QUERY) &&
       (query.keys - ANONYMOUS_MD5_PARAMS).empty? &&
       query["only"].is_a?(String) && query["only"].split(",").sort == ANONYMOUS_MD5_FIELDS
+  end
+
+  # THE SIGNED-OUT IMAGE FOLLOWS THE SIGNED-OUT PAGE (operator, 2026-10-13/14).
+  # An admitted md5 ask answers a row only for a post the site has already
+  # shown a signed-out viewer -- exactly the posts whose page opens signed out
+  # (anonymous_shown_post?) -- and leaves every other md5 out, gated or not.
+  # fourier-auth reads an absent md5 as refused and then asks again as the
+  # reader's own booru session, so a signed-in reader is unaffected.
+  #
+  # fourier-auth's ask carries no safe mode, so both modes' shown sets count.
+  # One batch (up to 20 rows) costs four cache reads, two cached newest pages
+  # and one promoted pluck, whatever the batch holds; the rows kept are then
+  # read back by primary key, so the answer renders as any other search does.
+  def anonymous_md5_rows(posts)
+    shown = anonymous_shown_ids_in_either_mode
+    posts.where(id: posts.map(&:id).select { |id| shown.include?(id) })
+  end
+
+  def anonymous_shown_ids_in_either_mode
+    [true, false].flat_map { |safe_mode| [*anonymous_recent_shown_ids(safe_mode), *anonymous_newest_ids(safe_mode)] }.to_set | promoted_gallery_post_ids
   end
 
   # Every tag on an enabled landing row's list: today the Featured
@@ -355,9 +378,11 @@ module MembersOnly
   # The gallery's first page as it is now, for a link opened without the
   # gallery having been loaded (a member's link opened signed out). Thirty
   # seconds of cache: a crawler walking ids must not cost a search each.
+  # Searched in the mode it is cached under, not the asking request's: the
+  # md5 ask reads both modes from one request.
   def anonymous_newest_ids(safe_mode)
     Rails.cache.fetch(["members_only", "anonymous_newest", safe_mode ? "safe" : "all"], expires_in: 30.seconds) do
-      PostSets::Post.new(nil, 1, user: User.anonymous).posts.map(&:id)
+      CurrentUser.set(safe_mode: safe_mode) { PostSets::Post.new(nil, 1, user: User.anonymous).posts.map(&:id) }
     end.to_set
   end
 end

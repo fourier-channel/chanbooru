@@ -146,7 +146,11 @@ class PostQueryBuilder
     elsif post_query.has_metatag?(:date, :age) && post_query.find_metatag(:order).in?(["id_desc", nil])
       relation = relation.order_matches("created_at_desc")
     elsif post_query.find_metatag(:order) == "custom"
-      ids = post_query.select_metatags(:id).map(&:value)
+      # Fork: the id term the searcher typed, not one their situation added
+      # (PostQuery#hidden_post_metatags' -id:, #gated_metatags' "or id:"),
+      # which sit under a NOT or an OR -- or a viewer with anything hidden or
+      # allowed would get no results at all.
+      ids = post_query.select_metatags(:id).reject { |metatag| metatag.parents.any? { |node| node.not? || node.or? } }.map(&:value)
 
       if ids.size == 1
         relation = relation.order_custom(ids.first)

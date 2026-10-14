@@ -33,8 +33,10 @@
 #     the page, nested JSON, pools, and fourier-auth's per-md5 ask.
 #     `hidden_tag_names`: the tag names that exist only on those posts, out
 #     of the tag index, autocomplete and related tags.
-#   - WIDEN: Post#creator_allows?, inside #levelblocked? only, from
-#     `widened_ids` -- and through #visible? to can_see_media?.
+#   - WIDEN: Post#creator_allows?, inside #hidden_as_gated? only, from
+#     `widened_ids` -- so the post AND its image (operator, 2026-10-13):
+#     the page, the search terms and listing rule (Post.gated_allowed_ids),
+#     and through #visible? can_see_media?.
 #   - LOG: `log_admin_view`, an admin opening a post its creator hid (Q2): the
 #     post page and the Modulation viewer's move to a post.
 #
@@ -272,8 +274,8 @@ module CreatorVisibility
   end
 
   # Every GATED post its creator lets `viewer` past the site's level gate --
-  # what Post#levelblocked? asks (section 7, Q1). Gated posts only, because
-  # levelblocked? holds back nothing else. The candidates are the posts of the
+  # what Post#hidden_as_gated? asks (section 7, Q1). Gated posts only,
+  # because gate 1 holds back nothing else. The candidates are the posts of the
   # galleries this viewer stands in some relation to -- their own, one whose
   # group they are in, one that named them -- since nothing else allows.
   #

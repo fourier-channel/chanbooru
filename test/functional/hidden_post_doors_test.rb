@@ -300,17 +300,22 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
   end
 
   # Under test both visibility switches are relaxed, so the rule has to be
-  # inert for the inherited suite -- except for gated tags, which a signed-out
-  # visitor is never shown in any environment (Post#hidden_from_anonymous?).
+  # inert for the inherited suite -- except for gated tags, which no viewer
+  # below Gold is shown in any environment (Post#hidden_as_gated?, operator
+  # 2026-10-13), but for the account that uploaded the post.
   context "Post.hidden_from under the test defaults" do
-    should "hide nothing from a member, and only gated posts from a signed-out visitor" do
-      assert_nil Post.hidden_from(create(:user))
-      gated = as(create(:user)) { create(:post, tag_string: "landscape #{JAIL}") }
-      plain = as(create(:user)) { create(:post, tag_string: "landscape") }
-      ids = Post.hidden_from(User.anonymous).pluck(:id)
+    should "hide exactly the gated posts the viewer did not upload, below Gold" do
+      member = create(:user)
+      gated = create(:post, tag_string: "landscape child")
+      own = create(:post, uploader: member, tag_string: "landscape child")
+      plain = create(:post, tag_string: "landscape")
+      posts = Post.where(id: [gated.id, own.id, plain.id])
 
-      assert_includes ids, gated.id
-      assert_not_includes ids, plain.id
+      assert_equal [gated.id, own.id].sort, posts.merge(Post.hidden_from(User.anonymous)).pluck(:id).sort
+      assert_equal [gated.id], posts.merge(Post.hidden_from(member)).pluck(:id)
+      assert_equal [gated.id, own.id].sort, posts.merge(Post.hidden_from(create(:restricted_user))).pluck(:id).sort
+      assert_equal [own.id, plain.id].sort, posts.merge(Post.without_hidden_posts(member)).pluck(:id).sort
+      assert_nil Post.hidden_from(create(:gold_user))
     end
   end
 
@@ -338,25 +343,30 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
         @closed = record.call(create(:post, uploader: @bot, tag_string: "landscape cv_doors"))
         @gated = record.call(create(:post, uploader: @bot, tag_string: "landscape #{JAIL}"))
         @deleted = record.call(create(:post, uploader: @bot, tag_string: "landscape cv_doors"))
+        # Gate 1 on its own (no creator controls it), a member's own gated
+        # upload, and a gated post the creator's group opens to @fan.
+        @child = create(:post, uploader: @bot, tag_string: "landscape child")
+        @own_child = create(:post, uploader: @member, tag_string: "landscape child")
+        @widened = record.call(create(:post, uploader: @bot, tag_string: "landscape child"))
       end
       gallery.set_default_audience!("groups", by: @maple, group_ids: [tier.id])
       CreatorPostAudience.set!(@closed, gallery: gallery, audience: "private", by: @maple)
       @deleted.delete!("ordinary deletion", user: @admin)
-      @posts = [@plain, @grouped, @closed, @gated, @deleted.reload]
+      @posts = [@plain, @grouped, @closed, @gated, @deleted.reload, @child, @own_child, @widened]
       CreatorVisibility.forget!
     end
 
     teardown { CreatorPrefixes.reset! }
 
     should "agree row for row: the relation and the per-post rule" do
-      [nil, User.anonymous, @member, @fan, @maple, @bot, @admin, create(:banned_user), create(:moderator_user)].each do |user|
+      [nil, User.anonymous, create(:restricted_user), @member, @fan, @maple, @bot, @admin, create(:banned_user), create(:moderator_user)].each do |user|
         hidden = Post.hidden_from(user)
         by_relation = hidden ? Post.where(id: @posts.map(&:id)).merge(hidden).pluck(:id).sort : []
         by_post = @posts.select { |post| post.hidden_from?(user) }.map(&:id).sort
         assert_equal by_post, by_relation, user&.name || "nil"
       end
-      assert_equal [@grouped.id, @closed.id, @gated.id, @deleted.id].sort, @posts.select { |p| p.hidden_from?(@member) }.map(&:id).sort
-      assert_equal [@closed.id, @deleted.id].sort, @posts.select { |p| p.hidden_from?(@fan) }.map(&:id).sort
+      assert_equal [@grouped.id, @closed.id, @gated.id, @deleted.id, @child.id, @widened.id].sort, @posts.select { |p| p.hidden_from?(@member) }.map(&:id).sort
+      assert_equal [@closed.id, @gated.id, @deleted.id, @child.id, @own_child.id].sort, @posts.select { |p| p.hidden_from?(@fan) }.map(&:id).sort
     end
 
     # Asked through artist commentaries, which live on the posts' own

@@ -169,11 +169,17 @@ class Artist < ApplicationRecord
   module FactoryMethods
     # Make a new artist, fetching the defaults either from the given source, or
     # from the source of the artist's last upload.
-    def new_with_defaults(params)
+    #
+    # Fork: the last upload `user` may see (Post.user_tag_match), not the
+    # system user's -- the prefill is shown to whoever opened the form, and
+    # the source's extractor turned a post hidden from them (gated below
+    # Gold, deleted, jailed, hidden by its creator) into its artist's profile
+    # URLs (review, 2026-10-14). Signed out by default, the smallest view.
+    def new_with_defaults(params, user = User.anonymous)
       source = params.delete(:source)
 
       if source.blank? && params[:name].present?
-        post = Post.system_tag_match("source:http* #{params[:name]}").first
+        post = Post.user_tag_match("source:http* #{params[:name]}", user, tag_limit: nil, safe_mode: false).first
         source = post.try(:source)
       end
 

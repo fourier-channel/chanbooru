@@ -857,7 +857,7 @@ class Post < ApplicationRecord
 
     # The children that exist for `viewer`: every child but those hidden
     # from them beyond deletion (#hidden_beyond_deletion? -- a creator's
-    # narrowing, a hidden creator prefix, gated from a signed-out visitor);
+    # narrowing, a hidden creator prefix, gated below Gold);
     # deleted ones stay, as the stored flags count them. Read fresh, not
     # through the children association, which a save's own validations load
     # before child: metatags change it; and only for a post whose flag says
@@ -2136,26 +2136,35 @@ class Post < ApplicationRecord
   # "Gated" classifies the CONTENT, not the viewer: the tags in
   # Danbooru.config.restricted_tags mark material this site will not serve
   # casually, so the question has nothing to do with who is asking. Who is
-  # asking is what #levelblocked? and #hidden_from_anonymous? decide.
+  # asking is what #hidden_as_gated? decides.
   def gated?
     tag_string.match?(RESTRICTED_TAGS_REGEX)
   end
 
-  # Gated posts do not exist as far as a signed-out visitor is concerned.
+  # Gate 1: a gated post does not exist for a viewer below Gold -- signed
+  # out, Restricted or Member (operator, 2026-10-13: "Gate 1 should hide
+  # sensitive posts to Restricted and Member the same way it withholds the
+  # image") -- unless they uploaded it (the posting bots keep working on
+  # their own posts) or its creator let them in (#creator_allows?, gate 9:
+  # "the named-creator-allow should control both the post and the image").
   #
-  # This is a different rule from the browsing tier, and deliberately stricter.
-  # The tier says "you may see this, but only if you already know where it is" --
-  # a limit on browsing. Gating says "you may not see this kind of thing at all",
-  # which is a statement about the content, and a rule of that shape is not
-  # satisfied by merely withholding the image while still listing the post, its
-  # tags and its id.
+  # A different rule from the browsing tier, and deliberately stricter. The
+  # tier says "you may see this, but only if you already know where it is";
+  # gating says "you may not see this kind of thing at all", which is a
+  # statement about the content, and a rule of that shape is not satisfied by
+  # withholding the image while still listing the post, its tags and its id.
+  # So the post and the image are one answer: #levelblocked? (the image,
+  # through #visible?) is this rule.
   #
-  # Scoped to anonymous on purpose. A signed-in viewer below the threshold still
-  # sees the listing, because for them there is something to do about it.
-  def hidden_from_anonymous?(user = CurrentUser.user)
-    # nil counts as anonymous. This is a rule about withholding content, and the
-    # unknown-viewer case has to fail towards withholding, not towards serving.
-    (user.nil? || user.is_anonymous?) && gated?
+  # nil counts as signed out: a rule about withholding content has to fail
+  # towards withholding, not towards serving. The query-level halves are
+  # PostQuery#gated_metatags and the gated term of Post.hidden_from; both
+  # read the same allowed set (Post.gated_allowed_ids).
+  def hidden_as_gated?(user = CurrentUser.user)
+    return false unless gated?
+    return true if user.nil? || user.is_anonymous?
+
+    !user.is_gold? && user.id != uploader_id && !creator_allows?(user)
   end
 
   # A deleted post does not exist, for anyone but its uploader and the people
@@ -2207,14 +2216,22 @@ class Post < ApplicationRecord
   end
 
   # Every reason this post does not exist for `user` other than deletion:
-  # gated from a signed-out visitor, under a creator prefix hidden from them,
-  # carrying a flagged tag, or hidden by its creator. Split from hidden_from?
-  # for the lists whose deleted posts are their own rule
-  # (PostPreviewComponent#render?'s show_deleted); everything else asks
-  # hidden_from?. Flagged sits here, not beside deletion, so writable_by?
-  # never lets a moderator write past it and show_deleted never draws it.
+  # gated from a viewer below Gold (#hidden_as_gated?), under a creator
+  # prefix hidden from them, carrying a flagged tag, or hidden by its
+  # creator. Split from hidden_from? for the lists whose deleted posts are
+  # their own rule (PostPreviewComponent#render?'s show_deleted); everything
+  # else asks hidden_from?. Flagged sits here, not beside deletion, so
+  # writable_by? never lets a moderator write past it and show_deleted never
+  # draws it.
   def hidden_beyond_deletion?(user = CurrentUser.user)
-    hidden_from_anonymous?(user) || hidden_by_creator_prefix?(user) || hidden_as_flagged?(user) || hidden_by_creator?(user)
+    hidden_as_gated?(user) || hidden_otherwise?(user)
+  end
+
+  # hidden_beyond_deletion? less gate 1: what a creator's allow can never
+  # open (#creator_allows? asks it, which is why it is split out -- asking
+  # hidden_from? there would ask gate 1, and so creator_allows?, again).
+  def hidden_otherwise?(user = CurrentUser.user)
+    hidden_by_creator_prefix?(user) || hidden_as_flagged?(user) || hidden_by_creator?(user)
   end
 
   # A post carrying a FLAGGED tag (TagQuarantine, operator rulings
@@ -2258,20 +2275,52 @@ class Post < ApplicationRecord
     CreatorVisibility.hidden_ids(user).include?(id)
   end
 
-  # Let past the level gate by its creator (section 7, Q1: "a creator can
-  # widen"): an explicit group or named allow, or being the controller. Never
-  # for a signed-out or banned viewer, or a jailed post (CreatorVisibility
-  # step 4); never past an unreleased hidden prefix (the release precondition,
-  # section 7). Asked by #levelblocked? alone.
+  # Let past gate 1 by its creator (section 7, Q1: "a creator can widen"):
+  # an explicit group or named allow, or being the controller -- to the post
+  # AND its image (operator, 2026-10-13). Never for a signed-out or banned
+  # viewer, or a jailed post (CreatorVisibility step 4); never past an
+  # unreleased hidden prefix (the release precondition, section 7). Asked by
+  # #hidden_as_gated? alone.
   #
-  # And never for a post that does not exist for the viewer anyway
-  # (#hidden_from?: deleted, jailed or flagged, under ANOTHER creator's
-  # hidden prefix): a widen lifts the level gate and nothing else, so a door
-  # that asks only #visible? -- can_see_media? on a nested post -- must not
-  # be handed what every other door refuses (fourier-sampling-c2's check c,
-  # 2026-10-08). Asked only of a post in the set, so the rest pay nothing.
+  # And never for a post that does not exist for the viewer anyway (deleted,
+  # jailed or flagged, under ANOTHER creator's hidden prefix, hidden by a
+  # creator): a widen lifts gate 1 and nothing else, so a door that asks only
+  # #visible? -- can_see_media? on a nested post -- must not be handed what
+  # every other door refuses (fourier-sampling-c2's check c, 2026-10-08).
+  # Those reasons are asked one by one, never as hidden_from?, which asks
+  # gate 1 and so this method again. Asked only of a post in the set, so the
+  # rest pay nothing.
   def creator_allows?(user = CurrentUser.user)
-    CreatorVisibility.widened_ids(user).include?(id) && !hidden_from?(user)
+    CreatorVisibility.widened_ids(user).include?(id) && !hidden_as_deleted?(user) && !hidden_otherwise?(user)
+  end
+
+  # The gated posts gate 1 lets `user` see although they are below Gold:
+  # those their creator let them past (CreatorVisibility.widened_ids) and
+  # those they uploaded themselves -- the id set PostQuery#gated_metatags
+  # and Post.hidden_from exempt, as #hidden_as_gated? does one post at a
+  # time. Their uploads are found here, by the uploader_id index (nothing,
+  # for an account that uploads nothing), rather than by a user: term in the
+  # query, which would make every member's count cache per user. Empty for
+  # a signed-out viewer, and for Gold and up, whom gate 1 does not hold back
+  # at all. Once per request.
+  def self.gated_allowed_ids(user)
+    return Set.new if user.nil? || user.is_anonymous? || user.is_gold? || Danbooru.config.restricted_tags.blank?
+
+    CreatorVisibility.memoized(:gated_allowed, user) do
+      own = where(uploader_id: user.id).where_array_includes_any("string_to_array(posts.tag_string, ' ')", Danbooru.config.restricted_tags).pluck(:id)
+      CreatorVisibility.widened_ids(user) | own
+    end
+  end
+
+  # gated_allowed_ids as the '{1,2,3}' literal an integer[] parameter binds,
+  # or nil when there are none -- built once per request.
+  def self.gated_allowed_ids_literal(user)
+    return nil if user.nil? || user.is_anonymous? || user.is_gold?
+
+    CreatorVisibility.memoized(:gated_allowed_literal, user) do
+      ids = gated_allowed_ids(user)
+      ids.empty? ? nil : "{#{ids.sort.join(",")}}"
+    end
   end
 
   # A post carrying a creator tag whose prefix the list hides from `user`
@@ -2308,25 +2357,41 @@ class Post < ApplicationRecord
   def self.hidden_from(user, by_creator: true)
     tags = "string_to_array(posts.tag_string, ' ')"
     terms = []
+    # The tag names that hide a post whoever uploaded it, as ONE overlap:
+    # Postgres splits tag_string once per term, and a listing that visits
+    # every post paid for each split -- /user_actions of a posting bot
+    # (400,000 posts on the dev DB, 2026-10-14) took 1.4 s with one split and
+    # 4.2 s with two, past a member's 3 s statement timeout.
+    names = []
 
-    if (user.nil? || user.is_anonymous?) && Danbooru.config.restricted_tags.present?
-      terms << where_array_includes_any(tags, Danbooru.config.restricted_tags)
+    # Gate 1 (#hidden_as_gated?): gated posts, below Gold, less the viewer's
+    # own uploads and the posts a creator let them past (gated_allowed_ids,
+    # which holds both) -- a row filter, so the NOT IN is over the viewer's
+    # own allowed set, never over the gated posts (see
+    # ApplicationRecord.without_hidden_posts).
+    if Danbooru.config.restricted_tags.present? && !(user.present? && user.is_gold?)
+      allowed = gated_allowed_ids_literal(user)
+      if allowed
+        terms << where_array_includes_any(tags, Danbooru.config.restricted_tags).where("posts.id NOT IN (SELECT unnest(?::integer[]))", allowed)
+      else
+        names += Danbooru.config.restricted_tags
+      end
     end
 
-    terms << where_array_includes_any(tags, TagBanishment.post_tags) if TagBanishment.withholds_posts_from?(user)
+    names += TagBanishment.post_tags.to_a if TagBanishment.withholds_posts_from?(user)
 
     # Flagged (#hidden_as_flagged?): by name, with the bot's own uploads
     # excepted. Nothing flagged adds nothing.
     flagged = TagQuarantine.flagged_names
     if flagged.any?
       case TagQuarantine.flagged_posts_visible_to(user)
-      when :none then terms << where_array_includes_any(tags, flagged.to_a)
+      when :none then names += flagged.to_a
       when :own then terms << where_array_includes_any(tags, flagged.to_a).where.not(uploader_id: user.id)
       end
     end
 
-    prefixed = CreatorPrefixes.hidden_tag_names_for(user)
-    terms << where_array_includes_any(tags, prefixed) if prefixed.any?
+    names += CreatorPrefixes.hidden_tag_names_for(user)
+    terms << where_array_includes_any(tags, names.uniq) if names.any?
 
     # By id, as PostQuery#hidden_post_metatags excludes them -- one array
     # literal, unnested, for the reasons Searchable#attribute_matches gives
@@ -2408,7 +2473,7 @@ class Post < ApplicationRecord
   # `viewer` -- the post page and the Modulation payload, which must say the
   # same (review, 2026-10-08). A post that does not exist for the viewer
   # (#hidden_beyond_deletion?: hidden by its creator, under a hidden creator
-  # prefix, gated from a signed-out visitor) is neither counted nor linked;
+  # prefix, gated from a viewer below Gold) is neither counted nor linked;
   # deleted ones keep upstream's rule: shown when this post or its parent is
   # deleted, or the viewer asked to see deleted children.
   #
@@ -2779,15 +2844,13 @@ class Post < ApplicationRecord
     end
   end
 
-  # Fork: a creator's explicit allow lets the viewer past this gate
-  # (creator_allows?; CREATOR_VISIBILITY section 7, ruled 2026-10-07:
-  # restricted content "is legal and shown where granted"). The one place a
-  # creator widens: can_see_media?, the post page and PostPreviewComponent
-  # inherit it through visible?. Asked last, so a gold viewer or the uploader
-  # never computes it.
+  # Fork: gate 1 itself (#hidden_as_gated?), under upstream's name for its
+  # callers -- the image (can_see_media?, through visible?), PostPreview
+  # and PostSets. One rule for the post and the image (operator,
+  # 2026-10-13), so a post this blocks is already a 404 at every door, and
+  # upstream's "needs a Gold account" notice is never reached for it.
   def levelblocked?(user = CurrentUser.user)
-    # !user.is_gold? && RESTRICTED_TAGS.any? { |tag| has_tag?(tag) }
-    user.id != uploader_id && !user.is_gold? && tag_string.match?(RESTRICTED_TAGS_REGEX) && !creator_allows?(user)
+    hidden_as_gated?(user)
   end
 
   def banblocked?(user = CurrentUser.user)

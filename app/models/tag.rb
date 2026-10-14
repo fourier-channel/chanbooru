@@ -44,9 +44,13 @@ class Tag < ApplicationRecord
   # -- readable over a shoulder, screenshotted, broadcast -- without any of the
   # content having to load at all.
   #
-  # The restricted list is signed-out only, matching Post#hidden_from_anonymous?:
-  # a signed-in viewer below the threshold still sees those names, because they
-  # already see the listings. Quarantined names -- see TagQuarantine.
+  # The restricted list is withheld from every viewer below Gold -- signed
+  # out, Restricted, Member -- because the names follow the posts (operator,
+  # 2026-10-14): below Gold a gated post does not exist (Post#hidden_as_gated?,
+  # 2026-10-13), so neither does the list of names describing it. A creator's
+  # allow opens a post, not the list: a viewer let in reads a gated post's
+  # tags on that post's own tag list, and nowhere else. Quarantined names --
+  # see TagQuarantine.
   scope :visible_to, ->(user) {
     hidden = hidden_names_for(user)
     hidden.empty? ? all : where.not(name: hidden)
@@ -56,15 +60,14 @@ class Tag < ApplicationRecord
   # a surface that holds names rather than a relation (RelatedTagQuery).
   # Quarantined names (TagQuarantine): banished ones are absent for everyone
   # but the pipeline, admins included; flagged ones for everyone below admin
-  # but the posting bots. Restricted names are absent for a signed-out
-  # visitor.
+  # but the posting bots. Restricted names are absent below Gold.
   #
   # by_creator: false leaves out the names found only on posts a creator hid,
   # for a caller asking about a few names exactly (#hidden_from?).
   def self.hidden_names_for(user, by_creator: true)
     names = []
     names += TagQuarantine.hidden_names_for(user)
-    names += Danbooru.config.restricted_tags if (user.nil? || user.is_anonymous?) && Danbooru.config.restricted_tags.present?
+    names += Danbooru.config.restricted_tags if !user&.is_gold? && Danbooru.config.restricted_tags.present?
     names += CreatorPrefixes.hidden_tag_names_for(user)
     # Names that exist only on posts their creator hid from `user`
     # (CreatorVisibility.hidden_tag_names, 2026-10-08).

@@ -247,7 +247,7 @@ class PostQuery
   end
 
   # Implicit metatags are added by the viewer's situation rather than typed by
-  # them: rating:g under safe mode, and the gated tags a signed-out visitor may
+  # them: rating:g under safe mode, and the gated tags a viewer below Gold may
   # not know exist.
   def implicit_metatags
     safe_mode_metatags + gated_metatags + deleted_metatags + banished_metatags + hidden_post_metatags
@@ -283,16 +283,6 @@ class PostQuery
     [AST.metatag("rating", "g"), *tags]
   end
 
-  # Gated posts are removed from a signed-out visitor's searches entirely, rather
-  # than listed with the image withheld.
-  #
-  # Here rather than in a filter over the results, because it has to hold for
-  # things a filter never sees: the post COUNT, the paginator, "N posts", and the
-  # neighbour lookups that drive post-to-post navigation. A row that is excluded
-  # from the query cannot leak through any of them.
-  #
-  # Costs a negated term per gated tag on every anonymous query, which is the
-  # same shape and the same cost safe mode has always had.
   # A deleted post is not in anyone's results unless they are allowed to see
   # deleted posts at all.
   #
@@ -328,10 +318,29 @@ class PostQuery
     TagBanishment.post_tags.map { |tag| -AST.tag(tag) }
   end
 
+  # Gate 1 (Post#hidden_as_gated?): gated posts are removed from the searches
+  # of every viewer below Gold -- signed out, Restricted, Member (operator,
+  # 2026-10-13) -- rather than listed with the image withheld.
+  #
+  # Here rather than in a filter over the results, because it has to hold for
+  # things a filter never sees: the post COUNT, the paginator, "N posts", and
+  # the neighbour lookups that drive post-to-post navigation. A row that is
+  # excluded from the query cannot leak through any of them.
+  #
+  # A negated term per gated tag, the same shape and cost safe mode has
+  # always had -- and, for a viewer nobody let in, exactly the terms a
+  # signed-out visitor gets, so they share the count cache by the query
+  # string. A viewer with gated posts of their own or a creator's allow
+  # (Post.gated_allowed_ids) gets (-loli -shota ...) OR id:<theirs>, which
+  # to_cnf turns into one clause per tag: "not this tag, or one of my ids" --
+  # row filters on the rows the search visits, never a NOT IN over every
+  # gated post. The id list is in the query, so in their count cache key.
   def gated_metatags
-    return [] unless current_user.present? && current_user.is_anonymous?
+    return [] if Danbooru.config.restricted_tags.blank? || current_user&.is_gold?
 
-    Danbooru.config.restricted_tags.map { |tag| -AST.tag(tag) }
+    excluded = Danbooru.config.restricted_tags.map { |tag| -AST.tag(tag) }
+    allowed = Post.gated_allowed_ids(current_user)
+    allowed.empty? ? excluded : [AST.new(:or, [AST.new(:and, excluded), AST.metatag("id", allowed.sort.join(","))])]
   end
 
   concerning :CountMethods do

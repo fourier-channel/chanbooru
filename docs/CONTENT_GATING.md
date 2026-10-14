@@ -769,8 +769,8 @@ taggers have not emitted yet is deliberate.
 
 ## What is scaffolded and lightly used
 
-No account has ever sat at Restricted: thirteen people have registered with
-the one token, and none was flagged, so each started at Member. The restricted
+No account has ever sat at Restricted: as of 2026-10-14 the one token has
+been redeemed sixteen times, none of them flagged, so each started at Member. The restricted
 path is still covered by tests only, and a flagged signup is still the most
 likely source of a first report about it. No tag
 grant has been issued, and only `edit` grants can be. The creator visibility

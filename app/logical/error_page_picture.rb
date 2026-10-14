@@ -120,7 +120,7 @@ module ErrorPagePicture
     return "carries a tag flagged for review" if post.hidden_as_flagged?(anonymous)
     return "not an image" unless post.is_image?
     return "hidden by its creator" if post.hidden_by_creator?(anonymous) || post.hidden_by_creator_prefix?(anonymous)
-    return "gated for signed-out visitors" if post.hidden_from_anonymous?(anonymous) || post.levelblocked?(anonymous)
+    return "gated for signed-out visitors" if post.hidden_as_gated?(anonymous)
     return "banned or taken down" if post.banblocked?(anonymous)
 
     "not shown to signed-out visitors"

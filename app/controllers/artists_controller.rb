@@ -19,7 +19,7 @@ class ArtistsController < ApplicationController
   end
 
   def new
-    @artist = authorize Artist.new_with_defaults(permitted_attributes(Artist))
+    @artist = authorize Artist.new_with_defaults(permitted_attributes(Artist), CurrentUser.user)
     respond_with(@artist)
   end
 

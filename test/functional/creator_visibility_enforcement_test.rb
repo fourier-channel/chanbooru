@@ -10,17 +10,22 @@ require "test_helper"
 #   for them, exactly as gate 1 means for a signed-out visitor: its page, its
 #   JSON, the md5 lookup, search results, the count, the neighbours, the
 #   preview strip and the media gate.
-#   WIDEN -- an explicit allow lets a viewer below Gold past the level gate
-#   (levelblocked?), and so to the md5 fourier-auth reads as "serve it";
-#   never a signed-out viewer, a banned one, a jailed post, or past an
-#   unreleased hidden prefix.
+#   WIDEN -- an explicit allow lets a viewer below Gold past gate 1
+#   (hidden_as_gated?): to the gated post itself, which below Gold does not
+#   otherwise exist (operator, 2026-10-13: "the named-creator-allow should
+#   control both the post and the image"), and so to the md5 fourier-auth
+#   reads as "serve it"; never a signed-out viewer, a banned one, a jailed
+#   post, or past an unreleased hidden prefix.
 #   ALWAYS SEE -- the controller, the posting bots, admins; and every admin
 #   page view of a post its creator hid is logged, admin-only (Q2).
 class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
+  include TagQuarantineTestHelper
+
   GATED = "child" # in Danbooru.config.restricted_tags (gated_posts_test asserts it)
 
   def maple_post(tags)
-    post = as(@tunnel) { create(:post, uploader: @tunnel, tag_string: tags) }
+    # A 32-hex md5, as a real file's: the md5: metatag reads only that shape.
+    post = as(@tunnel) { create(:post, uploader: @tunnel, tag_string: tags, md5: SecureRandom.hex(16)) }
     FourierPostCreator.create!(post: post, mxid: "@maple:41chan.net", recorded_by: @tunnel.id)
     post
   end
@@ -58,6 +63,14 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
     get_auth posts_path(format: :json), user, params: { tags: "id:#{post.id}" }
     assert_response :success
     response.parsed_body.first&.fetch("md5", nil)
+  end
+
+  # The ask fourier-auth's image gate makes AS the reader: posts.json by
+  # md5. An empty list is "no such post here", so no image.
+  def md5_ask(post, user)
+    get_as(user, posts_path(format: :json), tags: "md5:#{post.md5}", only: "md5,is_deleted,source")
+    assert_response :success
+    response.parsed_body.pluck("md5")
   end
 
   def name_of(user) = user&.name || "anonymous"
@@ -113,9 +126,9 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
     should "answer a post's page and JSON only to whoever the creator let in" do
       expected = {
         nil => { @plain => 200, @grouped => 404, @closed => 404, @gated => 404 },
-        @stranger => { @plain => 200, @grouped => 404, @closed => 404, @gated => 200 },
+        @stranger => { @plain => 200, @grouped => 404, @closed => 404, @gated => 404 },
         @fan => { @plain => 200, @grouped => 200, @closed => 404, @gated => 200 },
-        @named => { @plain => 200, @grouped => 404, @closed => 200, @gated => 200 },
+        @named => { @plain => 200, @grouped => 404, @closed => 200, @gated => 404 },
         @moderator => { @plain => 200, @grouped => 404, @closed => 404, @gated => 200 },
         @maple => { @plain => 200, @grouped => 200, @closed => 200, @gated => 200 },
         @tunnel => { @plain => 200, @grouped => 200, @closed => 200, @gated => 200 },
@@ -127,11 +140,11 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
     end
 
     should "leave it out of search results and the count, even searched for by id" do
-      assert_equal [@gated.id, @plain.id].sort, ids_for(@stranger, "cvtest").sort
+      assert_equal [@plain.id], ids_for(@stranger, "cvtest")
       assert_equal [@gated.id, @grouped.id, @plain.id].sort, ids_for(@fan, "cvtest").sort
-      assert_equal [@closed.id, @gated.id, @plain.id].sort, ids_for(@named, "cvtest").sort
+      assert_equal [@closed.id, @plain.id].sort, ids_for(@named, "cvtest").sort
       assert_empty ids_for(@stranger, "id:#{@closed.id}")
-      assert_equal 2, count_for(@stranger, "cvtest")
+      assert_equal 1, count_for(@stranger, "cvtest")
       assert_equal 3, count_for(@fan, "cvtest")
       assert_equal 0, count_for(@stranger, "id:#{@grouped.id}")
       assert_equal 4, count_for(@admin, "cvtest")
@@ -193,19 +206,52 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
   end
 
   context "widening" do
-    should "let a group member below Gold past the level gate, and serve them the media" do
+    should "let a group member below Gold open the post and its image, and a stranger neither" do
       assert_not @gated.levelblocked?(@fan)
       assert @gated.levelblocked?(@stranger)
+      assert_equal 200, status_for(@gated, @fan)
+      assert_equal 404, status_for(@gated, @stranger)
+      assert_includes ids_for(@fan, "cvtest"), @gated.id
+      assert_not_includes ids_for(@stranger, "cvtest"), @gated.id
+      assert_equal [@gated.md5], md5_ask(@gated, @fan)
+      assert_empty md5_ask(@gated, @stranger)
       assert_equal @gated.md5, md5_for(@gated, @fan)
       assert_nil md5_for(@gated, @stranger)
       assert MediaAssetPolicy.new(@fan, @gated.media_asset).can_see_image?
       assert_not MediaAssetPolicy.new(@stranger, @gated.media_asset).can_see_image?
     end
 
+    # Gate 9's named allow, on one post: that viewer opens the gated post,
+    # finds it in search and the count, and is answered the md5 as the
+    # reader; a member nobody named gets none of it.
+    should "let a viewer the creator named open the post and its image" do
+      named_gated = maple_post("cvtest #{GATED}")
+      CreatorUserRule.set!(@gallery, @named, rule: "allow", by: @maple, post: named_gated)
+      CreatorVisibility.forget!
+
+      assert_equal 200, status_for(named_gated, @named)
+      assert_equal [@closed.id, named_gated.id, @plain.id].sort, ids_for(@named, "cvtest").sort
+      assert_equal 3, count_for(@named, "cvtest")
+      assert_equal [named_gated.md5], md5_ask(named_gated, @named)
+      assert_equal named_gated.md5, md5_for(named_gated, @named)
+
+      assert_equal 404, status_for(named_gated, @stranger)
+      assert_equal 1, count_for(@stranger, "cvtest")
+      assert_empty md5_ask(named_gated, @stranger)
+    end
+
+    # The widened ids go into the query as an id term; order:custom reads the
+    # id term the viewer typed, never one the viewer's situation added.
+    should "keep order:custom working for a viewer let in" do
+      assert_equal [@gated.id, @plain.id], ids_for(@fan, "id:#{@gated.id},#{@plain.id} order:custom")
+      assert_equal [@plain.id, @gated.id], ids_for(@admin, "id:#{@plain.id},#{@gated.id} order:custom")
+    end
+
     # Every Matrix post is uploaded by the bridge account, so the creator gets
     # no uploader's unlock; being the controller is theirs instead.
     should "let the controller past the level gate on their own post" do
       assert_not @gated.levelblocked?(@maple)
+      assert_equal 200, status_for(@gated, @maple)
       assert_equal @gated.md5, md5_for(@gated, @maple)
     end
 
@@ -230,6 +276,43 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
       assert jailed.levelblocked?(@maple)
     end
 
+    # Operator, 2026-10-14: gated tag NAMES follow the post, and a creator's
+    # allow opens a post, not the list of names. A viewer let in reads the
+    # post's own tags on it, and nowhere else: not the tag index, a tag's
+    # page, autocomplete, or the related tags drawn from posts they can see.
+    should "show a viewer let in the gated tag on the post, and in no listing" do
+      get_auth post_path(@gated), @fan
+      assert_response 200
+      assert_select "[data-tag-name=?]", GATED
+      get_auth post_path(@gated, format: :json), @fan
+      assert_includes response.parsed_body["tag_string"].split, GATED
+
+      get_auth tags_path(format: :json, search: { name_matches: GATED }), @fan
+      assert_equal [], response.parsed_body.pluck("name")
+      get_auth tag_path(Tag.find_by!(name: GATED), format: :json), @fan
+      assert_response 404
+      suggested = AutocompleteService.new(GATED[0, 3], :tag_query, current_user: @fan).autocomplete_results
+      assert_not_includes suggested.pluck(:value), GATED
+      related = RelatedTagQuery.new(query: "cvtest", user: @fan).related_tags.map(&:name)
+      assert_includes related, "landscape" # the sample reached the posts
+      assert_not_includes related, GATED
+      assert_includes RelatedTagQuery.new(query: "cvtest", user: @moderator).related_tags.map(&:name), GATED
+
+      # The search sidebar is a listing too, though it is drawn from the posts
+      # on the page: the post the viewer may open is in their results, its
+      # gated name is not in the sidebar beside them (review, 2026-10-14).
+      ["cvtest", ""].each do |query|
+        sidebar = PostSets::Post.new(query, 1, 20, user: @fan).sidebar_tags.map(&:name)
+        assert_includes sidebar, "landscape", "#{query.inspect}: the sidebar read the page"
+        assert_not_includes sidebar, GATED, query.inspect
+      end
+      get_auth posts_path, @fan, params: { tags: "cvtest" }
+      assert_response 200
+      assert_select "a.search-tag", text: "landscape"
+      assert_select "a.search-tag", text: GATED, count: 0
+      assert_includes PostSets::Post.new("cvtest", 1, 20, user: @moderator).sidebar_tags.map(&:name), GATED
+    end
+
     should "not reach past the site's own gate for 'public' alone" do
       plain_gated = maple_post("cvtest #{GATED}")
       CreatorPostAudience.set!(plain_gated, gallery: @gallery, audience: "public", by: @maple)
@@ -250,10 +333,17 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
       CreatorVisibility.forget!
     end
 
+    # The creator holding the claim sees their own posts under the prefix
+    # (gate 8) -- but nothing widens gate 1 before the release, their own
+    # controller's allow included, and below Gold gate 1 hides the gated post
+    # itself (operator, 2026-10-13), not only its image.
     should "stay hidden from the creator's group and widen nothing until released" do
+      ai_plain = as(@tunnel) { create(:post, uploader: @tunnel, tag_string: "aichan_maple landscape") }
       assert_equal 404, status_for(@ai, @fan)
       assert @ai.levelblocked?(@fan)
-      assert_equal 200, status_for(@ai, @maple)
+      assert_equal 200, status_for(ai_plain, @maple)
+      assert_equal 404, status_for(@ai, @maple)
+      assert @ai.levelblocked?(@maple)
     end
 
     should "be the panel's once released" do
@@ -377,6 +467,24 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
       assert CreatorVisibility.widened_ids(@fan).include?(deleted.id), "fixture: in the widen set"
       assert_not deleted.reload.creator_allows?(@fan)
       assert_not PostPolicy.new(@fan, deleted).can_see_media?
+      assert_equal 404, status_for(deleted, @fan)
+      assert_not_includes ids_for(@fan, "cvtest"), deleted.id
+    end
+
+    # A widened post that then gains a flagged tag is gone like any flagged
+    # post: the widen opens gate 1 and nothing else (and asking it does not
+    # loop back through hidden_from?).
+    should "not be opened once it carries a flagged tag" do
+      flagged = maple_post("cvtest #{GATED} cv_flagged")
+      flag_tags!("cv_flagged")
+      assert CreatorVisibility.widened_ids(@fan).include?(flagged.id), "fixture: in the widen set"
+
+      assert flagged.hidden_from?(@fan)
+      assert_not flagged.creator_allows?(@fan)
+      assert_not flagged.visible?(@fan)
+      assert_equal 404, status_for(flagged, @fan)
+      assert_not_includes ids_for(@fan, "cvtest"), flagged.id
+      assert_empty md5_ask(flagged, @fan)
     end
   end
 

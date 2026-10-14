@@ -394,14 +394,68 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
       assert_refused "#{posts_path}?tags=md5:#{@old.md5}", why: :narrowed
     end
 
-    should "answer fourier-auth's anonymous md5 ask exactly as before" do
-      get "/posts.json", params: { tags: "md5:#{@old.md5},#{@newest.md5}", only: "md5,is_deleted,source", limit: 2 }
-      assert_response 200
-      assert_equal([@old.md5, @newest.md5].sort, response.parsed_body.pluck("md5").sort)
-      assert_equal(%w[is_deleted md5 source], response.parsed_body.flat_map(&:keys).uniq.sort)
+    # Operator, 2026-10-13/14: a signed-out visitor's IMAGE follows the post's
+    # PAGE (gate 10). fourier-auth's anonymous ask is answered with a row only
+    # for a post the site has shown signed out -- the set that opens
+    # /posts/<id> signed out -- and every other md5 is absent, gated or not.
+    # fourier-auth reads absence as refused and asks again as the reader's
+    # own booru session, so a signed-in reader is unaffected.
+    should "answer fourier-auth's anonymous md5 ask only for posts the site showed signed out" do
+      gated = create(:post, tag_string: "aaaa child", md5: SecureRandom.hex(16))
+      ask = lambda do |*posts|
+        get "/posts.json", params: { tags: "md5:#{posts.map(&:md5).join(",")}", only: "md5,is_deleted,source", limit: posts.size }
+        assert_response 200
+        response.parsed_body
+      end
+
+      rows = ask.call(@old, @newest, gated)
+      assert_equal([@newest.md5], rows.pluck("md5"))
+      assert_equal(%w[is_deleted md5 source], rows.flat_map(&:keys).uniq.sort)
       # Asking for it by md5 does not make the old post's page one the site
       # showed a signed-out viewer.
       assert_refused post_path(@old), why: :narrowed
+
+      # A gated post has no row even if its id were somehow remembered as
+      # shown: the signed-out search excludes it before the shown set is read.
+      MembersOnly.remember_shown_to_anonymous([gated.id], safe_mode: false)
+      assert_equal([], ask.call(gated))
+
+      # Signed in, the same ask is the reader's own: the old post is theirs to see.
+      login_as(create(:user, created_at: 1.month.ago))
+      assert_equal([@old.md5], ask.call(@old).pluck("md5"))
+    end
+
+    # The ask carries no safe mode, so both modes' shown sets count: the
+    # hourly buckets of each, the newest page of each, and the promoted
+    # galleries' curated sets.
+    should "count a post shown in either safe mode, or curated by a promoted gallery, in the md5 ask" do
+      safe_shown, all_shown, curated = Array.new(3) { create(:post, md5: SecureRandom.hex(16)) }
+      Array.new(21) { create(:post) } # all three are off the newest page now
+      MembersOnly.remember_shown_to_anonymous([safe_shown.id], safe_mode: true)
+      MembersOnly.remember_shown_to_anonymous([all_shown.id], safe_mode: false)
+      gallery = create(:creator_gallery, promoted_at: Time.current)
+      CreatorGalleryPost.create!(creator_gallery: gallery, post: curated)
+
+      md5s = [@old, safe_shown, all_shown, curated].map(&:md5)
+      get "/posts.json", params: { tags: "md5:#{md5s.join(",")}", only: "md5,is_deleted,source", limit: 4 }
+      assert_response 200
+      assert_equal([safe_shown, all_shown, curated].map(&:md5).sort, response.parsed_body.pluck("md5").sort)
+    end
+
+    # Each mode's newest page is that mode's, whatever mode the asking
+    # request is in: an explicit post on the newest page is in the "all"
+    # set and not the safe one.
+    should "read each safe mode's newest page in that mode" do
+      explicit = create(:post, rating: "e", md5: SecureRandom.hex(16))
+      CurrentUser.set(user: User.anonymous, safe_mode: false) do
+        assert_not_includes MembersOnly.anonymous_newest_ids(true), explicit.id
+        assert_includes MembersOnly.anonymous_newest_ids(false), explicit.id
+      end
+      Rails.cache.clear
+      CurrentUser.set(user: User.anonymous, safe_mode: true) do
+        assert_includes MembersOnly.anonymous_newest_ids(false), explicit.id
+        assert_not_includes MembersOnly.anonymous_newest_ids(true), explicit.id
+      end
     end
 
     # An md5 is not a secret (4chan's archives publish one for every image),

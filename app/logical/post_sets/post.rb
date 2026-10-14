@@ -214,7 +214,15 @@ module PostSets
 
     concerning :TagListMethods do
       # @return [Array<Tag>] The list of tags for the sidebar on the post index page.
+      #
+      # Fork: without the names hidden from this viewer (Tag.hidden_names_for,
+      # as /tags and related tags leave them out). The sidebar is drawn from
+      # the posts on the page, and below Gold that page can hold a gated post
+      # -- the viewer's own upload, or one its creator let them in to -- whose
+      # gated name is shown on that post's own tag list and in no listing
+      # (operator, 2026-10-14: gated tag names follow the post).
       def sidebar_tags
+        hidden = Tag.hidden_names_for(current_user, by_creator: false).to_set
         if artist.present? && artist.is_banned? && !current_user.is_approver?
           []
         elsif normalized_query.wildcards.one? && normalized_query.tags.none?
@@ -233,7 +241,7 @@ module PostSets
           sort_sidebar_tags(similar_tags.presence || frequent_tags)
         else
           sort_sidebar_tags(frequent_tags)
-        end
+        end.reject { |tag| hidden.include?(tag.name) }
       end
 
       # Sort the list of tags by category. For artist, character, and copyright tags, subsort them by post count. For

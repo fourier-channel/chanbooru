@@ -33,25 +33,55 @@ class ArchivePulseTest < ActiveSupport::TestCase
       assert_not_nil(pulse.newest_at)
     end
 
-    should "not report gated posts to an anonymous visitor" do
+    # Below Gold a gated post does not exist (gate 1, operator 2026-10-13),
+    # so its count is not reported either.
+    should "not report gated posts to a viewer below Gold" do
       gated = Danbooru.config.restricted_tags.first
       skip "no gated tags configured" if gated.blank?
 
       create(:post, tag_string: "landscape")
       create(:post, tag_string: gated)
 
-      assert_equal(2, ArchivePulse.new(viewer: create(:user)).posts)
+      assert_equal(2, ArchivePulse.new(viewer: create(:gold_user)).posts)
+      assert_equal(1, ArchivePulse.new(viewer: create(:user)).posts)
+      assert_equal(1, ArchivePulse.new(viewer: create(:restricted_user)).posts)
       assert_equal(1, ArchivePulse.new(viewer: User.anonymous).posts)
     end
 
-    should "not report gated tags to an anonymous visitor" do
+    # Two Members at one level see different archives when a creator named
+    # one of them (gate 9): the named one's count must not be served to the
+    # other, nor the other's to them. Asked unnamed first, then named.
+    should "not serve a named member's count to one nobody named, or the reverse" do
+      gated = Danbooru.config.restricted_tags.first
+      skip "no gated tags configured" if gated.blank?
+
+      CreatorPrefixes.reset!
+      tunnel = create(:builder_user, name: "tunnel")
+      named = create(:user)
+      gallery = CreatorGallery.create!(matrix_id: "@pulse:41chan.net", slug: "pulse-cv", user: create(:user))
+      create(:post, tag_string: "landscape")
+      post = as(tunnel) { create(:post, uploader: tunnel, tag_string: "landscape #{gated}") }
+      FourierPostCreator.create!(post: post, mxid: gallery.matrix_id, recorded_by: tunnel.id)
+      CreatorUserRule.set!(gallery, named, rule: "allow", by: gallery.user)
+      CreatorVisibility.forget!
+
+      assert_equal(1, ArchivePulse.new(viewer: create(:user)).posts)
+      assert_equal(2, ArchivePulse.new(viewer: named).posts)
+      assert_equal(1, ArchivePulse.new(viewer: create(:user)).posts)
+    ensure
+      CreatorPrefixes.reset!
+    end
+
+    should "not report gated tags to a viewer below Gold" do
       gated = Danbooru.config.restricted_tags.first
       skip "no gated tags configured" if gated.blank?
 
       create(:post, tag_string: "landscape")
       create(:post, tag_string: gated)
 
-      assert_includes(Tag.visible_to(create(:user)).where(post_count: 1..).pluck(:name), gated)
+      # Below Gold the names follow the posts (operator, 2026-10-14).
+      assert_includes(Tag.visible_to(create(:gold_user)).where(post_count: 1..).pluck(:name), gated)
+      assert_not_includes(Tag.visible_to(create(:user)).where(post_count: 1..).pluck(:name), gated)
       assert_not_includes(Tag.visible_to(User.anonymous).where(post_count: 1..).pluck(:name), gated)
     end
 
@@ -134,7 +164,8 @@ class ArchivePulseTest < ActiveSupport::TestCase
 
         [900, 720, 540, 360, 180, 6].each { |ago| upload_pass(ago, tags: gated) }
 
-        assert_not_nil(ArchivePulse.new(viewer: create(:user)).cadence)
+        assert_not_nil(ArchivePulse.new(viewer: create(:gold_user)).cadence)
+        assert_nil(ArchivePulse.new(viewer: create(:user)).cadence)
         assert_nil(ArchivePulse.new(viewer: User.anonymous).cadence)
       end
     end

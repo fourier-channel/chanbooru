@@ -37,6 +37,9 @@ class PostsController < ApplicationController
       # (fourier-auth's, json) names a file the caller already had, and must
       # not turn into a post page for whoever asked.
       MembersOnly.remember_shown_to_anonymous(@posts.map(&:id), safe_mode: CurrentUser.safe_mode?) if anonymous_gated? && request.format.html?
+      # The signed-out md5 ask answers only posts the site has shown signed
+      # out (MembersOnly.anonymous_md5_rows); every other md5 is absent.
+      @posts = MembersOnly.anonymous_md5_rows(@posts) if anonymous_gated? && request.format.json? && post_set.tag_string.present?
       @preview_size = params[:size].presence || cookies[:post_preview_size].presence || PostGalleryComponent::DEFAULT_SIZE
       raise PageRemovedError if request.format.html? && post_set.banned_artist?
 
@@ -48,7 +51,8 @@ class PostsController < ApplicationController
 
   def show
     @post = authorize Post.eager_load(:uploader, :media_asset).find(params[:id])
-    # Gated content does not exist for a signed-out visitor, including by direct
+    # Gated content does not exist for a viewer below Gold (gate 1, unless they
+    # uploaded it or its creator let them in), including by direct
     # link. RecordNotFound rather than a 403: telling someone "there is something
     # here you may not see" is itself a disclosure, and for the tags on this list
     # it is the one kind of disclosure most worth not making. A 404 says only
