@@ -248,8 +248,9 @@ Matrix upload also holds it; it is served through the Matrix route only.
 
 **Matrix images follow the room -- and the quarantine.** A Matrix image whose
 booru post is jailed, or carries a banished or flagged tag (gates 4, 5, 12),
-is refused at this route too, to everyone but an admin reaching a flagged one
-through the booru (fourier-auth reads the booru's quarantine document every
+is refused at this route too, to everyone, admins included -- since
+2026-10-15 no door opens it to a reviewer; Matrix posts are reviewed in
+sampling's jail panel, which reads the image from R2 (fourier-auth reads the booru's quarantine document every
 30 s, and on a failed read keeps the last good one for 30 minutes before
 refusing every Matrix image). Otherwise fourier-auth reads Synapse's own database --
 which room the media was posted in, whether the viewer is joined -- and uses
@@ -700,16 +701,21 @@ disappear--but not as severe as banished because the idea is to immediately
 flag any tag for review by admins."
 
 - **Still visible to:** Admin and Owner levels ("I did mean 'owner' danbooru
-  level"), every post; the booru's system user; and the posting bots on their
+  level"), every post -- a Matrix post only in the rooms they are joined to
+  (gate 3); the booru's system user; and the posting bots on their
   OWN posts -- which is every post, since only the bots upload -- so they keep
   working on them, and the names everywhere, because they tag with them.
 - **Everyone else:** every post carrying the tag, and the tag's name, are gone
   at every door -- search, counts, pages, images, tag lists, autocomplete --
   including posts that gain the tag later.
 - **Review:** a "Flagged tags" queue on the admin console (who flagged it,
-  when, how many posts). **Release** puts everything back at once. **Banish**
-  is one click: the tag becomes banished (gate 5) and its posts are jailed.
-  Both are written to the mod log.
+  when, how many posts), and -- for Matrix posts, which admins no longer see
+  outside their rooms -- the Flagged tab of sampling's jail panel, which shows
+  every post carrying the tag with its image (operator, 2026-10-14: "Move
+  Matrix review into the jail panel"). **Release** puts everything back at
+  once. **Banish** is one click: the tag becomes banished (gate 5) and its
+  posts are jailed. Both work from either place and are written to the mod
+  log, naming who pressed them.
 - **Reach: everywhere, like the jail.** fourier-auth refuses a flagged image
   at the Matrix route and in publication grants; sampling withholds it from
   its external and published views; the tunnel stops writing the name into
@@ -786,7 +792,7 @@ directly, never through the Matrix route.
 | a post is hidden in listings but its page opens | 5 -- the viewer's own blocklist: a filter in their browser, not a server gate |
 | a post tagged `troll_jail` is live (not deleted) | 4 -- a jailing whose delete was refused (still hidden from every person); check the bot is at Approver (37), then `jail-apply.ts --booru-only` |
 | a tag exists on a post but nowhere in autocomplete | 1 (a gated name, below Gold), 5 (banished), 8 (a hidden prefix such as `aichan_`) or 12 (flagged, for anyone below Admin) |
-| a tag vanished, and its posts with it, for everyone but admins | 12 -- flagged for review; Release or Banish from the admin console's queue |
+| a tag vanished, and its posts with it, for everyone but admins | 12 -- flagged for review; Release or Banish from the admin console's queue or sampling's jail panel (Flagged tab) |
 | a banished tag needs to come back | 5 -- unbanish from sampling's jail panel; the booru has no surface for it |
 | a Discord post is invisible to everyone but admins | 8 -- `aichan_` is admins only |
 | a tag shows for one viewer and not another on the same post | 6 -- a creator-private tag: only the creator sees it |
