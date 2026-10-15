@@ -19,6 +19,9 @@ renamed the blocklist and made the only filter. Then chanbooru bb3944ca6
 (operator rulings 2026-10-13): gate 1 hides a gated post from everyone below
 Gold, a creator's allow opens post and image, and a signed-out image follows
 gate 10 like its page.
+Then gate 3 for posts, switched on 2026-10-15 by the operator ("Yes, turn it
+on"; fourier-basis 20aa523, chanbooru c2f4cd776): a Matrix post follows its
+image's rooms, admins included.
 
 CANON. Lives in `fourier-basis`; hydrated into chanbooru and rendered into the
 public site by `coherence hydrate`. This file is the only copy anyone edits.
@@ -92,8 +95,8 @@ query. The difference matters when something goes wrong: a gate that ran and
 said yes can be asked why, and a gate that was skipped cannot.
 
 **A hidden post answers nothing, by any door** (leak audits 2026-10-01 and
-2026-10-02). `Post#hidden_from?` is one rule -- gates 1 (below Gold), 4, 5, 8,
-9 and 12 -- and every route that names a post asks it: search, counts, the post
+2026-10-02). `Post#hidden_from?` is one rule -- gates 1 (below Gold), 3 (a Matrix post
+outside the viewer's rooms), 4, 5, 8, 9 and 12 -- and every route that names a post asks it: search, counts, the post
 page, the image, post versions, favourites, pools, flags, commentary, related
 tags, IQDB, the mod log. Adding a door that forgets to ask is the way this
 breaks.
@@ -252,10 +255,28 @@ refusing every Matrix image). Otherwise fourier-auth reads Synapse's own databas
 which room the media was posted in, whether the viewer is joined -- and uses
 Synapse's HTTP API only to validate the token. Synapse's authenticated-media
 endpoint is NOT used: it authenticates the token but does not enforce room
-membership. A booru account with no Matrix session, or one not in that room,
-sees the post and not its image. The booru gets the fourier session with no
+membership. The booru gets the fourier session with no
 clicks from a signed-in Technetium through `POST /exchange`; the Matrix token
 lives server-side and the browser holds an opaque session id.
+
+**Matrix POSTS follow their image** (gate 3 for posts; chanbooru c2f4cd776,
+on since 2026-10-15; design fourier-basis docs/design/GATE3_MATRIX_POSTS.md). A post
+whose source is a Matrix upload is visible to exactly the viewers its image
+is: its rooms (where the uploader posted it, forwards by members, less deleted
+messages) intersected with the viewer's joined rooms -- or every signed-in
+viewer with a verified Matrix identity when the image is a site asset (an
+avatar, room icon or emote). Everyone else gets no post: not in search,
+paging or next/previous, and its page answers 404. **Admins are not exempt**
+(operator, 2026-10-14); Matrix posts are moderated in sampling's jail panel,
+whose Flagged tab reads images from R2. Signed out, or signed in only with a
+booru account and no verified Matrix identity, no Matrix post exists. A tag
+name found only on posts a viewer cannot see is absent from that viewer's tag
+lists and autocomplete. Counts are NOT narrowed: a tag's count, and a search's,
+may include Matrix posts the viewer cannot see (operator, 2026-10-15: "it's
+the null hypothesis"). fourier-auth's reader keeps the booru's record of each
+image's rooms current from Synapse, and the booru asks fourier-auth for the
+viewer's joined rooms (cached about 45 s); if it cannot learn them, the viewer
+gets no Matrix posts.
 
 **Deleting a message takes its image out of that room** (operator ruling
 2026-10-15; fourier-auth 1c47440, a34d500). A room counts only while the
@@ -305,8 +326,8 @@ in a room called #art.**
 
 | | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| joined to #art, with a Matrix session | -- | loads | loads | loads | loads | loads | loads |
-| not joined to #art, or no Matrix session | refused | refused | refused | refused | refused | refused | refused |
+| joined to #art, with a Matrix session: post and image | -- | visible | visible | visible | visible | visible | visible |
+| not joined to #art, or no Matrix session: post and image | hidden | hidden | hidden | hidden | hidden | hidden | visible |
 
 ---
 
@@ -734,7 +755,7 @@ sections.
 | `aichan_someone` (gate 8) | {no: gate 10} / {no: gate 10} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {yes} / {yes} | {yes} / {yes} |
 | creator set private (gate 9) | {no: gate 10} / {no: gate 10} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {yes: logged} / {yes} | {yes} / {yes} |
 | a flagged tag (gate 12) | {no: gate 10} / {no: gate 10} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {yes} / {yes} | {yes: its own} / {yes: its own} |
-| Matrix upload, viewer not in its room (gate 3) | {no: gate 10} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {no: gate 3} | {yes} / {yes: via R2} |
+| Matrix upload, viewer not in its room (gate 3) | {no: gate 10} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {yes} / {yes: via R2} |
 
 Pipeline is the booru's system user and the posting bots. "Its own" is every
 post, since only the bots upload. The pipeline reads a Matrix image's file from R2
@@ -752,6 +773,8 @@ directly, never through the Matrix route.
 | cannot register | 0 -- no token, or a spent, expired or revoked one |
 | a booru image is broken but the post page loads | 3 -- the image follows its post: deleted, jailed, gated or hidden for this reader. A 503 means the booru or sampling was unreachable |
 | a Matrix upload's image is broken | 3 -- the viewer is not in the room it was posted in, or has no Matrix session |
+| a Matrix post 404s for one viewer and opens for another, admins included | 3 -- the post follows its image's rooms; moderate it in sampling's jail panel |
+| a tag's count is higher than the posts a viewer can page through | 3 -- counts include Matrix posts outside the viewer's rooms, by design |
 | a Matrix image stopped loading in a room it was posted to | 3 -- the message that posted it there was deleted; another room it was posted to still shows it |
 | a just-jailed or just-flagged image still loads for a minute or two | 3 -- the decision caches, about three minutes at most |
 | search returns exactly 20, and no second page | 2 -- browsing tier |
