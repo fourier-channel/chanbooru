@@ -135,9 +135,11 @@ class PostQueryBuilder
     end
   end
 
-  def posts(post_query, relation = Post.unscoped, includes: nil)
+  def posts(post_query, relation = Post.unscoped, includes: nil, matrix_rooms: true)
     relation = add_joins(post_query, relation)
     relation = build_relation(post_query, relation)
+    # Fork: gate 3 for posts (PostQuery#matrix_rooms_condition).
+    relation = relation.where(post_query.matrix_rooms_condition) if matrix_rooms && post_query.matrix_rooms_condition
 
     # HACK: if we're using a date: or age: metatag, default to ordering by
     # created_at instead of id so that the query will use the created_at index.

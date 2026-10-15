@@ -347,4 +347,101 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       assert_equal [@post.id], response.parsed_body["missing_posts"]
     end
   end
+
+  # The tunnel's report of `params` for a post, as @bot.
+  def report(params, post_id: @post.id)
+    post_auth "/posts/#{post_id}/tag_sources.json", @bot, as: :json, params: params
+    response.parsed_body
+  end
+
+  # GATE 3 FOR POSTS, piece B (fourier-basis docs/design/GATE3_MATRIX_POSTS.md):
+  # the tunnel reports every other address of a post's image -- a re-upload of
+  # the same bytes is a new mxc it maps to the post by md5 -- on this same
+  # route, with "mxc". On its duplicate path the body carries ONLY the mxc.
+  context "POST /posts/:post_id/tag_sources with an mxc" do
+    setup do
+      @bot = create(:builder_user)
+      @post = create(:post, md5: SecureRandom.hex(16), tag_string: "a b", source: "mxc://41chan.net/original")
+    end
+
+    should "record an mxc-only body as an alias, changing no tag" do
+      tags = @post.reload.tag_string
+      assert_no_difference(-> { FourierTagSource.count }) do
+        body = report({ mxc: "mxc://41chan.net/dup1" })
+        assert_response :success
+        assert_equal({ "post_id" => @post.id, "mxc" => { "accepted" => true }}, body)
+      end
+      assert_equal [@post.id, "alias"], PostMxc.where(mxc: "mxc://41chan.net/dup1").pick(:post_id, :source)
+      assert_equal tags, @post.reload.tag_string
+    end
+
+    should "record it beside a tag partition, answering both" do
+      body = report({ auto: %w[a b], mxc: "mxc://41chan.net/dup2" })
+      assert_response :success
+      assert_equal({ "accepted" => true }, body["mxc"])
+      assert_equal 2, body["recorded"]
+      assert PostMxc.exists?(post_id: @post.id, mxc: "mxc://41chan.net/dup2")
+    end
+
+    should "be idempotent" do
+      2.times do
+        assert_equal({ "accepted" => true }, report({ mxc: "mxc://41chan.net/dup3" })["mxc"])
+      end
+      assert_equal 1, PostMxc.where(mxc: "mxc://41chan.net/dup3").count
+    end
+
+    should "accept the post's own source" do
+      assert_equal({ "accepted" => true }, report({ mxc: "mxc://41chan.net/original" })["mxc"])
+      assert_equal "post_source", PostMxc.find_by!(mxc: "mxc://41chan.net/original").source
+    end
+
+    should "answer no_such_post in the body for a post that does not exist" do
+      body = report({ mxc: "mxc://41chan.net/dup4" }, post_id: 0)
+      assert_response :success
+      assert_equal({ "accepted" => false, "reason" => "no_such_post" }, body["mxc"])
+      assert_not PostMxc.exists?(mxc: "mxc://41chan.net/dup4")
+    end
+
+    should "keep the 404 for a tag partition on a missing post, saying what became of the mxc" do
+      body = report({ auto: %w[a], mxc: "mxc://41chan.net/dup5" }, post_id: 0)
+      assert_response 404
+      assert_equal({ "accepted" => false, "reason" => "no_such_post" }, body["mxc"])
+    end
+
+    should "answer mxc_mapped_elsewhere for an mxc another post holds" do
+      other = create(:post, md5: SecureRandom.hex(16), source: "mxc://41chan.net/theirs")
+      body = report({ mxc: "mxc://41chan.net/theirs" })
+      assert_response :success
+      assert_equal({ "accepted" => false, "reason" => "mxc_mapped_elsewhere" }, body["mxc"])
+      assert_equal other.id, PostMxc.find_by!(mxc: "mxc://41chan.net/theirs").post_id
+    end
+
+    should "recompute the post's rooms from its new address" do
+      room = MatrixRoom.create!(room_id: "!dup:41chan.net")
+      MatrixMedia.create!(mxc: "mxc://41chan.net/dup6", room_ids: [room.id], snapshot_head: 1, snapshot_at: Time.zone.now)
+      assert_equal [], @post.reload.room_ids
+      report({ mxc: "mxc://41chan.net/dup6" })
+      assert_equal [room.id], @post.reload.room_ids
+    end
+
+    should "refuse an mxc that is not one, naming the shape" do
+      report({ mxc: "https://example.com/x.png" })
+      assert_response 422
+      assert_match(%r{mxc://<server>/<media id>}, response.parsed_body["error"])
+    end
+
+    should "refuse a caller below Builder" do
+      post_auth "/posts/#{@post.id}/tag_sources.json", create(:user), as: :json, params: { mxc: "mxc://41chan.net/dup7" }
+      assert_response 403
+      assert_not PostMxc.exists?(mxc: "mxc://41chan.net/dup7")
+    end
+
+    should "answer exactly as before when no mxc is sent" do
+      body = report({ auto: %w[a b] })
+      assert_response :success
+      assert_equal %w[post_id projection recorded], body.keys.sort
+      report({}, post_id: 0)
+      assert_response 404
+    end
+  end
 end

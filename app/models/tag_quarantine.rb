@@ -94,6 +94,11 @@ class TagQuarantine < ApplicationRecord
 
     def document_page_size = DOCUMENT_PAGE_SIZE
 
+    # [{ id:, name: }] of every flagged tag, by name.
+    def flagged_tags
+      flagged.joins(:tag).order("tags.name").pluck("tags.id", "tags.name").map { |id, name| { id: id, name: name } }
+    end
+
     # How much of the flagged set's POSTS `user` sees:
     #   :all  -- Admin level and up (Owner included), and the system user;
     #   :own  -- a posting bot that is not an admin: the posts it uploaded;
@@ -189,6 +194,10 @@ class TagQuarantine < ApplicationRecord
       {
         generation: generation,
         flagged: names ? flagged : nil,
+        # Each flagged tag with its id, for the jail panel's Flagged tab
+        # (contract R3, GATE3_MATRIX_POSTS piece C): its posts are read by
+        # tag id (GET ?quarantine=1&tag_id=). Names, so the pipeline's alone.
+        flagged_tags: names ? flagged_tags : nil,
         banished: names ? banished : nil,
         posts: page.first(size),
         next_after: (page.size > size) ? page[size - 1][:id] : nil,
@@ -197,12 +206,15 @@ class TagQuarantine < ApplicationRecord
   end
 
   # Back to normal: the row is deleted, and every post and the name return.
-  def release!(by:, note: "")
+  # From the review queue (an admin) or the jail panel (`by` its booru
+  # account, `panel_user` the panel user who pressed it, named in the mod log
+  # as #unbanish! names them).
+  def release!(by:, note: "", panel_user: nil)
     raise Refused, "#{tag.name} is banished: Release applies to a flagged tag only; a banished tag is unbanished from the jail panel (fourier-sampling)" if banished?
 
     transaction do
       destroy!
-      ModAction.log("released flagged tag [[#{tag.name}]]: #{note}".strip.delete_suffix(":"), :tag_flag_release, subject: tag, user: by)
+      ModAction.log("released flagged tag [[#{tag.name}]]#{pressed_in_panel(panel_user)}: #{note}".strip.delete_suffix(":"), :tag_flag_release, subject: tag, user: by)
     end
   end
 
@@ -210,12 +222,13 @@ class TagQuarantine < ApplicationRecord
   # but the pipeline at once; then every carrier is jailed by BanishTagJob
   # after the commit. The mod log row never names the tag: an admin never
   # sees a banished name.
-  def banish!(by:, note: "")
+  def banish!(by:, note: "", panel_user: nil)
     return self if banished?
 
     transaction do
       update!(state: BANISHED, banished_by: by, banished_at: Time.zone.now, note: [self.note, note.to_s].compact_blank.join("\n"))
-      ModAction.log("banished tag ##{tag_id} from the review queue: #{note}".strip.delete_suffix(":"), :tag_banish, subject: tag, user: by)
+      where_from = panel_user.nil? ? " from the review queue" : pressed_in_panel(panel_user)
+      ModAction.log("banished tag ##{tag_id}#{where_from}: #{note}".strip.delete_suffix(":"), :tag_banish, subject: tag, user: by)
     end
     BanishTagJob.perform_later(tag_id, by.id)
     self
@@ -238,4 +251,8 @@ class TagQuarantine < ApplicationRecord
       ModAction.log("unbanished tag [[#{tag.name}]] from the jail panel, pressed by #{panel_user}: #{note}".strip.delete_suffix(":"), :tag_unbanish, subject: tag, user: by)
     end
   end
+
+  private
+
+  def pressed_in_panel(panel_user) = panel_user.nil? ? "" : " from the jail panel, pressed by #{panel_user}"
 end

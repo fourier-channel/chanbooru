@@ -926,6 +926,26 @@ module Danbooru
     def creator_membership_webhook_secret
     end
 
+    # GATE 3 FOR POSTS (fourier-basis docs/design/GATE3_MATRIX_POSTS.md,
+    # operator rulings 2026-10-14/15): whether a Matrix post -- one with at
+    # least one mxc -- is shown only to the viewers its image is shown to
+    # (posts.room_ids against the viewer's rooms, MatrixViewerRooms). OFF
+    # until the placements feed has covered every mxc:// post and the
+    # operator has said to turn it on: it changes what everyone sees. The
+    # record (matrix_media, post_mxcs, posts.room_ids) is kept whatever this
+    # says. HERE rather than in the untracked danbooru_local_config.rb, for
+    # the reason banished_posts_withheld? gives. Tests stub it on.
+    def gate3_matrix_posts_enforced?
+      false
+    end
+
+    # fourier-auth on the booru's Docker network (it is not on the tailnet):
+    # MatrixViewerRooms asks GET <this>/verify?gate=rooms with the viewer's
+    # own fourier_session cookie for the rooms that viewer is joined to.
+    def fourier_auth_internal_url
+      "http://fourier-auth:8010"
+    end
+
     # Whether to enable comments.
     def comments_enabled?
       true

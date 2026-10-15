@@ -1659,6 +1659,109 @@ ALTER SEQUENCE public.login_sessions_id_seq OWNED BY public.login_sessions.id;
 
 
 --
+-- Name: matrix_media; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.matrix_media (
+    id bigint NOT NULL,
+    mxc character varying NOT NULL,
+    uploader character varying DEFAULT ''::character varying NOT NULL,
+    site_asset boolean DEFAULT false NOT NULL,
+    room_ids integer[] DEFAULT '{}'::integer[] NOT NULL,
+    snapshot_head bigint NOT NULL,
+    snapshot_at timestamp(6) without time zone NOT NULL,
+    newest_ordering bigint,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: matrix_media_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.matrix_media_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: matrix_media_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.matrix_media_id_seq OWNED BY public.matrix_media.id;
+
+
+--
+-- Name: matrix_placement_cursors; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.matrix_placement_cursors (
+    id bigint NOT NULL,
+    stream character varying NOT NULL,
+    "position" bigint DEFAULT 0 NOT NULL,
+    lap_started_at timestamp(6) without time zone,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT matrix_placement_cursors_stream CHECK (((stream)::text = ANY ((ARRAY['live'::character varying, 'sweep'::character varying])::text[])))
+);
+
+
+--
+-- Name: matrix_placement_cursors_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.matrix_placement_cursors_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: matrix_placement_cursors_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.matrix_placement_cursors_id_seq OWNED BY public.matrix_placement_cursors.id;
+
+
+--
+-- Name: matrix_rooms; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.matrix_rooms (
+    id integer NOT NULL,
+    room_id character varying NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: matrix_rooms_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.matrix_rooms_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: matrix_rooms_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.matrix_rooms_id_seq OWNED BY public.matrix_rooms.id;
+
+
+--
 -- Name: media_assets; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2224,7 +2327,8 @@ CREATE TABLE public.posts (
     last_commented_at timestamp without time zone,
     has_active_children boolean DEFAULT false,
     bit_flags bigint DEFAULT 0 NOT NULL,
-    tag_count_meta integer DEFAULT 0 NOT NULL
+    tag_count_meta integer DEFAULT 0 NOT NULL,
+    room_ids integer[] DEFAULT '{0}'::integer[] NOT NULL
 );
 
 
@@ -2303,6 +2407,40 @@ CREATE SEQUENCE public.post_flags_id_seq
 --
 
 ALTER SEQUENCE public.post_flags_id_seq OWNED BY public.post_flags.id;
+
+
+--
+-- Name: post_mxcs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.post_mxcs (
+    id bigint NOT NULL,
+    post_id integer NOT NULL,
+    mxc character varying NOT NULL,
+    source character varying NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT post_mxcs_source CHECK (((source)::text = ANY ((ARRAY['post_source'::character varying, 'alias'::character varying])::text[])))
+);
+
+
+--
+-- Name: post_mxcs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.post_mxcs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: post_mxcs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.post_mxcs_id_seq OWNED BY public.post_mxcs.id;
 
 
 --
@@ -3770,6 +3908,27 @@ ALTER TABLE ONLY public.login_sessions ALTER COLUMN id SET DEFAULT nextval('publ
 
 
 --
+-- Name: matrix_media id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.matrix_media ALTER COLUMN id SET DEFAULT nextval('public.matrix_media_id_seq'::regclass);
+
+
+--
+-- Name: matrix_placement_cursors id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.matrix_placement_cursors ALTER COLUMN id SET DEFAULT nextval('public.matrix_placement_cursors_id_seq'::regclass);
+
+
+--
+-- Name: matrix_rooms id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.matrix_rooms ALTER COLUMN id SET DEFAULT nextval('public.matrix_rooms_id_seq'::regclass);
+
+
+--
 -- Name: media_assets id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3865,6 +4024,13 @@ ALTER TABLE ONLY public.post_disapprovals ALTER COLUMN id SET DEFAULT nextval('p
 --
 
 ALTER TABLE ONLY public.post_flags ALTER COLUMN id SET DEFAULT nextval('public.post_flags_id_seq'::regclass);
+
+
+--
+-- Name: post_mxcs id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_mxcs ALTER COLUMN id SET DEFAULT nextval('public.post_mxcs_id_seq'::regclass);
 
 
 --
@@ -4410,6 +4576,30 @@ ALTER TABLE ONLY public.login_sessions
 
 
 --
+-- Name: matrix_media matrix_media_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.matrix_media
+    ADD CONSTRAINT matrix_media_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: matrix_placement_cursors matrix_placement_cursors_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.matrix_placement_cursors
+    ADD CONSTRAINT matrix_placement_cursors_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: matrix_rooms matrix_rooms_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.matrix_rooms
+    ADD CONSTRAINT matrix_rooms_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: media_assets media_assets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4519,6 +4709,14 @@ ALTER TABLE ONLY public.post_disapprovals
 
 ALTER TABLE ONLY public.post_flags
     ADD CONSTRAINT post_flags_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: post_mxcs post_mxcs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_mxcs
+    ADD CONSTRAINT post_mxcs_pkey PRIMARY KEY (id);
 
 
 --
@@ -6222,6 +6420,27 @@ CREATE INDEX index_login_sessions_on_user_id ON public.login_sessions USING btre
 
 
 --
+-- Name: index_matrix_media_on_mxc; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_matrix_media_on_mxc ON public.matrix_media USING btree (mxc);
+
+
+--
+-- Name: index_matrix_placement_cursors_on_stream; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_matrix_placement_cursors_on_stream ON public.matrix_placement_cursors USING btree (stream);
+
+
+--
+-- Name: index_matrix_rooms_on_room_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_matrix_rooms_on_room_id ON public.matrix_rooms USING btree (room_id);
+
+
+--
 -- Name: index_media_assets_on_created_at; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6730,6 +6949,20 @@ CREATE INDEX index_post_flags_on_reason_tsvector ON public.post_flags USING gin 
 --
 
 CREATE INDEX index_post_flags_on_status ON public.post_flags USING btree (status);
+
+
+--
+-- Name: index_post_mxcs_on_mxc; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_post_mxcs_on_mxc ON public.post_mxcs USING btree (mxc);
+
+
+--
+-- Name: index_post_mxcs_on_post_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_post_mxcs_on_post_id ON public.post_mxcs USING btree (post_id);
 
 
 --
@@ -8169,6 +8402,14 @@ ALTER TABLE ONLY public.creator_gallery_messages
 
 
 --
+-- Name: post_mxcs fk_rails_367aac1772; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_mxcs
+    ADD CONSTRAINT fk_rails_367aac1772 FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE CASCADE;
+
+
+--
 -- Name: tag_versions fk_rails_373a0aa141; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8927,6 +9168,8 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261015000001'),
+('20261015000000'),
 ('20261013000000'),
 ('20261012120100'),
 ('20261012120000'),

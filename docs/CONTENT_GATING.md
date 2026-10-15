@@ -257,15 +257,27 @@ sees the post and not its image. The booru gets the fourier session with no
 clicks from a signed-in Technetium through `POST /exchange`; the Matrix token
 lives server-side and the browser holds an opaque session id.
 
+**Deleting a message takes its image out of that room** (operator ruling
+2026-10-15; fourier-auth 1c47440, a34d500). A room counts only while the
+message that placed the image there stands: once the message is deleted
+(redacted), that room's members are refused the image within the caches below,
+even if Synapse has not yet scrubbed the message's content (it does that about
+seven days later). Until 2026-10-15 a deleted message kept placing its image
+for that week. The same holds for an avatar, room icon or emote whose event is
+deleted.
+
 **Never-posted media** (`unposted_media_assets_restricted?`, 2026-09-30): an
 upload that never became a post is visible only to an admin (and to the bot
 that uploaded it).
 
 **Caching.** The Worker caches an ALLOW, never a denial, keyed on a hash of the
 credential: 60 seconds for booru media, 150 for Matrix media (240 until
-2026-10-12). The gate keeps its own 120-second cache of allows. So a
-just-jailed or just-flagged image can stay readable for about three minutes,
-and a viewer who leaves a room can read its media for about two and a half.
+2026-10-12). The gate keeps its own 120-second cache of allows, and an
+image's rooms for 120 seconds (6 hours until 2026-10-15). So a just-jailed or
+just-flagged image, or one whose message was just deleted, can stay readable
+for about three minutes. A viewer's own joined rooms are cached for five
+minutes, so one who leaves a room can read its media for up to about seven
+and a half (the earlier "two and a half" left that cache out).
 
 `?w=` / `?h=` snap to the 180, 360 and 720 thumbnails rendered at upload; with
 neither, the original is served; `?dl=1` serves it as an attachment.
@@ -740,6 +752,7 @@ directly, never through the Matrix route.
 | cannot register | 0 -- no token, or a spent, expired or revoked one |
 | a booru image is broken but the post page loads | 3 -- the image follows its post: deleted, jailed, gated or hidden for this reader. A 503 means the booru or sampling was unreachable |
 | a Matrix upload's image is broken | 3 -- the viewer is not in the room it was posted in, or has no Matrix session |
+| a Matrix image stopped loading in a room it was posted to | 3 -- the message that posted it there was deleted; another room it was posted to still shows it |
 | a just-jailed or just-flagged image still loads for a minute or two | 3 -- the decision caches, about three minutes at most |
 | search returns exactly 20, and no second page | 2 -- browsing tier |
 | a section 404s for everyone | 2 -- retired |

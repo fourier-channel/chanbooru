@@ -59,6 +59,20 @@
 # the panel may press it is the panel's own gate, not the booru's. A booru
 # older than this verb answers an unbanish as a release with no md5: 422,
 # "md5 must be 32 hex characters".
+#
+# GATE 3 FOR POSTS (fourier-basis docs/design/GATE3_MATRIX_POSTS.md), more
+# modes of the same route -- no new route (ruling 2026-09-24):
+#
+#   POST {"placements": {...}} -- fourier-auth's placements feed: its answer
+#     for each image (uploader, site asset, rooms), recorded by
+#     MatrixPlacements; GET ?placements=cursor reads the two cursors. Both for
+#     the GATE account alone: the reader on fourier_quarantine_reader_names
+#     that is not a posting bot (fourier-auth's `gate`), above Member.
+#   POST release_flagged=<name> | banish_flagged=<name>, by=, note= -- the
+#     jail panel's Flagged tab (contract R1): TagQuarantine#release! and
+#     #banish!, the mod log naming the panel user. "Not flagged" is 200 false.
+#   GET ?quarantine=1&tag_id=<id>&after=<post id>&limit=25|50|100|200 -- one
+#     tag's posts, a keyset page by id (contract R2), for the jail panel.
 class FourierJailController < ApplicationController
   respond_to :json
 
@@ -74,6 +88,10 @@ class FourierJailController < ApplicationController
 
   # The most jail events one GET answers; the caller pages by `since`.
   EVENTS_PER_PAGE = 200
+
+  # The page sizes of GET ?quarantine=1&tag_id= (contract R2).
+  TAG_POST_LIMITS = [25, 50, 100, 200].freeze
+  DEFAULT_TAG_POST_LIMIT = 50
 
   # How old a row must be before the cursor moves past it. Ids are handed
   # out at INSERT and rows become visible at COMMIT, so a jailing written
@@ -102,6 +120,8 @@ class FourierJailController < ApplicationController
   # above Member level, never by anyone else. See TagQuarantine.document
   # for the body (the jail tag's posts are in it too).
   def index
+    return placements_cursor if params.key?(:placements)
+    return tag_posts if params[:quarantine].to_s.truthy? && params.key?(:tag_id)
     return quarantine_document if params[:quarantine].to_s.truthy?
 
     jail_panel_only!
@@ -139,8 +159,12 @@ class FourierJailController < ApplicationController
   end
 
   def create
+    return placements if params.key?(:placements)
+
     jail_panel_only!
     return unbanish if params.key?(:unbanish)
+    return flagged_verdict(:release) if params.key?(:release_flagged)
+    return flagged_verdict(:banish) if params.key?(:banish_flagged)
 
     # 422, not 404, for a malformed md5. A 404 from this route has to mean one
     # thing only -- "this booru has no release endpoint" -- so the caller can
@@ -191,24 +215,109 @@ class FourierJailController < ApplicationController
     render json: { unbanished: true, tag: name }
   end
 
+  # Record fourier-auth's answers for a batch of images (see MatrixPlacements
+  # for the rules). A malformed push as a whole is 422 with what to send; a
+  # malformed item is counted in the answer and never fails the batch.
+  def placements
+    gate_account_only!
+    payload = params[:placements]
+    payload = payload.to_unsafe_h if payload.respond_to?(:to_unsafe_h)
+    render json: MatrixPlacements.apply!(payload)
+  rescue MatrixPlacements::Invalid => e
+    render json: { error: e.message }, status: 422
+  end
+
+  # GET ?placements=cursor: where each placement reader has pushed up to, as
+  # recorded -- what fourier-auth resumes from.
+  def placements_cursor
+    gate_account_only!
+    unless params[:placements] == "cursor"
+      return render json: { error: "placements=#{params[:placements].to_s.truncate(40)} is not a read this booru answers; ask placements=cursor" }, status: 422
+    end
+
+    render json: { cursor: MatrixPlacementCursor.answer }
+  end
+
+  # Release or banish a FLAGGED tag for the jail panel's Flagged tab (see the
+  # header). A name that is not flagged -- unknown, back to normal, or
+  # banished already -- is answered 200 false, so a retry of a verdict that
+  # landed is not a failure.
+  def flagged_verdict(verdict)
+    key, answer = (verdict == :release) ? %i[release_flagged released_flagged] : %i[banish_flagged banished_flagged]
+    name = params[key].to_s
+    panel_user = params[:by].to_s
+    unless panel_user.match?(PANEL_USER)
+      return render json: { answer => false, tag: name, reason: "by must name the jail panel user who pressed #{(verdict == :release) ? "Release" : "Banish"} (their Matrix id, e.g. @name:41chan.net: 1-255 of A-Z a-z 0-9 @ . _ = / + : -); the booru records it in the mod log" }, status: 422
+    end
+
+    not_flagged = { answer => false, tag: name, reason: "not flagged: no flagged tag has this name (already released, already banished, or never flagged)" }
+    row = TagQuarantine.flagged.joins(:tag).find_by(tags: { name: name })
+    return render json: not_flagged if row.nil?
+
+    begin
+      TagQuarantine.transaction do
+        row.lock!
+        raise TagQuarantine::Refused, "no longer flagged" unless row.flagged?
+
+        if verdict == :release
+          row.release!(by: CurrentUser.user, note: params[:note].to_s, panel_user: panel_user)
+        else
+          row.banish!(by: CurrentUser.user, note: params[:note].to_s, panel_user: panel_user)
+        end
+      end
+    rescue TagQuarantine::Refused, ActiveRecord::RecordNotFound
+      # Released or banished by another request since the lookup.
+      return render json: not_flagged
+    end
+    render json: { answer => true, tag: name }
+  end
+
+  # One tag's posts for the jail panel (contract R2): a keyset page by post
+  # id over the tag index, deleted and jailed posts included, never the
+  # whole quarantine document. `generation` is the quarantined names'
+  # (TagQuarantine.names_generation): it moves when a flag or a banishment
+  # changes, so the panel knows to re-read.
+  def tag_posts
+    jail_panel_only!
+    limit = params[:limit].presence ? Integer(params[:limit].to_s, 10, exception: false) : DEFAULT_TAG_POST_LIMIT
+    unless TAG_POST_LIMITS.include?(limit)
+      return render json: { error: "limit must be one of #{TAG_POST_LIMITS.join(", ")} (posts per page), got #{params[:limit].to_s.truncate(20).inspect}" }, status: 422
+    end
+
+    after = [params[:after].to_i, 0].max
+    generation = TagQuarantine.names_generation
+    tag = Tag.find_by(id: params[:tag_id].to_i)
+    if tag.nil?
+      return render json: { tag: nil, reason: "no tag has id #{params[:tag_id].to_s.truncate(20)}", generation: generation, posts: [], next_after: nil }
+    end
+
+    rows = Post.where_array_includes_all("string_to_array(posts.tag_string, ' ')", [tag.name])
+               .where("posts.id > ?", after).order(:id).limit(limit + 1).includes(:uploader).to_a
+    page = rows.first(limit)
+    flagged = TagQuarantine.flagged_names
+    banished = TagQuarantine.banished_names
+    holds = page.empty? ? Set.new : Post.jail_deletions(Post::LEGAL_HOLD_REASON).where(subject_id: page.map(&:id)).distinct.pluck(:subject_id).to_set
+    posts = page.map do |post|
+      {
+        id: post.id, md5: post.md5, mxc: post.source.to_s.start_with?("mxc://") ? post.source : nil,
+        file_ext: post.file_ext, rating: post.rating, uploader: post.uploader&.name, created_at: post.created_at.iso8601,
+        deleted: post.is_deleted?, jailed: post.jailed?, hold: holds.include?(post.id),
+        flagged: post.tag_array.select { |name| flagged.include?(name) }, banished: post.tag_array.any? { |name| banished.include?(name) },
+      }
+    end
+    render json: {
+      tag: { id: tag.id, name: tag.name, post_count: tag.post_count },
+      generation: generation,
+      posts: posts,
+      next_after: (rows.size > limit) ? page.last.id : nil,
+    }
+  end
+
   # The quarantine document, ETag'd per generation and per kind of reader
   # (the names go to the pipeline alone, so the two bodies differ).
-  #
-  # The list trusts names, and a name is anyone's to register: whoever
-  # signed up as "gate" before the real account existed would read every
-  # quarantined md5 and mxc. So a reader must ALSO be above Member -- a fresh
-  # registration is Member, and only an admin raises an account past it
-  # (session ruling 2026-10-12).
   def quarantine_document
-    names = Array(Danbooru.config.fourier_quarantine_reader_names).map { |name| name.to_s.downcase }
+    quarantine_reader!
     user = CurrentUser.user
-    unless !user.is_anonymous? && names.include?(user.name.to_s.downcase)
-      raise User::PrivilegeError, "the quarantine document is read by fourier_quarantine_reader_names alone (Danbooru.config); add this account there, or call as one of: #{names.join(", ").presence || "nobody"}"
-    end
-    unless user.level > User::Levels::MEMBER
-      raise User::PrivilegeError, "#{user.name} is on fourier_quarantine_reader_names but is #{user.level_string}: a reader must be above Member, so an account that merely registered the name cannot read the quarantine document. If this is the real #{user.name} account, an admin promotes it (Gold or above) at /admin/users/#{user.id}/edit; if not, rename or ban it and create the real one"
-    end
-    skip_authorization # gated on the reader list above
 
     after = params[:after].presence&.to_i
     doc = TagQuarantine.document(reader: user, after: after)
@@ -220,6 +329,33 @@ class FourierJailController < ApplicationController
     else
       render json: doc
     end
+  end
+
+  # The list trusts names, and a name is anyone's to register: whoever
+  # signed up as "gate" before the real account existed would read every
+  # quarantined md5 and mxc. So a reader must ALSO be above Member -- a fresh
+  # registration is Member, and only an admin raises an account past it
+  # (session ruling 2026-10-12).
+  def quarantine_reader!
+    names = Array(Danbooru.config.fourier_quarantine_reader_names).map { |name| name.to_s.downcase }
+    user = CurrentUser.user
+    unless !user.is_anonymous? && names.include?(user.name.to_s.downcase)
+      raise User::PrivilegeError, "the quarantine document is read by fourier_quarantine_reader_names alone (Danbooru.config); add this account there, or call as one of: #{names.join(", ").presence || "nobody"}"
+    end
+    unless user.level > User::Levels::MEMBER
+      raise User::PrivilegeError, "#{user.name} is on fourier_quarantine_reader_names but is #{user.level_string}: a reader must be above Member, so an account that merely registered the name cannot read the quarantine document. If this is the real #{user.name} account, an admin promotes it (Gold or above) at /admin/users/#{user.id}/edit; if not, rename or ban it and create the real one"
+    end
+    skip_authorization # gated on the reader list above
+  end
+
+  # fourier-auth's account: a quarantine reader (above) that is not a
+  # posting bot -- the pipeline's accounts read the document but never push
+  # placements.
+  def gate_account_only!
+    quarantine_reader!
+    return unless TagBanishment.pipeline?(CurrentUser.user)
+
+    raise User::PrivilegeError, "placements are pushed by fourier-auth's account alone: the account on fourier_quarantine_reader_names that is not a posting bot (fourier_posting_bot_names / creator_prefixes.yml editors). #{CurrentUser.user.name} is a posting bot; call as fourier-auth's account"
   end
 
   def jail_panel_only!

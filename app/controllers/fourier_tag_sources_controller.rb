@@ -6,6 +6,14 @@
 # POST /fourier/posts/:post_id/tag_sources
 #   { creator: [], auto: [], both: [], meta: [], pending: [], spectrum: [], hydra: [] }
 # POST /posts/tag_source_models -- model bits only, for posts already recorded.
+#
+# GATE 3 FOR POSTS, piece B (fourier-basis docs/design/GATE3_MATRIX_POSTS.md):
+# create also takes an optional "mxc" -- another address of the post's image,
+# a re-upload of the same bytes the tunnel mapped to the post by md5 -- and
+# records it (PostMxc, 'alias'), answering {"mxc": {"accepted": true}} or
+# {"mxc": {"accepted": false, "reason": "no_such_post"|"mxc_mapped_elsewhere"}}.
+# A body carrying ONLY the mxc (the tunnel's duplicate path) changes no tag.
+# Without an mxc the route answers exactly as before.
 class FourierTagSourcesController < ApplicationController
   # EVERY key create permits must be listed here too. A JSON body's top-level
   # keys reach params[:fourier_tag_source] only if they are wrapped, and
@@ -18,37 +26,14 @@ class FourierTagSourcesController < ApplicationController
     raise User::PrivilegeError unless CurrentUser.user.is_builder?
     skip_authorization # gated on is_builder? above, not a per-record Pundit policy
 
+    return create_with_mxc if params.key?(:mxc)
+
     post = Post.find(params[:post_id])
     # A post carrying a flagged tag (TagQuarantine) exists for a posting bot
     # only when the bot uploaded it: its own tagging keeps working, another
     # account's flagged post answers as a missing one.
     raise ActiveRecord::RecordNotFound if post.hidden_as_flagged?(CurrentUser.user)
-    sources = params.require(:fourier_tag_source).permit(:replace_creator, creator: [], auto: [], both: [], meta: [], pending: [], oc: [], spectrum: [], hydra: []).to_h
-    # replace_creator: a RE-SCAN of the image's own metadata (the tunnel's
-    # !rescan). The creator rows this post has are the previous read of the
-    # same bytes, so they are dropped before the new read is written; without
-    # that, an upsert can only add, and a name the old normaliser mangled
-    # would sit beside its corrected self forever.
-    replace = ActiveModel::Type::Boolean.new.cast(sources.delete("replace_creator"))
-    not_declared = FourierTagSource.record_partition!(post, sources, CurrentUser.user, replace_creator: replace)
-    FourierTagPropagation.fan_out!(post) # single write path -> fan out the public projection
-
-    # Return the PUBLIC-SAFE projection so the caller writes the Matrix state
-    # event from the canonical store rather than recomputing it -- private creator
-    # tags never leave here. A name in `oc` the hub refused to declare is
-    # named with why, never dropped in silence (FourierTagSource.
-    # record_partition!): a name sent in `oc` alone -- the tunnel's "the
-    # poster's own" -- that the recorded creator's rule does not pass, or the
-    # recorded creator's own name that fails it. A name OFFERED (in `oc` and
-    # the creator lists) that is neither the recorded creator's own nor an
-    # established original character is not a refusal and is not named: it
-    # stays the private creator row the tunnel also sent it as.
-    render json: {
-      post_id: post.id,
-      recorded: FourierTagSource.where(post_id: post.id).count,
-      projection: FourierTagSource.matrix_projection(post),
-      original_characters_not_declared: not_declared.presence,
-    }.compact, status: 200
+    render json: record_tag_sources(post), status: 200
   end
 
   # POST /posts/tag_source_models
@@ -116,5 +101,62 @@ class FourierTagSourcesController < ApplicationController
                 FourierTagSource.live_read(post, CurrentUser.user, request: request)
               end
     render json: payload, status: :ok
+  end
+
+  private
+
+  # create, carrying an mxc (see the header). A missing post -- or one
+  # carrying a flagged tag the bot did not upload, which answers as missing
+  # -- records nothing: 200 with no_such_post for an mxc-only body, the
+  # route's own 404 (with the mxc's outcome) when a tag partition was sent,
+  # since those tags were not recorded either.
+  def create_with_mxc
+    mxc = params[:mxc].to_s
+    unless mxc.match?(MatrixMedia::MXC)
+      return render json: { error: "mxc must be mxc://<server>/<media id>, got #{mxc.truncate(80).inspect}", fix: "send the re-upload's own mxc:// URI as \"mxc\"" }, status: 422
+    end
+
+    partition = params[:fourier_tag_source].present?
+    post = Post.find_by(id: params[:post_id].to_s)
+    if post.nil? || post.hidden_as_flagged?(CurrentUser.user)
+      outcome = { accepted: false, reason: "no_such_post" }
+      return render json: { success: false, error: "ActiveRecord::RecordNotFound", message: "That record was not found.", mxc: outcome }, status: 404 if partition
+
+      return render json: { post_id: params[:post_id].to_i, mxc: outcome }, status: 200
+    end
+
+    body = partition ? record_tag_sources(post) : { post_id: post.id }
+    result = PostMxc.record_alias!(post, mxc)
+    body[:mxc] = (result == :accepted) ? { accepted: true } : { accepted: false, reason: result.to_s }
+    render json: body, status: 200
+  end
+
+  def record_tag_sources(post)
+    sources = params.require(:fourier_tag_source).permit(:replace_creator, creator: [], auto: [], both: [], meta: [], pending: [], oc: [], spectrum: [], hydra: []).to_h
+    # replace_creator: a RE-SCAN of the image's own metadata (the tunnel's
+    # !rescan). The creator rows this post has are the previous read of the
+    # same bytes, so they are dropped before the new read is written; without
+    # that, an upsert can only add, and a name the old normaliser mangled
+    # would sit beside its corrected self forever.
+    replace = ActiveModel::Type::Boolean.new.cast(sources.delete("replace_creator"))
+    not_declared = FourierTagSource.record_partition!(post, sources, CurrentUser.user, replace_creator: replace)
+    FourierTagPropagation.fan_out!(post) # single write path -> fan out the public projection
+
+    # Return the PUBLIC-SAFE projection so the caller writes the Matrix state
+    # event from the canonical store rather than recomputing it -- private creator
+    # tags never leave here. A name in `oc` the hub refused to declare is
+    # named with why, never dropped in silence (FourierTagSource.
+    # record_partition!): a name sent in `oc` alone -- the tunnel's "the
+    # poster's own" -- that the recorded creator's rule does not pass, or the
+    # recorded creator's own name that fails it. A name OFFERED (in `oc` and
+    # the creator lists) that is neither the recorded creator's own nor an
+    # established original character is not a refusal and is not named: it
+    # stays the private creator row the tunnel also sent it as.
+    {
+      post_id: post.id,
+      recorded: FourierTagSource.where(post_id: post.id).count,
+      projection: FourierTagSource.matrix_projection(post),
+      original_characters_not_declared: not_declared.presence,
+    }.compact
   end
 end

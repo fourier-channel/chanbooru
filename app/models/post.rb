@@ -79,6 +79,8 @@ class Post < ApplicationRecord
   before_save :note_jailing_entered # fork: every booru-side jailing reaches the jail panel, see report_jailing_entered
   before_create :remove_blank_artist_commentary
   before_create :autoban
+  before_create :start_matrix_post_closed # fork: gate 3 for posts, see record_post_mxc
+  after_create :record_post_mxc # fork: gate 3 for posts
   after_save :create_version
   after_save :update_parent_on_save
   after_save :apply_post_metatags
@@ -2231,7 +2233,39 @@ class Post < ApplicationRecord
   # open (#creator_allows? asks it, which is why it is split out -- asking
   # hidden_from? there would ask gate 1, and so creator_allows?, again).
   def hidden_otherwise?(user = CurrentUser.user)
-    hidden_by_creator_prefix?(user) || hidden_as_flagged?(user) || hidden_by_creator?(user)
+    hidden_by_matrix_rooms?(user) || hidden_by_creator_prefix?(user) || hidden_as_flagged?(user) || hidden_by_creator?(user)
+  end
+
+  # GATE 3 FOR POSTS (fourier-basis docs/design/GATE3_MATRIX_POSTS.md,
+  # operator rulings 2026-10-14/15): a Matrix post is visible to exactly the
+  # viewers its image is -- its rooms (posts.room_ids, kept by PostMxc) must
+  # meet the viewer's (MatrixViewerRooms: 0 for everyone, -1 for a verified
+  # Matrix identity, the rooms they are joined to). Admins are held to it;
+  # only the pipeline is spared, and only while gate3_matrix_posts_enforced?
+  # is on. A post that is not a Matrix post ({0}) is never asked about the
+  # viewer's rooms. No creator's allow opens it, so it sits here.
+  #
+  # A post loaded without the column (a narrowed select) reads it rather
+  # than guess.
+  def hidden_by_matrix_rooms?(user = CurrentUser.user)
+    return false unless MatrixViewerRooms.enforced_for?(user)
+
+    rooms = has_attribute?(:room_ids) ? room_ids : Post.where(id: id).pick(:room_ids).to_a
+    return false if rooms == [MatrixViewerRooms::NOT_MATRIX]
+
+    !rooms.intersect?(MatrixViewerRooms.ids(user))
+  end
+
+  # A new Matrix post starts closed ({}): until fourier-auth has answered for
+  # its image nobody but the pipeline may see it (fail closed).
+  def start_matrix_post_closed
+    self.room_ids = [] if source.to_s.start_with?("mxc://")
+  end
+
+  # Then its own mxc is mapped to it, which opens it at once to the rooms of
+  # an answer already pushed for that mxc (PostMxc.record_post_source!).
+  def record_post_mxc
+    PostMxc.record_post_source!(self) if source.to_s.start_with?("mxc://")
   end
 
   # A post carrying a FLAGGED tag (TagQuarantine, operator rulings
@@ -2392,6 +2426,12 @@ class Post < ApplicationRecord
 
     names += CreatorPrefixes.hidden_tag_names_for(user)
     terms << where_array_includes_any(tags, names.uniq) if names.any?
+
+    # Gate 3 for posts (#hidden_by_matrix_rooms?): the rooms do not meet the
+    # viewer's, as one row filter with the viewer's set inlined (see
+    # MatrixViewerRooms.literal). room_ids is NOT NULL, so the inversion
+    # without_hidden_posts makes of it is exact.
+    terms << where("NOT (posts.room_ids && #{MatrixViewerRooms.literal(user)})") if MatrixViewerRooms.enforced_for?(user)
 
     # By id, as PostQuery#hidden_post_metatags excludes them -- one array
     # literal, unnested, for the reasons Searchable#attribute_matches gives

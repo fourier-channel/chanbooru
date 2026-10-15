@@ -52,7 +52,7 @@ class PostQuery
     post_query.with_implicit_metatags.posts
   end
 
-  def initialize(search_or_ast, current_user: User.anonymous, tag_limit: nil, safe_mode: false)
+  def initialize(search_or_ast, current_user: User.anonymous, tag_limit: nil, safe_mode: false, implicit: false)
     if search_or_ast.is_a?(AST)
       @ast = search_or_ast
     else
@@ -62,11 +62,12 @@ class PostQuery
     @current_user = current_user
     @tag_limit = tag_limit
     @safe_mode = safe_mode
+    @implicit = implicit
   end
 
   # Build a new PostQuery from the given AST and the current settings.
   def build(ast)
-    PostQuery.new(ast, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode)
+    PostQuery.new(ast, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: @implicit)
   end
 
   def builder
@@ -81,9 +82,11 @@ class PostQuery
     @ast ||= Parser.parse(search, metatags: PostQueryBuilder::METATAGS)
   end
 
-  def posts
+  # matrix_rooms: false leaves out gate 3's row filter (#matrix_rooms_condition)
+  # -- for the counts alone, which stay as they are (operator, 2026-10-15).
+  def posts(matrix_rooms: true)
     validate_metatags!
-    builder.posts(to_cnf)
+    builder.posts(to_cnf, matrix_rooms: matrix_rooms)
   end
 
   def paginated_posts(...)
@@ -216,9 +219,35 @@ class PostQuery
   #
   # What IS added here: rating restrictions under safe mode, and this fork's
   # gated tags for signed-out visitors.
+  #
+  # And the viewer's own query is marked as such (implicit), which is what
+  # brings gate 3's row filter with it (#matrix_rooms_condition).
   def with_implicit_metatags
-    return self if implicit_metatags.empty?
-    build(AST.new(:and, [ast, *implicit_metatags]))
+    query = implicit_metatags.empty? ? ast : AST.new(:and, [ast, *implicit_metatags])
+    PostQuery.new(query, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: true)
+  end
+
+  # GATE 3 FOR POSTS (fourier-basis docs/design/GATE3_MATRIX_POSTS.md;
+  # Post#hidden_by_matrix_rooms?): a Matrix post is in the viewer's results
+  # only when its rooms meet theirs. ONE row filter, `posts.room_ids &&
+  # '{<viewer's set>}'::integer[]`, with the set INLINED as a literal -- not a
+  # bound parameter, not a subquery -- beside the tag condition, so it
+  # composes with any search in one query; and no index on room_ids, so the
+  # planner keeps the tag or id plan and checks the overlap on the rows it
+  # visits (measured 2026-10-15 at 1M Matrix posts in 10k rooms: <= 3 ms for
+  # newest, common and rare tags, neighbours and post pages; <= 0.35 s for a
+  # mid tag; with an index, 113 s). A post that is not a Matrix post carries
+  # {0} and every set holds 0.
+  #
+  # NOT a metatag: the count cache is keyed by the query string, and counts
+  # stay as they are (operator, 2026-10-15: "don't break the site
+  # functionally over the potential of a tag count mismatch") -- so
+  # CountMethods count without it, and one viewer's rooms never key a count.
+  # Only the viewer's own query (#with_implicit_metatags) carries it.
+  def matrix_rooms_condition
+    return nil unless @implicit && MatrixViewerRooms.enforced_for?(current_user)
+
+    "posts.room_ids && #{MatrixViewerRooms.literal(current_user)}"
   end
 
   # Return a new PostQuery with terms sorted into alphabetical order.
@@ -406,7 +435,7 @@ class PostQuery
 
     # Estimate the count by parsing the Postgres EXPLAIN output.
     memoize def estimated_row_count
-      ExplainParser.new(posts).row_count
+      ExplainParser.new(posts(matrix_rooms: false)).row_count
     end
 
     def cached_count(timeout, duration: 5.minutes)
@@ -417,7 +446,7 @@ class PostQuery
 
     def exact_count(timeout)
       Post.with_timeout(timeout) do
-        posts.count
+        posts(matrix_rooms: false).count
       end
     end
 
@@ -462,5 +491,5 @@ class PostQuery
     end
   end
 
-  memoize :tags, :replace_aliases, :with_implicit_metatags, :to_cnf, :aliases, :implicit_metatags, :safe_mode_metatags, :gated_metatags, :deleted_metatags, :banished_metatags, :hidden_post_metatags, :term_count
+  memoize :tags, :replace_aliases, :with_implicit_metatags, :to_cnf, :aliases, :implicit_metatags, :safe_mode_metatags, :gated_metatags, :deleted_metatags, :banished_metatags, :hidden_post_metatags, :term_count, :matrix_rooms_condition
 end
