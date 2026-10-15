@@ -2284,22 +2284,6 @@ class Post < ApplicationRecord
     end
   end
 
-  # Whether this post's media is drawn for `user` through the booru door
-  # (/fourier/booru/<md5>) although it came from Matrix (operator ruling
-  # 2026-10-12): a flagged mxc post, for Admin level and up. The Matrix door
-  # refuses quarantined media to every reader, rooms included, so without
-  # this an admin reviewing a flagged Matrix post is drawn a broken image;
-  # the booru door admits it when the reader's own booru session can see the
-  # post. Only a post `user` may see at all: a banished or jailed one is
-  # withheld from admins, and never drawn. Asked by media_asset_file_url in
-  # danbooru_local_config.rb.
-  def matrix_media_by_booru_door?(user = CurrentUser.user)
-    return false unless source.to_s.start_with?("mxc://") && user.present? && user.is_admin?
-
-    flagged = TagQuarantine.flagged_names
-    tag_array.any? { |t| flagged.include?(t) } && !hidden_from?(user)
-  end
-
   # Hidden by its creator's panel (CreatorVisibility; design
   # CREATOR_VISIBILITY sections 4-9, ruled 2026-10-07): private, groups-only
   # or a block, for a viewer the creator did not let in. Exactly what gate 1

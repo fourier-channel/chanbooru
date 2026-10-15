@@ -216,12 +216,12 @@ class TagQuarantineTest < ActiveSupport::TestCase
     end
   end
 
-  # Operator ruling 2026-10-12: an admin reviews a flagged MATRIX post on the
-  # booru. The Matrix door refuses quarantined media to every reader, so for
-  # an admin the booru draws such a post through its own door
-  # (/fourier/booru/<md5>), which admits it when the reader's own booru
-  # session can see the post.
-  context "Drawing a flagged Matrix post through the booru door" do
+  # A flagged MATRIX post is reviewed in sampling's jail panel (gate 3,
+  # piece E, 2026-10-15): fourier-auth's booru door no longer opens it to
+  # anyone, so the booru no longer draws it there for an admin -- every
+  # reader, admin included, is drawn it through the Matrix door, which
+  # refuses quarantined media.
+  context "Drawing a flagged Matrix post" do
     setup do
       @uploader = create(:user)
       @flagged_mxc = as(@uploader) { create(:post, tag_string: "landscape secret_(thing)", md5: md5, source: "mxc://41chan.net/abc", uploader: @uploader) }
@@ -238,38 +238,17 @@ class TagQuarantineTest < ActiveSupport::TestCase
       Danbooru.config.stubs(:banished_posts_withheld?).returns(true)
     end
 
-    should "be the way an admin or owner is drawn a flagged mxc post" do
-      [@admin, @owner].each do |user|
-        assert @flagged_mxc.matrix_media_by_booru_door?(user), user.level_string
-      end
-    end
 
-    should "never be the way anyone below admin, or a bot, is drawn it" do
-      [nil, User.anonymous, @member, @moderator, @approver, @tunnel].each do |user|
-        assert_not @flagged_mxc.matrix_media_by_booru_door?(user), user&.name.to_s
-      end
-      # A bot sees its own flagged post, but the ruling names admins alone.
-      assert_not @own_mxc.matrix_media_by_booru_door?(@tunnel)
-    end
-
-    should "leave every other post where it was" do
-      assert_not @plain_mxc.matrix_media_by_booru_door?(@admin)
-      assert_not @flagged_web.matrix_media_by_booru_door?(@admin)
-      assert_not @banished_mxc.matrix_media_by_booru_door?(@admin)
-      assert_not @jailed_mxc.matrix_media_by_booru_door?(@admin)
-    end
-
-    # The vesper local config (untracked; production's copy is fourier-basis
-    # ops/hetzner/danbooru/danbooru_local_config.rb) asks the predicate in
-    # media_asset_file_url's mxc branch. Skipped where that file is not the
-    # Fourier one.
-    should "be the address media_asset_file_url gives an admin, and only an admin" do
+    # media_asset_file_url lives in the vesper local config (untracked;
+    # production's copy is fourier-basis ops/hetzner/danbooru/
+    # danbooru_local_config.rb). Skipped where that file is not the Fourier one.
+    should "be the Matrix door for every reader, an admin included" do
       skip "needs the Fourier danbooru_local_config.rb" unless defined?(Danbooru::CustomConfiguration) && Danbooru::CustomConfiguration.method_defined?(:fourier_gate_path)
       Rails.env.stubs(:local?).returns(false)
       variant = @asset.variant(:"360x360")
 
       admin_url = CurrentUser.scoped(@admin) { Danbooru.config.media_asset_file_url(variant, "") }
-      assert_equal "/fourier/booru/#{@asset_md5}.jpg?w=360&h=360", admin_url
+      assert_match(%r{/_matrix/client/v1/media/thumbnail/41chan.net/mno\?}, admin_url)
 
       member_url = CurrentUser.scoped(@member) { Danbooru.config.media_asset_file_url(variant, "") }
       assert_match(%r{/_matrix/client/v1/media/thumbnail/41chan.net/mno\?}, member_url)
