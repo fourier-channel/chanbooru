@@ -299,7 +299,9 @@ image's rooms for 120 seconds (6 hours until 2026-10-15). So a just-jailed or
 just-flagged image, or one whose message was just deleted, can stay readable
 for about three minutes. A viewer's own joined rooms are cached for five
 minutes, so one who leaves a room can read its media for up to about seven
-and a half (the earlier "two and a half" left that cache out).
+and a half (the earlier "two and a half" left that cache out). The operator
+accepted that window as it is, 2026-10-16: "It's seven minutes my bot. Not a
+big deal."
 
 `?w=` / `?h=` snap to the 180, 360 and 720 thumbnails rendered at upload; with
 neither, the original is served; `?dl=1` serves it as an attachment.
