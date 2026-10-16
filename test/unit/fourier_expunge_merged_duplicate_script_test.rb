@@ -41,7 +41,11 @@ class FourierExpungeMergedDuplicateScriptTest < ActiveSupport::TestCase
     ARGV.replace(saved)
   end
 
+  # Open3.capture3 is a module function -- itself a singleton method of Open3 --
+  # so the fake REPLACES it and teardown puts the original back; removing the
+  # fake would remove capture3 for every later test in the worker.
   def fake_rclone(storage)
+    @real_capture3 = Open3.method(:capture3)
     Open3.define_singleton_method(:capture3) do |*args|
       target = args[-1]
       if args.include?("lsjson")
@@ -85,7 +89,7 @@ class FourierExpungeMergedDuplicateScriptTest < ActiveSupport::TestCase
   end
 
   teardown do
-    Open3.singleton_class.send(:remove_method, :capture3) if Open3.singleton_methods(false).include?(:capture3)
+    Open3.define_singleton_method(:capture3, @real_capture3) if @real_capture3
   end
 
   should "on a dry run list every key and its state, and change nothing" do

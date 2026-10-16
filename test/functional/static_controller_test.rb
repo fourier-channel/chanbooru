@@ -17,7 +17,11 @@ class StaticControllerTest < ActionDispatch::IntegrationTest
     [Artist, ForumTopic, Pool, Post, Tag, User, WikiPage].each do |klass|
       should "work for #{klass.model_name.plural}" do
         as(create(:user)) { create_list(klass.model_name.singular.to_sym, 3) }
-        get sitemap_path(sitemap: klass.model_name.plural), as: :xml
+        # One page wider than every id: the index pages by id ranges of
+        # `limit`, and the test database keeps rows (the system user) while its
+        # sequences climb run after run, so at the default 10,000 the new rows
+        # land in a second page once a sequence crosses a multiple of it.
+        get sitemap_path(sitemap: klass.model_name.plural, limit: 2**31 - 1), as: :xml
 
         assert_response :success
         assert_equal(1, response.parsed_body.css("sitemap loc").size)
