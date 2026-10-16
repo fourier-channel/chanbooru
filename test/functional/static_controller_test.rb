@@ -21,7 +21,7 @@ class StaticControllerTest < ActionDispatch::IntegrationTest
         # `limit`, and the test database keeps rows (the system user) while its
         # sequences climb run after run, so at the default 10,000 the new rows
         # land in a second page once a sequence crosses a multiple of it.
-        get sitemap_path(sitemap: klass.model_name.plural, limit: 2**31 - 1), as: :xml
+        get sitemap_path(sitemap: klass.model_name.plural, limit: (2**31) - 1), as: :xml
 
         assert_response :success
         assert_equal(1, response.parsed_body.css("sitemap loc").size)
