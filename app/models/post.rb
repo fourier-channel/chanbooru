@@ -27,6 +27,11 @@ class Post < ApplicationRecord
   NOTE_COPY_TAGS = %w[translated partially_translated check_translation translation_request reverse_translation
                       annotated partially_annotated check_annotation annotation_request]
 
+  # The tags the booru derives from a post's own file and source
+  # (#add_automatic_tags; the list is upstream's). Fork: named, so
+  # script/fourier_merge_matrix_duplicates.rb leaves them to each post.
+  AUTOMATIC_TAGS = %w[incredibly_absurdres absurdres highres lowres flash video ugoira animated_gif animated_png exif_rotation non-repeating_animation non-web_source wide_image tall_image].freeze
+
   # Each name escaped, so a restricted name shaped like foo_(bar) matches
   # itself rather than mismatching or raising at class load.
   RESTRICTED_TAGS_REGEX = /(?:^| )(?:#{Danbooru.config.restricted_tags.map { |tag| Regexp.escape(tag) }.join("|")})(?:$| )/o
@@ -437,7 +442,7 @@ class Post < ApplicationRecord
     end
 
     def add_automatic_tags(tags)
-      tags -= %w[incredibly_absurdres absurdres highres lowres flash video ugoira animated_gif animated_png exif_rotation non-repeating_animation non-web_source wide_image tall_image]
+      tags -= AUTOMATIC_TAGS
 
       if tags.size >= 30
         tags -= ["tagme"]
@@ -1276,6 +1281,8 @@ class Post < ApplicationRecord
           embedded_matches(value)
         when "source"
           source_matches(value, quoted)
+        when "holds"
+          holds_matches(value)
         when "disapproved"
           disapproved_matches(value, current_user)
         when "commentary"
@@ -1464,6 +1471,37 @@ class Post < ApplicationRecord
           where(source: "")
         else
           where_ilike(:source, source + "*")
+        end
+      end
+
+      # holds:<identity> -- the posts holding an image by ANY of its
+      # identities (operator, 2026-10-16: "No copies of objects, is a
+      # given"), so a caller holding one name of a picture finds its post:
+      #
+      #   mxc://...  post_mxcs.mxc -- the post's own Matrix source and every
+      #              alias the tunnel's duplicate path mapped to it -- or
+      #              posts.source;
+      #   32 hex     posts.md5, or the other md5 of the same upload on its
+      #              generation record (FourierGenerationMetadata: raw_md5,
+      #              the bytes the tunnel was handed, and md5, the stripped
+      #              bytes it posted), mapped to the post carrying it.
+      #
+      # Anything else matches nothing. Each lookup is a unique index (post_mxcs
+      # mxc, fourier_generation_metadata md5 and raw_md5) feeding posts' own
+      # (primary key, md5, and source's trigram index, which answers =), as
+      # ARRAY(...) init plans: one query, and no NULL from an empty lookup, so
+      # -holds: negates exactly. Visibility is the search's, as for any term.
+      def holds_matches(value)
+        if value.start_with?("mxc://")
+          where("posts.id = ANY(ARRAY(SELECT post_mxcs.post_id FROM post_mxcs WHERE post_mxcs.mxc = :mxc)) OR posts.source = :mxc", mxc: value)
+        elsif value.match?(/\A\h{32}\z/)
+          where(<<~SQL.squish, md5: value.downcase)
+            posts.md5 = ANY(ARRAY[:md5]::varchar[]
+              || ARRAY(SELECT fgm.md5 FROM fourier_generation_metadata fgm WHERE fgm.raw_md5 = :md5)
+              || ARRAY(SELECT fgm.raw_md5 FROM fourier_generation_metadata fgm WHERE fgm.md5 = :md5 AND fgm.raw_md5 IS NOT NULL))
+          SQL
+        else
+          none
         end
       end
 
