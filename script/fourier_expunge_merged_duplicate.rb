@@ -103,11 +103,23 @@ raw_key = "superseded/local_content/#{media_id[0, 2]}/#{media_id[2, 2]}/#{media_
 targets << [raw_key, ":#{sm.remote}:#{sm.bucket}/#{raw_key}"]
 
 # The answer for one object: true present, false absent, or raises naming the
-# rclone failure -- never guessed.
+# rclone failure -- never guessed. rclone 1.60's `lsjson --stat` SUCCEEDS for a
+# key with no object behind it, answering {"IsDir": true, "Size": -1} (it reads
+# the key as an empty directory; seen on production 2026-10-16 for
+# media/<raw md5>.png), so present means an OBJECT: IsDir false, a size.
 present = lambda do |target|
   out, err, status = Open3.capture3(sm.rclone_path, *sm.rclone_options, "lsjson", "--stat", target)
-  return true if status.success? && out.strip.start_with?("{")
-  return false if err.include?("object not found") || err.include?("directory not found") || err.include?("not found")
+  if status.success?
+    entry = begin
+      JSON.parse(out)
+    rescue JSON::ParserError
+      nil
+    end
+    raise "rclone lsjson --stat #{target} answered something that is not JSON: #{out.strip[0, 120]}" unless entry.is_a?(Hash)
+
+    return entry["IsDir"] == false && entry["Size"].to_i >= 0
+  end
+  return false if err.include?("not found")
 
   raise "rclone lsjson --stat #{target} failed: #{err.lines.grep_v(/NOTICE/).join.strip.presence || "exit #{status.exitstatus}"}"
 end

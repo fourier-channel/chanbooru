@@ -45,7 +45,13 @@ class FourierExpungeMergedDuplicateScriptTest < ActiveSupport::TestCase
     Open3.define_singleton_method(:capture3) do |*args|
       target = args[-1]
       if args.include?("lsjson")
-        storage.present.include?(target) ? ["{\"Path\":\"x\"}", "", Struct.new(:success?, :exitstatus).new(true, 0)] : ["", "ERROR : object not found", Struct.new(:success?, :exitstatus).new(false, 3)]
+        # As rclone 1.60 answers: an object has IsDir false and a size; a
+        # key with no object behind it SUCCEEDS as an empty "directory".
+        if storage.present.include?(target)
+          ["{\"Path\":\"x\",\"Size\":7310,\"IsDir\":false}", "", Struct.new(:success?, :exitstatus).new(true, 0)]
+        else
+          ["{\"Path\":\"\",\"Size\":-1,\"IsDir\":true}", "", Struct.new(:success?, :exitstatus).new(true, 0)]
+        end
       elsif args.include?("deletefile")
         storage.present.delete(target)
         storage.deleted << target
@@ -121,7 +127,7 @@ class FourierExpungeMergedDuplicateScriptTest < ActiveSupport::TestCase
   end
 
   should "refuse a post deleted for another reason" do
-    @retired.flags.update_all(reason: "something else")
+    @retired.flags.each { |flag| flag.update!(reason: "something else") }
     status, _out, err = run_script(SCRIPT, "--", "--post", @retired.id.to_s, "--as", "boss", "--apply")
 
     assert_equal(1, status)
