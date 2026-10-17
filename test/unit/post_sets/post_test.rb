@@ -75,10 +75,34 @@ module PostSets
         end
       end
 
+      # Fork (operator, 2026-10-17): "Unlimited tags for members, yes. Leave
+      # anon two." What guards the database is the statement timeout, not the
+      # number of tags (measured on production: 12 common tags 87 ms, 3 tags
+      # of mixed sizes 2 s).
       context "a set for the 'a b c' tag query" do
-        context "for a non-gold user" do
+        context "for a member" do
+          should "pass, with any number of tags" do
+            @set = PostSets::Post.new("a b c d e f g h i j k l", user: create(:user))
+
+            assert_nothing_raised do
+              @set.posts
+            end
+          end
+        end
+
+        context "for a restricted user" do
           should "fail" do
-            @set = PostSets::Post.new("a b c", user: create(:user))
+            @set = PostSets::Post.new("a b c", user: create(:restricted_user))
+
+            assert_raises(PostQuery::TagLimitError) do
+              @set.posts
+            end
+          end
+        end
+
+        context "for a signed-out viewer" do
+          should "fail" do
+            @set = PostSets::Post.new("a b c", user: User.anonymous)
 
             assert_raises(PostQuery::TagLimitError) do
               @set.posts

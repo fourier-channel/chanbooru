@@ -731,13 +731,14 @@ class User < ApplicationRecord
         end
       end
 
+      # Fork (operator, 2026-10-17): "Unlimited tags for members, yes. Leave
+      # anon two." The number of tags does not predict a search's cost -- the
+      # mix of tag sizes does (production: 12 common tags 87 ms, 3 tags of
+      # mixed sizes 2 s) -- and the statement timeout bounds every search
+      # whatever its length. Signed-out viewers and restricted accounts keep 2.
       def tag_query_limit(level)
-        if level >= User::Levels::MEMBER && Danbooru.config.is_promotion?
+        if level >= User::Levels::MEMBER
           Float::INFINITY
-        elsif level >= User::Levels::PLATINUM
-          Float::INFINITY
-        elsif level == User::Levels::GOLD
-          6
         else
           2
         end
