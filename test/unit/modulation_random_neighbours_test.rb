@@ -53,7 +53,7 @@ class ModulationRandomNeighboursTest < ActiveSupport::TestCase
 
     should "give two different neighbours, neither the post itself, inside a request's query cache" do
       preset = as(@viewer) { ActiveRecord::Base.cache { random_preset(@posts.first, @viewer) } }
-      ids = [preset[:prev]&.fetch(:id), preset[:next]&.fetch(:id)]
+      ids = [preset[:prev_candidates].first&.fetch(:id), preset[:next_candidates].first&.fetch(:id)]
 
       assert_equal(2, ids.compact.uniq.size, "neighbours #{ids.inspect}")
       assert_not_includes(ids, @posts.first.id)
@@ -67,8 +67,34 @@ class ModulationRandomNeighboursTest < ActiveSupport::TestCase
                                .nav_presets.find { |p| p[:key] == "random" }
       end
 
-      assert_nil(preset[:prev])
-      assert_nil(preset[:next])
+      assert_empty(preset[:prev_candidates])
+      assert_empty(preset[:next_candidates])
+      assert_equal(false, preset[:prev_more])
+      assert_equal(false, preset[:next_more])
+    end
+
+    # The flank depth must not bring the 44 s class back: a post standing
+    # inside the viewer's trail has its candidates already, and rolls nothing.
+    context "with a trail" do
+      setup do
+        ids = @posts.map(&:id)
+        ModulationSetting.create!(user: @viewer, random_trails: { "" => { "ids" => ids, "t" => Time.now.to_i }})
+      end
+
+      should "roll nothing for a post inside the trail, and hand back the trail as candidates" do
+        preset = nil
+        sqls = as(@viewer) { statements { preset = random_preset(@posts[1], @viewer) } }
+
+        assert_empty(sqls.grep(/random_md5s/), "a post inside the trail rolled")
+        assert_equal([@posts[0].id], preset[:prev_candidates].pluck(:id))
+        assert_equal(@posts[2..].map(&:id), preset[:next_candidates].pluck(:id))
+      end
+
+      should "roll at most once at the frontier, whatever the depth" do
+        sqls = as(@viewer) { statements { random_preset(@posts.last, @viewer) } }
+
+        assert_equal(1, sqls.grep(/random_md5s/).size, "one roll, at the one end standing on the frontier")
+      end
     end
   end
 end

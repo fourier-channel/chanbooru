@@ -9,8 +9,13 @@
 # order: metatag in the search query (default id_desc), so honouring order:
 # covers every sort the booru exposes.
 #
-# Each neighbour is a keyset seek -- one indexed `LIMIT 1` lookup anchored on the
-# current post's sort key, never an OFFSET scan. Sorts we can't keyset cleanly
+# Each side is a keyset seek -- one indexed `LIMIT n` lookup anchored on the
+# current post's sort key, never an OFFSET scan. The post view asks for DEPTH
+# candidates a side (run), because a neighbour the viewer's client-side
+# blocklist hides must not be the thumbnail or the destination, and the next
+# allowed one has to be in hand already (GALLERY_WINDOW.md section 2). Measured
+# on production 2026-10-17: LIMIT 7 costs at most 1.5x LIMIT 1 on every search
+# shape tried, with no plan flips. Sorts we can't keyset cleanly
 # (random, rank, aggregate/nullable columns) fall back to the id walk, matching
 # upstream behaviour rather than lying about the order.
 class PostNeighbors
@@ -59,8 +64,20 @@ class PostNeighbors
     @order = PostQuery.new(@tags).find_metatag(:order).presence&.downcase || "id_desc"
   end
 
-  def next_id = neighbor(:next)&.id
-  def prev_id = neighbor(:prev)&.id
+  # Flank candidates a side: the thumbnail is the first of them the viewer's
+  # blocklist allows.
+  DEPTH = 6
+
+  # { ids:, more: } -- the next `depth` post ids in `direction`, nearest
+  # first, and whether a row lies past them. One more row than asked for is
+  # fetched, so `more` is exact: exactly `depth` remaining is not more.
+  def run(direction, depth = DEPTH)
+    ids = neighbor_ids(direction, depth + 1)
+    { ids: ids.first(depth), more: ids.size > depth }
+  end
+
+  def next_id = run(:next, 1)[:ids].first
+  def prev_id = run(:prev, 1)[:ids].first
 
   # { prev:, next:, order: } -- ids or nil at the ends of the sequence.
   def to_h = { prev: prev_id, next: next_id, order: order }
@@ -69,12 +86,12 @@ class PostNeighbors
 
   def base = Post.user_tag_match(tags, user)
 
-  def neighbor(direction)
+  def neighbor_ids(direction, limit)
     spec = SPECS[order]
-    return id_walk(direction) if spec.nil?
+    return id_walk(direction, limit) if spec.nil?
 
     v = spec.value.call(post)
-    return id_walk(direction) if v.nil?
+    return id_walk(direction, limit) if v.nil?
 
     # Display order is (column dir, id dir). "next" follows the current post in
     # that order, "prev" precedes it. When descending, "after" means a smaller
@@ -90,15 +107,16 @@ class PostNeighbors
     rel
       .where("#{col} #{op} ? OR (#{col} = ? AND posts.id #{op} ?)", v, v, post.id)
       .reorder(Arel.sql("#{col} #{seek}, posts.id #{seek}"))
-      .first
+      .limit(limit)
+      .pluck("posts.id")
   end
 
   # Fallback for orders we don't keyset: the id walk (upstream's own behaviour).
-  def id_walk(direction)
+  def id_walk(direction, limit)
     if direction == :next
-      base.where("posts.id < ?", post.id).reorder("posts.id DESC").first
+      base.where(posts: { id: ...post.id }).reorder("posts.id DESC").limit(limit).pluck("posts.id")
     else
-      base.where("posts.id > ?", post.id).reorder("posts.id ASC").first
+      base.where("posts.id > ?", post.id).reorder("posts.id ASC").limit(limit).pluck("posts.id")
     end
   end
 end

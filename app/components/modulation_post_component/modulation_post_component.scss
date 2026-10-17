@@ -121,6 +121,42 @@ body:has(.modulation) {
   // first glimpse of the site is the object they will actually use.
   @include modulation-stage;
 
+  // The status line's containing block. Nothing else in the stage is
+  // positioned against it: the flank rows sit in their own columns.
+  .mod-stage { position: relative; }
+
+  // The flank candidates' pool: elements for the blocklist engine to mark,
+  // never drawn (the hidden attribute says so too).
+  .mod-flank-pool { display: none; }
+
+  // What a press against a blocked side did. Laid over the foot of the stage,
+  // out of the flow, so showing it moves nothing; up while it applies and
+  // then hidden again -- no transition, no animation. width: max-content,
+  // because shrink-to-fit at left: 50% gets only the half of the stage right
+  // of the centre line, which wrapped the line to five rows at phone width;
+  // max-width then caps it at the stage.
+  .mod-flank-status {
+    position: absolute;
+    left: 50%;
+    bottom: 0.5rem;
+    z-index: 6;
+    width: max-content;
+    max-width: min(36rem, calc(100% - 1rem));
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius);
+    background: var(--mod-surface);
+    color: var(--mod-ink);
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+    font-size: 0.72rem;
+    text-align: center;
+    pointer-events: none;
+    visibility: hidden;
+    translate: -50% 0;
+
+    &.is-shown { visibility: visible; }
+  }
+
   // The image size cap. --mod-stage-max is written by the view controller
   // (sizeStage) per the viewer's image_cap setting; absent, the image keeps
   // its intrinsic size. width: auto lets the max-height bind without

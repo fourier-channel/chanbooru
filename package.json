@@ -59,7 +59,8 @@
   },
   "scripts": {
     "eslint-all": "npx eslint --cache --cache-location tmp/ --ext .js,.js.erb app/",
-    "stylelint-all": "npx stylelint --cache --cache-strategy content --cache-location tmp/ 'app/javascript/src/styles/**/*'"
+    "stylelint-all": "npx stylelint --cache --cache-strategy content --cache-location tmp/ 'app/javascript/src/styles/**/*'",
+    "test-js": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test 'test/javascript/**/*.test.mjs'"
   },
   "browserslist": [
     "since 2021"

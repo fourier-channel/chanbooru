@@ -68,10 +68,17 @@ class RandomTrail
     @ids.size
   end
 
-  # { prev_id:, next_id: } for standing on `post`, rolling at the frontier.
-  # `roll` is a block: excluded ids -> a fresh post id, or nil when the search
-  # has nothing left to give.
-  def neighbours_for(post, &roll)
+  # { prev_ids:, next_ids:, prev_more:, next_more: } for standing on `post`,
+  # rolling at the frontier. Each side is the `depth` trail entries nearest
+  # the post, nearest first -- the flank candidates. `roll` is a block:
+  # excluded ids -> a fresh post id, or nil when the search has nothing left
+  # to give.
+  #
+  # Only the frontier is rolled, and ONE post at an end per call, whatever
+  # the depth: candidates past the first fresh one come from the client's
+  # next hop, which rolls again at the new frontier. A side has no more only
+  # when its roll came back empty and the window reaches that end.
+  def neighbours_for(post, depth: 1, &roll)
     i = @ids.index(post.id)
     if i.nil?
       # A fresh arrival: back is the last post random showed, forward is new.
@@ -79,12 +86,15 @@ class RandomTrail
       @dirty = true
       i = @ids.size - 1
     end
+    front_spent = back_spent = false
     if i.zero?
       fresh = roll.call(@ids)
       if fresh
         @ids.unshift(fresh)
         @dirty = true
         i += 1
+      else
+        front_spent = true
       end
     end
     if i == @ids.size - 1
@@ -92,10 +102,19 @@ class RandomTrail
       if fresh
         @ids.push(fresh)
         @dirty = true
+      else
+        back_spent = true
       end
     end
-    trim(i)
-    { prev_id: (i.positive? ? @ids[i - 1] : nil), next_id: @ids[i + 1] }
+    i = trim(i)
+    prev_ids = @ids[[0, i - depth].max...i].reverse
+    next_ids = @ids[i + 1, depth]
+    {
+      prev_ids: prev_ids,
+      next_ids: next_ids,
+      prev_more: !(front_spent && i - depth <= 0),
+      next_more: !(back_spent && i + depth >= @ids.size - 1),
+    }
   end
 
   # Forget everything for this search. The next payload reseeds both sides.
@@ -145,14 +164,19 @@ class RandomTrail
 
   # Keep the trail within the cap by dropping the end the viewer is walking
   # away from: standing near the front, drop the back, and the reverse.
+  # Returns the post's index in the trimmed trail: dropping the front moves
+  # it, and the neighbours read from the old index named the post itself.
   def trim(i)
-    return if @ids.size <= cap
+    return i if @ids.size <= cap
 
+    @dirty = true
     if i < @ids.size / 2
       @ids = @ids.first(cap)
+      i
     else
+      dropped = @ids.size - cap
       @ids = @ids.last(cap)
+      i - dropped
     end
-    @dirty = true
   end
 end

@@ -33,6 +33,13 @@ function csrfToken() {
   return document.querySelector('meta[name="csrf-token"]')?.content || "";
 }
 
+// The post view's flank pool is a lookup table, not something the page shows:
+// up to a few dozen candidates of which two are drawn. The counts say "hidden
+// on this page", so they leave it out.
+function shownOnPage(post) {
+  return !post.post.classList.contains("mod-flank-poolitem");
+}
+
 // A post holds the set of blocks that match it. It is hidden while that set
 // is not empty.
 class Post {
@@ -125,7 +132,7 @@ class Rule {
 
   // @returns {Number} - How many distinct posts on this page the block hides.
   get matchCount() {
-    return new Set([...this.posts].map(post => post.post.dataset.id)).size;
+    return new Set([...this.posts].filter(shownOnPage).map(post => post.post.dataset.id)).size;
   }
 
   // @param {Post} post - The post to check against this rule.
@@ -200,12 +207,14 @@ class Blacklist {
   // the Modulation post view's media container -- the DEFAULT views of this
   // site, so a selector list that does not name them means the engine
   // matches nothing on almost every page. .modland-poolitem is the landing
-  // carousel's hidden pool.
+  // carousel's hidden pool. .mod-flank-poolitem is the post view's: every
+  // candidate for its previous/next thumbnails, which draw the first one not
+  // marked (modulation_flanks.js) -- a thumbnail carries no tags of its own.
   //
   // Read by collectPosts(), which initialize() and rescan() both use. One
   // definition, because a selector that is right in one place and stale in
   // another silently stops filtering the surface it forgot.
-  static POST_SELECTOR = ".post-preview, .image-container, #c-comments .post, .mod-queue-preview.post-preview, .modgal-card, .mod-blacklist-target, .modland-poolitem";
+  static POST_SELECTOR = ".post-preview, .image-container, #c-comments .post, .mod-queue-preview.post-preview, .modgal-card, .mod-blacklist-target, .modland-poolitem, .mod-flank-poolitem";
 
   // Re-read the page and apply the CURRENT rules to it.
   //
@@ -214,6 +223,24 @@ class Blacklist {
   // where the rules have not changed and the elements have.
   rescan() {
     this.collectPosts();
+  }
+
+  // Take in the elements a surface added and let go of the ones it removed,
+  // without re-reading the rest of the page. For a surface whose matchable
+  // elements change often -- the post view's flank pool, on every navigation
+  // -- where rescan() would build a new Post for every element on the page
+  // and match every block against each, on the frame the swap animates.
+  //
+  // @param {Array<HTMLElement>} added - Elements now on the page, unmatched.
+  // @param {Array<HTMLElement>} removed - Elements that have left the page.
+  adopt(added, removed) {
+    const gone = new Set(removed);
+    // A removed post leaves only the blocks that matched it, which it holds.
+    removed.forEach(el => el.post?.rules.forEach(rule => rule.posts.delete(el.post)));
+    const fresh = added.map(post => new Post(post, this));
+    fresh.forEach(post => post.applyRules());
+    this.posts = this.posts.filter(post => !gone.has(post.post)).concat(fresh);
+    announceMarks();
   }
 
   collectPosts() {
@@ -338,7 +365,7 @@ class Blacklist {
 
   // @returns {Number} - How many distinct posts on this page are hidden.
   get blacklistedPostCount() {
-    return new Set(this.posts.filter(post => post.blacklisted).map(post => post.post.dataset.id)).size;
+    return new Set(this.posts.filter(post => post.blacklisted && shownOnPage(post)).map(post => post.post.dataset.id)).size;
   }
 
   // Tidy-up only: the old per-rule switches and box state upstream kept in

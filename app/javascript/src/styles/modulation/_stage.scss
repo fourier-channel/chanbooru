@@ -119,7 +119,11 @@
       }
     }
 
-    &.is-empty {
+    // .is-blocked: every candidate on that side is on the viewer's blocklist
+    // (or the side could not be looked along). The same hatch as an empty cap
+    // in the same slot, so a side turning blocked moves nothing; the glyph is
+    // the blocklist's own. Static: no transition, no animation.
+    &.is-empty, &.is-blocked {
       background: repeating-linear-gradient(45deg, var(--mod-surface) 0 6px, var(--mod-surface-2) 6px 12px);
       img { display: none; }
     }

@@ -10,10 +10,14 @@ require "test_helper"
 class ModulationFlankHiddenTest < ActionDispatch::IntegrationTest
   JAIL = "troll_jail"
 
+  # Every flank candidate in the payload, each with its entry in the
+  # candidates map merged in (thumb, deleted).
   def flank_previews(post, user)
     get_auth post_modulation_path(post, format: :json), user
     assert_response :success
-    response.parsed_body.fetch("presets", []).flat_map { |p| [p["prev"], p["next"]] }.compact
+    body = response.parsed_body
+    refs = body.fetch("presets", []).flat_map { |p| p.fetch("prev_candidates") + p.fetch("next_candidates") }
+    refs.map { |ref| ref.merge(body.fetch("candidates").fetch(ref["id"].to_s)) }
   end
 
   context "a jailed neighbour" do
@@ -31,9 +35,10 @@ class ModulationFlankHiddenTest < ActionDispatch::IntegrationTest
     end
 
     should "never hand an admin its thumbnail" do
-      flank_previews(@after, @admin).select { |n| n["id"] == @jailed.id }.each do |n|
-        assert_nil n["thumb"], "the jailed neighbour's thumbnail was handed out"
-      end
+      ids = flank_previews(@after, @admin).pluck("id")
+      assert_not_includes ids, @jailed.id
+      assert_includes ids, @before.id, "fixture: the flanks were built"
+      assert_not_includes response.body, JAIL
     end
 
     # No reveal (2026-10-12): no admin is shown a jailed post, so it is no
@@ -44,7 +49,10 @@ class ModulationFlankHiddenTest < ActionDispatch::IntegrationTest
       @jailed.update_columns(tag_string: "landscape") # rubocop:disable Rails/SkipsModelValidations -- the jail tag off, past the hooks, leaving an ordinary deletion
       deleted = flank_previews(@after, @admin).select { |n| n["id"] == @jailed.id }
       assert deleted.any?, "fixture: an ordinary deleted post is a neighbour for an admin"
-      deleted.each { |n| assert_equal true, n["deleted"] }
+      deleted.each do |n|
+        assert_equal true, n["deleted"]
+        assert_predicate n["thumb"], :present?, "a deleted post the admin may see keeps its (blurred) thumbnail"
+      end
     end
   end
 end

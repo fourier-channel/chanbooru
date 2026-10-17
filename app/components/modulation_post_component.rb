@@ -16,6 +16,11 @@ class ModulationPostComponent < ApplicationComponent
   # recorded, so it says the least and should not lead the row.
   BUCKET_ORDER = %i[creator both auto pending unsourced].freeze
 
+  # How many more keyset reads a flank side may take to replace candidates
+  # this viewer may not see (build_nav_presets). Bounded: a run longer than
+  # this is sent as it stands, `more` still true.
+  FLANK_FILL_ROUNDS = 3
+
   # `settings` is the viewer's Modulation view state (ModulationSetting.for_viewer);
   # callers with no session context get the defaults so the component stays
   # renderable anywhere.
@@ -158,13 +163,20 @@ class ModulationPostComponent < ApplicationComponent
   # the gallery cards, and the same reason data-tags is not post.tag_string:
   # the denormalised string still holds the private creator tags.
   def blacklist_data
+    blacklist_attrs(post, blacklist_tags)
+  end
+
+  # The engine's contract for any post, given its viewer-safe tags
+  # (FourierTagSource.blacklist_tags_for). The flank candidates are built with
+  # it too, so a candidate carries exactly what its own page would.
+  def blacklist_attrs(target, tags)
     {
-      "data-id" => post.id,
-      "data-tags" => blacklist_tags.join(" "),
-      "data-rating" => post.rating,
-      "data-flags" => post.status_flags,
-      "data-score" => post.score,
-      "data-uploader-id" => post.uploader_id,
+      "data-id" => target.id,
+      "data-tags" => tags.join(" "),
+      "data-rating" => target.rating,
+      "data-flags" => target.status_flags,
+      "data-score" => target.score,
+      "data-uploader-id" => target.uploader_id,
     }
   end
 
@@ -374,7 +386,18 @@ class ModulationPostComponent < ApplicationComponent
       # "by <creator>" beside a claimed original character's pill.
       oc_owners: oc_owners,
       settings: settings,
-      presets: nav_presets.map { |p| p.slice(:key, :label, :search, :prev, :next, :history) },
+      # Each side of each mode is a list of candidate refs ({id, url}),
+      # nearest first; the page shows the first the viewer's blocklist allows
+      # and re-picks live when a block changes (GALLERY_WINDOW.md section 2).
+      # `more` says whether the search goes on past the list. New key names,
+      # not prev/next with a new shape: a tab left open across a deploy then
+      # draws empty flanks rather than navigating to "undefined".
+      presets: nav_presets.map { |p| p.slice(:key, :label, :search, :prev_candidates, :next_candidates, :prev_more, :next_more, :history, :unavailable) },
+      # id => { thumb:, deleted:, blacklist: } for every candidate above, once
+      # however many modes share it. `blacklist` is what the engine matches,
+      # built as the centre's is; the page writes it onto hidden pool
+      # elements, because the engine only sees elements.
+      candidates: flank_candidates,
       active_key: active_preset_key,
       status: status,
       rating: post.rating,
@@ -568,17 +591,58 @@ class ModulationPostComponent < ApplicationComponent
         d.merge(random_neighbours).merge(order: "random")
       else
         # A mode whose query can't run (e.g. exceeds the viewer's tag limit)
-        # must degrade to "no neighbours", never 500 the whole view.
+        # must degrade to "no neighbours", never 500 the whole view -- and
+        # say so, to the log and to the page (`unavailable`).
         nav = PostNeighbors.new(post: post, tags: d[:search], user: viewer)
-        d.merge(prev_id: nav.prev_id, next_id: nav.next_id, order: nav.order)
+        before = nav.run(:prev)
+        after = nav.run(:next)
+        d.merge(prev_ids: before[:ids], next_ids: after[:ids], prev_more: before[:more], next_more: after[:more], order: nav.order)
       end
-    rescue StandardError
-      d.merge(prev_id: nil, next_id: nil, order: "id_desc")
+    rescue StandardError => e
+      DanbooruLogger.log(e)
+      d.merge(prev_ids: [], next_ids: [], prev_more: false, next_more: false, order: "id_desc", unavailable: true)
     end
 
-    # One batched load for every neighbour thumbnail, not a query per preview.
-    ids = resolved.flat_map { [it[:prev_id], it[:next_id]] }.compact.uniq
+    # One batched load for every candidate across every mode, and one batched
+    # tag read for the ones this viewer may see -- not a query per preview.
+    ids = resolved.flat_map { it[:prev_ids] + it[:next_ids] }.uniq
     posts_by_id = Post.where(id: ids).includes(:media_asset).index_by(&:id)
+    shown_ids = posts_by_id.values.select { |neighbour| flank_shown?(neighbour) }.to_set(&:id)
+
+    # A side thinned below DEPTH by posts this viewer may not see -- the
+    # search finds an artist-banned post, visible? does not -- is topped up
+    # by reading on from its last ROW. That row's id stays here: the page
+    # only ever holds shown candidates, so a side the server emptied left it
+    # nothing to look further from, and every post past the run was out of
+    # reach in that mode. Random is a trail, not a keyset, and is not topped.
+    resolved = resolved.map do |d|
+      next d if d[:key] == "random" || d[:unavailable]
+
+      %i[prev next].reduce(d) do |acc, side|
+        rows = acc[:"#{side}_ids"]
+        more = acc[:"#{side}_more"]
+        FLANK_FILL_ROUNDS.times do
+          break unless more && rows.count { shown_ids.include?(it) } < PostNeighbors::DEPTH && posts_by_id.key?(rows.last)
+
+          found = PostNeighbors.new(post: posts_by_id[rows.last], tags: acc[:search], user: viewer).run(side)
+          fresh = Post.where(id: found[:ids] - posts_by_id.keys).includes(:media_asset).index_by(&:id)
+          posts_by_id.merge!(fresh)
+          shown_ids.merge(fresh.values.select { |neighbour| flank_shown?(neighbour) }.map(&:id))
+          rows += found[:ids]
+          more = found[:more]
+        end
+        listed = rows.select { shown_ids.include?(it) }
+        # Past the DEPTH-th shown row there is more, whatever the last read said.
+        more ||= listed.size > PostNeighbors::DEPTH || (listed.size == PostNeighbors::DEPTH && rows.last != listed.last)
+        acc.merge("#{side}_ids": listed.first(PostNeighbors::DEPTH), "#{side}_more": more)
+      end
+    end
+
+    listed = resolved.flat_map { it[:prev_ids] + it[:next_ids] }.uniq.filter_map { posts_by_id[it] if shown_ids.include?(it) }
+    tags = FourierTagSource.blacklist_tags_for(listed, viewer, request: identity_request)
+    @flank_candidates = listed.to_h do |neighbour|
+      [neighbour.id, { thumb: neighbour.preview_file_url, deleted: neighbour.is_deleted?, blacklist: blacklist_attrs(neighbour, tags.fetch(neighbour, [])) }]
+    end
 
     if incoming_order == "random"
       active_key = "random"
@@ -589,12 +653,19 @@ class ModulationPostComponent < ApplicationComponent
     end
 
     resolved.map do |d|
+      refs = ->(list) { list.filter_map { |id| { id: id, url: post_url_for(posts_by_id[id], d[:search]) } if @flank_candidates.key?(id) } }
       d.merge(
         active: d[:key] == active_key,
-        prev: neighbour_preview(posts_by_id[d[:prev_id]], d[:search]),
-        next: neighbour_preview(posts_by_id[d[:next_id]], d[:search]),
+        prev_candidates: refs.call(d[:prev_ids]),
+        next_candidates: refs.call(d[:next_ids]),
       )
     end
+  end
+
+  # See payload[:candidates]: empty for a viewer with no neighbours.
+  def flank_candidates
+    nav_presets
+    @flank_candidates || {}
   end
 
   # Random's neighbours ARE random -- PostNeighbors' id-walk fallback would
@@ -604,7 +675,9 @@ class ModulationPostComponent < ApplicationComponent
   # neighbours it had, and only the frontier -- the far side of the last post
   # seen in that direction -- is rolled, once, and remembered. Re-rolling
   # both sides on every payload, which is what this did, made "back" a
-  # different random post than the one just left.
+  # different random post than the one just left. The flank candidates are
+  # the trail's entries either side; past the first fresh one, the page's
+  # next hop rolls again (RandomTrail#neighbours_for).
   #
   # A ROLL IS DANBOORU'S OWN Post.random -- a random md5, then the nearest
   # matching post along the md5 index -- never ORDER BY random() over the whole
@@ -621,15 +694,19 @@ class ModulationPostComponent < ApplicationComponent
     roll = ->(taken) { Post.user_tag_match(base_tags.to_s, viewer).where.not(id: taken + [post.id]).random(1).pick(:id) }
     trail = random_trail
     if trail
-      found = trail.neighbours_for(post, &roll)
+      found = trail.neighbours_for(post, depth: PostNeighbors::DEPTH, &roll)
       trail.save!
       found.merge(history: trail.size)
     else
+      # Remembered nowhere: one fresh roll a side, and more wherever a roll
+      # found something.
       prev_id = roll.call([])
-      { prev_id: prev_id, next_id: roll.call([prev_id].compact), history: 0 }
+      next_id = roll.call([prev_id].compact)
+      { prev_ids: [prev_id].compact, next_ids: [next_id].compact, prev_more: !prev_id.nil?, next_more: !next_id.nil?, history: 0 }
     end
-  rescue StandardError
-    { prev_id: nil, next_id: nil, history: 0 }
+  rescue StandardError => e
+    DanbooruLogger.log(e)
+    { prev_ids: [], next_ids: [], prev_more: false, next_more: false, history: 0, unavailable: true }
   end
 
   def random_trail
@@ -638,23 +715,20 @@ class ModulationPostComponent < ApplicationComponent
     @random_trail ||= RandomTrail.for(viewer, @session, base_tags)
   end
 
-  # A flank thumbnail. Withheld when the post is hidden from this viewer
-  # (Post#hidden_from?: deleted, jailed, gated, under a hidden creator prefix)
-  # as well as when it is not visible? -- the side strip asked only visible?,
-  # so an admin who can see deleted posts got a jailed neighbour's thumbnail
-  # sharp beside a centre that blurs it (operator, 2026-10-07). A deleted
-  # neighbour the viewer may see is flagged, and the strip blurs it as the
-  # gallery grid does.
-  def neighbour_preview(neighbour, search)
-    return nil if neighbour.nil?
-
-    shown = neighbour.visible?(viewer) && !neighbour.hidden_from?(viewer)
-    { id: neighbour.id,
-      url: post_url_for(neighbour, search),
-      thumb: (shown ? neighbour.preview_file_url : nil),
-      deleted: neighbour.is_deleted? }
-  rescue StandardError
-    nil
+  # Whether a candidate may be offered at all. Not when the post is hidden
+  # from this viewer (Post#hidden_from?: deleted, jailed, gated, under a
+  # hidden creator prefix) nor when it is not visible? -- the side strip
+  # asked only visible?, so an admin who can see deleted posts got a jailed
+  # neighbour's thumbnail sharp beside a centre that blurs it (operator,
+  # 2026-10-07). Such a candidate is DROPPED, not sent without a thumbnail:
+  # a blank tile is no destination, and its id and tags are not this
+  # viewer's to have. A deleted neighbour the viewer may see is offered and
+  # flagged, and the strip blurs it as the gallery grid does.
+  def flank_shown?(neighbour)
+    neighbour.visible?(viewer) && !neighbour.hidden_from?(viewer)
+  rescue StandardError => e
+    DanbooruLogger.log(e)
+    false
   end
 
   # Route helper that works outside a render context (used by the JSON endpoint).

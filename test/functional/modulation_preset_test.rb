@@ -700,12 +700,64 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         assert_empty(payload["presets"])
       end
 
+      # The flank candidates carry tags, so withholding the neighbours must
+      # withhold their tags too: none of a neighbour's in the page or the
+      # navigation payload.
+      should "hand a restricted viewer no flank candidates, nor any neighbour's tags" do
+        as(@user) { create(:post, tag_string: "aaaa only_on_the_neighbour") }
+
+        get_auth post_path(@post, preset: "modulation"), @restricted
+        assert_response :success
+        payload = JSON.parse(css_select(".modulation").first["data-payload"])
+        assert_empty(payload["presets"])
+        assert_empty(payload["candidates"])
+        assert_not_includes(response.body, "only_on_the_neighbour")
+
+        get_auth post_modulation_path(@post, format: :json), @restricted
+        assert_response :success
+        assert_empty(response.parsed_body["presets"])
+        assert_empty(response.parsed_body["candidates"])
+        assert_not_includes(response.body, "only_on_the_neighbour")
+      end
+
+      should "hand a signed-out viewer no flank candidates" do
+        as(@user) { create(:post, tag_string: "aaaa only_on_the_neighbour") }
+
+        get post_modulation_path(@post, format: :json)
+        assert_response :success
+        assert_empty(response.parsed_body["presets"])
+        assert_empty(response.parsed_body["candidates"])
+        assert_not_includes(response.body, "only_on_the_neighbour")
+      end
+
       should "give a full account the post neighbours" do
         get_auth post_path(@post, preset: "modulation"), @member
 
         payload = JSON.parse(css_select(".modulation").first["data-payload"])
         assert_equal(true, payload["can_browse"])
         assert_not_empty(payload["presets"])
+      end
+
+      # The page embeds the same payload the client fetches afterwards, so the
+      # first draw and every later one read one shape. The pool the engine
+      # matches the candidates in is one element; the centre is still the
+      # only element carrying a post's attributes in the markup.
+      should "give a full account flank candidates, embedded and fetched alike" do
+        neighbour = as(@user) { create(:post, tag_string: "aaaa bbbb") }
+
+        get_auth post_path(@post, preset: "modulation", q: "aaaa"), @member
+        assert_response :success
+        embedded = JSON.parse(css_select(".modulation").first["data-payload"])
+        assert_select "[data-region=flank-pool]", 1
+        assert_select ".mod-blacklist-target[data-tags][data-rating]", 1
+        assert_select "[data-region=flank-pool] [data-tags]", 0
+
+        get_auth post_modulation_path(@post, format: :json, q: "aaaa"), @member
+        fetched = response.parsed_body
+
+        assert_includes(embedded["candidates"].keys, neighbour.id.to_s)
+        assert_equal(embedded["candidates"], fetched["candidates"])
+        assert_equal(embedded["presets"], fetched["presets"])
       end
     end
 

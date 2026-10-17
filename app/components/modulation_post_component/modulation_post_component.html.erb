@@ -40,6 +40,12 @@
         Post object the blacklist attaches to it survives a swap. %>
     <div class="mod-stage-center mod-blacklist-target" data-region="center" <%= tag.attributes(blacklist_data) %>></div>
     <div class="mod-flank-col mod-flank-col--next" data-region="flank-next"></div>
+    <%# The flank candidates, as elements the blocklist engine can see and
+        mark: filled by the script below from the payload, never shown. The
+        status line says what a press against a blocked side did, for the
+        keyboard, the wheel, a swipe, and the phone layout without flanks. %>
+    <div class="mod-flank-pool" data-region="flank-pool" hidden></div>
+    <div class="mod-flank-status" data-region="flank-status" role="status" aria-live="polite"></div>
   </section>
 
   <nav class="mod-actions" data-region="actions"></nav>
@@ -100,7 +106,6 @@
     // Reset on navigation, deliberately: revealing one deleted post is not
     // consent to see the next one.
     let revealed = false;
-    const cache = new Map(); // `${id}|${search}` -> payload
 
     const presets = () => (cur && cur.presets) || [];
     const activeIndex = () => { const i = presets().findIndex(p => p.key === activeKey); return i < 0 ? 0 : i; };
@@ -149,28 +154,229 @@
 
     // The terminus glyph for an empty cap: the trail's line stopping at a
     // filled dot, pointing off the edge the trail came from.
-    function trailCapHTML(side) {
-      const glyph = side === "prev"
-        ? '<circle cx="12" cy="6" r="3" fill="currentColor" stroke="none"></circle><path d="M12 9.4 V21"></path>'
-        : '<path d="M12 3 V14.6"></path><circle cx="12" cy="18" r="3" fill="currentColor" stroke="none"></circle>';
-      const label = side === "prev" ? "start" : "end";
-      return '<span class="mod-trailcap"><svg viewBox="0 0 24 24" aria-hidden="true">' + glyph + "</svg>" +
-        '<span class="mod-trailcap-label">' + label + "</span></span>";
+    const CAP_GLYPH = {
+      prev: '<circle cx="12" cy="6" r="3" fill="currentColor" stroke="none"></circle><path d="M12 9.4 V21"></path>',
+      next: '<path d="M12 3 V14.6"></path><circle cx="12" cy="18" r="3" fill="currentColor" stroke="none"></circle>',
+      // The blocklist's own circle-with-slash (BlocklistComponent's trigger).
+      blocked: '<circle cx="12" cy="12" r="8.5"></circle><path d="M6 6l12 12"></path>',
+    };
+    function capHTML(glyph, label) {
+      return '<span class="mod-trailcap"><svg viewBox="0 0 24 24" aria-hidden="true">' + CAP_GLYPH[glyph] + "</svg>" +
+        '<span class="mod-trailcap-label">' + esc(label) + "</span></span>";
     }
+
+    // ---- the flanks: candidates, the pool, the pick ----
+    // THE BLOCKLIST IS CLIENT-SIDE ON PURPOSE (operator, 2026-10-13,
+    // 2026-10-17): a block added or lifted re-filters the page in place. The
+    // flank thumbnails carried no tags, so the engine never saw them and a
+    // blocked post sat beside the centre. Now each side of each mode is a list
+    // of candidates, nearest first (presets[].prev_candidates /
+    // next_candidates), their attributes in cur.candidates. Every distinct
+    // candidate is written into the hidden pool as an element the engine
+    // matches (.mod-flank-poolitem in Blacklist.POST_SELECTOR) and marks; the
+    // thumbnail AND the arrow's destination are the first candidate not
+    // marked (window.FourierFlanks.flankState). The engine is the one matcher.
+    //
+    // Nothing is drawn until the engine has applied once: it starts at
+    // DOM-ready, after this script's first render, and drawing before its
+    // marks exist would paint the blocked thumbnail -- the bug. Every later
+    // apply (a block added or lifted, another tab's list, a rescan) redraws
+    // from the marks, with no fetch: the payloads do not depend on the list.
+    //
+    // ALL CANDIDATES BLOCKED, more beyond: the page LOOKS FURTHER through the
+    // same modulation.json route, asking the last candidate's payload for the
+    // same search (equality on `search`, not `key`: the creator mode's search
+    // follows the anchor's own artist). HOP_CAP automatic looks per side per
+    // post, then the tile says it stopped and the next press looks again.
+    const HOP_CAP = 4;
+    // engineApplied: the engine's first apply has happened. flankFault: why the
+    // flanks cannot be drawn, if they cannot. swapping: the 260ms navigation
+    // swap, which redraws at its end. flankFor: what the extensions belong to,
+    // the post and its runs (FourierFlanks.runsKey) -- not the payload object,
+    // which a vote's re-read replaces with an identical one. ext: "search|side"
+    // -> { list, more, hops, looking, failed, dead }, what looking further
+    // found; extCandidates: their entries by id. flankStates: "key|side" -> the
+    // drawn state, which navigate() obeys. poolEls: the pool's elements, by
+    // candidate id and attributes. statusSide: the side the status line is
+    // about, while it is up (tellStatus).
+    let engineApplied = false, flankFault = "", swapping = false, flankFor = null;
+    let ext = new Map(), extCandidates = {}, flankStates = {}, poolEls = new Map();
+    let statusSide = "", statusTimer = null;
+    const candidateOf = (id) => ((cur && cur.candidates) || {})[id] || extCandidates[id] || null;
+    const blacklistEngine = () => { const box = document.querySelector("#blacklist-box"); return box && box.blacklist; };
+
+    // One side's run: the payload's candidates plus whatever looking further
+    // found. The payload's lists are never edited in place -- the nav cache
+    // hands the same object back on a return visit.
+    function runFor(p, side) {
+      const key = p.search + "|" + side;
+      if (!ext.has(key)) ext.set(key, { list: [], more: null, hops: 0, looking: false, failed: "", dead: false });
+      const e = ext.get(key);
+      return {
+        ext: e,
+        list: (p[side + "_candidates"] || []).concat(e.list),
+        more: e.more === null ? Boolean(p[side + "_more"]) : e.more,
+      };
+    }
+
+    function applyBlacklistAttrs(el, bl) {
+      Object.keys(bl).forEach(k => el.setAttribute(k, bl[k] == null ? "" : bl[k]));
+    }
+
+    // Bring the pool in line with every run of every mode, touching only what
+    // changed: one element per distinct candidate, keyed by its id AND its
+    // attributes (a re-read can bring new tags). Returns { added, removed },
+    // or null when nothing changed. The engine is told only the difference
+    // (Blacklist#adopt): a rescan rebuilds and re-matches every post on the
+    // page against every block, and a navigation changes the pool every time
+    // -- at 1000 blocks that was 65-150 ms on the frame the swap animates.
+    function syncFlankPool() {
+      const pool = region("flank-pool");
+      if (!pool) return null;
+      const want = new Map();
+      presets().forEach(p => ["prev", "next"].forEach(side => runFor(p, side).list.forEach(c => {
+        const bl = (candidateOf(c.id) || {}).blacklist;
+        if (bl) want.set(c.id + ":" + JSON.stringify(bl), bl);
+      })));
+      const removed = [...poolEls.keys()].filter(sig => !want.has(sig)).map(sig => {
+        const el = poolEls.get(sig);
+        poolEls.delete(sig);
+        el.remove();
+        return el;
+      });
+      const added = [...want.keys()].filter(sig => !poolEls.has(sig)).map(sig => {
+        const el = document.createElement("span");
+        el.className = "mod-flank-poolitem";
+        applyBlacklistAttrs(el, want.get(sig));
+        poolEls.set(sig, el);
+        pool.append(el);
+        return el;
+      });
+      return (added.length || removed.length) ? { added, removed } : null;
+    }
+
+    // The state a side is drawn in, which is also where its arrow goes.
+    function sideState(p, side, marked) {
+      if (!engineApplied) return { kind: "fault", why: flankFault };
+      if (p.unavailable) return { kind: "unavailable" };
+      const r = runFor(p, side);
+      const list = r.list.filter(c => candidateOf(c.id));
+      const st = window.FourierFlanks.flankState(list, r.more, marked, HOP_CAP - r.ext.hops);
+      if (st.kind === "pick") { st.ref = list[st.index]; return st; }
+      // A look further that failed matters only while nothing is allowed: a
+      // block lifted afterwards brings the pick back.
+      if (r.ext.failed) return { kind: "failed", why: r.ext.failed };
+      if (st.kind === "blocked-more") {
+        st.looking = r.ext.looking;
+        // Nothing to look further from (the server tops a side up past posts
+        // this account may not open, but only so far), or a look that came
+        // back with nothing new: past here is not this account's to walk.
+        if (!list.length || r.ext.dead) return { kind: "no-access" };
+      }
+      return st;
+    }
+
     function flankRow(p, i, side) {
-      const nb = p[side], empty = !nb;
-      const inner = (nb && nb.thumb) ? '<img src="' + esc(nb.thumb) + '" alt="" loading="lazy">'
-                                     : trailCapHTML(side);
-      const title = empty ? p.label + " -- " + (side === "prev" ? "start of trail" : "end of trail") : p.label;
-      // A deleted (or jailed) neighbour is blurred, as the gallery grid blurs
-      // it; the reveal belongs to the centre, one image at a time.
-      const spoiler = nb && nb.deleted ? " is-spoiler" : "";
-      return '<a class="mod-sortrow' + (empty ? " is-empty" : "") + spoiler + '" data-i="' + i + '" data-side="' + side + '" href="' + esc((nb && nb.url) || "#") + '" title="' + esc(title + (spoiler ? " (deleted)" : "")) + '">' + inner + '<span class="mod-sortrow-tag">' + esc(p.label) + "</span></a>";
+      const st = flankStates[p.key + "|" + side] || { kind: "fault" };
+      const open = (cls, href, title, inner) => '<a class="mod-sortrow' + cls + '" data-i="' + i + '" data-side="' + side + '" href="' + esc(href) + '" title="' + esc(title) + '">' + inner + '<span class="mod-sortrow-tag">' + esc(p.label) + "</span></a>";
+      if (st.kind === "pick") {
+        const c = candidateOf(st.ref.id) || {};
+        // A deleted (or jailed) neighbour is blurred, as the gallery grid
+        // blurs it; the reveal belongs to the centre, one image at a time.
+        const spoiler = c.deleted ? " is-spoiler" : "";
+        const skipped = st.skipped ? " -- " + st.skipped + " blocked " + (st.skipped === 1 ? "post" : "posts") + " skipped" : "";
+        const inner = c.thumb ? '<img src="' + esc(c.thumb) + '" alt="" loading="lazy">' : capHTML(side, side === "prev" ? "start" : "end");
+        return open(spoiler, st.ref.url || "#", p.label + skipped + (spoiler ? " (deleted)" : ""), inner);
+      }
+      if (st.kind === "end") return open(" is-empty", "#", p.label + " -- " + (side === "prev" ? "start of trail" : "end of trail"), capHTML(side, side === "prev" ? "start" : "end"));
+      // Only the active mode looks further; another mode's blocked side says
+      // so until it is chosen.
+      const waiting = st.kind === "blocked-more" && !st.looking && st.canHop && i !== activeIndex();
+      const label = st.kind === "blocked-more" && (st.looking || st.canHop) && !waiting ? "looking"
+        : (st.kind === "blocked-end" || st.kind === "blocked-more") ? "blocked"
+          : st.kind === "no-access" ? "hidden" : "error";
+      const words = waiting ? st.blocked + " blocked so far; choose this mode to look further." : window.FourierFlanks.flankWords(st, side);
+      return open(" is-blocked", "#", p.label + " -- " + words, capHTML("blocked", label));
+    }
+
+    // Draw every mode's flanks from the marks. Called on every engine apply;
+    // never calls rescan() itself, or it would answer its own event forever.
+    function drawFlanks() {
+      if (!root.isConnected) return;
+      if (swapping) return; // the swap's own renderAll redraws
+      if (engineApplied || flankFault) {
+        const marked = new Set(Array.from(root.querySelectorAll(".mod-flank-poolitem.blacklisted-active"), el => el.dataset.id));
+        flankStates = {};
+        presets().forEach(p => ["prev", "next"].forEach(side => { flankStates[p.key + "|" + side] = sideState(p, side, marked); }));
+        region("flank-prev").innerHTML = presets().map((p, i) => flankRow(p, i, "prev")).join("");
+        region("flank-next").innerHTML = presets().map((p, i) => flankRow(p, i, "next")).join("");
+        if (statusSide) showStatus();
+      }
+      applyRanks();
+      if (engineApplied) preloadNeighbours();
     }
     function renderFlanks() {
-      region("flank-prev").innerHTML = presets().map((p, i) => flankRow(p, i, "prev")).join("");
-      region("flank-next").innerHTML = presets().map((p, i) => flankRow(p, i, "next")).join("");
-      applyRanks();
+      const key = window.FourierFlanks.runsKey(cur);
+      if (flankFor !== key) { flankFor = key; ext = new Map(); extCandidates = {}; }
+      const change = syncFlankPool();
+      const engine = blacklistEngine();
+      if (change && engine) engine.adopt(change.added, change.removed); // its announce draws
+      else drawFlanks();
+    }
+
+    // Look further along one side: the last candidate's payload, same search.
+    function lookFurther(p, side) {
+      const r = runFor(p, side);
+      const list = r.list.filter(c => candidateOf(c.id));
+      const anchor = list[list.length - 1];
+      if (r.ext.looking || r.ext.failed || r.ext.dead || !anchor) return;
+      const forKey = flankFor, selfId = cur.id;
+      r.ext.looking = true;
+      r.ext.hops += 1;
+      drawFlanks();
+      fetchPayload(anchor.id, p.search).then(q => {
+        const match = (q.presets || []).find(x => x.search === p.search);
+        if (!match) throw new Error("no " + p.label + " mode in post #" + anchor.id + "'s answer");
+        const found = window.FourierFlanks.extendRun(r.list, selfId, match, side);
+        r.ext.list = r.ext.list.concat(found.added);
+        r.ext.more = found.more;
+        r.ext.dead = found.dead;
+        Object.assign(extCandidates, q.candidates || {});
+      }).catch(why => {
+        r.ext.failed = typeof why === "number" ? "HTTP " + why : String((why && why.message) || why);
+        console.error("post view: could not look further " + side + " in mode " + p.label + " from post #" + anchor.id + " (" + r.ext.failed + ") -- the tile says so; reload the page to retry");
+      }).finally(() => {
+        r.ext.looking = false;
+        if (flankFor === forKey) renderFlanks();
+      });
+    }
+
+    // The one message a keyboard, wheel or swipe press against a wall gets --
+    // and the only one at phone width, where the flank columns are hidden. It
+    // follows the side it was asked about: every draw rewrites it from that
+    // side's state (a look further finishing, a block lifted), and takes it
+    // down once the side has a pick again, as a navigation or a mode change
+    // does. Otherwise it stays STATUS_MS from the last press: long enough to
+    // read its fix.
+    const STATUS_MS = 8000;
+    function tellStatus(side) {
+      statusSide = side;
+      clearTimeout(statusTimer);
+      statusTimer = setTimeout(hideStatus, STATUS_MS);
+      showStatus();
+    }
+    function showStatus() {
+      const el = region("flank-status"), st = flankStates[active().key + "|" + statusSide];
+      const words = st ? window.FourierFlanks.flankWords(st, statusSide) : "";
+      if (!el || !words) { hideStatus(); return; }
+      el.textContent = words;
+      el.classList.add("is-shown");
+    }
+    function hideStatus() {
+      statusSide = "";
+      clearTimeout(statusTimer);
+      const el = region("flank-status");
+      if (el) el.classList.remove("is-shown");
     }
     // The clear-history control shows only on random, with the trail's size.
     function renderRandomClear() {
@@ -519,7 +725,7 @@
     function renderBlacklist() {
       const bl = cur.blacklist, el = region("center");
       if (!bl || !el) return;
-      Object.keys(bl).forEach(k => el.setAttribute(k, bl[k] == null ? "" : bl[k]));
+      applyBlacklistAttrs(el, bl);
       if (el.post) { el.post.applyRules(); el.post.update(); }
     }
     // Generation data. The server decides who gets it (the post's creator)
@@ -541,7 +747,9 @@
           fields.map(f => '<div class="mod-gen-field"><div class="mod-gen-key">' + esc(f[0]) + '</div><pre class="mod-gen-text">' + esc(f[1]) + "</pre></div>").join("") +
         "</details>" : "";
     }
-    function renderAll() { renderMeta(); renderNotices(); renderCenter(); renderFlanks(); renderTags(); renderGeneration(); renderActions(); renderComments(); renderBlacklist(); sizeStage(); }
+    // renderBlacklist before renderFlanks: a flank redraw may rescan, and the
+    // rescan must mark the centre from the new post's attributes.
+    function renderAll() { renderMeta(); renderNotices(); renderCenter(); renderBlacklist(); renderFlanks(); renderTags(); renderGeneration(); renderActions(); renderComments(); sizeStage(); }
 
     // ---- image sizing (the image_cap setting) ----
     // "Fill the page to the exact point the collapsed Tags panel is visible."
@@ -699,15 +907,24 @@
         method: "DELETE",
         headers: { "X-CSRF-Token": csrfToken(), Accept: "application/json" },
         credentials: "same-origin",
-      }).then(() => { cache.clear(); return fetchPayload(cur.id, search); })
-        .then(p => { cur = p; renderFlanks(); renderActions(); renderMeta(); preloadNeighbours(); })
+      }).then(() => { payloads.clear(); return fetchPayload(cur.id, search); })
+        // flankFor = null: the trail was reseeded, so what looking further
+        // found along random belongs to a trail that is gone.
+        .then(p => { cur = p; flankFor = null; renderFlanks(); renderActions(); renderMeta(); preloadNeighbours(); })
         .catch(() => {})
         .finally(() => { btn.disabled = false; });
     }
+    // The re-read after a write. Its own request, never one sent before the
+    // write (FourierPayloads); and its answer is dropped when a later re-read
+    // overtook it or the viewer has moved on to another post.
     function refreshCurrent() {
-      const search = (active() || {}).search || "";
-      cache.delete(cur.id + "|" + search);
-      return fetchPayload(cur.id, search).then(p => { cur = p; renderActions(); renderMeta(); });
+      const url = endpointFor(cur.id, (active() || {}).search || "");
+      return payloads.refresh(url).then(p => {
+        if (!payloads.current(url, p) || p.id !== cur.id) return;
+        // The flanks too: a fresh payload can name other candidates (random's
+        // frontier rolls again), and the thumbnail must stay the destination.
+        cur = p; renderActions(); renderMeta(); renderFlanks();
+      });
     }
     function vote(dir) {
       const sc = cur.score || {};
@@ -726,13 +943,12 @@
 
     // ---- data + preloading ----
     const endpointFor = (id, search) => BASE + "/" + id + "/modulation.json?q=" + encodeURIComponent(search || "");
-    function fetchPayload(id, search) {
-      const key = id + "|" + (search || "");
-      if (cache.has(key)) return Promise.resolve(cache.get(key));
-      return fetch(endpointFor(id, search), { headers: { Accept: "application/json" } })
-        .then(r => r.ok ? r.json() : Promise.reject(r.status))
-        .then(p => { cache.set(key, p); return p; });
-    }
+    // Every payload fetched, by endpoint, with a request in flight shared
+    // (modulation_payloads.js says when it is not).
+    if (!window.FourierPayloads) throw new Error("post view: window.FourierPayloads is missing, so nothing here can load -- reload; if it persists the application pack (modulation_payloads.js) failed to build");
+    const payloads = window.FourierPayloads.payloadStore(url => fetch(url, { headers: { Accept: "application/json" } })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status)));
+    function fetchPayload(id, search) { return payloads.get(endpointFor(id, search)); }
     // Q2's log: an admin shown a post its creator hid from them is logged
     // when the viewer SHOWS it, not when its payload is fetched (fetches run
     // ahead for the neighbours and again after a vote). HEAD: the server
@@ -740,27 +956,48 @@
     function noteOpened(p, search) {
       if (p && p.logs_admin_view) fetch(endpointFor(p.id, search) + "&opened=1", { method: "HEAD", credentials: "same-origin" }).catch(() => {});
     }
+    // The active mode's picks, payload and image, so the arrow is instant --
+    // and a side whose candidates are all blocked starts looking further.
+    // Idempotent: the payload cache answers a repeat.
     function preloadNeighbours() {
-      const a = active(); if (!a) return;
+      const a = active(); if (!a.key) return;
       ["prev", "next"].forEach(side => {
-        const nb = a[side]; if (!nb) return;
-        fetchPayload(nb.id, a.search).then(p => { if (p.media && p.media.src) { const im = new Image(); im.src = p.media.src; } }).catch(() => {});
+        const st = flankStates[a.key + "|" + side];
+        if (!st) return;
+        if (st.kind === "blocked-more" && st.canHop && !st.looking) { lookFurther(a, side); return; }
+        if (st.kind !== "pick") return;
+        fetchPayload(st.ref.id, a.search).then(p => { if (p.media && p.media.src) { const im = new Image(); im.src = p.media.src; } }).catch(() => {});
       });
     }
 
     // ---- interactions ----
-    function setSort(i) { const ps = presets(); if (!ps.length) return; activeKey = ps[((i % ps.length) + ps.length) % ps.length].key; applyRanks(); preloadNeighbours(); }
+    function setSort(i) { const ps = presets(); if (!ps.length) return; activeKey = ps[((i % ps.length) + ps.length) % ps.length].key; hideStatus(); applyRanks(); preloadNeighbours(); }
     function swapSort(d) { setSort(activeIndex() + d); }
-    function selectSort(i) { if (presets()[i]) { activeKey = presets()[i].key; applyRanks(); preloadNeighbours(); } }
+    function selectSort(i) { if (presets()[i]) { activeKey = presets()[i].key; hideStatus(); applyRanks(); preloadNeighbours(); } }
 
+    // Every way of moving -- arrows, swipe, wheel, a flank click -- comes
+    // here, and goes where the drawn thumbnail says: the side's pick, never a
+    // blocked candidate. Decided from the data and the marks, not the tile,
+    // because at phone width the tiles are not drawn and a swipe still moves.
     function navigate(side) {
       if (busy) return;
-      const a = active(), nb = a && a[side];
-      if (!nb) return;
+      const a = active();
+      if (!a.key) return;
+      const st = flankStates[a.key + "|" + side] || { kind: "fault" };
+      if (st.kind !== "pick") {
+        if (st.kind === "end") return;
+        if (st.kind === "blocked-more" && !st.looking && !st.canHop) lookFurther(a, side);
+        tellStatus(side);
+        return;
+      }
+      hideStatus();
+      const nb = st.ref;
       busy = true;
       fetchPayload(nb.id, a.search).then(p => {
         root.classList.add(side === "next" ? "is-nav-next" : "is-nav-prev"); // shrink centre into slot, neighbour grows in
+        swapping = true;
         setTimeout(() => {
+          swapping = false;
           cur = p;
           activeKey = p.active_key || activeKey;
           revealed = false;
@@ -857,7 +1094,7 @@
         body: body.toString(),
       }).then(r => {
         if (!r.ok) return r.json().then(j => Promise.reject(j.error || j.message || r.status), () => Promise.reject(r.status));
-        cache.clear();
+        payloads.clear();
         return fetchPayload(cur.id, (active() || {}).search);
       }).then(p => {
         cur = p; editBusy = false; editError = ""; renderAll();
@@ -907,7 +1144,7 @@
         if (!r.ok) return Promise.reject(r.status);
         // The payload, not the post JSON: buckets, lamps and categories all
         // come from the component, and this is the only thing that has them.
-        cache.clear();
+        payloads.clear();
         return fetchPayload(cur.id, (active() || {}).search);
       }).then(p => {
         cur = p; editBusy = false; editError = ""; editDraft = ""; editFocus = true; renderAll();
@@ -1012,9 +1249,30 @@
       fetchPayload(+m[1], search).then(p => { cur = p; activeKey = p.active_key || activeKey; revealed = false; renderAll(); noteOpened(p, search); }).catch(() => {});
     });
 
+    // The flanks draw on the engine's applies (see "the flanks" above). A
+    // wait needs a deadline: no apply within 5 s and the tiles say so, loud,
+    // rather than sitting empty. No engine on the page at all, and nothing
+    // is drawn -- a blocked post must never be shown by a page that cannot
+    // apply the list -- and the console names the fix.
+    document.addEventListener("danbooru:blacklist-applied", () => {
+      if (!root.isConnected) return;
+      engineApplied = true;
+      flankFault = "";
+      drawFlanks();
+    });
+    if (!document.querySelector("#blacklist-box")) {
+      if (presets().length) console.error("post view: this page has no blocklist engine (#blacklist-box), so the flank thumbnails are not drawn -- render BlocklistComponent in the page's header (ModulationNavbarComponent)");
+    } else {
+      setTimeout(() => {
+        if (engineApplied || !presets().length || !root.isConnected) return;
+        flankFault = "The blocklist did not load, so the neighbours are not shown. Fix: reload the page; if it persists, the application pack failed to load.";
+        console.error("post view: no blocklist apply within 5 s of load, so the flank thumbnails are withheld -- reload; if it persists the application pack (blacklists.js) failed to start");
+        drawFlanks();
+      }, 5000);
+    }
+
     history.replaceState({ modId: cur.id }, "", cur.url);
     renderAll();
-    preloadNeighbours();
   })();
   </script>
 </article>
