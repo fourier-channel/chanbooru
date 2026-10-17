@@ -207,13 +207,15 @@ class DeletedPostVisibilityTest < ActionDispatch::IntegrationTest
       @gone.update!(is_deleted: true)
     end
 
-    should "not be counted, not merely undrawn" do
-      # The render-layer fix could not do this. A page reporting more results
-      # than it draws has told you the missing one exists.
+    # Left out of the results; the count is the tag's own (operator,
+    # 2026-10-17: "The tag count doesn't need to be the same and it also
+    # doesn't need to be different. It's a non issue altogether."; see
+    # PostQuery#estimated_count).
+    should "be left out of the results, with the tag's own count" do
       set = PostSets::Post.new("landscape", 1, 20, user: create(:user))
 
       assert_equal([@live.id], set.posts.map(&:id))
-      assert_equal(1, set.post_count)
+      assert_equal(Tag.find_by_name("landscape").post_count, set.post_count)
     end
 
     should "be counted for an admin" do

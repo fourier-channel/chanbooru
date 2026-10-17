@@ -52,7 +52,10 @@ class PostQuery
     post_query.with_implicit_metatags.posts
   end
 
-  def initialize(search_or_ast, current_user: User.anonymous, tag_limit: nil, safe_mode: false, implicit: false)
+  # @param estimated [AST, nil] for a query #with_implicit_metatags made: the
+  #   search as typed, with safe mode's terms but none of the viewer's, which
+  #   #estimated_count reads (see there).
+  def initialize(search_or_ast, current_user: User.anonymous, tag_limit: nil, safe_mode: false, implicit: false, estimated: nil)
     if search_or_ast.is_a?(AST)
       @ast = search_or_ast
     else
@@ -63,6 +66,7 @@ class PostQuery
     @tag_limit = tag_limit
     @safe_mode = safe_mode
     @implicit = implicit
+    @estimated = estimated
   end
 
   # Build a new PostQuery from the given AST and the current settings.
@@ -224,7 +228,35 @@ class PostQuery
   # brings gate 3's row filter with it (#matrix_rooms_condition).
   def with_implicit_metatags
     query = implicit_metatags.empty? ? ast : AST.new(:and, [ast, *implicit_metatags])
-    PostQuery.new(query, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: true)
+    estimated = safe_mode_metatags.empty? ? counted_ast : AST.new(:and, [counted_ast, *safe_mode_metatags])
+    PostQuery.new(query, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: true, estimated: estimated)
+  end
+
+  # Orders that only re-sort the rows (Post.order_matches). An order that can
+  # drop rows is not here: artcomm inner-joins the commentaries, and the count
+  # columns join their stats.
+  REORDER_ONLY_ORDERS = %w[
+    id id_asc id_desc md5 md5_asc md5_desc score score_asc score_desc
+    favcount favcount_asc created_at created_at_asc created_at_desc
+    change change_asc change_desc mpixels mpixels_asc mpixels_desc
+    filesize filesize_asc filesize_desc tagcount tagcount_asc tagcount_desc
+    comment comment_asc comm comm_asc comment_bumped comment_bumped_asc
+    note note_asc portrait landscape random
+  ].freeze
+
+  # The search with its re-sort-only order: terms taken out, for the count:
+  # the gallery appends the viewer's remembered sort to every search
+  # (PostsController#apply_modulation_panel_memory), and "landscape
+  # order:id_desc" is no longer one tag, so no estimate applied and every
+  # such count was an exact count over the whole table. order: is only ever
+  # a top-level term (#validate_metatags! refuses it negated or OR-ed).
+  def counted_ast
+    reorder_only = ->(node) { node.metatag? && node.name == "order" && node.value.to_s.downcase.in?(REORDER_ONLY_ORDERS) }
+    return AST.all if reorder_only.call(ast)
+    return ast unless ast.and?
+
+    kept = ast.children.reject(&reorder_only)
+    kept.empty? ? AST.all : AST.new(:and, kept).trim
   end
 
   # GATE 3 FOR POSTS (fourier-basis docs/design/GATE3_MATRIX_POSTS.md;
@@ -398,8 +430,30 @@ class PostQuery
     # @param timeout [Integer] The maximum amount of time to spend calculating the count.
     # @param exact_count_threshold [Integer] If the estimate is below this threshold, return an exact count instead.
     # @return [Integer, nil] The estimated post count, or nil if we can't compute a good estimate.
+    #
+    # Fork: the estimates read the search AS TYPED (@estimated), not with the
+    # terms the viewer's situation adds (#implicit_metatags but safe mode's).
+    # Counts are not a visibility surface (operator, 2026-10-17: "The tag
+    # count doesn't need to be the same and it also doesn't need to be
+    # different. It's a non issue altogether."), and with those terms no
+    # search was ever one tag or blank, so every count of a popular search
+    # was an exact count over the whole posts table: past the 1 s count
+    # timeout, the page lost its count (production 2026-10-15..17: 263 of
+    # 273 statement timeouts). A search the estimates do not cover -- id:,
+    # md5:, several tags -- falls through to the exact count WITH the
+    # viewer's terms, so a count never confirms one hidden post; and a tag
+    # name hidden from the viewer counts 0, as a name never used does.
     def estimated_count(timeout = 1_000, exact_count_threshold: 20_000)
-      if is_empty_search? || is_metatag?(:rating)
+      return estimated_query.estimated_count(timeout, exact_count_threshold: exact_count_threshold) if estimated_query
+
+      if is_simple_tag? && tag_name.in?(Tag.hidden_names_for(current_user, by_creator: false))
+        # A gated name below Gold, for a viewer let in to some of its posts
+        # (their own uploads, a creator's allow; #gated_metatags): counted
+        # exactly over what they may see, never 0 beside rows they can see.
+        (tag_name.in?(Danbooru.config.restricted_tags) && Post.gated_allowed_ids(current_user).any?) ? nil : 0
+      elsif is_simple_tag? && CreatorVisibility.hidden_tag_names_among(current_user, [tag_name]).any?
+        0
+      elsif is_empty_search? || is_metatag?(:rating)
         # If there's a small number of posts, then the estimate may be noticeably off if the table hasn't been vacuumed
         # recently. Return the exact number of posts because calculating it is fast enough anyway.
         if estimated_row_count < exact_count_threshold
@@ -431,6 +485,12 @@ class PostQuery
           nil
         end
       end
+    end
+
+    # The search as typed, for #estimated_count; nil on a query that is
+    # already that.
+    memoize def estimated_query
+      PostQuery.new(@estimated, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode) if @estimated
     end
 
     # Estimate the count by parsing the Postgres EXPLAIN output.

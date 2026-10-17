@@ -178,13 +178,17 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
         end
       end
 
-      should "not find them in a search, or in its count" do
+      # The count of an ordinary tag is the tag's own (operator, 2026-10-17;
+      # PostQuery#estimated_count); a banished NAME counts 0, as a name never
+      # used does.
+      should "not find them in a search, and count their banished name 0" do
         ids = search_ids(@admin, "landscape")
 
         assert_includes ids, @plain.id
         assert_not_includes ids, @released.id
         assert_not_includes ids, @half_jailed.id
-        assert_equal 2, PostSets::Post.new("landscape", 1, 20, user: @admin).post_count, "plain and the ordinary deletion"
+        assert_equal Tag.find_by_name("landscape").post_count, PostSets::Post.new("landscape", 1, 20, user: @admin).post_count
+        assert_equal 0, PostSets::Post.new("gore", 1, 20, user: @admin).post_count
       end
 
       should "not find them searching status:deleted, while ordinary deletions still show" do

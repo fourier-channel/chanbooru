@@ -110,7 +110,10 @@ class FlaggedTagVisibilityTest < ActionDispatch::IntegrationTest
       end
     end
 
-    should "be left out of listings, searches and counts, even searched by the tag" do
+    # The count of an ordinary tag is the tag's own (operator, 2026-10-17;
+    # PostQuery#estimated_count); the flagged NAME counts 0, as a name never
+    # used does.
+    should "be left out of listings and searches, even searched by the tag, and its name count 0" do
       below_admin.each do |who, user|
         ids = ids_for(user, tags: "landscape", limit: 100)
         assert_includes ids, @plain.id, who
@@ -118,7 +121,8 @@ class FlaggedTagVisibilityTest < ActionDispatch::IntegrationTest
         assert_empty ids_for(user, tags: SECRET), who
         assert_empty ids_for(user, tags: "id:#{@flagged.id}"), who
       end
-      assert_equal 1, PostSets::Post.new("landscape", 1, 20, user: @member).post_count
+      assert_equal Tag.find_by_name("landscape").post_count, PostSets::Post.new("landscape", 1, 20, user: @member).post_count
+      assert_equal 0, PostSets::Post.new(SECRET, 1, 20, user: @member).post_count
     end
 
     should "be seen whole by Admin and Owner level, and the system user" do

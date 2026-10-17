@@ -27,6 +27,18 @@ class RelatedTagCalculatorTest < ActiveSupport::TestCase
       end
     end
 
+    # A count of 0 is "no posts" (a hidden name counts 0; PostQuery#
+    # estimated_count): no related tags, not a division by it.
+    context "#frequent_tags_for_post_relation" do
+      should "return no tags for a count of zero, over posts that exist" do
+        create(:post, tag_string: "aaa bbb")
+        calc = RelatedTagCalculator.new(PostQuery.new("aaa"))
+
+        assert_not_empty calc.frequent_tags_for_post_relation(Post.all, 1)
+        assert_equal [], calc.frequent_tags_for_post_relation(Post.all, 0)
+      end
+    end
+
     context "#frequent_tags_for_search" do
       should "calculate the most frequent tags for a single tag search" do
         create(:post, tag_string: "aaa bbb ccc ddd")

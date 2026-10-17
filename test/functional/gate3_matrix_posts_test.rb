@@ -144,6 +144,14 @@ class Gate3MatrixPostsTest < ActionDispatch::IntegrationTest
       assert_equal 5, response.parsed_body.dig("counts", "posts")
     end
 
+    # Two terms are counted exactly, not estimated -- and still without the
+    # room filter (operator, 2026-10-15: counts stay as they are).
+    should "leave an exact count without the room filter too" do
+      joined("!elsewhere:41chan.net")
+      get_auth posts_counts_path(format: :json), @member, params: { tags: "gate3_tag -gate3_never_used" }, headers: verified
+      assert_equal 5, response.parsed_body.dig("counts", "posts")
+    end
+
     should "write the overlap inline, beside the tag condition, in one query" do
       joined("!art:41chan.net")
       art = MatrixRoom.find_by!(room_id: "!art:41chan.net").id

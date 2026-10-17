@@ -1743,7 +1743,10 @@ class PostQueryBuilderTest < ActiveSupport::TestCase
     context "for a single metatag" do
       should "return the correct cached count" do
         build(:tag, name: "score:42", post_count: -100).save(validate: false)
-        Cache.put("post-count:score:42", 100)
+        # Fork: an exact count is keyed with the terms the viewer's situation
+        # adds (PostQuery#implicit_metatags), so one viewer's count is never
+        # served to another; seed the key the count actually uses.
+        Cache.put(PostQuery.normalize("score:42").with_implicit_metatags.count_cache_key, 100)
         assert_fast_count(100, "score:42")
       end
 
@@ -1794,7 +1797,9 @@ class PostQueryBuilderTest < ActiveSupport::TestCase
 
     context "for a multi-tag search" do
       should "return the cached count, if it exists" do
-        Cache.put("post-count:aaa score:42", 100)
+        # Fork: keyed with the viewer's implicit terms (see "for a single
+        # metatag" above).
+        Cache.put(PostQuery.normalize("aaa score:42").with_implicit_metatags.count_cache_key, 100)
         assert_fast_count(100, "aaa score:42")
       end
 

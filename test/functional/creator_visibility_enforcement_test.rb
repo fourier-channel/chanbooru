@@ -8,8 +8,10 @@ require "test_helper"
 #
 #   NARROW -- a post the creator did not let this viewer see does not exist
 #   for them, exactly as gate 1 means for a signed-out visitor: its page, its
-#   JSON, the md5 lookup, search results, the count, the neighbours, the
-#   preview strip and the media gate.
+#   JSON, the md5 lookup, search results, the neighbours, the preview strip
+#   and the media gate. Not a tag's count: that is the tag's own (operator,
+#   2026-10-17: "It's a non issue altogether"; PostQuery#estimated_count),
+#   while a count of one post (id:) still answers 0.
 #   WIDEN -- an explicit allow lets a viewer below Gold past gate 1
 #   (hidden_as_gated?): to the gated post itself, which below Gold does not
 #   otherwise exist (operator, 2026-10-13: "the named-creator-allow should
@@ -139,15 +141,15 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
       end
     end
 
-    should "leave it out of search results and the count, even searched for by id" do
+    should "leave it out of search results, even searched for by id, and count it 0 by id" do
       assert_equal [@plain.id], ids_for(@stranger, "cvtest")
       assert_equal [@gated.id, @grouped.id, @plain.id].sort, ids_for(@fan, "cvtest").sort
       assert_equal [@closed.id, @plain.id].sort, ids_for(@named, "cvtest").sort
       assert_empty ids_for(@stranger, "id:#{@closed.id}")
-      assert_equal 1, count_for(@stranger, "cvtest")
-      assert_equal 3, count_for(@fan, "cvtest")
+      tag_count = Tag.find_by_name("cvtest").post_count
+      [@stranger, @fan, @admin].each { |user| assert_equal tag_count, count_for(user, "cvtest"), name_of(user) }
       assert_equal 0, count_for(@stranger, "id:#{@grouped.id}")
-      assert_equal 4, count_for(@admin, "cvtest")
+      assert_equal 1, count_for(@fan, "id:#{@grouped.id}")
     end
 
     # One viewer's count is never served to another: the term is in the AST,
@@ -222,7 +224,7 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
     end
 
     # Gate 9's named allow, on one post: that viewer opens the gated post,
-    # finds it in search and the count, and is answered the md5 as the
+    # finds it in search and counts it by id, and is answered the md5 as the
     # reader; a member nobody named gets none of it.
     should "let a viewer the creator named open the post and its image" do
       named_gated = maple_post("cvtest #{GATED}")
@@ -231,12 +233,12 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
 
       assert_equal 200, status_for(named_gated, @named)
       assert_equal [@closed.id, named_gated.id, @plain.id].sort, ids_for(@named, "cvtest").sort
-      assert_equal 3, count_for(@named, "cvtest")
+      assert_equal 1, count_for(@named, "id:#{named_gated.id}")
       assert_equal [named_gated.md5], md5_ask(named_gated, @named)
       assert_equal named_gated.md5, md5_for(named_gated, @named)
 
       assert_equal 404, status_for(named_gated, @stranger)
-      assert_equal 1, count_for(@stranger, "cvtest")
+      assert_equal 0, count_for(@stranger, "id:#{named_gated.id}")
       assert_empty md5_ask(named_gated, @stranger)
     end
 
@@ -752,6 +754,15 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
       suggest = ->(user) { AutocompleteService.new("cv_secret", :tag_query, current_user: user, enabled: true).autocomplete_results.map(&:value) }
       assert_not_includes suggest.call(@stranger), "cv_secret_oc"
       assert_includes suggest.call(@named), "cv_secret_oc"
+    end
+
+    # A name found only on a post hidden from the viewer counts 0, as a name
+    # never used does (PostQuery#estimated_count's second guard).
+    should "count it 0 for whoever the post is hidden from" do
+      assert_equal 0, count_for(@stranger, "cv_secret_oc")
+      assert_equal 1, count_for(@named, "cv_secret_oc")
+      assert_equal 1, count_for(@admin, "cv_secret_oc")
+      assert_equal Tag.find_by_name("landscape").post_count, count_for(@stranger, "landscape"), "also on a post the viewer can see"
     end
 
     should "never be cached publicly for a signed-in viewer" do

@@ -8,11 +8,12 @@
 # are the numbers that distinguish them: how much is in here, how many tags it
 # has been sorted under, and how long ago the last one arrived.
 #
-# Everything is viewer-scoped. A count taken over posts the viewer may not see
-# would report the size of the gated set to exactly the people the gate exists
-# to keep it from -- not the images, but the volume, and volume is information.
-# So the numbers a stranger sees are the numbers of the archive as it exists FOR
-# them, which is also the honest thing to show: this is what is waiting.
+# The post count is the archive's total, the same for every viewer (operator,
+# 2026-10-17: counts are a non issue -- "People will understand that not every
+# post is going to be visible"). It was viewer-scoped, and the scoped count
+# over 1.2M posts took over 10 s, past the strip's timeout, so the strip showed
+# no post count at all. The tag count and the newest upload stay scoped to the
+# viewer: tag NAMES are hidden by their own rules (Tag.visible_to).
 class ArchivePulse
   # Long enough that a page load never pays for these, short enough that "four
   # minutes ago" is not a lie by the time it is read. The freshness of the
@@ -97,13 +98,10 @@ class ArchivePulse
 
   # An empty search, narrowed by the viewer's safe mode and the gating rules.
   #
-  # with_implicit_metatags is load-bearing and easy to leave off, because
-  # PostQuery.normalize alone LOOKS like it has already applied them -- the
-  # viewer is right there in the constructor. It has not. Without this the
-  # counts come back over the whole posts table: the strip told a stranger how
-  # many gated posts exist, which is not the pictures but is still the one
-  # number the gate is meant to withhold. The listing pages escape this only
-  # because PostQuery.search calls it for them.
+  # with_implicit_metatags is load-bearing for #newest_at and #cadence: without
+  # it the newest upload would be read off posts the viewer may not see. Its
+  # count estimates the search as typed (PostQuery#estimated_count), which is
+  # the archive's total.
   def post_query
     @post_query ||= PostQuery.normalize("", current_user: viewer).with_implicit_metatags
   end

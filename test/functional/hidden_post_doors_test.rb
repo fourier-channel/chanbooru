@@ -237,13 +237,18 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
     end
 
     context "post counts" do
-      should "not confirm a hidden post exists, or count jailed, deleted or rated posts it holds" do
+      # A count never confirms ONE hidden post, nor answers a search the
+      # estimates do not cover (status:deleted) with what the viewer cannot
+      # see. A tag's count is the tag's own (operator, 2026-10-17: "It's a
+      # non issue altogether"; PostQuery#estimated_count), so a tag found
+      # only on hidden posts counts them.
+      should "not confirm a hidden post exists by id, or count deleted ones by status" do
         viewers.each do |who, user|
           assert_equal 0, count_for("id:#{@jailed.id}", user), who
           assert_equal 0, count_for("id:#{@deleted.id}", user), who
           assert_equal 0, count_for(JAIL, user), who
           assert_equal 0, count_for("status:deleted", user), who
-          assert_equal 0, count_for("hidden_marker", user), who
+          assert_equal Tag.find_by_name("hidden_marker").post_count, count_for("hidden_marker", user), who
           assert_equal 1, count_for("id:#{@visible.id}", user), who
         end
       end

@@ -66,14 +66,17 @@ class GatedPostsTest < ActionDispatch::IntegrationTest
         assert_select ".modgal-card[data-id=?]", @gated.id.to_s, 0
       end
 
-      # Excluded from the QUERY, not filtered from the results -- otherwise the
-      # count, the paginator and "N posts" would all still betray it.
-      should "be absent from the post count" do
+      # Excluded from the QUERY, not filtered from the results, so the
+      # paginator and the neighbours never reach it. The count is the tag's
+      # own (operator, 2026-10-17: "The tag count doesn't need to be the same
+      # and it also doesn't need to be different. It's a non issue
+      # altogether."; PostQuery#estimated_count).
+      should "be absent from the results, with the tag's own count" do
         set = PostSets::Post.new("aaaa", 1, 100, user: User.anonymous)
 
         assert_not_includes(set.posts.map(&:id), @gated.id)
         assert_includes(set.posts.map(&:id), @plain.id)
-        assert_equal(1, set.post_count)
+        assert_equal(Tag.find_by_name("aaaa").post_count, set.post_count)
       end
 
       should "be absent from an empty search too" do
@@ -161,15 +164,16 @@ class GatedPostsTest < ActionDispatch::IntegrationTest
         end
       end
 
-      should "be absent from search results, the count and an empty search" do
+      should "be absent from search results and an empty search" do
         @below_gold.each do |who, user|
           set = PostSets::Post.new("aaaa", 1, 20, user: user)
           assert_equal [@plain.id], set.posts.map(&:id), who
-          assert_equal 1, set.post_count, who
           assert_not_includes PostSets::Post.new("", 1, 20, user: user).posts.map(&:id), @gated.id, who
 
+          # A tag's count is the tag's own (operator, 2026-10-17); one post
+          # is never confirmed by id.
           get_auth posts_counts_path(format: :json), user, params: { tags: "aaaa" }
-          assert_equal 1, response.parsed_body.dig("counts", "posts"), who
+          assert_equal Tag.find_by_name("aaaa").post_count, response.parsed_body.dig("counts", "posts"), who
           get_auth posts_counts_path(format: :json), user, params: { tags: "id:#{@gated.id}" }
           assert_equal 0, response.parsed_body.dig("counts", "posts"), who
         end

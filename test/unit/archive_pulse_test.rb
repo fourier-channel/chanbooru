@@ -3,10 +3,10 @@
 require "test_helper"
 
 # The pulse is what a locked-out visitor is given INSTEAD of the pictures, so
-# the two things that matter about it are that it says something (a strip
-# reading zero argues against the site it is advertising) and that it does not
-# say too much (a count taken over posts the viewer may not see reports the size
-# of the gated set to exactly the people it is hidden from).
+# the first thing that matters about it is that it says something (a strip
+# reading zero argues against the site it is advertising). Its post count is
+# the archive's total for every viewer (operator, 2026-10-17); the tag names and
+# the newest upload stay scoped to what the viewer may see.
 class ArchivePulseTest < ActiveSupport::TestCase
   def setup
     super
@@ -33,25 +33,26 @@ class ArchivePulseTest < ActiveSupport::TestCase
       assert_not_nil(pulse.newest_at)
     end
 
-    # Below Gold a gated post does not exist (gate 1, operator 2026-10-13),
-    # so its count is not reported either.
-    should "not report gated posts to a viewer below Gold" do
+    # The strip shows the archive's total to every viewer (operator,
+    # 2026-10-17, replacing "everything is viewer-scoped": counts are a non
+    # issue, and the scoped count over 1.2M posts took over 10 s, so the strip
+    # had shown no post count at all). Tag NAMES stay viewer-scoped (below).
+    should "report the archive's total to every viewer" do
       gated = Danbooru.config.restricted_tags.first
       skip "no gated tags configured" if gated.blank?
 
       create(:post, tag_string: "landscape")
       create(:post, tag_string: gated)
 
-      assert_equal(2, ArchivePulse.new(viewer: create(:gold_user)).posts)
-      assert_equal(1, ArchivePulse.new(viewer: create(:user)).posts)
-      assert_equal(1, ArchivePulse.new(viewer: create(:restricted_user)).posts)
-      assert_equal(1, ArchivePulse.new(viewer: User.anonymous).posts)
+      [create(:gold_user), create(:user), create(:restricted_user), User.anonymous].each do |viewer|
+        assert_equal(2, ArchivePulse.new(viewer: viewer).posts, viewer.level_string)
+      end
     end
 
     # Two Members at one level see different archives when a creator named
-    # one of them (gate 9): the named one's count must not be served to the
-    # other, nor the other's to them. Asked unnamed first, then named.
-    should "not serve a named member's count to one nobody named, or the reverse" do
+    # one of them (gate 9): the newest upload is read off what each may see,
+    # so one's must not be served to the other (ArchivePulse#hidden_digest).
+    should "not serve a named member's newest upload to one nobody named, or the reverse" do
       gated = Danbooru.config.restricted_tags.first
       skip "no gated tags configured" if gated.blank?
 
@@ -59,15 +60,15 @@ class ArchivePulseTest < ActiveSupport::TestCase
       tunnel = create(:builder_user, name: "tunnel")
       named = create(:user)
       gallery = CreatorGallery.create!(matrix_id: "@pulse:41chan.net", slug: "pulse-cv", user: create(:user))
-      create(:post, tag_string: "landscape")
-      post = as(tunnel) { create(:post, uploader: tunnel, tag_string: "landscape #{gated}") }
-      FourierPostCreator.create!(post: post, mxid: gallery.matrix_id, recorded_by: tunnel.id)
+      older = create(:post, tag_string: "landscape", created_at: 2.hours.ago)
+      newer = as(tunnel) { create(:post, uploader: tunnel, tag_string: "landscape #{gated}", created_at: 1.hour.ago) }
+      FourierPostCreator.create!(post: newer, mxid: gallery.matrix_id, recorded_by: tunnel.id)
       CreatorUserRule.set!(gallery, named, rule: "allow", by: gallery.user)
       CreatorVisibility.forget!
 
-      assert_equal(1, ArchivePulse.new(viewer: create(:user)).posts)
-      assert_equal(2, ArchivePulse.new(viewer: named).posts)
-      assert_equal(1, ArchivePulse.new(viewer: create(:user)).posts)
+      assert_equal(older.created_at.to_i, ArchivePulse.new(viewer: create(:user)).newest_at.to_i)
+      assert_equal(newer.created_at.to_i, ArchivePulse.new(viewer: named).newest_at.to_i)
+      assert_equal(older.created_at.to_i, ArchivePulse.new(viewer: create(:user)).newest_at.to_i)
     ensure
       CreatorPrefixes.reset!
     end
