@@ -35,9 +35,12 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
         create_list(:post, 2)
       end
 
+      # Fork: as a Member. Below full browsing (signed out, Restricted) a
+      # cursor page is refused like page 2 (PostSets::Post#enforce_browsing_cap!):
+      # "b123".to_i read as page 1 and walked past the cursor.
       context "when using sequential pagination" do
         should "work with page=a0" do
-          get posts_path(page: "a0")
+          get_auth posts_path(page: "a0"), @user
           assert_response :success
           assert_select ".post-preview", count: 3
           assert_select "a.paginator-prev", count: 0
@@ -45,7 +48,7 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
         end
 
         should "work with page=b0" do
-          get posts_path(page: "b0")
+          get_auth posts_path(page: "b0"), @user
           assert_response :success
           assert_select ".post-preview", count: 0
           assert_select "a.paginator-prev", count: 0
@@ -53,7 +56,7 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
         end
 
         should "work with page=b100000" do
-          get posts_path(page: "b100000")
+          get_auth posts_path(page: "b100000"), @user
           assert_response :success
           assert_select ".post-preview", count: 3
           assert_select "a.paginator-prev", count: 1
@@ -61,7 +64,7 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
         end
 
         should "work with page=a100000" do
-          get posts_path(page: "a100000")
+          get_auth posts_path(page: "a100000"), @user
           assert_response :success
           assert_select ".post-preview", count: 0
           assert_select "a.paginator-prev", count: 0

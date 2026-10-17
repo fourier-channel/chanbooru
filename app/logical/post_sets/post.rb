@@ -150,7 +150,10 @@ module PostSets
     # the numbered path it was written for.
     def enforce_browsing_cap!
       cap = current_user.post_page_limit
-      return if current_page <= cap
+      # A cursor page (b<id> / a<id>) has no number -- current_page reads it as
+      # 1 -- and walks past whatever id it names, so the one-page tier gets none.
+      cursor = page.to_s.match?(/\A[ab]\d+\z/i) && !current_user.can_browse_freely?
+      return if current_page <= cap && !cursor
 
       raise PaginationExtension::PaginationError, "You cannot go beyond page #{cap}."
     end

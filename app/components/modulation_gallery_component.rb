@@ -344,8 +344,14 @@ class ModulationGalleryComponent < ApplicationComponent
   # discovered as a missing button.
   def truncated?
     return false if can_browse?
+    return false if posts.size < post_set.per_page
 
-    post_count.to_i > posts.size
+    # A further post THIS viewer may see, not the count: a tag's count includes
+    # posts nobody at this level can see (operator, 2026-10-17), and a full
+    # account would not show those either. Unordered: whether a 21st row exists
+    # does not depend on the order, and order:random would sort every matching
+    # row (the page itself samples instead; PostQueryBuilder#paginated_posts).
+    post_set.normalized_query.posts.reorder(nil).offset(posts.size).limit(1).pluck(:id).any?
   end
 
   def page_url(page)

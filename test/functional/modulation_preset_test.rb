@@ -570,6 +570,79 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         assert_response :gone
       end
 
+      # The "full account" note says there is more to browse. It is decided
+      # by whether a further VISIBLE post exists, not by the count: a tag's
+      # count includes posts the viewer cannot see (operator, 2026-10-17), and
+      # a full account would not show those either.
+      context "the cut-off note" do
+        setup do
+          Danbooru.config.stubs(:restricted_browsing_per_page).returns(2)
+          Danbooru.config.stubs(:restricted_tags).returns(["capnote_gated"])
+          as(@member) { create_list(:post, 2, tag_string: "capnote") }
+          as(@member) { create(:post, tag_string: "capnote capnote_gated") }
+        end
+
+        should "not claim more to browse when the rest is hidden from everyone at this level" do
+          get_auth posts_path(preset: "modulation", tags: "capnote"), @restricted
+          assert_response :success
+          assert_select ".modgal-capped", 0
+        end
+
+        should "never show a full account the note" do
+          as(@member) { create(:post, tag_string: "capnote") }
+          get_auth posts_path(preset: "modulation", tags: "capnote", limit: 2), @member
+          assert_response :success
+          assert_select ".modgal-capped", 0
+        end
+
+        # The probe is unordered: under order:random the page samples, and a
+        # sorted probe would order every matching row.
+        should "decide it without the page's order" do
+          as(@member) { create(:post, tag_string: "capnote") }
+          probes = []
+          collect = ->(*, payload) { probes << payload[:sql] if payload[:sql].match?(/\ASELECT "posts"\."id" FROM/) && payload[:sql].include?("OFFSET") }
+          ActiveSupport::Notifications.subscribed(collect, "sql.active_record") do
+            get_auth posts_path(preset: "modulation", tags: "capnote order:random"), @restricted
+          end
+
+          assert_response :success
+          assert_select ".modgal-capped", 1
+          assert_not_empty probes, "fixture: the probe ran"
+          assert probes.none? { |sql| sql.include?("random()") }, probes.join("\n")
+        end
+
+        should "say so when a further visible post exists" do
+          as(@member) { create(:post, tag_string: "capnote") }
+          get_auth posts_path(preset: "modulation", tags: "capnote"), @restricted
+          assert_response :success
+          assert_select ".modgal-capped", 1
+        end
+      end
+
+      # A cursor page (b<id> / a<id>) reads as page 1 to a number check
+      # ("b123".to_i is 0), and the paginator then serves the posts past it:
+      # page 2 onward, for the tier that gets one page.
+      should "refuse a restricted viewer a cursor page" do
+        posts = as(@member) { create_list(:post, 3, tag_string: "cursor_probe") }
+
+        get_auth posts_path(preset: "modulation", tags: "cursor_probe", page: "b#{posts.last.id}"), @restricted
+        assert_response 410
+        get_auth posts_path(preset: "modulation", tags: "cursor_probe", page: "a#{posts.first.id}"), @restricted
+        assert_response 410
+
+        get_auth posts_path(preset: "modulation", tags: "cursor_probe", page: "b#{posts.last.id}"), @member
+        assert_response :success
+      end
+
+      should "refuse a signed-out viewer a cursor page" do
+        posts = as(@member) { create_list(:post, 3, tag_string: "cursor_probe") }
+
+        get posts_path(preset: "modulation", tags: "cursor_probe", page: "b#{posts.last.id}")
+        assert_response 410
+        get posts_path(format: :json, tags: "cursor_probe", page: "a#{posts.first.id}")
+        assert_response 410
+      end
+
       should "let a full account page past the first" do
         get_auth posts_path(preset: "modulation", page: 2), @member
 

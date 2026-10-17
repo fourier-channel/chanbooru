@@ -149,7 +149,7 @@
   <%# The cut-off, explained where it happens. %>
   <% if truncated? %>
     <p class="modgal-capped">
-      Showing the most recent <%= posts.size %> of <%= number_with_delimiter(post_count) %>.
+      Showing the most recent <%= posts.size %><% if post_count %> of <%= number_with_delimiter(post_count) %><% end %>.
       <span class="modgal-capped-note">Search is unlimited; browsing the full archive needs a full account.</span>
     </p>
   <% end %>
