@@ -94,15 +94,17 @@ class PostCountEstimateTest < ActiveSupport::TestCase
     assert_equal [], RelatedTagQuery.new(query: "gatedname", user: @member).related_tags.to_a
   end
 
-  # Safe mode's own terms stay in the estimate, so a safe-mode search is no
-  # longer one tag and is counted exactly over what safe mode shows.
-  should "keep safe mode's terms in the count" do
+  # Safe mode filters the posts, not the count: its rating:g made every
+  # safe-mode search -- the blank one included -- non-estimable, so each was
+  # an exact count over the table (production 2026-10-17, after the estimate
+  # shipped: the one timeout left was a safe-mode blank search's count).
+  should "estimate a safe-mode search as typed too" do
     create(:post, tag_string: "landscape", rating: "g")
     create(:post, tag_string: "landscape", rating: "e")
 
-    assert_equal 4, count("landscape", @gold)
-    assert_equal 1, count("landscape", @gold, safe_mode: true)
-    assert_equal 0, count("rating:e", @gold, safe_mode: true)
+    # Counted over what safe mode shows, these would be 1 and 1 (the g post).
+    assert_equal 4, count("landscape", @gold, safe_mode: true)
+    assert_equal Post.count, count("", @gold, safe_mode: true)
   end
 
   should "count a tag name hidden from the viewer as 0, as a name never used" do

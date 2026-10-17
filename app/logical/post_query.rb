@@ -53,8 +53,8 @@ class PostQuery
   end
 
   # @param estimated [AST, nil] for a query #with_implicit_metatags made: the
-  #   search as typed, with safe mode's terms but none of the viewer's, which
-  #   #estimated_count reads (see there).
+  #   search as typed, without the terms the viewer's situation adds (safe
+  #   mode's included), which #estimated_count reads (see there).
   def initialize(search_or_ast, current_user: User.anonymous, tag_limit: nil, safe_mode: false, implicit: false, estimated: nil)
     if search_or_ast.is_a?(AST)
       @ast = search_or_ast
@@ -228,8 +228,7 @@ class PostQuery
   # brings gate 3's row filter with it (#matrix_rooms_condition).
   def with_implicit_metatags
     query = implicit_metatags.empty? ? ast : AST.new(:and, [ast, *implicit_metatags])
-    estimated = safe_mode_metatags.empty? ? counted_ast : AST.new(:and, [counted_ast, *safe_mode_metatags])
-    PostQuery.new(query, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: true, estimated: estimated)
+    PostQuery.new(query, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: true, estimated: counted_ast)
   end
 
   # Orders that only re-sort the rows (Post.order_matches). An order that can
@@ -432,7 +431,8 @@ class PostQuery
     # @return [Integer, nil] The estimated post count, or nil if we can't compute a good estimate.
     #
     # Fork: the estimates read the search AS TYPED (@estimated), not with the
-    # terms the viewer's situation adds (#implicit_metatags but safe mode's).
+    # terms the viewer's situation adds (#implicit_metatags, safe mode's
+    # rating:g included: it made every safe-mode search non-estimable).
     # Counts are not a visibility surface (operator, 2026-10-17: "The tag
     # count doesn't need to be the same and it also doesn't need to be
     # different. It's a non issue altogether."), and with those terms no
