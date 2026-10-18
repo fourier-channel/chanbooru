@@ -46,7 +46,10 @@ class PoolVersion < ApplicationRecord
     ENV["ARCHIVE_DATABASE_URL"] || ENV["DATABASE_URL"]
   end
 
-  establish_connection database_url if enabled?
+  # Not under test: there DATABASE_URL is the dev container's own database,
+  # and the versions must come from the test database (each worker's), inside
+  # the test's transaction (ArchiveConnectionsTest).
+  establish_connection database_url if enabled? && !Rails.env.test?
 
   module SearchMethods
     def default_order
