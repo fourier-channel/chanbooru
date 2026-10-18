@@ -494,7 +494,7 @@ CREATE TABLE public.character_claims (
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
     creator_slug character varying,
-    CONSTRAINT character_claims_held_for_a_slug_or_a_gallery CHECK ((((creator_gallery_id IS NOT NULL) AND ((status)::text <> 'held'::text)) OR ((creator_gallery_id IS NULL) AND (creator_slug IS NOT NULL) AND ((status)::text = ANY ((ARRAY['held'::character varying, 'rejected'::character varying])::text[])))))
+    CONSTRAINT character_claims_held_for_a_slug_or_a_gallery CHECK ((((creator_gallery_id IS NOT NULL) AND ((status)::text <> 'held'::text)) OR ((creator_gallery_id IS NULL) AND (creator_slug IS NOT NULL) AND ((status)::text = ANY (ARRAY[('held'::character varying)::text, ('rejected'::character varying)::text])))))
 );
 
 
@@ -642,7 +642,7 @@ CREATE TABLE public.creator_galleries (
     promoted_at timestamp(6) without time zone,
     featured_at timestamp(6) without time zone,
     default_audience character varying,
-    CONSTRAINT creator_galleries_default_audience_known CHECK (((default_audience)::text = ANY ((ARRAY['public'::character varying, 'groups'::character varying, 'private'::character varying])::text[])))
+    CONSTRAINT creator_galleries_default_audience_known CHECK (((default_audience)::text = ANY (ARRAY[('public'::character varying)::text, ('groups'::character varying)::text, ('private'::character varying)::text])))
 );
 
 
@@ -742,7 +742,7 @@ CREATE TABLE public.creator_group_memberships (
     expires_at timestamp(6) without time zone,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
-    CONSTRAINT creator_group_memberships_source_known CHECK (((source)::text = ANY ((ARRAY['creator'::character varying, 'request'::character varying, 'automation'::character varying])::text[])))
+    CONSTRAINT creator_group_memberships_source_known CHECK (((source)::text = ANY (ARRAY[('creator'::character varying)::text, ('request'::character varying)::text, ('automation'::character varying)::text])))
 );
 
 
@@ -814,7 +814,7 @@ CREATE TABLE public.creator_join_requests (
     note character varying DEFAULT ''::character varying NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
-    CONSTRAINT creator_join_requests_status_known CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying])::text[])))
+    CONSTRAINT creator_join_requests_status_known CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('approved'::character varying)::text, ('rejected'::character varying)::text])))
 );
 
 
@@ -849,7 +849,7 @@ CREATE TABLE public.creator_post_audiences (
     updated_by_id bigint NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
-    CONSTRAINT creator_post_audiences_audience_known CHECK (((audience)::text = ANY ((ARRAY['inherit'::character varying, 'public'::character varying, 'groups'::character varying, 'private'::character varying])::text[])))
+    CONSTRAINT creator_post_audiences_audience_known CHECK (((audience)::text = ANY (ARRAY[('inherit'::character varying)::text, ('public'::character varying)::text, ('groups'::character varying)::text, ('private'::character varying)::text])))
 );
 
 
@@ -919,7 +919,7 @@ CREATE TABLE public.creator_user_rules (
     updated_by_id bigint NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
-    CONSTRAINT creator_user_rules_rule_known CHECK (((rule)::text = ANY ((ARRAY['allow'::character varying, 'block'::character varying])::text[])))
+    CONSTRAINT creator_user_rules_rule_known CHECK (((rule)::text = ANY (ARRAY[('allow'::character varying)::text, ('block'::character varying)::text])))
 );
 
 
@@ -1706,7 +1706,7 @@ CREATE TABLE public.matrix_placement_cursors (
     lap_started_at timestamp(6) without time zone,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
-    CONSTRAINT matrix_placement_cursors_stream CHECK (((stream)::text = ANY ((ARRAY['live'::character varying, 'sweep'::character varying])::text[])))
+    CONSTRAINT matrix_placement_cursors_stream CHECK (((stream)::text = ANY (ARRAY[('live'::character varying)::text, ('sweep'::character varying)::text])))
 );
 
 
@@ -2420,7 +2420,7 @@ CREATE TABLE public.post_mxcs (
     source character varying NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
-    CONSTRAINT post_mxcs_source CHECK (((source)::text = ANY ((ARRAY['post_source'::character varying, 'alias'::character varying])::text[])))
+    CONSTRAINT post_mxcs_source CHECK (((source)::text = ANY (ARRAY[('post_source'::character varying)::text, ('alias'::character varying)::text])))
 );
 
 
@@ -2879,7 +2879,7 @@ CREATE TABLE public.tag_quarantines (
     updated_at timestamp(6) without time zone NOT NULL,
     CONSTRAINT tag_quarantines_banished_has_a_time CHECK ((((state)::text <> 'banished'::text) OR (banished_at IS NOT NULL))),
     CONSTRAINT tag_quarantines_flagged_has_a_time CHECK ((((state)::text <> 'flagged'::text) OR (flagged_at IS NOT NULL))),
-    CONSTRAINT tag_quarantines_state CHECK (((state)::text = ANY ((ARRAY['flagged'::character varying, 'banished'::character varying])::text[])))
+    CONSTRAINT tag_quarantines_state CHECK (((state)::text = ANY (ARRAY[('flagged'::character varying)::text, ('banished'::character varying)::text])))
 );
 
 
