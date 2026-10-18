@@ -1,0 +1,644 @@
+#!/usr/bin/env node
+// Does the post view hold still while its next post loads? Measured, not guessed.
+//
+//   POSTVIEW_AUTH=login:api_key bin/postview-shift --ids 206,207,...,213
+//   ... --engine firefox --width 375
+//   ... --scenario double150,double300     (default: every scenario)
+//   ... --base <the dev app URL> --query pvshift
+//   ... --image-delay 800 --json-delay 900
+//
+// THE BUG IT GUARDS (operator, 2026-10-18): stepping through posts at normal
+// speed reached a post whose image had not loaded; the stage collapsed to its
+// frame's border, the flank thumbnails vanished with it, and the tag panel rode
+// up by the image's height and back down when the image landed.
+//
+// WHAT IT MEASURES, every animation frame, in the page: the tag panel's top,
+// the stage's height, the centre box, both flank columns and whether their
+// current tiles are painted (inside the column, visible), the centre image's
+// state -- and the times of each press, each commit (pushState), each centre
+// image load, and every image and payload request (from the proxy below).
+// NOT the browser's CLS score: a shift within 500 ms of input is excluded from
+// it (hadRecentInput), which is exactly when this one happens.
+//
+// THE PAGE is the dev app's Modulation post view, signed in by an explicit
+// Authorization header (the app never challenges, so httpCredentials sends
+// nothing). The browser goes through a proxy in this process: every image
+// under /data/ is answered after --image-delay ms with an SVG of the
+// rendition's true size (computed from the post's own dimensions and the URL's
+// variant) and production's edge cache header (private, a year, immutable),
+// every video with a stand-in clip, and every modulation.json is held
+// --json-delay ms and passed on. So this measures how the page behaves under
+// injected latency; it does not reproduce production's gate. A proxy rather
+// than Playwright's request routing, because routing turns the browser's cache
+// off, and whether a warmed picture is reused is one of the questions: a
+// request that reaches the proxy twice was fetched twice.
+//
+// THE POSTS: --ids is a run of consecutive posts matched by --query, oldest
+// first (seeded on dev by a throwaway script). The walk starts at the newest
+// and steps "next" (older), the search mode's direction under order:id_desc.
+//
+// SCENARIOS
+//   cold        a cold load: the stage must not change size when the image lands
+//   step        one press from rest
+//   double150   two presses 150 ms apart: both must commit, nothing may move
+//   double300   two presses 300 ms apart
+//   blocked     the centre blocked live: the stage keeps its box, the tiles stay
+//   coldblocked a cold load of a blocked post: its image must never paint
+//   fail500     the next payload answers 500: the URL stays, the status says so
+//   walk300     five presses 300 ms apart from just after load, faster than a
+//               payload arrives: nothing may move; reports the steps taken
+//   chain       five presses 120 ms apart after the lookahead: a post passed
+//               in transit is never drawn, every post landed on shows its picture
+//   random      four presses along random, each once the last has landed, from
+//               a cleared trail: none may meet a side still loading
+//   comments    scrolled to the bottom of a long thread, one press: the comment
+//               section keeps its height until the next post's comments arrive
+//
+// Every walk also prints, for each pair of posts, how far the tag panel, the
+// stage, the flank columns and the comments moved ACROSS the commit (printed,
+// not judged), and the payload requests per step by read (full, prefetch,
+// visit). THE SEED it expects: eight posts of mixed shapes, the sixth oldest
+// a child of the oldest (a family notice), the second newest with a creator
+// tag, and the two newest with the same long comment thread.
+//
+// IT FAILS (exit 1) on any FAIL line. NEEDS playwright-core with chromium and
+// firefox installed; found by require(), or set PLAYWRIGHT_CORE.
+"use strict";
+
+const fs = require("fs");
+const http = require("http");
+const net = require("net");
+const path = require("path");
+
+const ROOT = path.resolve(__dirname, "..");
+const args = process.argv.slice(2);
+const opt = (name, fallback) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : fallback; };
+const ENGINE = opt("--engine", "chromium");
+const WIDTH = Number(opt("--width", "1280"));
+const HEIGHT = WIDTH <= 560 ? 812 : 900;
+const BASE = (opt("--base", "") || (() => { throw new Error("postview-shift: no --base. Fix: pass --base <the dev app URL>, e.g. the danbooru container's address on port 3000."); })()).replace(/\/$/, "");
+const QUERY = opt("--query", "pvshift");
+const IMG_DELAY = Number(opt("--image-delay", "800"));
+const JSON_DELAY = Number(opt("--json-delay", "900"));
+const IDS = String(opt("--ids", "")).split(",").filter(Boolean).map(Number).sort((a, b) => a - b);
+const ALL = ["cold", "step", "double150", "double300", "blocked", "coldblocked", "fail500", "walk300", "chain", "random", "comments"];
+const SCENARIOS = String(opt("--scenario", ALL.join(","))).split(",").filter(Boolean);
+const AUTH = process.env.POSTVIEW_AUTH || "";
+
+function die(words) { console.error("FAIL: " + words); process.exit(2); }
+if (IDS.length < 4) die("--ids needs at least 4 consecutive post ids matched by --query. fix: seed them on the dev app and pass them oldest first.");
+if (!/^[^:]+:.+$/.test(AUTH)) die("POSTVIEW_AUTH is not login:api_key. fix: read -s POSTVIEW_AUTH; export POSTVIEW_AUTH (an admin-level throwaway on the dev app).");
+if (SCENARIOS.some((s) => !ALL.includes(s))) die("unknown --scenario; known: " + ALL.join(","));
+
+function loadPlaywright() {
+  const where = process.env.PLAYWRIGHT_CORE || "playwright-core";
+  try {
+    return require(where);
+  } catch {
+    die("cannot load playwright-core from " + JSON.stringify(where) + ". fix: set PLAYWRIGHT_CORE=/path/to/node_modules/playwright-core, with chromium and firefox installed.");
+  }
+  return null;
+}
+
+const HEADER = "Basic " + Buffer.from(AUTH).toString("base64");
+const CLIP = fs.readFileSync(path.join(ROOT, "test/files/webm/test-gbrp-vp9.webm"));
+let failures = 0;
+const check = (ok, scenario, what) => {
+  console.log((ok ? "PASS " : "FAIL ") + "[" + ENGINE + " " + WIDTH + "px " + scenario + "] " + what);
+  if (!ok) failures++;
+};
+const sleep = (ms) => new Promise((done) => { setTimeout(done, ms); });
+
+// The renditions' sizes, as MediaAsset::Variant#max_dimensions scales them.
+const VARIANT_MAX = { "180x180": [180, 180], "360x360": [360, 360], "720x720": [720, 720], sample: [850, Infinity], original: [Infinity, Infinity] };
+function scaled(w, h, [mw, mh]) {
+  if (w <= mw && h <= mh) return [w, h];
+  const s = Math.min(mw / w, mh / h);
+  return [Math.round(w * s), Math.round(h * s)];
+}
+
+async function postsMeta() {
+  const res = await fetch(BASE + "/posts.json?limit=100&tags=" + encodeURIComponent("id:" + IDS.join(",")), { headers: { Authorization: HEADER } });
+  if (!res.ok) die("posts.json answered " + res.status + ". fix: check POSTVIEW_AUTH and --base.");
+  const rows = await res.json();
+  const byMd5 = new Map(rows.map((p) => [p.md5, p]));
+  const byId = new Map(rows.map((p) => [p.id, p]));
+  if (byId.size !== IDS.length) die("posts.json found " + byId.size + " of " + IDS.length + " --ids. fix: pass ids this account can see.");
+  return { byMd5, byId };
+}
+
+// The probe, installed before any page script runs: one sample per frame.
+const PROBE = `(() => {
+  const pv = window.__pv = { samples: [], events: [] };
+  const ev = (type, data) => pv.events.push(Object.assign({ t: Date.now(), type }, data || {}));
+  pv.ev = ev;
+  const push = history.pushState;
+  history.pushState = function (s, t, u) { const r = push.apply(this, arguments); ev("commit", { path: location.pathname }); return r; };
+  const centreMedia = (t) => t && (t.tagName === "IMG" || t.tagName === "VIDEO") && t.closest && t.closest('[data-region="center"]');
+  document.addEventListener("load", (e) => { if (centreMedia(e.target)) ev("centre-load", { src: e.target.getAttribute("src") }); }, true);
+  document.addEventListener("loadeddata", (e) => { if (centreMedia(e.target)) ev("centre-load", { src: e.target.getAttribute("src") }); }, true);
+  const rect = (el) => (el ? el.getBoundingClientRect() : null);
+  const painted = (col) => {
+    if (!col || getComputedStyle(col).display === "none") return null;
+    const tile = col.querySelector(".mod-sortrow.is-current");
+    if (!tile) return 0;
+    const c = col.getBoundingClientRect(), b = tile.getBoundingClientRect(), mid = b.top + b.height / 2;
+    return c.height >= b.height * 0.6 && mid > c.top && mid < c.bottom && getComputedStyle(tile).visibility === "visible" ? 1 : 0;
+  };
+  function frame() {
+    const root = document.getElementById("modulation-root");
+    if (root && root.dataset.booted) {
+      const q = (n) => root.querySelector('[data-region="' + n + '"]');
+      const centre = q("center"), media = centre && centre.querySelector("img, video");
+      const tags = rect(q("tags")), stage = rect(q("stage")), c = rect(centre), comments = rect(q("comments"));
+      const colP = q("flank-prev"), colN = q("flank-next");
+      const status = q("flank-status");
+      const shown = !!media && getComputedStyle(centre).display !== "none" && getComputedStyle(media).visibility === "visible" && media.getBoundingClientRect().height > 0;
+      const done = !!media && (media.tagName === "IMG" ? media.complete && media.naturalWidth > 0 : media.readyState >= 2);
+      pv.samples.push({
+        t: Date.now(), path: location.pathname,
+        tagsTop: tags && Math.round((tags.top + scrollY) * 10) / 10,
+        stageTop: stage && Math.round((stage.top + scrollY) * 10) / 10,
+        commentsTop: comments && Math.round((comments.top + scrollY) * 10) / 10,
+        commentsH: comments && Math.round(comments.height),
+        colPx: colP && getComputedStyle(colP).display !== "none" ? Math.round(rect(colP).left * 10) / 10 : null,
+        colNx: colN && getComputedStyle(colN).display !== "none" ? Math.round(rect(colN).left * 10) / 10 : null,
+        cOp: centre ? Number(getComputedStyle(centre).opacity) : null,
+        scrollY: Math.round(scrollY), docH: document.documentElement.scrollHeight,
+        status: status && status.classList.contains("is-shown") ? status.textContent : "",
+        stageH: stage && Math.round(stage.height * 10) / 10,
+        cW: c && Math.round(c.width), cH: c && Math.round(c.height),
+        colP: colP && getComputedStyle(colP).display !== "none" ? Math.round(rect(colP).height * 10) / 10 : null,
+        colN: colN && getComputedStyle(colN).display !== "none" ? Math.round(rect(colN).height * 10) / 10 : null,
+        tileP: painted(colP), tileN: painted(colN),
+        shown, done, blocked: !!centre && centre.classList.contains("blacklisted-hidden"),
+        src: media ? media.getAttribute("src") : null,
+      });
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();`;
+
+// The proxy every request goes through. state.net logs what reached it
+// ({ t, url, kind }); state.failId makes that post's payload answer 500;
+// state.imgDelay holds the pictures.
+function startProxy(meta) {
+  const state = { net: [], failId: null, imgDelay: IMG_DELAY };
+  const forward = (req, res, u) => {
+    const headers = { ...req.headers };
+    delete headers["proxy-connection"];
+    const up = http.request({ host: u.hostname, port: u.port || 80, method: req.method, path: u.pathname + u.search, headers }, (r) => {
+      res.writeHead(r.statusCode, r.headers);
+      r.pipe(res);
+    });
+    up.on("error", () => { res.writeHead(502); res.end(); });
+    req.pipe(up);
+  };
+  const srv = http.createServer(async (req, res) => {
+    const u = new URL(req.url);
+    if (u.pathname.startsWith("/data/")) {
+      state.net.push({ t: Date.now(), url: u.pathname + u.search, kind: "media" });
+      const m = /\/data\/([^/]+)\/.*?([0-9a-f]{32})\.(\w+)$/.exec(u.pathname);
+      const post = m && meta.byMd5.get(m[2]);
+      await sleep(state.imgDelay);
+      if (!post) { res.writeHead(404); res.end(); return; }
+      const cache = { "Cache-Control": "private, max-age=31536000, immutable" };
+      if (m[1] === "original" && /^(mp4|webm)$/.test(post.file_ext)) {
+        res.writeHead(200, { ...cache, "Content-Type": "video/webm", "Content-Length": CLIP.length });
+        res.end(CLIP);
+        return;
+      }
+      const [w, h] = scaled(post.image_width, post.image_height, VARIANT_MAX[m[1]] || VARIANT_MAX.original);
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h + '"><rect width="100%" height="100%" fill="#7a5"/><text x="8" y="24" font-size="20">' + post.id + "</text></svg>";
+      res.writeHead(200, { ...cache, "Content-Type": "image/svg+xml" });
+      res.end(svg);
+      return;
+    }
+    if (u.pathname.endsWith("/modulation.json")) {
+      const flavour = u.searchParams.has("visit") ? "visit" : u.searchParams.has("prefetch") ? "prefetch" : "full";
+      state.net.push({ t: Date.now(), url: u.pathname + u.search, kind: "payload", flavour });
+      await sleep(JSON_DELAY);
+      if (state.failId && u.pathname === "/posts/" + state.failId + "/modulation.json") { res.writeHead(500, { "Content-Type": "application/json" }); res.end("{}"); return; }
+    }
+    forward(req, res, u);
+  });
+  // ws:// (the dev server's reload socket) arrives as CONNECT: tunnel it.
+  srv.on("connect", (req, sock, head) => {
+    const [host, port] = req.url.split(":");
+    const up = net.connect(Number(port) || 80, host, () => { sock.write("HTTP/1.1 200 Connection Established\r\n\r\n"); up.write(head); up.pipe(sock); sock.pipe(up); });
+    up.on("error", () => sock.destroy());
+    sock.on("error", () => up.destroy());
+  });
+  return new Promise((done) => { srv.listen(0, "127.0.0.1", () => done({ srv, port: srv.address().port, state })); });
+}
+
+let proxy = null;
+async function open(browser, meta, url, { failId = null, imgDelay = IMG_DELAY } = {}) {
+  proxy.state.net = [];
+  proxy.state.failId = failId;
+  proxy.state.imgDelay = imgDelay;
+  const ctx = await browser.newContext({ extraHTTPHeaders: { Authorization: HEADER }, viewport: { width: WIDTH, height: HEIGHT } });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+  await page.addInitScript(PROBE);
+  await page.goto(BASE + url);
+  await page.waitForFunction(() => document.querySelector("#blacklist-box") && document.querySelector("#blacklist-box").blacklist, null, { timeout: 15000 });
+  return { ctx, page, net: proxy.state.net, errors };
+}
+
+const pathOf = (id) => "/posts/" + id;
+const urlOf = (id) => pathOf(id) + "?q=" + encodeURIComponent(QUERY);
+const now = (page) => page.evaluate(() => Date.now());
+const dump = (page) => page.evaluate(() => ({ samples: window.__pv.samples.slice(), events: window.__pv.events.slice() }));
+const unblockAll = (page) => page.evaluate(async () => { const b = document.querySelector("#blacklist-box").blacklist; for (const rule of [...b.rules]) { await b.remove(rule); } });
+const block = (page, tag) => page.evaluate((t) => document.querySelector("#blacklist-box").blacklist.add(t), tag);
+// A tag on this post and no other in the run, to block it alone.
+const ownTag = (meta, id) => {
+  const others = new Set(IDS.filter((x) => x !== id).flatMap((x) => meta.byId.get(x).tag_string.split(" ")));
+  return meta.byId.get(id).tag_string.split(" ").find((t) => !others.has(t));
+};
+
+// Per committed post: how far the tag panel moved after the commit frame, how
+// short the stage got against its settled height, and whether the flank
+// columns and tiles kept up. Samples before the first press are the rest.
+function segments(samples, from) {
+  const out = [];
+  samples.filter((s) => s.t >= from).forEach((s) => {
+    const last = out[out.length - 1];
+    if (!last || last.path !== s.path) out.push({ path: s.path, rows: [s] });
+    else last.rows.push(s);
+  });
+  return out.map((seg) => {
+    const rows = seg.rows.filter((r) => r.tagsTop != null);
+    const end = rows[rows.length - 1] || {};
+    const tops = rows.map((r) => r.tagsTop);
+    const cols = rows.filter((r) => r.colN != null);
+    return {
+      path: seg.path,
+      frames: rows.length,
+      tagsMove: tops.length ? Math.round((Math.max(...tops) - Math.min(...tops)) * 10) / 10 : null,
+      stageMin: rows.length ? Math.min(...rows.map((r) => r.stageH)) : null,
+      stageEnd: end.stageH,
+      colGap: cols.length ? Math.max(...cols.map((r) => Math.max(Math.abs(r.colN - r.stageH), Math.abs(r.colP - r.stageH)))) : null,
+      unpainted: cols.filter((r) => !(r.tileP && r.tileN)).length,
+    };
+  });
+}
+
+function report(scenario, segs) {
+  segs.forEach((s) => console.log("  " + scenario + " " + s.path + " frames=" + s.frames + " tagsMove=" + s.tagsMove + "px stageMin=" + s.stageMin + " stageEnd=" + s.stageEnd + " colGap=" + s.colGap + " unpaintedTileFrames=" + s.unpainted));
+}
+
+async function rest(page) {
+  // Settled: the flanks drawn, the image in, the lookahead given its time.
+  await page.waitForFunction(() => { const s = window.__pv.samples; const l = s[s.length - 1]; return l && l.done; }, null, { timeout: 20000 }).catch(() => {});
+  await sleep(IMG_DELAY + JSON_DELAY + 1500);
+}
+
+function judgeSegments(scenario, segs, { shift = true } = {}) {
+  report(scenario, segs);
+  segs.forEach((s) => {
+    if (shift) check(s.tagsMove !== null && s.tagsMove <= 1, scenario, s.path + ": the tag panel holds still from the commit frame on (moved " + s.tagsMove + " px)");
+    check(s.stageMin !== null && s.stageEnd - s.stageMin <= 1, scenario, s.path + ": the stage never shorter than its settled height (min " + s.stageMin + " vs " + s.stageEnd + ")");
+    if (s.colGap !== null) {
+      check(s.colGap <= 1, scenario, s.path + ": flank columns as tall as the stage every frame (worst gap " + s.colGap + " px)");
+      check(s.unpainted === 0, scenario, s.path + ": both current flank tiles painted every frame (" + s.unpainted + " frames without)");
+    }
+  });
+}
+
+function timings(scenario, net, events, presses, meta) {
+  const commits = events.filter((e) => e.type === "commit");
+  const loads = events.filter((e) => e.type === "centre-load");
+  // Each landing against the press before it. Not the i-th press's: a step
+  // passed in transit (a press queued when its payload came) never commits.
+  commits.forEach((c) => {
+    const k = presses.filter((p) => p.t <= c.t).length;
+    if (!k) return;
+    const l = loads.find((e) => e.t >= c.t);
+    console.log("  " + scenario + " landing " + c.path + ": " + (c.t - presses[k - 1].t) + " ms after press " + k + " (" + (c.t - presses[0].t) + " ms after the first), centre image " + (l ? l.t - presses[k - 1].t + " ms after press " + k : "none"));
+  });
+  commits.forEach((c) => {
+    const load = loads.find((e) => e.t >= c.t);
+    if (!load) return;
+    const want = new URL(load.src, BASE);
+    const hits = net.filter((n) => n.kind === "media" && n.url === want.pathname + want.search);
+    console.log("  " + scenario + " " + c.path + " centre image requested " + hits.length + "x, first " + (hits.length ? hits[0].t - c.t : "never") + " ms from commit -> " + (hits.length === 1 && hits[0].t < c.t ? "warmed before the commit, reused" : hits.length === 0 ? "never reached the proxy" : "fetched at or after the commit"));
+  });
+  void meta;
+}
+
+async function scenarioCold(browser, meta) {
+  const start = IDS[IDS.length - 1];
+  const { ctx, page, errors } = await open(browser, meta, urlOf(start));
+  await unblockAll(page);
+  await rest(page);
+  const { samples } = await dump(page);
+  const segs = segments(samples, 0);
+  judgeSegments("cold", segs);
+  reportErrors("cold", errors);
+  await ctx.close();
+}
+
+async function walk(browser, meta, scenario, gaps) {
+  const start = IDS[IDS.length - 1];
+  const { ctx, page, net, errors } = await open(browser, meta, urlOf(start));
+  await unblockAll(page);
+  await rest(page);
+  const t0 = await now(page);
+  const presses = [];
+  for (let i = 0; i <= gaps.length; i++) {
+    presses.push({ t: await now(page) });
+    await page.keyboard.press("ArrowRight");
+    if (i < gaps.length) await sleep(gaps[i]);
+  }
+  await sleep(2 * (IMG_DELAY + JSON_DELAY) + 2500);
+  const { samples, events } = await dump(page);
+  const segs = segments(samples, t0);
+  judgeSegments(scenario, segs);
+  const want = pathOf(IDS[IDS.length - 1 - presses.length]);
+  const at = await page.evaluate(() => location.pathname);
+  check(at === want, scenario, presses.length + " press(es) -> " + presses.length + " step(s): at " + at + ", want " + want);
+  const pre = segs[0];
+  check(pre && pre.tagsMove <= 1, scenario, "nothing moves between the press and the commit (moved " + (pre && pre.tagsMove) + " px)");
+  crossings(scenario, samples, t0);
+  timings(scenario, net, events, presses, meta);
+  builds(scenario, net, t0, presses.length);
+  if (presses.length > 1) {
+    // The post two ahead: its payload asked for before the second press.
+    const twoAhead = IDS[IDS.length - 3];
+    const asked = net.find((n) => n.kind === "payload" && n.url.startsWith("/posts/" + twoAhead + "/modulation.json"));
+    check(!!asked && asked.t <= presses[1].t, scenario, "the post two ahead (#" + twoAhead + ") was requested by the second press (" + (asked ? (asked.t - presses[1].t) + " ms from it" : "never") + ")");
+  }
+  reportErrors(scenario, errors);
+  await ctx.close();
+}
+
+// Presses faster than payloads arrive, from just after load (the lookahead has
+// had no time): one slot queues, so a press during a step replaces the one
+// waiting -- fewer steps than presses is by design; a move is not.
+async function scenarioWalk(browser, meta) {
+  const start = IDS[IDS.length - 1];
+  const { ctx, page, net, errors } = await open(browser, meta, urlOf(start));
+  await unblockAll(page);
+  await page.waitForFunction(() => document.querySelector(".mod-sortrow.is-current img"), null, { timeout: 15000 }).catch(() => {});
+  await sleep(300);
+  const t0 = await now(page);
+  const presses = [];
+  for (let i = 0; i < 5; i++) {
+    presses.push({ t: await now(page) });
+    await page.keyboard.press("ArrowRight");
+    await sleep(300);
+  }
+  await sleep(3 * (IMG_DELAY + JSON_DELAY) + 3000);
+  const { samples, events } = await dump(page);
+  judgeSegments("walk300", segments(samples, t0));
+  crossings("walk300", samples, t0);
+  const commits = events.filter((e) => e.type === "commit" && e.t >= t0);
+  builds("walk300", net, t0, commits.length);
+  console.log("  walk300 5 presses -> " + commits.length + " landings, at " + (await page.evaluate(() => location.pathname)) + "; commits at " + commits.map((c) => c.t - t0).join(", ") + " ms");
+  // Steps, not commits: a step passed in transit is never committed.
+  const steps = IDS.indexOf(start) - IDS.indexOf(Number((await page.evaluate(() => location.pathname)).split("/").pop()));
+  check(steps >= 2, "walk300", "a press during a step is queued, not dropped (" + steps + " steps, " + commits.length + " landings)");
+  timings("walk300", net, events, [], meta);
+  reportErrors("walk300", errors);
+  await ctx.close();
+}
+
+async function scenarioBlocked(browser, meta) {
+  const start = IDS[IDS.length - 2];
+  const { ctx, page, errors } = await open(browser, meta, urlOf(start));
+  await unblockAll(page);
+  await rest(page);
+  const before = await page.evaluate(() => window.__pv.samples[window.__pv.samples.length - 1]);
+  const t0 = await now(page);
+  await block(page, ownTag(meta, start));
+  await sleep(1200);
+  const { samples } = await dump(page);
+  const after = samples.filter((s) => s.t >= t0);
+  const last = after[after.length - 1];
+  console.log("  blocked before stageH=" + before.stageH + " after stageH=" + last.stageH + " blocked=" + last.blocked);
+  check(last.blocked, "blocked", "the centre is marked blocked");
+  check(Math.min(...after.map((s) => s.stageH)) >= before.stageH - 1, "blocked", "the stage keeps its box while the centre is blocked (min " + Math.min(...after.map((s) => s.stageH)) + " vs " + before.stageH + ")");
+  if (last.colN !== null) check(after.every((s) => s.tileP && s.tileN), "blocked", "both flank tiles stay painted beside a blocked centre");
+  const marked = after.findIndex((s) => s.blocked);
+  check(marked >= 0 && after.slice(marked).every((s) => !s.shown), "blocked", "the blocked image is not shown once the centre is marked");
+  await unblockAll(page);
+  reportErrors("blocked", errors);
+  await ctx.close();
+}
+
+async function scenarioColdBlocked(browser, meta) {
+  const target = IDS[IDS.length - 2];
+  const tag = ownTag(meta, target);
+  const setup = await open(browser, meta, urlOf(IDS[0]));
+  await unblockAll(setup.page);
+  await block(setup.page, tag);
+  await setup.ctx.close();
+  const { ctx, page, errors } = await open(browser, meta, urlOf(target), { imgDelay: 0 });
+  await sleep(2500);
+  const { samples } = await dump(page);
+  const flashes = samples.filter((s) => s.shown && s.done && !s.blocked);
+  check(samples.some((s) => s.blocked), "coldblocked", "the engine marks the blocked centre");
+  check(flashes.length === 0, "coldblocked", "the blocked image never paints before the engine applies (" + flashes.length + " frames painted)");
+  const marked = samples.find((s) => s.blocked);
+  check(!marked || samples.filter((s) => s.t >= marked.t).every((s) => s.stageH >= 100), "coldblocked", "the stage keeps a box once the centre is blocked");
+  await unblockAll(page);
+  reportErrors("coldblocked", errors);
+  await ctx.close();
+}
+
+async function scenarioFail(browser, meta) {
+  const start = IDS[IDS.length - 1];
+  const next = IDS[IDS.length - 2];
+  const { ctx, page, errors } = await open(browser, meta, urlOf(start), { failId: next });
+  await unblockAll(page);
+  await rest(page);
+  await page.evaluate(() => { window.__sentinel = 7; });
+  await page.keyboard.press("ArrowRight");
+  await sleep(JSON_DELAY + 1500);
+  const state = await page.evaluate(() => ({ path: location.pathname, sentinel: window.__sentinel === 7, status: (document.querySelector('[data-region="flank-status"]') || {}).textContent || "", shown: !!document.querySelector('[data-region="flank-status"].is-shown') })).catch(() => ({ path: "(page reloaded)", sentinel: false, status: "", shown: false }));
+  console.log("  fail500 status: " + JSON.stringify(state.status));
+  check(state.sentinel, "fail500", "no reload on a failed payload");
+  check(state.path === pathOf(start), "fail500", "the URL stays on #" + start + " (at " + state.path + ")");
+  check(state.shown && state.status.includes(String(next)), "fail500", "the status line names #" + next + " and why");
+  check(errors.some((e) => e.includes(String(next))), "fail500", "the console names the failed post");
+  await ctx.close();
+}
+
+// ACROSS EACH COMMIT, not within it: segments() judges each post from its
+// own commit frame on, so a jump AT the commit -- the stage taking the next
+// post's box, a notice strip above it -- is excluded by construction (review,
+// 2026-10-18). This prints, for every consecutive pair of posts, how far the
+// tag panel, the stage, both flank columns and the comments moved between
+// their settled frames. Printed, not judged: the stage taking the size of the
+// post it shows is the stage's purpose; whether it should instead hold one
+// window for every post is the operator's call.
+function crossings(scenario, samples, from) {
+  const settled = [];
+  samples.filter((s) => s.t >= from && s.tagsTop != null).forEach((s) => {
+    const last = settled[settled.length - 1];
+    if (!last || last.path !== s.path) settled.push(s);
+    else settled[settled.length - 1] = s;
+  });
+  const d = (a, b, k) => (a[k] == null || b[k] == null ? "-" : Math.round((b[k] - a[k]) * 10) / 10);
+  for (let i = 1; i < settled.length; i++) {
+    const a = settled[i - 1], b = settled[i];
+    console.log("  " + scenario + " across " + a.path + " -> " + b.path + ": tags " + d(a, b, "tagsTop") + " px, stage top " + d(a, b, "stageTop") + ", stage height " + d(a, b, "stageH") + ", prev column x " + d(a, b, "colPx") + ", next column x " + d(a, b, "colNx") + ", comments " + d(a, b, "commentsTop"));
+  }
+}
+
+// Payload builds per step, by read: full (the page, a re-read), prefetch (a
+// neighbour fetched ahead), visit (the read after landing on a prefetched
+// post). HEAD made only full reads.
+function builds(scenario, net, from, steps) {
+  const asked = net.filter((n) => n.kind === "payload" && n.t >= from);
+  const by = (f) => asked.filter((n) => n.flavour === f).length;
+  console.log("  " + scenario + " payload requests from the first press: " + asked.length + " (full " + by("full") + ", prefetch " + by("prefetch") + ", visit " + by("visit") + ") over " + steps + " step(s)");
+}
+
+// A CHAIN: five presses faster than a step, after the lookahead has warmed
+// the run. A press during a step queues; a step that arrives with a press
+// queued is IN TRANSIT -- never drawn -- so the page draws only posts it lands
+// on, and every post it lands on shows its picture (review, 2026-10-18: the
+// intermediate post's page state was drawn and its picture never shown).
+async function scenarioChain(browser, meta) {
+  const start = IDS[IDS.length - 1];
+  const { ctx, page, net, errors } = await open(browser, meta, urlOf(start));
+  await unblockAll(page);
+  await rest(page);
+  const t0 = await now(page);
+  for (let i = 0; i < 5; i++) {
+    await page.keyboard.press("ArrowRight");
+    await sleep(120);
+  }
+  await sleep(2 * (IMG_DELAY + JSON_DELAY) + 2500);
+  const { samples, events } = await dump(page);
+  const segs = segments(samples, t0);
+  judgeSegments("chain", segs);
+  crossings("chain", samples, t0);
+  const commits = events.filter((e) => e.type === "commit" && e.t >= t0);
+  const landed = new Set([pathOf(start), ...commits.map((c) => c.path)]);
+  const at = await page.evaluate(() => location.pathname);
+  console.log("  chain 5 presses -> " + commits.length + " landing(s): " + commits.map((c) => c.path + " at " + (c.t - t0) + " ms").join(", ") + "; at " + at);
+  check(at !== pathOf(start), "chain", "the presses moved the page (at " + at + ")");
+  // Drawn: the centre's picture names a post's md5; every one drawn must be a
+  // post the page landed on.
+  const md5Of = (src) => { const m = /([0-9a-f]{32})/.exec(src || ""); return m && m[1]; };
+  const landedMd5 = new Set([...landed].map((p) => meta.byId.get(Number(p.split("/").pop())).md5));
+  const drawn = [...new Set(samples.filter((s) => s.t >= t0 && s.src).map((s) => md5Of(s.src)))];
+  const strays = drawn.filter((m) => !landedMd5.has(m));
+  check(strays.length === 0, "chain", "no post drawn in the centre that the page did not land on (" + strays.length + " drawn in transit)");
+  const bySeg = segments(samples, t0).map((seg) => seg.path);
+  bySeg.slice(1).forEach((p) => {
+    const rows = samples.filter((s) => s.t >= t0 && s.path === p);
+    const seen = rows.some((r) => r.shown && r.cOp >= 0.99);
+    check(seen, "chain", p + ": the post landed on shows its picture");
+  });
+  const pushes = await page.evaluate(() => history.length);
+  console.log("  chain history entries: " + pushes);
+  builds("chain", net, t0, commits.length);
+  reportErrors("chain", errors);
+  await ctx.close();
+}
+
+// RANDOM, walked forward at a normal pace: each press as soon as the post
+// before has landed and grown in. The trail is cleared first. A prefetch of
+// the trail's frontier post rolls past it, so no press may meet a "still
+// loading" side (review, 2026-10-18: every forward step along random waited on
+// a second build after the landing).
+async function scenarioRandom(browser, meta) {
+  const start = IDS[IDS.length - 1];
+  const search = QUERY + " order:random";
+  const cleared = await fetch(BASE + "/modulation/random_trail?q=" + encodeURIComponent(search), { method: "DELETE", headers: { Authorization: HEADER, Accept: "application/json" } });
+  if (!cleared.ok) die("clearing the random trail answered " + cleared.status + ". fix: check POSTVIEW_AUTH.");
+  const { ctx, page, net, errors } = await open(browser, meta, pathOf(start) + "?q=" + encodeURIComponent(search));
+  await unblockAll(page);
+  await rest(page);
+  const t0 = await now(page);
+  const presses = [];
+  for (let i = 0; i < 4; i++) {
+    const before = await page.evaluate(() => location.pathname);
+    presses.push({ t: await now(page) });
+    await page.keyboard.press("ArrowRight");
+    await page.waitForFunction((b) => location.pathname !== b, before, { timeout: 15000 }).catch(() => {});
+    await sleep(SWAP_GROW_MS);
+  }
+  await sleep(IMG_DELAY + JSON_DELAY + 1500);
+  const { samples, events } = await dump(page);
+  judgeSegments("random", segments(samples, t0));
+  const commits = events.filter((e) => e.type === "commit" && e.t >= t0);
+  check(commits.length === presses.length, "random", presses.length + " presses -> " + commits.length + " steps");
+  const loading = samples.filter((s) => s.t >= t0 && /Still loading/.test(s.status)).length;
+  check(loading === 0, "random", "no press met a side still loading (" + loading + " frames showed it)");
+  timings("random", net, events, presses, meta);
+  builds("random", net, t0, commits.length);
+  reportErrors("random", errors);
+  await ctx.close();
+}
+const SWAP_GROW_MS = 400;
+
+// SCROLLED INTO THE COMMENTS: both posts carry the same long thread. A step
+// shows the next post from its prefetch, which has no comments; its
+// placeholder must keep the section's height until the comments arrive, or
+// the document shrinks under a viewer scrolled into the thread and the
+// browser pulls the scroll position up, for good (review, 2026-10-18). The
+// scroll position itself is not the measure: scroll anchoring moves it, on
+// purpose, when the new post's stage above is shorter.
+async function scenarioComments(browser, meta) {
+  const start = IDS[IDS.length - 1];
+  const { ctx, page, errors } = await open(browser, meta, urlOf(start));
+  await unblockAll(page);
+  await rest(page);
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await sleep(300);
+  const before = await page.evaluate(() => window.__pv.samples[window.__pv.samples.length - 1]);
+  const t0 = await now(page);
+  await page.keyboard.press("ArrowRight");
+  await sleep(JSON_DELAY + IMG_DELAY + 2000);
+  const { samples } = await dump(page);
+  const after = samples.filter((s) => s.t >= t0);
+  const minH = Math.min(...after.map((s) => s.commentsH));
+  const end = after[after.length - 1];
+  console.log("  comments before: section " + before.commentsH + " px, y=" + before.scrollY + " doc " + before.docH + "; during: lowest section " + minH + " px, lowest y " + Math.min(...after.map((s) => s.scrollY)) + ", lowest doc " + Math.min(...after.map((s) => s.docH)) + "; after: section " + end.commentsH + " px, y=" + end.scrollY + " doc " + end.docH + " at " + end.path);
+  check(end.path !== pathOf(start), "comments", "the press stepped (at " + end.path + ")");
+  check(minH >= before.commentsH - 1, "comments", "the comment section never shorter than it was while the next post's comments are on their way (lowest " + minH + " vs " + before.commentsH + " px; both threads are the same length)");
+  reportErrors("comments", errors);
+  await ctx.close();
+}
+
+function reportErrors(scenario, errors) {
+  const noise = /webpack-dev-server|ws:\/\/|CORS policy|Cross-Origin Request Blocked|Failed to load resource|Failed to fetch|did not load \(HTTP 500\)/;
+  const mine = errors.filter((e) => !noise.test(e));
+  check(mine.length === 0, scenario, "no script errors: " + JSON.stringify(mine));
+}
+
+(async () => {
+  const pw = loadPlaywright();
+  const meta = await postsMeta();
+  proxy = await startProxy(meta);
+  const browser = await pw[ENGINE].launch({ proxy: { server: "http://127.0.0.1:" + proxy.port } });
+  try {
+    for (const s of SCENARIOS) {
+      if (s === "cold") await scenarioCold(browser, meta);
+      else if (s === "step") await walk(browser, meta, "step", []);
+      else if (s === "double150") await walk(browser, meta, "double150", [150]);
+      else if (s === "double300") await walk(browser, meta, "double300", [300]);
+      else if (s === "blocked") await scenarioBlocked(browser, meta);
+      else if (s === "coldblocked") await scenarioColdBlocked(browser, meta);
+      else if (s === "fail500") await scenarioFail(browser, meta);
+      else if (s === "walk300") await scenarioWalk(browser, meta);
+      else if (s === "chain") await scenarioChain(browser, meta);
+      else if (s === "random") await scenarioRandom(browser, meta);
+      else if (s === "comments") await scenarioComments(browser, meta);
+    }
+  } finally {
+    await browser.close();
+    proxy.srv.close();
+  }
+  console.log(failures ? failures + " FAIL" : "all PASS");
+  process.exit(failures ? 1 : 0);
+})().catch((e) => { console.error("FAIL: " + (e && e.stack || e)); process.exit(2); });

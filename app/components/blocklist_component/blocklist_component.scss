@@ -24,6 +24,14 @@
   visibility: hidden;
 }
 
+// The post view's centre hides its CONTENT, not itself: the centre is the
+// stage's reserved box, and the stage and its flank tiles must keep their
+// size while the engine starts. A cold load of a blocked post painted its
+// picture for two frames before the first apply (bin/postview-shift).
+.mod-blacklist-target:not(.blacklist-initialized) > * {
+  visibility: hidden;
+}
+
 #blacklist-box {
   // The historical header's own theme; Modulation's tokens below. (The
   // --mod-* tokens are defined site-wide, so a fallback chain would paint

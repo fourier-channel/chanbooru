@@ -55,7 +55,11 @@ class PostQuery
   # @param estimated [AST, nil] for a query #with_implicit_metatags made: the
   #   search as typed, without the terms the viewer's situation adds (safe
   #   mode's included), which #estimated_count reads (see there).
-  def initialize(search_or_ast, current_user: User.anonymous, tag_limit: nil, safe_mode: false, implicit: false, estimated: nil)
+  # @param row_filter [Boolean] exclude the tags that hide posts from the
+  #   viewer as ONE row filter (#hidden_tags_condition) rather than as the
+  #   creator-prefix id list and one term per gated or banished tag. For the
+  #   post view's neighbours and random's rolls; see #hidden_tags_condition.
+  def initialize(search_or_ast, current_user: User.anonymous, tag_limit: nil, safe_mode: false, implicit: false, estimated: nil, row_filter: false) # rubocop:disable Metrics/ParameterLists
     if search_or_ast.is_a?(AST)
       @ast = search_or_ast
     else
@@ -67,11 +71,12 @@ class PostQuery
     @safe_mode = safe_mode
     @implicit = implicit
     @estimated = estimated
+    @row_filter = row_filter
   end
 
   # Build a new PostQuery from the given AST and the current settings.
   def build(ast)
-    PostQuery.new(ast, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: @implicit)
+    PostQuery.new(ast, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: @implicit, row_filter: @row_filter)
   end
 
   def builder
@@ -233,7 +238,7 @@ class PostQuery
   # brings gate 3's row filter with it (#matrix_rooms_condition).
   def with_implicit_metatags
     query = implicit_metatags.empty? ? ast : AST.new(:and, [ast, *implicit_metatags])
-    PostQuery.new(query, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: true, estimated: counted_ast)
+    PostQuery.new(query, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: true, estimated: counted_ast, row_filter: @row_filter)
   end
 
   # Orders that only re-sort the rows (Post.order_matches). An order that can
@@ -286,6 +291,49 @@ class PostQuery
     "posts.room_ids && #{MatrixViewerRooms.literal(current_user)}"
   end
 
+  # THE HIDDEN TAGS AS ONE ROW FILTER, for a query built with row_filter:
+  # (Post.user_tag_match): no tag of the row is among every name that hides a
+  # post from this viewer -- the creator prefixes hidden from them, the banished
+  # tags, and the gated tags when nothing gated is let through to them. The
+  # same posts #implicit_metatags excludes, decided on the rows the search
+  # visits instead of beforehand (hidden_post_ids_for plucks exactly the posts
+  # carrying those prefix names).
+  #
+  # Why (measured on production as a Member, 2026-10-17): the post view's
+  # payload ran 5-8 searches, and in each the id list -- 60,758 ids, plucked
+  # in 290-380 ms of SQL per request -- was compiled again (85-133 ms of Ruby)
+  # and sent as a 460 KB literal (1.38 MB in a random roll), and every gated
+  # or banished tag was its own negated term, so tag_string was split 26
+  # times per row: one && term ran the same statement in 30-37 ms against
+  # 289-306. NOT for counts or galleries: there the id list is what made an
+  # exact count fast (#hidden_post_metatags), and they are unchanged. The
+  # small id lists -- a creator's panel, the quarantine, a viewer's own
+  # gated allow -- stay ids here too.
+  #
+  # Like #matrix_rooms_condition, not a metatag: the count cache never sees
+  # it, because nothing built with row_filter: is counted.
+  #
+  # ITS SHAPE IS ITS COST: each of the row's tags probed against the names by
+  # hash (= ANY over an array of nine or more is hashed), not NOT (tags &&
+  # names), which compares every tag with every name. Measured with 235
+  # names on a 2.1M-row synthetic posts table (dev postgres, 2026-10-18;
+  # 75,738 rows hidden, near production's 60,758): && cost 87 us a row
+  # (17.4 s over 200,000 rows), this 6 us (1.2 s), the old id list 0.19 us
+  # (38 ms) once its literal was parsed (3 ms a statement). && was also priced
+  # by the planner as nearly free, so it would pick a plan that runs it on
+  # every row a tag matches; this one is priced at its cost, and the
+  # neighbours' keyset reads (an id-index walk to 7 rows) ran in 0.1-2.4 ms
+  # with it against 3.4-5.7 ms with the id list. Not measured: production's
+  # own plans. Where a plan does run it on every match, it costs about 6 us a
+  # matching row -- more than the id list past ~17,000 rows a statement, the
+  # 85-133 ms that list's Ruby compile cost per search.
+  def hidden_tags_condition
+    return @hidden_tags_condition if defined?(@hidden_tags_condition)
+
+    names = (@implicit && @row_filter) ? row_filter_names : []
+    @hidden_tags_condition = names.empty? ? nil : Post.sanitize_sql_array(["NOT EXISTS (SELECT 1 FROM unnest(string_to_array(posts.tag_string, ' ')) AS hidden(name) WHERE hidden.name = ANY(ARRAY[?]::text[]))", names])
+  end
+
   # Return a new PostQuery with terms sorted into alphabetical order.
   def sort
     build(ast.sort)
@@ -314,8 +362,26 @@ class PostQuery
   # Implicit metatags are added by the viewer's situation rather than typed by
   # them: rating:g under safe mode, and the gated tags a viewer below Gold may
   # not know exist.
+  #
+  # Under row_filter: the creator-prefix ids, the banished tags and the gated
+  # tags (when nothing gated is let through) are #hidden_tags_condition's
+  # instead.
   def implicit_metatags
     safe_mode_metatags + gated_metatags + deleted_metatags + banished_metatags + hidden_post_metatags
+  end
+
+  # The names #hidden_tags_condition excludes; see there.
+  def row_filter_names
+    names = CreatorPrefixes.hidden_tag_names_for(current_user)
+    names += TagBanishment.post_tags.to_a if TagBanishment.withholds_posts_from?(current_user)
+    names += Danbooru.config.restricted_tags if gated_by_name?
+    names.uniq.sort
+  end
+
+  # Gate 1 applies to this viewer and lets none of its posts through to them,
+  # so it is the restricted tags alone -- a name filter.
+  def gated_by_name?
+    Danbooru.config.restricted_tags.present? && !current_user&.is_gold? && Post.gated_allowed_ids(current_user).empty?
   end
 
   # Posts hidden from this viewer BY ID, as ONE negated id term:
@@ -337,7 +403,8 @@ class PostQuery
   # metatag, so the count cache key carries it and one viewer's count is never
   # served to another. Both lists are computed once per request per viewer.
   def hidden_post_metatags
-    ids = (CreatorPrefixes.hidden_post_ids_for(current_user) | CreatorVisibility.hidden_ids(current_user).to_a | TagQuarantine.hidden_post_ids_for(current_user)).sort
+    by_prefix = @row_filter ? [] : CreatorPrefixes.hidden_post_ids_for(current_user)
+    ids = (by_prefix | CreatorVisibility.hidden_ids(current_user).to_a | TagQuarantine.hidden_post_ids_for(current_user)).sort
     ids.empty? ? [] : [-AST.metatag("id", ids.join(","))]
   end
 
@@ -378,7 +445,7 @@ class PostQuery
   # filter over results never sees the count, the paginator or the
   # neighbours. See TagBanishment.withholds_posts_from?.
   def banished_metatags
-    return [] unless TagBanishment.withholds_posts_from?(current_user)
+    return [] if @row_filter || !TagBanishment.withholds_posts_from?(current_user)
 
     TagBanishment.post_tags.map { |tag| -AST.tag(tag) }
   end
@@ -402,6 +469,7 @@ class PostQuery
   # gated post. The id list is in the query, so in their count cache key.
   def gated_metatags
     return [] if Danbooru.config.restricted_tags.blank? || current_user&.is_gold?
+    return [] if @row_filter && gated_by_name?
 
     excluded = Danbooru.config.restricted_tags.map { |tag| -AST.tag(tag) }
     allowed = Post.gated_allowed_ids(current_user)

@@ -3,6 +3,8 @@
 require "test_helper"
 
 class PostNeighborsTest < ActiveSupport::TestCase
+  include TagQuarantineTestHelper
+
   # The engine's prev/next must match adjacency in the list Danbooru itself
   # builds for that order (order_matches). Validates the keyset seek against the
   # real ordering for every covered sort. (Class-level so `should` blocks see it.)
@@ -176,6 +178,129 @@ class PostNeighborsTest < ActiveSupport::TestCase
       # random isn't keyset-able; fall back to id walk (prev = newer, next = older).
       assert_equal @posts[4].id, nav.prev_id
       assert_equal @posts[2].id, nav.next_id
+    end
+  end
+
+  # The ids a search finds for `viewer`, with this request's memo cleared.
+  def ids(search, viewer, **options)
+    CreatorVisibility.forget!
+    Post.user_tag_match(search, viewer, **options).pluck(:id)
+  end
+
+  # THE HIDDEN-TAG ROW FILTER (PostQuery row_filter:). The neighbours' keyset
+  # reads and random's rolls carried the viewer's creator-prefix exclusion as
+  # an id list -- for a Member on production 60,758 ids, plucked by a 290-380
+  # ms statement on every payload, compiled into each of 5-8 searches at
+  # 85-133 ms of Ruby apiece, and sent as a 460 KB literal in every statement
+  # (1.38 MB in a roll) -- plus each gated and banished tag as its own negated
+  # term, which split tag_string once per term per row. The same exclusion is
+  # one row filter over the names (PostQuery#hidden_tags_condition). It must
+  # not change the answer: "a surface must not change the answer"
+  # (PostQuery#deleted_metatags).
+  context "the hidden-tag row filter" do
+    setup do
+      @dir = Dir.mktmpdir("rowfilter-prefixes")
+      @path = File.join(@dir, "creator_prefixes.yml")
+      File.write(@path, <<~YAML)
+        editors: []
+        prefixes:
+          - {prefix: rfadm_, provenance: Test, target_kind: site, target: example.org, scope: all, visible_to: admins}
+          - {prefix: rfmem_, provenance: Test, target_kind: site, target: example.org, scope: all, visible_to: members}
+      YAML
+      @was = ENV.fetch("FOURIER_CREATOR_PREFIXES", nil)
+      ENV["FOURIER_CREATOR_PREFIXES"] = @path
+      Danbooru.config.stubs(:banished_posts_withheld?).returns(true)
+      CreatorPrefixes.reset!
+      CreatorTagRelease.reset_cache!
+
+      @admin = create(:admin_user)
+      @member = create(:user)
+      @gold = create(:gold_user)
+      @allowed = create(:user)
+      gated = Danbooru.config.restricted_tags.first
+      @plain = as(@admin) { create(:post, tag_string: "rfq plain_a") }
+      @hidden = as(@admin) { create(:post, tag_string: "rfq rfadm_alice") }
+      @released = as(@admin) { create(:post, tag_string: "rfq rfadm_bob") }
+      @members_only = as(@admin) { create(:post, tag_string: "rfq rfmem_carol") }
+      @gated = as(@admin) { create(:post, tag_string: "rfq #{gated}") }
+      @banished = as(@admin) { create(:post, tag_string: "rfq rf_banished_tag") }
+      @plain_b = as(@admin) { create(:post, tag_string: "rfq plain_b") }
+      @own_gated = as(@allowed) { create(:post, uploader: @allowed, tag_string: "rfq #{gated}") }
+      banish_tags!("rf_banished_tag")
+      CreatorTagRelease.set!("rfadm_bob", released: true, by: @admin)
+      CreatorTagRelease.reset_cache!
+      CreatorVisibility.forget!
+      @viewers = { anonymous: User.anonymous, member: @member, gold: @gold, admin: @admin, allowed: @allowed }
+    end
+
+    teardown do
+      ENV["FOURIER_CREATOR_PREFIXES"] = @was
+      CreatorPrefixes.reset!
+      CreatorTagRelease.reset_cache!
+      FileUtils.rm_rf(@dir)
+    end
+
+    # The filter's SHAPE is its cost. NOT (tags && ARRAY[names]) compares every
+    # tag of a row with every name: with 235 names on a 2.1M-row synthetic
+    # posts table (dev postgres, 2026-10-18) it cost 87 us a row -- 17.4 s over
+    # 200,000 rows -- where a hashed = ANY over the row's own tags cost 6 us,
+    # and the planner priced && as nearly free, so it would choose a plan that
+    # evaluates it on every matching row. Measured against the old id list too
+    # (0.19 us a row once its literal is parsed); see hidden_tags_condition.
+    should "probe each of a row's tags against the names by hash, not compare every pair" do
+      condition = PostQuery.new("rfq", current_user: @member, row_filter: true).with_implicit_metatags.hidden_tags_condition
+      assert_match(/\ANOT EXISTS \(SELECT 1 FROM unnest\(string_to_array\(posts\.tag_string, ' '\)\) AS hidden\(name\) WHERE hidden\.name = ANY\(ARRAY\[/, condition)
+      assert_no_match(/&&/, condition)
+    end
+
+    should "hide what the fixtures say, so the comparison below compares something" do
+      member = ids("rfq order:id_desc", @member)
+      assert_not_includes member, @hidden.id, "an admins-only prefix is hidden from a member"
+      assert_includes member, @released.id, "a released creator is not"
+      assert_includes member, @members_only.id
+      assert_not_includes member, @gated.id
+      assert_not_includes member, @banished.id
+      assert_not_includes ids("rfq order:id_desc", User.anonymous), @members_only.id
+      assert_includes ids("rfq order:id_desc", @gold), @gated.id
+      allowed = ids("rfq order:id_desc", @allowed)
+      assert_includes allowed, @own_gated.id, "a viewer's own gated upload stays theirs"
+      assert_not_includes allowed, @gated.id
+    end
+
+    should "find the same posts, in the same order, as the id path for every viewer and search" do
+      ["rfq order:id_desc", "rfq order:id_asc", "rfq plain_a", "rfadm_alice", "rfq -plain_a", "order:score"].each do |search|
+        @viewers.each do |who, viewer|
+          assert_equal ids(search, viewer), ids(search, viewer, row_filter: true), "#{who}: #{search}"
+        end
+      end
+    end
+
+    should "give the neighbours the runs of the id path's ordering, with no hidden-id list" do
+      orderings = @viewers.transform_values { |viewer| ids("rfq order:id_desc", viewer) }
+      CreatorPrefixes.expects(:hidden_post_ids_for).never
+      @viewers.each do |who, viewer|
+        ordered = orderings[who]
+        ordered.each_with_index do |id, i|
+          CreatorVisibility.forget!
+          nav = PostNeighbors.new(post: Post.find(id), tags: "rfq order:id_desc", user: viewer)
+          assert_equal ordered[(i + 1)..].first(PostNeighbors::DEPTH), nav.run(:next)[:ids], "#{who}: next of ##{id}"
+          assert_equal ordered[0...i].reverse.first(PostNeighbors::DEPTH), nav.run(:prev)[:ids], "#{who}: prev of ##{id}"
+        end
+      end
+    end
+
+    should "build a payload without the hidden-id pluck or any statement over 20 KB" do
+      sqls = []
+      CreatorPrefixes.expects(:hidden_post_ids_for).never
+      sub = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| sqls << payload[:sql] unless payload[:name] == "SCHEMA" }
+      CreatorVisibility.forget!
+      payload = as(@member) { ModulationPostComponent.new(post: @plain, viewer: @member, query: "rfq").payload }
+      ActiveSupport::Notifications.unsubscribe(sub)
+
+      listed = payload[:presets].flat_map { (it[:prev_candidates] + it[:next_candidates]).pluck(:id) }
+      assert_includes listed, @plain_b.id, "fixture: the flanks were built"
+      [@hidden, @gated, @banished].each { assert_not_includes listed, it.id }
+      assert_operator sqls.map(&:bytesize).max, :<, 20_000
     end
   end
 end

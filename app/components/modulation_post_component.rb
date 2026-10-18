@@ -34,7 +34,13 @@ class ModulationPostComponent < ApplicationComponent
   # Held under its own name because ViewComponent owns `request` and answers
   # it only once rendering has begun, and the navigation endpoint builds the
   # payload without rendering at all.
-  def initialize(post:, viewer:, query: nil, settings: nil, session: nil, request: nil)
+  # `read` is which read of the payload this is (ModulationController):
+  # :full, the page itself and a re-read; :prefetch, a neighbour's payload
+  # fetched AHEAD of the viewer, which is not a visit, so random's trail never
+  # takes the post (random_neighbours); :visit, the read the page makes once
+  # the viewer lands on a prefetched post -- random's preset alone, which
+  # records the visit (#visit_payload).
+  def initialize(post:, viewer:, query: nil, settings: nil, session: nil, request: nil, read: :full) # rubocop:disable Metrics/ParameterLists
     super
     @post = post
     @viewer = viewer
@@ -42,6 +48,7 @@ class ModulationPostComponent < ApplicationComponent
     @settings = settings || ModulationSetting.defaults
     @session = session
     @identity_request = request
+    @read = read
   end
 
   # The request the creator check reads the viewer's Matrix identity from.
@@ -368,6 +375,20 @@ class ModulationPostComponent < ApplicationComponent
   # navigation endpoint (no page reload). Tag buckets come from for_viewer, so the
   # creator-privacy decision stays server-side -- the client only displays what it
   # is handed. Context-free (no view helpers) so it works outside a render.
+  # The keys of each preset the page is sent (payload, visit_payload).
+  PRESET_KEYS = %i[key label search prev_candidates next_candidates prev_more next_more history unavailable deferred].freeze
+
+  # THE VISIT READ: what a prefetched payload lacks, and nothing else -- random's
+  # preset, built as a visit (the post pushed onto the trail, its frontier
+  # rolled), that preset's candidates, and (the controller) the comment
+  # section. The page merges it into the payload it is showing
+  # (FourierPayloads.mergeVisit). It used to ask for the whole payload again,
+  # which doubled the builds per step -- every keyset mode's searches, the
+  # tags, the counts -- to learn these two things (review, 2026-10-18).
+  def visit_payload
+    { id: post.id, presets: nav_presets.map { |p| p.slice(*PRESET_KEYS) }, candidates: flank_candidates }
+  end
+
   def payload
     {
       id: post.id,
@@ -391,12 +412,15 @@ class ModulationPostComponent < ApplicationComponent
       # and re-picks live when a block changes (GALLERY_WINDOW.md section 2).
       # `more` says whether the search goes on past the list. New key names,
       # not prev/next with a new shape: a tab left open across a deploy then
-      # draws empty flanks rather than navigating to "undefined".
-      presets: nav_presets.map { |p| p.slice(:key, :label, :search, :prev_candidates, :next_candidates, :prev_more, :next_more, :history, :unavailable) },
-      # id => { thumb:, deleted:, blacklist: } for every candidate above, once
-      # however many modes share it. `blacklist` is what the engine matches,
-      # built as the centre's is; the page writes it onto hidden pool
-      # elements, because the engine only sees elements.
+      # draws empty flanks rather than navigating to "undefined". `deferred`
+      # is random's on a prefetch of a post its trail does not hold.
+      presets: nav_presets.map { |p| p.slice(*PRESET_KEYS) },
+      # id => { thumb:, deleted:, blacklist:, media: } for every candidate
+      # above, once however many modes share it. `blacklist` is what the
+      # engine matches, built as the centre's is; the page writes it onto
+      # hidden pool elements, because the engine only sees elements. `media`
+      # is what that post's own payload names, so the page can warm its
+      # picture before fetching its payload.
       candidates: flank_candidates,
       active_key: active_preset_key,
       status: status,
@@ -516,18 +540,44 @@ class ModulationPostComponent < ApplicationComponent
 
   private
 
-  def media_payload
-    visible = post.visible?(viewer)
-    if post.is_image?
-      { kind: "image", src: (visible ? post.large_file_url : nil), full: (visible ? post.tagged_file_url : nil), w: post.image_width, h: post.image_height }
-    elsif post.is_video?
-      { kind: "video", src: (visible ? post.file_url : nil), poster: (visible ? post.preview_file_url : nil), w: post.image_width, h: post.image_height }
+  # The centre's media -- and each flank candidate's (build_nav_presets), so a
+  # picture the page warms ahead from a candidate is byte for byte the URL its
+  # own page asks for. `box` is the exact size of the rendition `src` names:
+  # the stage reserves it before the bytes arrive, so nothing moves when they
+  # do (operator, 2026-10-18). Absent where that size is unknown -- flash's
+  # placeholder, a picture this viewer may not see -- and the stage falls back
+  # to the placeholder's own. w/h stay the original's, for the fullscreen fit.
+  #
+  # `full`, the tagged original for "View original" and the fullscreen viewer,
+  # is the centre's alone: its file name is built from the post's tags
+  # (seo_tags), one tags query per post, and a candidate never shows it
+  # (`centre: false`) -- 12 to 48 candidates a payload made 12 to 48 queries.
+  def media_payload(target = post, centre: true)
+    asset = target.media_asset
+    visible = target.visible?(viewer)
+    if target.is_image?
+      # A post with a sample is pointed at its 720 rendition: production's gate
+      # snaps the booru route's ?w=850 to that webp anyway (fourier-auth
+      # booru-media.js pickVariant), so this names the picture actually served
+      # and its true size -- and dev, which serves the sample itself, shows the
+      # same rendition. NOT a Matrix-sourced post: its route (the gate's
+      # /media, mediar2.js booruVariantKey) keeps ?width=850 at 850 and serves
+      # the 850 sample, so the 720 would be a smaller, softer picture than it
+      # showed before (review, 2026-10-18). It keeps its sample.
+      rendition = target.source.to_s.start_with?("mxc://") ? :sample : :"720x720"
+      shown = asset.variant(asset.has_variant?(:sample) ? rendition : :original)
+      { kind: "image", src: (visible ? shown.file_url : nil), full: ((visible && centre) ? target.tagged_file_url : nil), w: target.image_width, h: target.image_height, box: (visible ? [shown.width, shown.height] : nil) }
+    elsif target.is_video?
+      { kind: "video", src: (visible ? target.file_url : nil), poster: (visible ? target.preview_file_url : nil), w: target.image_width, h: target.image_height, box: (visible ? [asset.image_width, asset.image_height] : nil) }
     else
-      # ugoira / flash / other: Modulation shows the preview + a link out.
-      { kind: "other", src: (visible ? post.preview_file_url : nil), href: post_url_for(post, nil), w: post.image_width, h: post.image_height }
+      # ugoira / flash / other: Modulation shows the preview + a link out. The
+      # preview is the 180 rendition; flash has none (a fixed placeholder).
+      preview = asset.variant(:"180x180")
+      { kind: "other", src: (visible ? target.preview_file_url : nil), href: post_url_for(target, nil), w: target.image_width, h: target.image_height, box: ((visible && preview) ? [preview.width, preview.height] : nil) }
     end
-  rescue StandardError
-    { kind: "other", src: nil, href: post_url_for(post, nil) }
+  rescue StandardError => e
+    DanbooruLogger.log(e)
+    { kind: "other", src: nil, href: post_url_for(target, nil) }
   end
 
   def meta_payload
@@ -585,6 +635,9 @@ class ModulationPostComponent < ApplicationComponent
     defs << { key: "all", label: "all", search: with_order(nil, "id_desc") }
     # The one mode that changes the AXIS instead of the filter.
     defs << { key: "random", label: "random", search: with_order(base_tags, "random") }
+    # A visit read wants random alone (visit_payload): the keyset modes are in
+    # the prefetched payload the page is already showing.
+    defs = defs.select { it[:key] == "random" } if @read == :visit
 
     resolved = defs.map do |d|
       if d[:key] == "random"
@@ -641,7 +694,7 @@ class ModulationPostComponent < ApplicationComponent
     listed = resolved.flat_map { it[:prev_ids] + it[:next_ids] }.uniq.filter_map { posts_by_id[it] if shown_ids.include?(it) }
     tags = FourierTagSource.blacklist_tags_for(listed, viewer, request: identity_request)
     @flank_candidates = listed.to_h do |neighbour|
-      [neighbour.id, { thumb: neighbour.preview_file_url, deleted: neighbour.is_deleted?, blacklist: blacklist_attrs(neighbour, tags.fetch(neighbour, [])) }]
+      [neighbour.id, { thumb: neighbour.preview_file_url, deleted: neighbour.is_deleted?, blacklist: blacklist_attrs(neighbour, tags.fetch(neighbour, [])), media: media_payload(neighbour, centre: false).slice(:kind, :src, :poster, :box) }]
     end
 
     if incoming_order == "random"
@@ -690,10 +743,20 @@ class ModulationPostComponent < ApplicationComponent
   # different: a request caches identical SQL, and twenty cached rolls of one
   # query came back as one post twenty times
   # (test/unit/modulation_random_neighbours_test.rb).
+  #
+  # A PREFETCH IS NOT A VISIT: it never pushes its post onto the trail. A post
+  # the trail does not hold is sent `deferred` -- empty, nothing rolled -- and
+  # the page fills it from the visit read it makes once the viewer lands
+  # (visit_payload). A post the trail holds is answered from it, and at an end
+  # its frontier is rolled: that is the next random post in the direction the
+  # viewer is walking, and deferring it made every forward step along random
+  # wait on a second build after the landing (review, 2026-10-18).
   def random_neighbours
-    roll = ->(taken) { Post.user_tag_match(base_tags.to_s, viewer).where.not(id: taken + [post.id]).random(1).pick(:id) }
+    roll = ->(taken) { Post.user_tag_match(base_tags.to_s, viewer, row_filter: true).where.not(id: taken + [post.id]).random(1).pick(:id) }
     trail = random_trail
-    if trail
+    if trail && @read == :prefetch && !trail.holds?(post)
+      { prev_ids: [], next_ids: [], prev_more: true, next_more: true, history: trail.size, deferred: true }
+    elsif trail
       found = trail.neighbours_for(post, depth: PostNeighbors::DEPTH, &roll)
       trail.save!
       found.merge(history: trail.size)

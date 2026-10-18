@@ -27,10 +27,32 @@
     gap: clamp(0.5rem, 2vw, 1.25rem);
   }
 
+  // THE CENTRE RESERVES ITS BOX BEFORE THE PICTURE EXISTS (operator,
+  // 2026-10-18). The stage has no height but the centre's, and the centre
+  // used to take its size from an <img> whose CSS cancelled its width/height
+  // attributes: until the bytes arrived the stage was the frame's 2px border,
+  // the flank columns (stretched to it, and masked to their own height)
+  // painted no thumbnail, and the tag panel rode up by the image's height
+  // and back down when it landed.
+  //
+  // --mod-bw/--mod-bh are the rendition's own size in px, written by the
+  // server and by renderCenter() as the centre's inline style (the payload's
+  // media.box); absent, the placeholder's 3:4 box. The frame's 1px border is
+  // inside the box, so the box is the picture plus 2px each way: at its own
+  // size the picture shows at exactly its own pixels. The width is the
+  // smaller of that and the height cap (--mod-stage-max, sizeStage) times
+  // the ratio, never wider than the stage allows; the height follows from
+  // the ratio. No transition, no animation: it is simply the right size.
   .mod-stage-center {
-    place-self: center; // the image keeps its intrinsic size, not stretched
+    --mod-bw: 358;
+    --mod-bh: 478;
+
+    place-self: center; // shrink-wrapped to its box, not stretched
     min-width: 0;
     z-index: 2;
+    width: min(calc(var(--mod-bw) * 1px + 2px), calc(var(--mod-stage-max, 100000px) * (var(--mod-bw) + 2) / (var(--mod-bh) + 2)));
+    max-width: 100%;
+    aspect-ratio: calc(var(--mod-bw) + 2) / calc(var(--mod-bh) + 2);
     transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.26s ease;
   }
 
@@ -167,8 +189,12 @@
     background: linear-gradient(to top, color-mix(in srgb, var(--mod-surface) 88%, transparent), transparent);
   }
 
+  // The frame and the picture fill the centre's box. contain, so a picture
+  // whose bytes disagree with the box it was promised is letterboxed rather
+  // than stretched -- a Matrix thumbnail of a size nobody recorded, say.
   .mod-frame {
-    max-width: 100%;
+    width: 100%;
+    height: 100%;
     border-radius: var(--mod-radius);
     overflow: hidden;
     background: var(--mod-surface);
@@ -176,15 +202,16 @@
     line-height: 0;
   }
 
-  .mod-image img, .mod-frame img, .mod-frame video, .mod-frame .mod-image {
-    max-width: 100%;
-    height: auto;
+  .mod-frame img, .mod-frame video, .mod-frame > a {
     display: block;
+    width: 100%;
+    height: 100%;
   }
+
+  .mod-frame img, .mod-frame video { object-fit: contain; }
 
   .mod-image--placeholder {
     display: grid; place-items: center;
-    width: clamp(240px, 44vw, 360px); aspect-ratio: 3 / 4;
     color: var(--mod-ink-dim); font-family: ui-monospace, monospace; font-size: 0.8rem;
   }
 

@@ -30,8 +30,17 @@ class ModulationController < ApplicationController
     # ahead of time; a refresh after a vote or a favourite) are not a view
     # and log nothing (review, 2026-10-08: each prefetch logged one).
     CreatorVisibility.log_admin_view(post, CurrentUser.user) if params[:opened].present?
-    component = ModulationPostComponent.new(post: post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session, request: request)
-    render json: component.payload.merge(comments_html: comments_html(post)), status: :ok
+    # ?prefetch=1: the page fetching this payload AHEAD of the viewer, as a
+    # neighbour. Not a visit: random's trail never takes the post, and the
+    # comment section (below the fold) is not rendered.
+    # ?visit=1: the viewer landed on a post shown from its prefetch. Only what
+    # that lacked -- random's preset, built as a visit, and the comments --
+    # not the whole payload again (ModulationPostComponent#visit_payload).
+    read = %i[visit prefetch].find { params[it].present? } || :full
+    component = ModulationPostComponent.new(post: post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session, request: request, read: read)
+    body = (read == :visit) ? component.visit_payload : component.payload
+    body = body.merge(comments_html: comments_html(post)) unless read == :prefetch
+    render json: body, status: 200
   end
 
   # "Clear 'Random' History": forget the trail for this search, so the next

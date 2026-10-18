@@ -77,6 +77,10 @@ test("words: every state that stops a press names its fix", () => {
   assert.match(flankWords({ kind: "no-access" }, "prev"), /back.*Fix: change mode/);
   assert.equal(flankWords({ kind: "fault", why: "The blocklist did not load. Fix: reload the page." }, "next"), "The blocklist did not load. Fix: reload the page.");
   assert.match(flankWords({ kind: "fault", why: "" }, "next"), /not applied yet/);
+  // A side whose candidates a prefetched payload could not name yet (random's
+  // frontier is rolled only by the full read that follows the commit).
+  assert.equal(flankWords({ kind: "deferred" }, "next"), "Still loading the next post forward in this mode; the press will go through when it arrives.");
+  assert.equal(flankWords({ kind: "deferred" }, "prev"), "Still loading the next post back in this mode; the press will go through when it arrives.");
   assert.equal(flankWords({ kind: "pick", index: 0, skipped: 0 }, "next"), "");
   assert.equal(flankWords({ kind: "end" }, "next"), "");
 });

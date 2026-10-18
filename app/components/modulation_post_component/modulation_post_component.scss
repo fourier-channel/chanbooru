@@ -157,14 +157,39 @@ body:has(.modulation) {
     &.is-shown { visibility: visible; }
   }
 
-  // The image size cap. --mod-stage-max is written by the view controller
-  // (sizeStage) per the viewer's image_cap setting; absent, the image keeps
-  // its intrinsic size. width: auto lets the max-height bind without
-  // stretching -- both maxima apply and the aspect ratio arbitrates.
-  .mod-frame img,
-  .mod-frame video {
-    max-height: var(--mod-stage-max, none);
-    width: auto;
+  // The image size cap, --mod-stage-max, is written by the view controller
+  // (sizeStage) per the viewer's image_cap setting and read by the centre's
+  // reserved box (the stage mixin): absent, the picture keeps its own size.
+
+  // A BLOCKED CENTRE KEEPS ITS BOX. The engine hides what it marks with
+  // display: none (.blacklisted-hidden, 0,2,0); on the centre that took the
+  // stage -- and the flank tiles a viewer needs to walk away -- down to
+  // nothing. Here the centre stays and its content goes, and the placard
+  // renderCenter() writes says why the box is empty. Three classes, so it
+  // outranks the engine's rule whatever order the files load in. Static.
+  .mod-stage-center { position: relative; }
+  .mod-stage-center.blacklisted-hidden { display: block; }
+  .mod-stage-center.blacklisted-hidden > :not(.mod-center-blocked) { visibility: hidden; }
+
+  .mod-center-blocked {
+    display: none;
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius);
+    background: repeating-linear-gradient(45deg, var(--mod-surface) 0 6px, var(--mod-surface-2) 6px 12px);
+
+    .mod-trailcap svg { width: min(38%, 4.5rem); }
+    .mod-trailcap-label { font-size: 0.72rem; }
+  }
+  .mod-stage-center.blacklisted-hidden > .mod-center-blocked { display: block; }
+
+  // The tile's thumbnail behind a picture still on its way (standIn): the
+  // frame is the picture's own shape, so contain fits it exactly.
+  .mod-frame.has-standin {
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
   }
 
   // --- action row ---------------------------------------------------------
@@ -478,7 +503,9 @@ body:has(.modulation) {
   // nothing else.
   .mod-spoiler {
     position: relative;
-    display: inline-block;
+    display: block;
+    width: 100%;
+    height: 100%;
     cursor: pointer;
     border-radius: var(--mod-radius);
     overflow: hidden;
@@ -494,6 +521,7 @@ body:has(.modulation) {
   // the <img> could not do -- it would leave a sharp outline around a blurred
   // interior.
   .mod-spoiler-veil {
+    height: 100%;
     filter: grayscale(1) blur(28px);
     transform: scale(1.06); // hides the transparent margin the blur pulls in
     pointer-events: none;

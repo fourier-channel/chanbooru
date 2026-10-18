@@ -38,7 +38,13 @@
         the tags, comments and controls in place. This element is also stable
         across client-side navigation (only its contents are replaced), so the
         Post object the blacklist attaches to it survives a swap. %>
-    <div class="mod-stage-center mod-blacklist-target" data-region="center" <%= tag.attributes(blacklist_data) %>></div>
+    <%# Its box is written here, before the script runs, so a cold load paints
+        the stage at its final size: the rendition's own width and height
+        (media_payload's `box`), which the stage stylesheet turns into a
+        reserved width and aspect ratio. No box, no style: the placeholder's
+        size. renderCenter() rewrites it on every step. %>
+    <% box = media_payload[:box] %>
+    <div class="mod-stage-center mod-blacklist-target" data-region="center" <%= tag.attributes(blacklist_data.merge(style: box && "--mod-bw:#{box[0]};--mod-bh:#{box[1]}")) %>></div>
     <div class="mod-flank-col mod-flank-col--next" data-region="flank-next"></div>
     <%# The flank candidates, as elements the blocklist engine can see and
         mark: filled by the script below from the payload, never shown. The
@@ -68,7 +74,7 @@
       <div class="mod-comments-head">
         <h2 class="mod-comments-title">Comments</h2>
       </div>
-      <div class="mod-comments-body" data-region="comments">
+      <div class="mod-comments-body" data-region="comments" data-post="<%= post.id %>">
         <%= render CommentSectionComponent.new(post: post, current_user: viewer) %>
       </div>
     </section>
@@ -81,6 +87,11 @@
     root.dataset.booted = "1";
 
     const BASE = root.dataset.endpointBase || "/posts";
+    // The application pack's pieces this script cannot import. Without them
+    // nothing here can load or keep its box, so say so and stop.
+    if (!window.FourierPayloads) throw new Error("post view: window.FourierPayloads is missing, so nothing here can load -- reload; if it persists the application pack (modulation_payloads.js) failed to build");
+    if (!window.FourierLookahead) throw new Error("post view: window.FourierLookahead is missing, so the stage cannot reserve its box -- reload; if it persists the application pack (modulation_lookahead.js) failed to build");
+    const Ahead = window.FourierLookahead;
     // A link OFF this site opens in a new tab. Inside Technetium this page is
     // an iframe, so a same-tab link to a source like 4chan navigates the FRAME
     // to a site that refuses to be framed -- the panel just goes blank, which
@@ -125,11 +136,14 @@
       region("gate").hidden = !cur.gated;
       region("sort-label").textContent = active().label || "";
     }
+    // The picture fills the centre's reserved box (renderCenter), so nothing
+    // here carries a size: the box is the rendition's own, and object-fit
+    // keeps a picture whose bytes disagree from distorting.
     function mediaHTML(m) {
       if (!m || !m.src) return '<div class="mod-frame mod-image mod-image--placeholder">media gated</div>';
       if (m.kind === "video") return '<div class="mod-frame"><video class="mod-image" src="' + esc(m.src) + '" poster="' + esc(m.poster) + '" controls loop playsinline></video></div>';
       if (m.kind === "other") return '<div class="mod-frame"><a href="' + esc(m.href || "#") + '"><img class="mod-image" src="' + esc(m.src) + '" alt=""></a></div>';
-      return '<div class="mod-frame"><img class="mod-image" src="' + esc(m.src) + '" alt="" ' + (m.w ? 'width="' + m.w + '" height="' + m.h + '"' : "") + "></div>";
+      return '<div class="mod-frame"><img class="mod-image" src="' + esc(m.src) + '" alt=""></div>';
     }
     // A deleted post's image is greyed and blurred until asked for. Reaching a
     // deleted post is a moderation act -- checking what was removed, or why --
@@ -146,10 +160,46 @@
         '<div class="mod-spoiler-veil">' + inner + "</div>" +
         '<span class="mod-spoiler-label">deleted \u2014 click to reveal</span></div>';
     }
+    // THE BOX IS RESERVED BEFORE THE PICTURE EXISTS (operator, 2026-10-18:
+    // the stage collapsed to its frame's border while an image loaded, taking
+    // the flank thumbnails with it and pulling the tag panel up by the image's
+    // height). The payload names the rendition's own size (media.box); the
+    // stage stylesheet turns it into a width and an aspect ratio, so the
+    // centre is its final size from the frame it is drawn in.
+    //
+    // A blocked centre keeps that box: the engine's mark hides its content,
+    // not the centre, and this placard (shown only under the mark) says why
+    // the box is empty. Hiding the centre itself took the stage, and the
+    // flank tiles a viewer needs to walk away, down to nothing.
     function renderCenter() {
+      const el = region("center");
+      // A picture or a video the viewer may see always comes with its box. One
+      // without is a payload from a server that does not send it (a rollback,
+      // a deploy half done): the stage falls back to the placeholder's box, so
+      // say why, rather than letterbox every post in silence.
+      const m = cur.media || {};
+      if (m.src && m.kind !== "other" && !m.box) console.error("post view: post #" + cur.id + "'s payload has no media.box, so its stage cannot reserve the picture's size -- the server is older than this page; reload it");
+      const style = Ahead.centerBoxStyle(m.box);
+      if (style) el.setAttribute("style", style); else el.removeAttribute("style");
       const html = mediaHTML(cur.media);
       const spoil = cur.status === "deleted" && cur.media && cur.media.src && !revealed;
-      region("center").innerHTML = spoil ? spoilerHTML(html) : html;
+      el.innerHTML = (spoil ? spoilerHTML(html) : html) +
+        '<div class="mod-center-blocked" role="img" aria-label="This post is on your blocklist">' + capHTML("blocked", "on your blocklist") + "</div>";
+    }
+    // The tile's thumbnail behind a picture still on its way, set at the
+    // commit: the thumbnail is already in the browser (the tile showed it),
+    // and the frame is the picture's own shape, so it stands in at the right
+    // size. Taken down on load -- a picture with transparent areas must not
+    // show the blurred stand-in through them -- or on error, which then shows.
+    function standIn(thumb) {
+      const frame = region("center").querySelector(".mod-frame");
+      const img = frame && frame.querySelector(":scope > img");
+      if (!thumb || !img || (img.complete && img.naturalWidth)) return;
+      frame.style.backgroundImage = 'url("' + String(thumb).replace(/["\\\n]/g, "") + '")';
+      frame.classList.add("has-standin");
+      const clear = () => { frame.style.backgroundImage = ""; frame.classList.remove("has-standin"); };
+      img.addEventListener("load", clear, { once: true });
+      img.addEventListener("error", clear, { once: true });
     }
 
     // The terminus glyph for an empty cap: the trail's line stopping at a
@@ -159,6 +209,8 @@
       next: '<path d="M12 3 V14.6"></path><circle cx="12" cy="18" r="3" fill="currentColor" stroke="none"></circle>',
       // The blocklist's own circle-with-slash (BlocklistComponent's trigger).
       blocked: '<circle cx="12" cy="12" r="8.5"></circle><path d="M6 6l12 12"></path>',
+      // A side whose post is still on its way: three still dots, no motion.
+      loading: '<circle cx="6" cy="12" r="1.6" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"></circle><circle cx="18" cy="12" r="1.6" fill="currentColor" stroke="none"></circle>',
     };
     function capHTML(glyph, label) {
       return '<span class="mod-trailcap"><svg viewBox="0 0 24 24" aria-hidden="true">' + CAP_GLYPH[glyph] + "</svg>" +
@@ -202,6 +254,10 @@
     let engineApplied = false, flankFault = "", swapping = false, flankFor = null;
     let ext = new Map(), extCandidates = {}, flankStates = {}, poolEls = new Map();
     let statusSide = "", statusTimer = null;
+    // queued, via: the press waiting for a step to end and the post a step is
+    // passing in transit (navigate). visitSeq, visitFailed: the visit read in
+    // flight and the post whose visit read failed (completeCurrent).
+    let queued = null, via = null, visitSeq = 0, visitFailed = null;
     const candidateOf = (id) => ((cur && cur.candidates) || {})[id] || extCandidates[id] || null;
     const blacklistEngine = () => { const box = document.querySelector("#blacklist-box"); return box && box.blacklist; };
 
@@ -259,6 +315,10 @@
     function sideState(p, side, marked) {
       if (!engineApplied) return { kind: "fault", why: flankFault };
       if (p.unavailable) return { kind: "unavailable" };
+      // Random on a payload fetched ahead for a post its trail does not hold:
+      // its neighbours come with the visit read that follows the commit
+      // (completeCurrent) -- or, if that read failed, never, and it says so.
+      if (p.deferred) return visitFailed && visitFailed.id === cur.id ? { kind: "failed", why: visitFailed.why } : { kind: "deferred" };
       const r = runFor(p, side);
       const list = r.list.filter(c => candidateOf(c.id));
       const st = window.FourierFlanks.flankState(list, r.more, marked, HOP_CAP - r.ext.hops);
@@ -279,6 +339,11 @@
     function flankRow(p, i, side) {
       const st = flankStates[p.key + "|" + side] || { kind: "fault" };
       const open = (cls, href, title, inner) => '<a class="mod-sortrow' + cls + '" data-i="' + i + '" data-side="' + side + '" href="' + esc(href) + '" title="' + esc(title) + '">' + inner + '<span class="mod-sortrow-tag">' + esc(p.label) + "</span></a>";
+      // Until the engine's first apply every slot holds a plain hatch, so the
+      // tiles take their places at once and nothing appears later -- never a
+      // thumbnail: drawn before the marks exist it could be a blocked one.
+      if (st.kind === "fault" && !engineApplied && !flankFault) return open(" is-empty is-waiting", "#", p.label + " -- waiting for the blocklist", "");
+      if (st.kind === "deferred") return open(" is-empty is-loading", "#", p.label + " -- loading", capHTML("loading", "loading"));
       if (st.kind === "pick") {
         const c = candidateOf(st.ref.id) || {};
         // A deleted (or jailed) neighbour is blurred, as the gallery grid
@@ -301,19 +366,19 @@
 
     // Draw every mode's flanks from the marks. Called on every engine apply;
     // never calls rescan() itself, or it would answer its own event forever.
+    // The candidate ids the engine has marked, as strings (dataset.id).
+    const markedIds = () => new Set(Array.from(root.querySelectorAll(".mod-flank-poolitem.blacklisted-active"), el => el.dataset.id));
     function drawFlanks() {
       if (!root.isConnected) return;
       if (swapping) return; // the swap's own renderAll redraws
-      if (engineApplied || flankFault) {
-        const marked = new Set(Array.from(root.querySelectorAll(".mod-flank-poolitem.blacklisted-active"), el => el.dataset.id));
-        flankStates = {};
-        presets().forEach(p => ["prev", "next"].forEach(side => { flankStates[p.key + "|" + side] = sideState(p, side, marked); }));
-        region("flank-prev").innerHTML = presets().map((p, i) => flankRow(p, i, "prev")).join("");
-        region("flank-next").innerHTML = presets().map((p, i) => flankRow(p, i, "next")).join("");
-        if (statusSide) showStatus();
-      }
+      const marked = markedIds();
+      flankStates = {};
+      presets().forEach(p => ["prev", "next"].forEach(side => { flankStates[p.key + "|" + side] = sideState(p, side, marked); }));
+      region("flank-prev").innerHTML = presets().map((p, i) => flankRow(p, i, "prev")).join("");
+      region("flank-next").innerHTML = presets().map((p, i) => flankRow(p, i, "next")).join("");
+      if (statusSide) showStatus();
       applyRanks();
-      if (engineApplied) preloadNeighbours();
+      if (engineApplied) lookAhead();
     }
     function renderFlanks() {
       const key = window.FourierFlanks.runsKey(cur);
@@ -334,7 +399,9 @@
       r.ext.looking = true;
       r.ext.hops += 1;
       drawFlanks();
-      fetchPayload(anchor.id, p.search).then(q => {
+      // Fetched as a prefetch: no visit is recorded. Along random the anchor
+      // is on the trail, so its prefetch rolls the frontier past it.
+      fetchPayload(anchor.id, p.search, true).then(q => {
         const match = (q.presets || []).find(x => x.search === p.search);
         if (!match) throw new Error("no " + p.label + " mode in post #" + anchor.id + "'s answer");
         const found = window.FourierFlanks.extendRun(r.list, selfId, match, side);
@@ -358,22 +425,27 @@
     // down once the side has a pick again, as a navigation or a mode change
     // does. Otherwise it stays STATUS_MS from the last press: long enough to
     // read its fix.
+    // `words`, when given, is a failure of the press itself (a payload that
+    // did not come), said as it is until the line goes down.
     const STATUS_MS = 8000;
-    function tellStatus(side) {
+    let statusWords = "";
+    function tellStatus(side, words) {
       statusSide = side;
+      statusWords = words || "";
       clearTimeout(statusTimer);
       statusTimer = setTimeout(hideStatus, STATUS_MS);
       showStatus();
     }
     function showStatus() {
       const el = region("flank-status"), st = flankStates[active().key + "|" + statusSide];
-      const words = st ? window.FourierFlanks.flankWords(st, statusSide) : "";
+      const words = statusWords || (st ? window.FourierFlanks.flankWords(st, statusSide) : "");
       if (!el || !words) { hideStatus(); return; }
       el.textContent = words;
       el.classList.add("is-shown");
     }
     function hideStatus() {
       statusSide = "";
+      statusWords = "";
       clearTimeout(statusTimer);
       const el = region("flank-status");
       if (el) el.classList.remove("is-shown");
@@ -677,7 +749,9 @@
           if (d && typeof d.jailed === "boolean") cur.moderation = { can: true, jailed: d.jailed, deleted: d.deleted };
           // The whole page re-reads the post: status line, notice strip, the
           // spoiler over a deleted picture, and the pill itself.
-          return refreshCurrent().then(() => { revealed = false; renderNotices(); renderCenter(); renderBlacklist(); })
+          // sizeStage: a notice strip added or removed above the stage moved
+          // it, and the cap is measured from the stage's top.
+          return refreshCurrent().then(() => { revealed = false; renderNotices(); renderCenter(); renderBlacklist(); sizeStage(); })
             .then(() => { if (!ok) flashPill(d && d.refused ? d.refused : "refused"); });
         })
         .catch(() => flashPill("network error"))
@@ -713,10 +787,26 @@
     // and re-implementing comment rendering client-side to avoid one string would
     // mean owning comment markup forever. Danbooru binds its comment handlers on
     // document, so swapped-in markup stays live.
+    // A payload fetched ahead carries no comments: until the visit read lands
+    // (completeCurrent) the section says so, rather than showing the
+    // previous post's under this one. It sits last on the page, so its
+    // height moves nothing above it -- but it does move the viewport: read
+    // scrolled down into a thread, a one-line placeholder made the document
+    // shorter, the browser clamped the scroll position, and the comments
+    // arriving a moment later did not give it back (review, 2026-10-18). So
+    // the placeholder keeps the section's height until they arrive.
     function renderComments() {
       const el = region("comments");
       if (!el) return;
-      if (typeof cur.comments_html === "string") el.innerHTML = cur.comments_html;
+      if (typeof cur.comments_html === "string") {
+        el.innerHTML = cur.comments_html;
+        el.dataset.post = String(cur.id);
+        el.style.minHeight = "";
+      } else if (el.dataset.post !== String(cur.id)) {
+        el.style.minHeight = el.getBoundingClientRect().height + "px";
+        el.innerHTML = '<p class="mod-empty">Loading comments...</p>';
+        el.dataset.post = "";
+      }
     }
     // Client-side navigation swaps the post under a root element the blacklist
     // has already claimed, so the attributes it matches on have to travel with
@@ -779,14 +869,15 @@
       // comes off the cap -- "the exact point" is measured, not summed. Only
       // ever shrinks, so it cannot oscillate; skipped while expanded because
       // the expanded bottom edge is not the edge the cap is defined against.
+      // In the same task, not the next frame: the centre's box is reserved
+      // now, so a deferred pass painted one frame at the first cap and then
+      // moved the tag panel (12 px in Firefox, bin/postview-shift).
       if (imageCap === "fit" && !tagsExpanded) {
         const tagsEl = region("tags");
-        requestAnimationFrame(() => {
-          const current = parseInt(root.style.getPropertyValue("--mod-stage-max"), 10);
-          if (!current || !tagsEl) return;
-          const overflow = Math.ceil(tagsEl.getBoundingClientRect().bottom + window.scrollY + breathing - window.innerHeight);
-          if (overflow > 0 && current - overflow > 160) root.style.setProperty("--mod-stage-max", (current - overflow) + "px");
-        });
+        const current = parseInt(root.style.getPropertyValue("--mod-stage-max"), 10);
+        if (!current || !tagsEl) return;
+        const overflow = Math.ceil(tagsEl.getBoundingClientRect().bottom + window.scrollY + breathing - window.innerHeight);
+        if (overflow > 0 && current - overflow > 160) root.style.setProperty("--mod-stage-max", (current - overflow) + "px");
       }
     }
     let sizeTimer = null;
@@ -823,6 +914,7 @@
       const m = cur.media || {};
       if (lbOpen || m.kind !== "image" || !(m.full || m.src)) return;
       lbOpen = true;
+      queued = null; // a press waiting to be taken must not move the post beneath the viewer
       lbW = m.w || 1000; lbH = m.h || 1000;
       const el = document.createElement("div");
       el.className = "mod-lightbox";
@@ -910,8 +1002,8 @@
       }).then(() => { payloads.clear(); return fetchPayload(cur.id, search); })
         // flankFor = null: the trail was reseeded, so what looking further
         // found along random belongs to a trail that is gone.
-        .then(p => { cur = p; flankFor = null; renderFlanks(); renderActions(); renderMeta(); preloadNeighbours(); })
-        .catch(() => {})
+        .then(p => { cur = p; flankFor = null; renderFlanks(); renderActions(); renderMeta(); lookAhead(); })
+        .catch(why => console.error("post view: clearing random's history failed (" + describe(why) + ") -- reload the page to see where it stands"))
         .finally(() => { btn.disabled = false; });
     }
     // The re-read after a write. Its own request, never one sent before the
@@ -942,13 +1034,74 @@
     }
 
     // ---- data + preloading ----
-    const endpointFor = (id, search) => BASE + "/" + id + "/modulation.json?q=" + encodeURIComponent(search || "");
+    // prefetch: the payload fetched AHEAD of the viewer, as a neighbour
+    // (?prefetch=1) -- no comments, random read and never written, because it
+    // is not a visit. The full read follows once the viewer lands.
+    const endpointFor = (id, search, prefetch) => BASE + "/" + id + "/modulation.json?q=" + encodeURIComponent(search || "") + (prefetch ? "&prefetch=1" : "");
     // Every payload fetched, by endpoint, with a request in flight shared
     // (modulation_payloads.js says when it is not).
-    if (!window.FourierPayloads) throw new Error("post view: window.FourierPayloads is missing, so nothing here can load -- reload; if it persists the application pack (modulation_payloads.js) failed to build");
-    const payloads = window.FourierPayloads.payloadStore(url => fetch(url, { headers: { Accept: "application/json" } })
-      .then(r => r.ok ? r.json() : Promise.reject(r.status)));
-    function fetchPayload(id, search) { return payloads.get(endpointFor(id, search)); }
+    const loadJSON = url => fetch(url, { headers: { Accept: "application/json" } })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status));
+    const payloads = window.FourierPayloads.payloadStore(loadJSON);
+    function fetchPayload(id, search, prefetch) { return payloads.get(endpointFor(id, search, prefetch)); }
+    // What a failure says: a status as HTTP n, anything else as its message.
+    const describe = (why) => (typeof why === "number" ? "HTTP " + why : String((why && why.message) || why));
+    // Leaving the page cancels every fetch still in flight -- Firefox rejects
+    // them as a NetworkError as soon as the next page is asked for -- and
+    // those are not failures to report. Set when the page is asked to
+    // unload; reset if it is still here LEAVE_MS later, because a click that
+    // turned out to be a download asked too and then stayed.
+    const LEAVE_MS = 3000;
+    let leaving = false, leaveTimer = null;
+    window.addEventListener("beforeunload", () => {
+      leaving = true;
+      clearTimeout(leaveTimer);
+      leaveTimer = setTimeout(() => { leaving = false; }, LEAVE_MS);
+    });
+    const unlessLeaving = (report) => { if (!leaving) report(); };
+    // The payload a step to post `id` uses: whatever is already cached or on
+    // its way, a prefetch included, else a full read. { promise, prefetched }.
+    function payloadFor(id, search) {
+      const full = endpointFor(id, search), pre = endpointFor(id, search, true);
+      const key = payloads.choose([full, pre]);
+      return { promise: payloads.get(key), prefetched: key === pre };
+    }
+    // After showing a payload fetched ahead: the VISIT READ (?visit=1), which
+    // records the visit (random's trail), fills random's tile and brings the
+    // comments -- none of which holds up the picture or the tags -- and
+    // nothing else. It used to be the full payload again, a second build of
+    // every keyset search on every step, and applied whole it could land
+    // after a vote and put the old score back (review, 2026-10-18). Laid over
+    // the payload shown (FourierPayloads.mergeVisit); what looking further
+    // found along the other modes is kept, because their runs did not change.
+    // Not through the store: a visit is a write, never served from a cache.
+    // seq: only this post's latest visit read applies. visitFailed: the post
+    // whose visit read failed, and why -- its random side then says so
+    // instead of "still loading" forever.
+    function completeCurrent(search) {
+      const id = cur.id, seq = ++visitSeq;
+      return loadJSON(endpointFor(id, search) + "&visit=1").then(v => {
+        if (cur.id !== id || seq !== visitSeq) return;
+        const before = window.FourierFlanks.runsKey(cur);
+        const next = window.FourierPayloads.mergeVisit(cur, v);
+        if (flankFor === before) {
+          (next.presets || []).filter(p => p.key === "random").forEach(p => { ext.delete(p.search + "|prev"); ext.delete(p.search + "|next"); });
+          flankFor = window.FourierFlanks.runsKey(next);
+        }
+        cur = next;
+        renderFlanks(); renderComments();
+        drainQueue();
+      }).catch(why => unlessLeaving(() => {
+        if (cur.id !== id || seq !== visitSeq) return;
+        visitFailed = { id, why: "its visit read failed (" + describe(why) + ")" };
+        queued = null; // a press waiting on random's side: nothing is coming
+        console.error("post view: the visit read of post #" + id + " failed (" + describe(why) + ") -- its comments and random's neighbours are missing until a reload");
+        const el = region("comments");
+        if (el && el.dataset.post !== String(id)) { el.style.minHeight = ""; el.innerHTML = '<p class="mod-empty">The comments did not load (' + esc(describe(why)) + "). Fix: reload the page.</p>"; }
+        drawFlanks();
+        tellStatus("next", "Post #" + id + " loaded only in part (" + describe(why) + "): no comments, and random cannot move. Fix: reload the page.");
+      }));
+    }
     // Q2's log: an admin shown a post its creator hid from them is logged
     // when the viewer SHOWS it, not when its payload is fetched (fetches run
     // ahead for the neighbours and again after a vote). HEAD: the server
@@ -956,34 +1109,121 @@
     function noteOpened(p, search) {
       if (p && p.logs_admin_view) fetch(endpointFor(p.id, search) + "&opened=1", { method: "HEAD", credentials: "same-origin" }).catch(() => {});
     }
-    // The active mode's picks, payload and image, so the arrow is instant --
-    // and a side whose candidates are all blocked starts looking further.
-    // Idempotent: the payload cache answers a repeat.
-    function preloadNeighbours() {
+    // THE LOOKAHEAD (operator, 2026-10-18: "scrolling through posts even at
+    // normal speed reaches the second post ahead ... which hasn't loaded
+    // yet"). It went one post deep, and only once the viewer had landed on
+    // the post before -- JSON first, then the picture. Now, after every
+    // blocklist apply, the next TWO posts the blocklist allows in the
+    // direction of travel and the next one the other way are warmed: their
+    // pictures at once, from the candidates the payload already carries,
+    // and their payloads as prefetches. A press also starts the post past
+    // its destination before the swap begins (navigate). Never a blocked
+    // candidate: lookahead() steps over the marks.
+    //
+    // The warmed Images are kept (a bounded keep, newest LOOKAHEAD_KEEP), so
+    // a redraw does not make them again and the commit draws one already
+    // decoded (modulation_lookahead.js boundedKeep).
+    const LOOKAHEAD_KEEP = 8;
+    const warmed = Ahead.boundedKeep(LOOKAHEAD_KEEP);
+    let travel = "next"; // the side of the last step: the direction of travel
+    function warmImage(src) {
+      if (src) warmed.take(src, () => { const im = new Image(); im.decoding = "async"; im.src = src; return im; });
+    }
+    function prefetchPayload(id, search) {
+      if (payloads.has(endpointFor(id, search)) || payloads.has(endpointFor(id, search, true))) return;
+      fetchPayload(id, search, true).catch(why => unlessLeaving(() => console.error("post view: fetching post #" + id + " ahead failed (" + describe(why) + ") -- a press toward it asks again")));
+    }
+    function warmPost(ref, search) {
+      warmImage(Ahead.warmSource((candidateOf(ref.id) || {}).media));
+      prefetchPayload(ref.id, search);
+    }
+    // One side's run as sideState sees it: the candidates the page can draw.
+    const drawableRun = (p, side) => runFor(p, side).list.filter(c => candidateOf(c.id));
+    function lookAhead() {
       const a = active(); if (!a.key) return;
+      const marked = markedIds();
       ["prev", "next"].forEach(side => {
         const st = flankStates[a.key + "|" + side];
         if (!st) return;
         if (st.kind === "blocked-more" && st.canHop && !st.looking) { lookFurther(a, side); return; }
         if (st.kind !== "pick") return;
-        fetchPayload(st.ref.id, a.search).then(p => { if (p.media && p.media.src) { const im = new Image(); im.src = p.media.src; } }).catch(() => {});
+        const ahead = Ahead.lookahead(drawableRun(a, side), marked, -1, side === travel ? 2 : 1);
+        ahead.forEach(ref => warmPost(ref, a.search));
+        // The tile the next step will draw on this side is the second post's
+        // thumbnail; warm it too where the tiles are shown at all.
+        if (side === travel && ahead[1] && window.matchMedia("(width > 560px)").matches) warmImage((candidateOf(ahead[1].id) || {}).thumb);
       });
     }
 
     // ---- interactions ----
-    function setSort(i) { const ps = presets(); if (!ps.length) return; activeKey = ps[((i % ps.length) + ps.length) % ps.length].key; hideStatus(); applyRanks(); preloadNeighbours(); }
+    // A mode change drops a queued press: it was made in the old mode.
+    function setSort(i) { const ps = presets(); if (!ps.length) return; activeKey = ps[((i % ps.length) + ps.length) % ps.length].key; queued = null; hideStatus(); applyRanks(); lookAhead(); }
     function swapSort(d) { setSort(activeIndex() + d); }
-    function selectSort(i) { if (presets()[i]) { activeKey = presets()[i].key; hideStatus(); applyRanks(); preloadNeighbours(); } }
+    function selectSort(i) { if (presets()[i]) { activeKey = presets()[i].key; queued = null; hideStatus(); applyRanks(); lookAhead(); } }
 
     // Every way of moving -- arrows, swipe, wheel, a flank click -- comes
     // here, and goes where the drawn thumbnail says: the side's pick, never a
     // blocked candidate. Decided from the data and the marks, not the tile,
     // because at phone width the tiles are not drawn and a swipe still moves.
+    //
+    // The swap starts AT THE PRESS and commits at max(SWAP_MS, the payload):
+    // the old picture leaves while the next one's payload is on its way,
+    // instead of the page sitting still and taking no input until it came.
+    // A press during a step is QUEUED, one slot, the latest side winning,
+    // held with the mode it was made in (queuePress), and taken when the step
+    // ends -- it used to be dropped, and a second wheel notch did nothing. A
+    // press that goes at once replaces whatever was queued: it is the latest.
+    // A step that gets no payload in NAV_DEADLINE_MS, or a failed one, is
+    // undone and SAYS SO, in the status line and the console; it used to
+    // reload the whole page, silently.
+    //
+    // IN TRANSIT: a step whose payload arrives while a press is queued does
+    // not land. Its post is never drawn -- not its picture, which the next
+    // step would hide before it grew in, nor its tags, actions and stage box,
+    // which moved the page for a post nobody saw (review, 2026-10-18) -- and
+    // it is not pushed onto the history or logged as opened. Its flanks are
+    // worked out, because the queued press goes where they say, and the next
+    // step starts from it; the page lands once, on the post the presses end
+    // at. `via` holds that post while the next step is under way: if that
+    // step fails, the page lands on it instead, so the viewer is where the
+    // last step that worked took them.
+    const SWAP_MS = 260, NAV_DEADLINE_MS = 8000;
+    function drainQueue() {
+      if (busy || !queued) return;
+      const side = Ahead.queuedFor(queued, activeKey);
+      queued = null;
+      // Not under the fullscreen viewer: a press taken there would swap the
+      // post beneath it.
+      if (side && !lbOpen) navigate(side);
+    }
+    // Show `cur` as the post the page stands on: everything drawn for it, the
+    // centre growing in from the side it came from.
+    function land(side, search, thumb, prefetched) {
+      via = null;
+      root.classList.remove("is-nav-next", "is-nav-prev");
+      const enter = side === "next" ? "is-enter-next" : "is-enter-prev";
+      root.classList.add(enter);
+      renderAll();
+      standIn(thumb);
+      history.pushState({ modId: cur.id }, "", cur.url);
+      noteOpened(cur, search);
+      if (prefetched) completeCurrent(search);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        root.classList.remove(enter);
+        busy = false;
+        lookAhead();
+        // A press that came in these two frames waits for the picture to grow
+        // in: taken now, it would hide a post the page just drew.
+        if (queued) setTimeout(drainQueue, SWAP_MS);
+      }));
+    }
     function navigate(side) {
-      if (busy) return;
+      if (busy) { queued = Ahead.queuePress(queued, side, activeKey); return; }
+      queued = null;
       const a = active();
       if (!a.key) return;
       const st = flankStates[a.key + "|" + side] || { kind: "fault" };
+      if (st.kind === "deferred") { queued = Ahead.queuePress(null, side, activeKey); tellStatus(side); return; }
       if (st.kind !== "pick") {
         if (st.kind === "end") return;
         if (st.kind === "blocked-more" && !st.looking && !st.canHop) lookFurther(a, side);
@@ -992,24 +1232,67 @@
       }
       hideStatus();
       const nb = st.ref;
+      travel = side;
       busy = true;
-      fetchPayload(nb.id, a.search).then(p => {
-        root.classList.add(side === "next" ? "is-nav-next" : "is-nav-prev"); // shrink centre into slot, neighbour grows in
-        swapping = true;
-        setTimeout(() => {
-          swapping = false;
-          cur = p;
-          activeKey = p.active_key || activeKey;
-          revealed = false;
-          root.classList.remove("is-nav-next", "is-nav-prev");
-          const enter = side === "next" ? "is-enter-next" : "is-enter-prev";
-          root.classList.add(enter);
-          renderAll();
-          history.pushState({ modId: p.id }, "", p.url);
-          noteOpened(p, a.search);
-          requestAnimationFrame(() => requestAnimationFrame(() => { root.classList.remove(enter); busy = false; preloadNeighbours(); }));
-        }, 260);
-      }).catch(() => { window.location.href = nb.url; }); // network failure: fall back to a real load
+      // The post past this one, from this post's run, now: by the time the
+      // viewer presses again it is on its way.
+      Ahead.lookahead(drawableRun(a, side), markedIds(), st.index, 1).forEach(ref => warmPost(ref, a.search));
+      const thumb = (candidateOf(nb.id) || {}).thumb;
+      // shrink centre into slot, neighbour grows in (a step from a post in
+      // transit may turn round)
+      root.classList.remove(side === "next" ? "is-nav-prev" : "is-nav-next");
+      root.classList.add(side === "next" ? "is-nav-next" : "is-nav-prev");
+      swapping = true;
+      const { promise, prefetched } = payloadFor(nb.id, a.search);
+      let settled = false;
+      const undo = (words) => {
+        swapping = false; busy = false; queued = null;
+        root.classList.remove("is-nav-next", "is-nav-prev", "is-enter-next", "is-enter-prev");
+        if (via) {
+          // The step from a post in transit failed: land on that post.
+          const v = via;
+          cur = v.p;
+          busy = true;
+          land(v.side, v.search, v.thumb, v.prefetched);
+        } else {
+          drawFlanks();
+        }
+        unlessLeaving(() => { console.error("post view: " + words); tellStatus(side, words); });
+      };
+      const deadline = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        undo("Post #" + nb.id + " did not load (no answer in " + (NAV_DEADLINE_MS / 1000) + " s). Fix: press again, or reload the page.");
+      }, NAV_DEADLINE_MS);
+      Promise.all([promise, new Promise(done => { setTimeout(done, SWAP_MS); })]).then(([p]) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(deadline);
+        swapping = false;
+        const shown = cur;
+        cur = p;
+        activeKey = p.active_key || activeKey;
+        revealed = false;
+        if (queued && !lbOpen) {
+          // In transit: this post's flanks, then the queued press from them.
+          // `cur` goes back to the post on screen while the next step runs,
+          // so nothing acts on a post that is not drawn.
+          renderFlanks();
+          busy = false;
+          via = { p, side, search: a.search, thumb, prefetched };
+          drainQueue();
+          if (busy) { cur = shown; return; }
+        }
+        land(side, a.search, thumb, prefetched);
+      }).catch(why => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(deadline);
+          undo("Post #" + nb.id + " did not load (" + describe(why) + "). Fix: press again, or reload the page.");
+          return;
+        }
+        undo("Showing post #" + nb.id + " failed (" + describe(why) + "). Fix: reload the page.");
+      });
     }
 
     // The hyped pill's spin: modulation_hype.js, the same machine /posts runs.
@@ -1246,7 +1529,14 @@
     window.addEventListener("popstate", () => {
       const m = location.pathname.match(/\/posts\/(\d+)/); if (!m) return;
       const search = new URLSearchParams(location.search).get("q") || "";
-      fetchPayload(+m[1], search).then(p => { cur = p; activeKey = p.active_key || activeKey; revealed = false; renderAll(); noteOpened(p, search); }).catch(() => {});
+      queued = null; // the browser moved the viewer; a press queued before is not about where they are now
+      const id = +m[1], { promise, prefetched } = payloadFor(id, search);
+      promise.then(p => { cur = p; activeKey = p.active_key || activeKey; revealed = false; renderAll(); noteOpened(p, search); if (prefetched) completeCurrent(search); })
+        .catch(why => {
+          const words = "Post #" + id + " did not load (" + describe(why) + "). Fix: reload the page.";
+          console.error("post view: " + words);
+          tellStatus("prev", words);
+        });
     });
 
     // The flanks draw on the engine's applies (see "the flanks" above). A

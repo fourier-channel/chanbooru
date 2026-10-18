@@ -21,6 +21,11 @@ class RandomTrailTest < ActiveSupport::TestCase
     RandomTrail.new(nil, session, "")
   end
 
+  # The ids a signed-in viewer's trail on search "q" holds in the database.
+  def stored_ids(user)
+    ModulationSetting.find_by!(user_id: user.id).random_trails.dig("q", "ids")
+  end
+
   # A roll block handing out `fresh` in order (nil once spent), recording what
   # it was told to exclude on each call.
   def roller(*fresh)
@@ -138,6 +143,80 @@ class RandomTrailTest < ActiveSupport::TestCase
       _, roll = roller(nil)
       found = t.neighbours_for(Stand.new(1), depth: 6, &roll)
       assert_equal({ prev_ids: [], next_ids: [2, 3], prev_more: false, next_more: true }, found)
+    end
+  end
+
+  # TWO REQUESTS WRITE ONE TRAIL AT ONCE. The post view fetches the post ahead
+  # and the post behind together; standing at both ends of the trail, each
+  # rolled its own end and saved the whole trail it had loaded, so the second
+  # save erased the first one's roll. The post the page had been told was
+  # next was then not on the trail at all: its own payload deferred random
+  # (the press waited), and walking back no longer retraced the steps
+  # (bin/postview-shift random, 2026-10-18). A save lays its own pushes onto
+  # the trail as it stands now, under the row's lock.
+  context "two requests writing one signed-in trail at once" do
+    setup do
+      @user = create(:user)
+      ModulationSetting.create!(user: @user, random_trails: { "q" => { "ids" => [1, 2, 3], "t" => 1 }})
+    end
+
+    should "keep both ends' rolls" do
+      front = RandomTrail.new(@user, nil, "q")
+      back = RandomTrail.new(@user, nil, "q")
+      front.neighbours_for(Stand.new(1), depth: 6) { 50 }
+      back.neighbours_for(Stand.new(3), depth: 6) { 60 }
+      front.save!
+      back.save!
+
+      assert_equal [50, 1, 2, 3, 60], stored_ids(@user)
+    end
+
+    should "keep an arrival pushed by one and a roll by the other" do
+      arrival = RandomTrail.new(@user, nil, "q")
+      roll = RandomTrail.new(@user, nil, "q")
+      arrival.neighbours_for(Stand.new(9), depth: 6) { nil }
+      roll.neighbours_for(Stand.new(1), depth: 6) { 50 }
+      roll.save!
+      arrival.save!
+
+      assert_equal [50, 1, 2, 3, 9], stored_ids(@user)
+    end
+
+    should "still forget everything on a clear" do
+      t = RandomTrail.new(@user, nil, "q")
+      t.neighbours_for(Stand.new(3), depth: 6) { 60 }
+      t.clear!
+      assert_nil stored_ids(@user)
+    end
+  end
+
+  # A PREFETCH IS NOT A VISIT. The post view fetches neighbours' payloads ahead
+  # of the viewer, and every one of those builds pushed its post onto random's
+  # trail -- the trail filled with posts the viewer never stood on, and walking
+  # back through random retraced steps nobody took. So a prefetch asks holds?
+  # first: a post the trail already holds is answered by neighbours_for, which
+  # only ever rolls the frontier for it (the next random post in that
+  # direction, which the viewer is walking toward); a post it does not hold is
+  # never pushed (ModulationPostComponent#random_neighbours).
+  context "holds?" do
+    should "hold every post on the trail, its ends included" do
+      t = trail([1, 2, 3])
+      assert t.holds?(Stand.new(1))
+      assert t.holds?(Stand.new(2))
+      assert t.holds?(Stand.new(3))
+    end
+
+    should "not hold a post off the trail, nor anything on an empty one" do
+      assert_not trail([1, 2, 3]).holds?(Stand.new(9))
+      assert_not trail.holds?(Stand.new(1))
+    end
+
+    should "write nothing" do
+      t = trail([1, 2, 3])
+      t.holds?(Stand.new(9))
+      assert_equal [1, 2, 3], t.ids
+      t.save!
+      assert_equal [1, 2, 3], t.instance_variable_get(:@session)[RandomTrail::SESSION_KEY]["ids"]
     end
   end
 end

@@ -54,6 +54,11 @@ class RandomTrail
     @search = key
     @ids = load_ids
     @dirty = false
+    # What this request added, in order ([:push, id] or [:unshift, id]), and
+    # the post it stood on: save! lays these onto the trail as it stands then.
+    @added = []
+    @anchor = nil
+    @cleared = false
   end
 
   def signed_in?
@@ -79,10 +84,12 @@ class RandomTrail
   # next hop, which rolls again at the new frontier. A side has no more only
   # when its roll came back empty and the window reaches that end.
   def neighbours_for(post, depth: 1, &roll)
+    @anchor = post.id
     i = @ids.index(post.id)
     if i.nil?
       # A fresh arrival: back is the last post random showed, forward is new.
       @ids.push(post.id)
+      @added << [:push, post.id]
       @dirty = true
       i = @ids.size - 1
     end
@@ -91,6 +98,7 @@ class RandomTrail
       fresh = roll.call(@ids)
       if fresh
         @ids.unshift(fresh)
+        @added << [:unshift, fresh]
         @dirty = true
         i += 1
       else
@@ -101,6 +109,7 @@ class RandomTrail
       fresh = roll.call(@ids)
       if fresh
         @ids.push(fresh)
+        @added << [:push, fresh]
         @dirty = true
       else
         back_spent = true
@@ -117,33 +126,69 @@ class RandomTrail
     }
   end
 
+  # Whether the trail holds `post`. A PREFETCH asks first and is answered by
+  # neighbours_for only when it does: for a post the trail holds, that only
+  # ever rolls the frontier (the next random post in the direction the viewer
+  # walks), never pushes. Pushing the post is a visit's, and a prefetch is not
+  # one: building neighbours' payloads ahead of the viewer pushed them all, so
+  # the trail filled with posts nobody stood on (ModulationPostComponent
+  # #random_neighbours). Writes nothing.
+  def holds?(post)
+    @ids.include?(post.id)
+  end
+
   # Forget everything for this search. The next payload reseeds both sides.
   def clear!
     @ids = []
+    @added = []
+    @cleared = true
     @dirty = true
     save!
   end
 
+  # A SIGNED-IN SAVE IS A MERGE, under the row's lock. The page fetches the
+  # post ahead and the post behind together, and standing at both ends of the
+  # trail each request rolled its own end; each saved the whole trail it had
+  # loaded, so the later save erased the earlier one's roll -- the post the
+  # page had been told came next was then on no trail, its own payload
+  # deferred random, and walking back no longer retraced the steps
+  # (bin/postview-shift random, 2026-10-18). So what this request added is
+  # laid onto the trail as it stands now, and the cap applied to the result.
+  # An anonymous trail lives in the session cookie, which has no lock to take:
+  # concurrent requests there still keep the last write.
   def save!
     return unless @dirty
 
     if signed_in?
-      row = ModulationSetting.find_or_initialize_by(user_id: @viewer.id)
-      trails = (row.random_trails || {}).dup
-      if @ids.empty?
-        trails.delete(@search)
-      else
-        trails[@search] = { "ids" => @ids, "t" => Time.now.to_i }
-        # Evict the least recently walked when over the cap.
-        while trails.size > TRAILS
-          oldest = trails.min_by { |_, v| v.is_a?(Hash) ? v["t"].to_i : 0 }&.first
-          trails.delete(oldest)
+      ModulationSetting.transaction do
+        row = ModulationSetting.find_or_initialize_by(user_id: @viewer.id)
+        row.lock! if row.persisted?
+        trails = (row.random_trails || {}).dup
+        unless @cleared
+          entry = trails[@search]
+          @ids = @added.reduce(Array(entry.is_a?(Hash) ? entry["ids"] : nil).map(&:to_i)) do |ids, (op, id)|
+            next ids if ids.include?(id)
+
+            (op == :push) ? ids + [id] : [id] + ids
+          end
+          trim(@ids.index(@anchor) || 0)
         end
+        if @ids.empty?
+          trails.delete(@search)
+        else
+          trails[@search] = { "ids" => @ids, "t" => Time.now.to_i }
+          # Evict the least recently walked when over the cap.
+          while trails.size > TRAILS
+            oldest = trails.min_by { |_, v| v.is_a?(Hash) ? v["t"].to_i : 0 }&.first
+            trails.delete(oldest)
+          end
+        end
+        row.update!(random_trails: trails)
       end
-      row.update!(random_trails: trails)
     elsif @session
       @session[SESSION_KEY] = @ids.empty? ? nil : { "q" => @search, "ids" => @ids }
     end
+    @added = []
     @dirty = false
   end
 

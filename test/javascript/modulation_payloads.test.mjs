@@ -10,7 +10,7 @@
 // refresh or a clear, shows the viewer a state the server no longer holds.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { payloadStore } from "../../app/javascript/src/javascripts/modulation_payloads.js";
+import { mergeVisit, payloadStore } from "../../app/javascript/src/javascripts/modulation_payloads.js";
 
 // A loader whose answers the test releases by hand, in any order.
 function loader() {
@@ -82,4 +82,98 @@ test("a failed request is not cached and is not shared afterwards", async () => 
   assert.equal(pending.length, 2);
   pending[1].resolve({ v: 1 });
   assert.deepEqual(await b, { v: 1 });
+});
+
+// More lookahead means more payloads held, and the store never let one go:
+// a long walk kept every post it passed in memory for the life of the page.
+test("the cache is bounded: past max, the least recently used payload goes", async () => {
+  const { load, pending } = loader();
+  const store = payloadStore(load, { max: 2 });
+  const ask = async (key, v) => { const p = store.get(key); pending[pending.length - 1].resolve({ v }); return p; };
+  await ask("1|q", 1);
+  await ask("2|q", 2);
+  await store.get("1|q"); // used again: 1 is now the newest
+  await ask("3|q", 3); // evicts 2
+  assert.equal(pending.length, 3);
+  assert.deepEqual(await store.get("1|q"), { v: 1 }, "kept: answered from the cache");
+  assert.equal(pending.length, 3);
+  const again = store.get("2|q");
+  assert.equal(pending.length, 4, "evicted: asked again");
+  pending[3].resolve({ v: 2 });
+  assert.deepEqual(await again, { v: 2 });
+});
+
+test("has: true for a cached payload or one in flight, false otherwise", async () => {
+  const { load, pending } = loader();
+  const store = payloadStore(load);
+  assert.equal(store.has("5|q"), false);
+  const a = store.get("5|q");
+  assert.equal(store.has("5|q"), true, "in flight");
+  pending[0].resolve({ v: 1 });
+  await a;
+  assert.equal(store.has("5|q"), true, "cached");
+  store.clear();
+  assert.equal(store.has("5|q"), false);
+});
+
+// A press uses whatever is already on its way: a prefetched payload (no
+// comments, random's preset possibly deferred) over a fresh request, and a
+// cached answer of either flavour over one still in flight.
+test("choose: cached before in flight, in the order given; neither -> the first key", async () => {
+  const { load, pending } = loader();
+  const store = payloadStore(load);
+  assert.equal(store.choose(["full", "pre"]), "full", "nothing held: the first key");
+  const pre = store.get("pre");
+  assert.equal(store.choose(["full", "pre"]), "pre", "the prefetch in flight");
+  const full = store.get("full");
+  assert.equal(store.choose(["full", "pre"]), "full", "both in flight: the order given");
+  pending[0].resolve({ v: "pre" });
+  await pre;
+  assert.equal(store.choose(["full", "pre"]), "pre", "a cached prefetch beats a full one still in flight");
+  pending[1].resolve({ v: "full" });
+  await full;
+  assert.equal(store.choose(["full", "pre"]), "full");
+});
+
+// THE VISIT READ (?visit=1) carries only what a prefetch lacked: random's
+// preset, that preset's candidates and the comments. It replaces those and
+// keeps the rest of what the page shows -- the score, the tags, every other
+// mode's candidates -- because a full re-read applied after the viewer voted
+// put the pre-vote score back on screen (review, 2026-10-18).
+const shown = () => ({
+  id: 7,
+  score: { total: 3, vote: "up" },
+  presets: [
+    { key: "search", search: "a order:id_desc", next_candidates: [{ id: 6 }] },
+    { key: "random", search: "a order:random", deferred: true, prev_candidates: [], next_candidates: [] },
+  ],
+  candidates: { 6: { thumb: "t6" } },
+});
+const visit = {
+  id: 7,
+  presets: [{ key: "random", search: "a order:random", prev_candidates: [{ id: 2 }], next_candidates: [{ id: 9 }] }],
+  candidates: { 2: { thumb: "t2" }, 9: { thumb: "t9" } },
+  comments_html: "<p>c</p>",
+};
+
+test("mergeVisit: random's preset, its candidates and the comments replaced; everything else kept", () => {
+  const before = shown();
+  const after = mergeVisit(before, visit);
+  assert.deepEqual(after.score, { total: 3, vote: "up" });
+  assert.equal(after.presets[0], before.presets[0], "the search mode's preset is the same object");
+  assert.deepEqual(after.presets[1], visit.presets[0]);
+  assert.deepEqual(Object.keys(after.candidates).sort(), ["2", "6", "9"]);
+  assert.equal(after.comments_html, "<p>c</p>");
+  assert.equal(before.presets[1].deferred, true, "the payload given (the store's copy) is not edited");
+  assert.equal(before.comments_html, undefined);
+});
+
+test("mergeVisit: refuses another post's visit", () => {
+  assert.throws(() => mergeVisit(shown(), { ...visit, id: 8 }), /post #8.*post #7/);
+});
+
+test("mergeVisit: a mode the visit does not name stays as it was", () => {
+  const after = mergeVisit(shown(), { id: 7, presets: [], candidates: {}, comments_html: "" });
+  assert.equal(after.presets[1].deferred, true);
+  assert.equal(after.comments_html, "");
 });

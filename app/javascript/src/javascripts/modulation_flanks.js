@@ -39,7 +39,7 @@ export function flankState(candidates, more, blockedIds, hopsLeft) {
 // What a side's state says, for the tile's title and the status line: every
 // state that stops a press says what happened and what fixes it. st is a
 // flankState answer, or one of the page's own states (failed: { why },
-// unavailable, no-access, fault: { why }). side: "prev" or "next".
+// unavailable, no-access, fault: { why }, deferred). side: "prev" or "next".
 export function flankWords(st, side) {
   const way = side === "prev" ? "back" : "forward";
   const blocked = st.blocked + " blocked " + (st.blocked === 1 ? "post" : "posts");
@@ -53,6 +53,9 @@ export function flankWords(st, side) {
   case "unavailable": return "This mode's search could not run (the server logged why). Fix: change mode with the up/down arrows, or reload the page.";
   case "no-access": return "The next posts " + way + " here are not open to this account. Fix: change mode with the up/down arrows.";
   case "fault": return st.why || "The blocklist has not applied yet, so the neighbours are not shown.";
+  // Random's side on a payload fetched ahead (?prefetch=1), which names no
+  // neighbours until the full read that follows the commit lands.
+  case "deferred": return "Still loading the next post " + way + " in this mode; the press will go through when it arrives.";
   default: return "";
   }
 }

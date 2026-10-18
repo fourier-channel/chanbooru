@@ -113,13 +113,30 @@ class ModulationFlankCandidatesTest < ActionDispatch::IntegrationTest
       end
     end
 
-    should "batch the candidates' tags and posts: the same queries at depth 1 as at DEPTH" do
+    # The lookahead warms a neighbour's picture from its candidate entry,
+    # before that post's payload exists; the URL warmed has to be the one the
+    # centre will ask for at the commit, byte for byte, or the warm-up is a
+    # second download (modulation_lookahead.js).
+    should "carry each candidate's media as that post's own payload names it" do
+      payload = as(@viewer) { component(@centre, @viewer).payload }
+
+      assert_not_empty payload[:candidates]
+      payload[:candidates].each do |id, entry|
+        own = as(@viewer) { ModulationPostComponent.new(post: Post.find(id), viewer: @viewer).payload[:media] }
+        assert_equal own.slice(:kind, :src, :poster, :box), entry[:media], "candidate ##{id}"
+        assert_predicate entry.dig(:media, :box), :present?
+      end
+    end
+
+    should "batch the candidates' tags and posts, and read no tags per candidate: the same queries at depth 1 as at DEPTH" do
       count = lambda do |depth|
         original = PostNeighbors::DEPTH
         silence_warnings { PostNeighbors.const_set(:DEPTH, depth) }
         viewer = create(:user)
         sqls = as(viewer) { statements { component(@centre, viewer).payload } }
-        [sqls.count { it.match?(/FROM "fourier_tag_sources"/) }, sqls.count { it.match?(/\ASELECT "posts"\.\* FROM "posts" WHERE "posts"\."id" IN/) }]
+        # tags: a candidate's media must not build the centre's tagged
+        # file name (seo_tags reads every tag of the post), one query each.
+        [sqls.count { it.match?(/FROM "fourier_tag_sources"/) }, sqls.count { it.match?(/\ASELECT "posts"\.\* FROM "posts" WHERE "posts"\."id" IN/) }, sqls.count { it.match?(/FROM "tags"/) }]
       ensure
         silence_warnings { PostNeighbors.const_set(:DEPTH, original) }
       end

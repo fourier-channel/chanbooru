@@ -270,7 +270,10 @@ class PostNeighbors
 
   private
 
-  def base = Post.user_tag_match(tags, user)
+  # The viewer's hidden tags as one row filter, not the id list a gallery
+  # carries (PostQuery#hidden_tags_condition): a payload runs this search
+  # four to six times.
+  def base = Post.user_tag_match(tags, user, row_filter: true)
 
   def neighbor_ids(direction, limit)
     spec = SPECS[order]
