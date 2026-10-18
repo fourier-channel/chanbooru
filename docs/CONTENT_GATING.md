@@ -195,7 +195,11 @@ image (gate 11).
 A viewer at or above `full_browsing_level` browses without restriction. Below
 it, a search returns at most 20 posts and ONE page -- `?limit=` is clamped to
 the same ceiling and a second page is refused, or the restriction would be one
-query parameter wide -- and there is no post-to-post navigation.
+query parameter wide -- and there is no post-to-post navigation. A cursor of
+any kind is a second page: `page=a<id>`/`b<id>`, the gallery window's
+`anchor=` and `before=`, and its `variant=window` chunks are refused alike
+(410 signed in; 404 signed out, where the anonymous default-deny answers
+first).
 
 An ordinary signup starts AT the threshold, as Member (gate 0); only a signup
 flagged as suspicious starts below it. Lifting a Restricted account is an
