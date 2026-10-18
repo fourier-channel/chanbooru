@@ -23,9 +23,7 @@ if unruled.any?
 end
 
 names = ->(list) { Array(list).map { |name| name.to_s.strip.downcase }.reject(&:empty?) }
-jail = names.call(Danbooru.config.fourier_jail_release_names) +
-       names.call(Danbooru.config.fourier_posting_bot_names) +
-       names.call([Danbooru.config.system_user])
+jail = [Danbooru.config.fourier_jail_release_names, Danbooru.config.fourier_posting_bot_names, [Danbooru.config.system_user]].flat_map(&names)
 keep = jail + names.call(Danbooru.config.fourier_quarantine_reader_names) + names.call(prefixes[:editors])
 
 puts({
