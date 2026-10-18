@@ -580,15 +580,22 @@ class ModulationPostComponent < ApplicationComponent
     { kind: "other", src: nil, href: post_url_for(target, nil) }
   end
 
+  # Rating rides in the metadata line rather than the action row: it is a
+  # property of the post, not something you do to it. Status only appears when
+  # it is not "active" -- a badge that is always there stops being read.
+  #
+  # THE LINE NEVER WRAPS (operator, 2026-10-18: nothing above the stage moves
+  # between posts), so what is past its width is scrolled to. The fields that
+  # say the post's state come first -- status, rating, source -- and the file's
+  # numbers and the uploader after them, so the part a narrow screen cuts off
+  # is never the part that matters (review, 2026-10-18).
   def meta_payload
-    fields = metadata_fields.map { |text| { text: text } }
-    fields << { text: "source", href: post.normalized_source } if post.source.present? && post.normalized_source.present?
-    # Rating rides in the metadata line rather than the action row: it is a
-    # property of the post, not something you do to it. Status only appears when
-    # it is not "active" -- a badge that is always there stops being read.
-    fields << { text: "rating:#{post.rating}" }
-    fields << { text: status, status: true } unless status == "active"
-    fields
+    [
+      ({ text: status, status: true } unless status == "active"),
+      { text: "rating:#{post.rating}" },
+      ({ text: "source", href: post.normalized_source } if post.source.present? && post.normalized_source.present?),
+      *metadata_fields.map { |text| { text: text } },
+    ].compact
   end
 
   # The viewer's current search with any order: stripped, so each preset applies

@@ -37,12 +37,23 @@ body:has(.modulation) {
   *, *::before, *::after { box-sizing: border-box; }
 
   // --- metadata sub-header ------------------------------------------------
+  // ONE LINE, whatever the post (operator, 2026-10-18: nothing below the
+  // header may move between posts). The fields differ per post -- a source,
+  // a status, a longer name -- and wrapped to another line on one post and
+  // not the next, moving the stage and everything under it. So the fields
+  // never wrap: past the width they scroll sideways, with no scrollbar that
+  // could itself appear and add height. The fields that say the post's state
+  // come first (meta_payload), the edge with more past it fades, and the
+  // whole line is the fields' title (cueMeta), so what is cut off is the
+  // least of it and says it is there (review, 2026-10-18). At phone width the
+  // right cluster always takes a second row of its own, rather than joining
+  // the first when the fields happen to leave it room.
   .mod-meta {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     padding: 0.4rem 0.1rem;
     border-bottom: 1px solid var(--mod-line);
     font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
@@ -51,10 +62,26 @@ body:has(.modulation) {
 
   .mod-meta-fields {
     display: flex;
-    flex-wrap: wrap;
+    flex: 0 1 auto;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 0.4rem 0.85rem;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
     color: var(--mod-ink-dim);
+
+    &.is-clipped-end { mask-image: linear-gradient(to right, #000000 calc(100% - 2.5rem), transparent); }
+    &.is-clipped-start { mask-image: linear-gradient(to left, #000000 calc(100% - 2.5rem), transparent); }
+    &.is-clipped-start.is-clipped-end { mask-image: linear-gradient(to right, transparent, #000000 2.5rem, #000000 calc(100% - 2.5rem), transparent); }
+  }
+
+  // The right cluster scrolls sideways too: on random, beside the gate badge,
+  // it is wider than a phone (405px at 375).
+  @media (width <= 560px) {
+    .mod-meta { flex-wrap: wrap; }
+    .mod-meta-fields { flex-basis: 100%; }
+    .mod-meta-right { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
   }
   .mod-meta-field { white-space: nowrap; }
 
@@ -78,13 +105,23 @@ body:has(.modulation) {
   }
 
   // --- metadata right cluster (sort switch + gate) -----------------------
-  .mod-meta-right { display: flex; align-items: center; gap: 0.75rem; }
+  // A fixed height, the tallest thing it can hold: the gate badge shows on
+  // some posts and not others, and at its own 22px it made the header 5px
+  // taller on those posts, moving the stage (scratch probe, 2026-10-18).
+  // With nothing in it -- a viewer with no modes (they cannot step, so no
+  // post follows) on an ungated post -- it takes no room, rather than a blank
+  // row under the fields at phone width.
+  .mod-meta-right { display: flex; flex: none; align-items: center; gap: 0.75rem; height: 1.4rem; }
+  .mod-meta-right:not(:has(> :not([hidden]))) { display: none; }
 
+  // &[hidden]: the display rule beats the UA's [hidden], so renderMeta's
+  // hiding it for a viewer with no modes did nothing.
   .mod-sort-switch {
     display: inline-flex; align-items: center; gap: 0.3rem;
     font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
     font-size: 0.72rem; color: var(--mod-ink-dim);
     b { color: var(--mod-ink); font-weight: 600; margin-left: 0.25rem; }
+    &[hidden] { display: none; }
   }
 
   .mod-sort-arrow {
@@ -158,8 +195,9 @@ body:has(.modulation) {
   }
 
   // The image size cap, --mod-stage-max, is written by the view controller
-  // (sizeStage) per the viewer's image_cap setting and read by the centre's
-  // reserved box (the stage mixin): absent, the picture keeps its own size.
+  // (sizeStage) per the viewer's image_cap setting, with .is-windowed on the
+  // root: the centre is then that fixed window (the stage mixin). Absent, the
+  // picture keeps its own size.
 
   // A BLOCKED CENTRE KEEPS ITS BOX. The engine hides what it marks with
   // display: none (.blacklisted-hidden, 0,2,0); on the centre that took the
@@ -184,8 +222,9 @@ body:has(.modulation) {
   }
   .mod-stage-center.blacklisted-hidden > .mod-center-blocked { display: block; }
 
-  // The tile's thumbnail behind a picture still on its way (standIn): the
-  // frame is the picture's own shape, so contain fits it exactly.
+  // The tile's thumbnail behind a picture still on its way (standIn). The
+  // frame is the picture's own shape, in the window or out of it, so contain
+  // fits it exactly.
   .mod-frame.has-standin {
     background-position: center;
     background-repeat: no-repeat;
@@ -436,7 +475,9 @@ body:has(.modulation) {
 
   // --- notice strip -------------------------------------------------------
   // Post status and post family. Colour carries the difference: a takedown and
-  // "this post has children" must not look alike.
+  // "this post has children" must not look alike. It sits in the tag panel,
+  // under its head (renderTags): below the image, so a post with notices
+  // moves nothing above them (operator, 2026-10-18).
   // &[hidden] is load-bearing: the UA's [hidden] { display: none } is an author
   // -level default that ANY author display rule beats, so `display: flex` here
   // silently un-hid the strip the renderer had just marked hidden.
@@ -444,6 +485,7 @@ body:has(.modulation) {
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    margin-bottom: 0.85rem;
 
     &[hidden] { display: none; }
   }

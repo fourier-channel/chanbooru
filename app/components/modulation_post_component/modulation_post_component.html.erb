@@ -28,8 +28,9 @@
     </div>
   </header>
 
-  <section class="mod-notices" data-region="notices" hidden></section>
-
+  <%# No notice strip here: notices sit BELOW the image, in the tag panel under
+      its head (renderTags), so a post with one never moves the stage
+      (operator, 2026-10-18). %>
   <section class="mod-stage" data-region="stage">
     <div class="mod-flank-col mod-flank-col--prev" data-region="flank-prev"></div>
     <%# The blacklist attaches HERE, not to the article: its default hide method
@@ -38,11 +39,13 @@
         the tags, comments and controls in place. This element is also stable
         across client-side navigation (only its contents are replaced), so the
         Post object the blacklist attaches to it survives a swap. %>
-    <%# Its box is written here, before the script runs, so a cold load paints
-        the stage at its final size: the rendition's own width and height
-        (media_payload's `box`), which the stage stylesheet turns into a
-        reserved width and aspect ratio. No box, no style: the placeholder's
-        size. renderCenter() rewrites it on every step. %>
+    <%# Its box is written here, before the script runs: the rendition's own
+        width and height (media_payload's `box`). The centre itself is the
+        fixed window once sizeStage() has measured the screen (.is-windowed);
+        the box is the picture's frame inside it, and the
+        centre's own size under the "natural" image setting, which has no
+        window. No box, no style: the placeholder's size. renderCenter()
+        rewrites it on every step. %>
     <% box = media_payload[:box] %>
     <div class="mod-stage-center mod-blacklist-target" data-region="center" <%= tag.attributes(blacklist_data.merge(style: box && "--mod-bw:#{box[0]};--mod-bh:#{box[1]}")) %>></div>
     <div class="mod-flank-col mod-flank-col--next" data-region="flank-next"></div>
@@ -130,15 +133,33 @@
       const sortEl = root.querySelector(".mod-sort-switch");
       if (sortEl) sortEl.hidden = !(cur.presets && cur.presets.length);
 
-      region("meta").innerHTML = (cur.meta || []).map(f =>
+      const fields = region("meta");
+      fields.innerHTML = (cur.meta || []).map(f =>
         f.href ? '<span class="mod-meta-field"><a class="mod-link" href="' + esc(f.href) + '"' + outward(f.href) + ' rel="nofollow noreferrer">' + esc(f.text) + "</a></span>"
                : '<span class="mod-meta-field">' + esc(f.text) + "</span>").join("");
+      // The line never wraps (the stylesheet), so the whole of it is also its
+      // title, and a new post starts from its first field.
+      fields.title = (cur.meta || []).map(f => f.text).join(" \u00b7 ");
+      fields.scrollLeft = 0;
+      cueMeta();
       region("gate").hidden = !cur.gated;
       region("sort-label").textContent = active().label || "";
     }
-    // The picture fills the centre's reserved box (renderCenter), so nothing
-    // here carries a size: the box is the rendition's own, and object-fit
-    // keeps a picture whose bytes disagree from distorting.
+    // A HEADER TOO LONG FOR ITS LINE SAYS SO (review, 2026-10-18): the fields
+    // scroll sideways with no scrollbar (one could appear and add height), so
+    // the edge with more past it fades. Re-read on a scroll of the fields and
+    // whenever the page's size changes (the observer under sizeStage).
+    function cueMeta() {
+      const f = region("meta");
+      if (!f) return;
+      f.classList.toggle("is-clipped-start", f.scrollLeft > 1);
+      f.classList.toggle("is-clipped-end", f.scrollLeft + f.clientWidth < f.scrollWidth - 1);
+    }
+    region("meta").addEventListener("scroll", cueMeta, { passive: true });
+    // The picture fills its frame, and the frame is the picture's own box
+    // (the stage stylesheet): inside the fixed window when there is one, the
+    // centre itself under the "natural" setting. object-fit only keeps a
+    // picture whose bytes disagree with that box from distorting.
     function mediaHTML(m) {
       if (!m || !m.src) return '<div class="mod-frame mod-image mod-image--placeholder">media gated</div>';
       if (m.kind === "video") return '<div class="mod-frame"><video class="mod-image" src="' + esc(m.src) + '" poster="' + esc(m.poster) + '" controls loop playsinline></video></div>';
@@ -160,14 +181,18 @@
         '<div class="mod-spoiler-veil">' + inner + "</div>" +
         '<span class="mod-spoiler-label">deleted \u2014 click to reveal</span></div>';
     }
-    // THE BOX IS RESERVED BEFORE THE PICTURE EXISTS (operator, 2026-10-18:
-    // the stage collapsed to its frame's border while an image loaded, taking
-    // the flank thumbnails with it and pulling the tag panel up by the image's
-    // height). The payload names the rendition's own size (media.box); the
-    // stage stylesheet turns it into a width and an aspect ratio, so the
-    // centre is its final size from the frame it is drawn in.
+    // ONE FIXED WINDOW (operator, 2026-10-18): the centre is one size for
+    // every post, sized to the screen by sizeStage(), and a wide or tall
+    // picture sits inside it with empty space around it -- so nothing below
+    // the stage moves between posts, and nothing waits on the bytes. The
+    // payload still names the rendition's own size (media.box): it is the
+    // picture's frame inside the window, so the click target, the zoom cursor,
+    // the raise and a video's controls are the picture's and not the empty
+    // space around it (review, 2026-10-18), the stand-in lands exactly where
+    // the picture will; and it is the centre's own size under the "natural"
+    // setting, which has no window.
     //
-    // A blocked centre keeps that box: the engine's mark hides its content,
+    // A blocked centre keeps the window: the engine's mark hides its content,
     // not the centre, and this placard (shown only under the mark) says why
     // the box is empty. Hiding the centre itself took the stage, and the
     // flank tiles a viewer needs to walk away, down to nothing.
@@ -175,8 +200,8 @@
       const el = region("center");
       // A picture or a video the viewer may see always comes with its box. One
       // without is a payload from a server that does not send it (a rollback,
-      // a deploy half done): the stage falls back to the placeholder's box, so
-      // say why, rather than letterbox every post in silence.
+      // a deploy half done): its frame falls back to the placeholder's box, so
+      // say why.
       const m = cur.media || {};
       if (m.src && m.kind !== "other" && !m.box) console.error("post view: post #" + cur.id + "'s payload has no media.box, so its stage cannot reserve the picture's size -- the server is older than this page; reload it");
       const style = Ahead.centerBoxStyle(m.box);
@@ -644,7 +669,7 @@
           '<button type="button" class="mod-tagedit-add" data-act="tag-add"' + (editBusy ? " disabled" : "") + ">Add</button>" +
         "</div>" +
         (editError ? '<p class="mod-tagedit-error">' + esc(editError) + "</p>" : "") : "";
-      if (!tagsExpanded) { el.innerHTML = head + catsHTML; applyLamps(); return; }
+      if (!tagsExpanded) { el.innerHTML = head + noticesHTML() + catsHTML; applyLamps(); return; }
       const flow = (b) => alpha(t[b]).filter(tag => !catSet.has(tag));
       // ONE alphabetical list, not five sorted lists end to end. The first cut
       // sorted within each provenance bucket and then concatenated them in
@@ -661,6 +686,7 @@
       const any = uni.length || meta.length || catsHTML.length;
       el.innerHTML =
         head +
+        noticesHTML() +
         (any ? "" : '<p class="mod-empty">No tags yet.</p>') +
         catsHTML +
         '<div class="mod-unitag"' + (view === "unitag" ? "" : " hidden") + ">" + uni + "</div>" +
@@ -679,29 +705,43 @@
         if (inp && !inp.disabled) { inp.focus({ preventScroll: true }); inp.setSelectionRange(inp.value.length, inp.value.length); }
       }
     }
-    // The notice strip: why a post is in the modqueue, and its family. Both were
+    // The notices: why a post is in the modqueue, and its family. Both were
     // upstream-only, and the family notices are how you reach a parent or the
-    // children at all.
-    function renderNotices() {
+    // children at all. BELOW THE IMAGE (operator, 2026-10-18): drawn in the
+    // tag panel under its head, in either state, so a post with one moves
+    // neither the stage above it nor the panel's edge and its controls; the
+    // strip used to sit above the stage and moved it ~51 px at the landing of
+    // a post that had one. What they DO move is what is under them in the
+    // panel -- the shelf, the tags -- by their own height (~49 px for one at
+    // 1280, measured), as part of the post's own content, and on a post with
+    // one the shelf can end below the first screen: the window is not cut
+    // for notices, or a post with one would shrink it for every post after.
+    // bin/postview-shift judges that the notices are all that moves the
+    // shelf. Kept as a hidden element when empty, so the region is always
+    // there to find.
+    function noticesHTML() {
       const ns = cur.notices || [];
-      region("notices").innerHTML = ns.map(n =>
+      return '<div class="mod-notices" data-region="notices"' + (ns.length ? "" : " hidden") + ">" + ns.map(n =>
         '<div class="mod-notice mod-notice--' + esc(n.kind) + '">' +
           '<span class="mod-notice-text">' + esc(n.text) + "</span>" +
           (n.href ? '<a class="mod-notice-link" href="' + esc(n.href) + '"' + outward(n.href) + ' rel="noopener">' + esc(n.label || "view") + "</a>" : "") +
-        "</div>").join("");
-      region("notices").hidden = ns.length === 0;
+        "</div>").join("") + "</div>";
     }
 
     // The image-size setting lives with the other long-tail controls. Client-
     // built rather than server-sent because it writes client state first and
     // persists second -- the buttons must reflect imageCap immediately.
-    function capBtn(cap, label) {
-      return '<button type="button" class="mod-more-link mod-capbtn' + (imageCap === cap ? " is-active" : "") + '" data-act="image-cap" data-cap="' + cap + '">' + label + "</button>";
+    function capBtn(cap, label, title) {
+      return '<button type="button" class="mod-more-link mod-capbtn' + (imageCap === cap ? " is-active" : "") + '" data-act="image-cap" data-cap="' + cap + '" title="' + esc(title) + '">' + label + "</button>";
     }
+    // "natural" is the one setting with no fixed window (sizeStage), so it
+    // says what that costs.
     function moreHTML() {
       const groups = cur.more || [];
       const viewGroup = '<div class="mod-more-group"><span class="mod-more-label">image size</span>' +
-        capBtn("fit", "fit page") + capBtn("screen", "fill screen") + capBtn("none", "natural") + "</div>";
+        capBtn("fit", "fit page", "One window for every post, sized so the tag panel's heading and its first row of tags end on the first screen") +
+        capBtn("screen", "fill screen", "One window for every post, filling the screen below the header") +
+        capBtn("none", "natural", "Each picture at its own size, with no fixed window: the page below it moves from post to post") + "</div>";
       return '<div class="mod-more"' + (moreOpen ? "" : " hidden") + ">" + groups.map(g =>
         '<div class="mod-more-group"><span class="mod-more-label">' + esc(g.label) + "</span>" +
           (g.links || []).map(l => '<a class="mod-more-link" href="' + esc(l.href) + '"' +
@@ -747,11 +787,10 @@
       }).then(r => r.json().catch(() => ({})).then(d => ({ ok: r.ok, d })))
         .then(({ ok, d }) => {
           if (d && typeof d.jailed === "boolean") cur.moderation = { can: true, jailed: d.jailed, deleted: d.deleted };
-          // The whole page re-reads the post: status line, notice strip, the
-          // spoiler over a deleted picture, and the pill itself.
-          // sizeStage: a notice strip added or removed above the stage moved
-          // it, and the cap is measured from the stage's top.
-          return refreshCurrent().then(() => { revealed = false; renderNotices(); renderCenter(); renderBlacklist(); sizeStage(); })
+          // The whole page re-reads the post: status line, the notices (in
+          // the tag panel), the spoiler over a deleted picture, and the pill
+          // itself.
+          return refreshCurrent().then(() => { revealed = false; renderTags(); renderCenter(); renderBlacklist(); })
             .then(() => { if (!ok) flashPill(d && d.refused ? d.refused : "refused"); });
         })
         .catch(() => flashPill("network error"))
@@ -839,49 +878,109 @@
     }
     // renderBlacklist before renderFlanks: a flank redraw may rescan, and the
     // rescan must mark the centre from the new post's attributes.
-    function renderAll() { renderMeta(); renderNotices(); renderCenter(); renderBlacklist(); renderFlanks(); renderTags(); renderGeneration(); renderActions(); renderComments(); sizeStage(); }
+    // No sizeStage(): the window is cut from the screen -- on load, resize,
+    // an image-setting change or a move of the stage's top -- never per post,
+    // or a post's own tag panel would resize it.
+    function renderAll() { renderMeta(); renderCenter(); renderBlacklist(); renderFlanks(); renderTags(); renderGeneration(); renderActions(); renderComments(); }
 
     // ---- image sizing (the image_cap setting) ----
-    // "Fill the page to the exact point the collapsed Tags panel is visible."
-    // Measured, not guessed: the cap is the viewport minus everything that has
-    // to share it. The tags panel counts at its COLLAPSED height (head +
-    // category shelf -- both render in either state) whichever state it is
-    // actually in, so expanding the panel never resizes the image.
+    // THE CAP IS THE WINDOW (operator, 2026-10-18: "one fixed window"): with
+    // a cap the centre is that height and the stage's full width for every
+    // post (.is-windowed), so it is cut from the SCREEN and never from the post
+    // on it -- on load, on resize, when the setting changes, and when the
+    // stage's top moves (the observer below) -- and never on a step.
+    //
+    // "fit": the viewport minus everything that has to share it down to the
+    // tag panel's head and ONE row of its shelf, so those end on the first
+    // screen. The panel counted is a stand-in drawn off-screen from the
+    // panel's own markup -- collapsed, no notices, a one-row shelf -- and
+    // measured, never the panel on screen: that one is the post's own, and
+    // reading its shelf cut the window for whichever post the visit opened on
+    // (604 px opening on one post, 561 on the next, review 2026-10-18). A post
+    // with a taller shelf, or notices above it, carries on below the fold.
+    // Nor does the open More panel count: the image setting lives in it, so it
+    // is always open when the setting changes, and measured open it left the
+    // window ~95 px short for the rest of the visit (scratch probe,
+    // 2026-10-18). "screen": the viewport below the stage's top.
+    //
+    // THE WINDOW ALWAYS EXISTS under both (review, 2026-10-18: below 160 px
+    // it silently did not, and every step moved the page again). On a screen
+    // too short for "fit" to leave FLOOR px, the window gives up the tag panel
+    // and takes the screen below the stage's top, up to FLOOR; never less than
+    // LEAST. "natural" has no cap and so no window: the centre is the
+    // picture's own size, which is what that setting asks for, and its button
+    // says so.
+    const FLOOR = 240, LEAST = 120;
+    let sizedTop = null;
     function sizeStage() {
       root.style.removeProperty("--mod-stage-max");
+      root.classList.remove("is-windowed");
+      sizedTop = null;
       if (imageCap === "none") return;
-      const stage = region("stage");
-      if (!stage) return;
-      const h = (el) => (el ? el.getBoundingClientRect().height : 0);
+      const stage = region("stage"), tagsEl = region("tags"), actions = region("actions");
+      if (!stage || !tagsEl || !actions) throw new Error("post view: the stage, tags or actions region is missing, so the image window cannot be cut -- the shell (modulation_post_component.html.erb) lost a data-region");
       const gap = 16, breathing = 12;
-      let reserve = breathing;
-      if (imageCap === "fit") {
-        const tagsEl = region("tags");
-        const collapsedTags = h(tagsEl && tagsEl.querySelector(".mod-tags-head")) +
-          h(tagsEl && tagsEl.querySelector(".mod-cats")) + 34; // panel padding + border
-        reserve += h(region("actions")) + collapsedTags + gap * 2;
-      }
+      const more = actions.querySelector(".mod-more");
+      // The open More panel's share of the action row: everything from the
+      // gap above it down (it takes a row of its own, flex-basis 100%).
+      const moreH = more && !more.hidden ? actions.getBoundingClientRect().bottom - more.getBoundingClientRect().top +
+        parseFloat(getComputedStyle(more).marginTop) + parseFloat(getComputedStyle(actions).rowGap) : 0;
+      const probe = document.createElement("section");
+      probe.className = "mod-tags is-collapsed";
+      probe.setAttribute("aria-hidden", "true");
+      probe.style.cssText = "position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; width: " + tagsEl.offsetWidth + "px";
+      probe.innerHTML = '<div class="mod-tags-head"><h2 class="mod-tags-title">Tags</h2><div class="mod-tags-controls">' +
+        '<button type="button" class="mod-tags-toggle" tabindex="-1"><span class="mod-meta-caret">&#9656;</span> expand</button></div></div>' +
+        catBucketHTML({}, { artist: ["x"] });
+      root.appendChild(probe);
+      const panelH = probe.getBoundingClientRect().height;
+      probe.remove();
       const top = stage.getBoundingClientRect().top + window.scrollY;
-      const max = window.innerHeight - top - reserve;
-      if (max > 160) root.style.setProperty("--mod-stage-max", Math.round(max) + "px");
-      // Second pass against the real layout: once the cap has applied, any
-      // residue between the collapsed panel's bottom edge and the viewport
-      // comes off the cap -- "the exact point" is measured, not summed. Only
-      // ever shrinks, so it cannot oscillate; skipped while expanded because
-      // the expanded bottom edge is not the edge the cap is defined against.
-      // In the same task, not the next frame: the centre's box is reserved
-      // now, so a deferred pass painted one frame at the first cap and then
-      // moved the tag panel (12 px in Firefox, bin/postview-shift).
-      if (imageCap === "fit" && !tagsExpanded) {
-        const tagsEl = region("tags");
+      const screenMax = window.innerHeight - top - breathing;
+      const want = imageCap === "fit" ? screenMax - (actions.getBoundingClientRect().height - moreH) - panelH - gap * 2 : screenMax;
+      const cut = (h) => Math.round(Math.max(h, Math.min(screenMax, FLOOR), LEAST));
+      root.style.setProperty("--mod-stage-max", cut(want) + "px");
+      root.classList.add("is-windowed");
+      sizedTop = top;
+      // Second pass against the real layout: with the window applied, any
+      // residue between where the stand-in panel would end (the real panel's
+      // top, which is the same for every post, plus its height) and the
+      // viewport comes off the window -- "the exact point" is measured, not
+      // summed. Only ever shrinks, so it cannot oscillate. In the same task,
+      // not the next frame, or one frame paints at the first cut and then the
+      // tag panel moves (12 px in Firefox, bin/postview-shift).
+      if (imageCap === "fit" && want >= FLOOR) {
         const current = parseInt(root.style.getPropertyValue("--mod-stage-max"), 10);
-        if (!current || !tagsEl) return;
-        const overflow = Math.ceil(tagsEl.getBoundingClientRect().bottom + window.scrollY + breathing - window.innerHeight);
-        if (overflow > 0 && current - overflow > 160) root.style.setProperty("--mod-stage-max", (current - overflow) + "px");
+        const overflow = Math.ceil(tagsEl.getBoundingClientRect().top - moreH + window.scrollY + panelH + breathing - window.innerHeight);
+        if (overflow > 0) root.style.setProperty("--mod-stage-max", cut(current - overflow) + "px");
       }
     }
     let sizeTimer = null;
     window.addEventListener("resize", () => { clearTimeout(sizeTimer); sizeTimer = setTimeout(sizeStage, 120); });
+    // Re-cut when the stage's top moves under a cut window: a banner above the
+    // page dismissed (the dmail or verify-account notice, the news ticker), a
+    // navbar control wrapping (review, 2026-10-18: the window was cut once and
+    // the panel then ended short of, or past, the fold for the rest of the
+    // visit). A step never moves it -- the header above the stage is one line
+    // of fixed height -- so this never re-cuts per post; the page's size
+    // changes at every step, and the check against the cut's own top is what
+    // keeps that from mattering. Observed: every ancestor of the stage below
+    // the body, and every child of the body (the news ticker and the navbar
+    // sit beside the page, not in it) -- not the body itself, which is the
+    // viewport's height whatever it holds, so it never resizes. The re-cut
+    // runs off the observer's own delivery (the resize path's timer): cut
+    // inside it, the page it observes changes size again in the same
+    // delivery, which the browser reports as a ResizeObserver loop error. The
+    // header's fade is re-read here too.
+    const stageMoved = new ResizeObserver(() => {
+      cueMeta();
+      const stage = region("stage");
+      if (sizedTop === null || !stage || Math.abs(stage.getBoundingClientRect().top + window.scrollY - sizedTop) <= 0.5) return;
+      clearTimeout(sizeTimer);
+      sizeTimer = setTimeout(sizeStage, 0);
+    });
+    for (let el = region("stage").parentElement; el && el !== document.body; el = el.parentElement) stageMoved.observe(el);
+    Array.from(document.body.children).forEach(el => stageMoved.observe(el));
 
     // ---- fullscreen viewer ----
     // Click the image -> a fullscreen popover: drag anywhere to pan, wheel to
@@ -1563,6 +1662,7 @@
 
     history.replaceState({ modId: cur.id }, "", cur.url);
     renderAll();
+    sizeStage();
   })();
   </script>
 </article>

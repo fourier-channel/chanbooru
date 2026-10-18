@@ -6,6 +6,7 @@
 //   ... --scenario double150,double300     (default: every scenario)
 //   ... --base <the dev app URL> --query pvshift
 //   ... --image-delay 800 --json-delay 900
+//   ... --height 420                       (default 812 at phone width, else 900)
 //
 // THE BUG IT GUARDS (operator, 2026-10-18): stepping through posts at normal
 // speed reached a post whose image had not loaded; the stage collapsed to its
@@ -53,13 +54,33 @@
 //               a cleared trail: none may meet a side still loading
 //   comments    scrolled to the bottom of a long thread, one press: the comment
 //               section keeps its height until the next post's comments arrive
+//   shapes      three presses at a normal pace from a tall post, through a wide
+//               one with a notice, a video and a small picture: the window
+//               holds one size, the stage, the tag panel's edge and the flank
+//               columns never move, and a click beside the picture is not a
+//               click on it
+//   entry       cold loads of a post with no shelf, one with a one-row shelf
+//               and one with a taller shelf and a notice: the window is the
+//               same size whichever post the visit opens on
+//   banner      an 80 px banner put in above the post view and taken out again
+//               (a dismissed dmail notice, say): the window is re-cut each
+//               time, so the tag panel's head still ends on the first screen
 //
-// Every walk also prints, for each pair of posts, how far the tag panel, the
-// stage, the flank columns and the comments moved ACROSS the commit (printed,
-// not judged), and the payload requests per step by read (full, prefetch,
-// visit). THE SEED it expects: eight posts of mixed shapes, the sixth oldest
-// a child of the oldest (a family notice), the second newest with a creator
-// tag, and the two newest with the same long comment thread.
+// ONE FIXED WINDOW (operator, 2026-10-18): the image area is one size for
+// every post, sized to the screen, and a picture sits inside it; notices sit
+// below the image. So every walk JUDGES, for each pair of posts, how far the
+// window, the stage, the tag panel's top edge and both flank columns moved
+// ACROSS the commit, that the window exists on every frame, that the picture's
+// frame is the picture's own shape inside it, that the panel's head and the
+// first row of its shelf are on the first screen (at the default heights),
+// and that a header too long for its line says so; it prints how far the
+// shelf and the panel's bottom moved (a notice above the shelf moves it by
+// the notice's height, and that is all that may move it), and the payload
+// requests per step by read (full, prefetch, visit). THE SEED it expects:
+// eight posts of mixed shapes, the sixth oldest a child of the oldest (a
+// family notice) with a character and a copyright tag (a two-row shelf), the
+// second newest with a creator tag (a one-row shelf), the rest with no
+// shelf, and the two newest with the same long comment thread.
 //
 // IT FAILS (exit 1) on any FAIL line. NEEDS playwright-core with chromium and
 // firefox installed; found by require(), or set PLAYWRIGHT_CORE.
@@ -75,13 +96,18 @@ const args = process.argv.slice(2);
 const opt = (name, fallback) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : fallback; };
 const ENGINE = opt("--engine", "chromium");
 const WIDTH = Number(opt("--width", "1280"));
-const HEIGHT = WIDTH <= 560 ? 812 : 900;
+const HEIGHT = Number(opt("--height", WIDTH <= 560 ? "812" : "900"));
+// The fit setting keeps the tag panel's head and one row of its shelf on the
+// first screen only where the screen has room for them above a usable
+// window; on a short one the window gives that up (sizeStage's FLOOR). So
+// the fold is judged at the default heights and not at a short --height run.
+const FOLD = HEIGHT >= 600;
 const BASE = (opt("--base", "") || (() => { throw new Error("postview-shift: no --base. Fix: pass --base <the dev app URL>, e.g. the danbooru container's address on port 3000."); })()).replace(/\/$/, "");
 const QUERY = opt("--query", "pvshift");
 const IMG_DELAY = Number(opt("--image-delay", "800"));
 const JSON_DELAY = Number(opt("--json-delay", "900"));
 const IDS = String(opt("--ids", "")).split(",").filter(Boolean).map(Number).sort((a, b) => a - b);
-const ALL = ["cold", "step", "double150", "double300", "blocked", "coldblocked", "fail500", "walk300", "chain", "random", "comments"];
+const ALL = ["cold", "step", "double150", "double300", "blocked", "coldblocked", "fail500", "walk300", "chain", "random", "comments", "shapes", "entry", "banner"];
 const SCENARIOS = String(opt("--scenario", ALL.join(","))).split(",").filter(Boolean);
 const AUTH = process.env.POSTVIEW_AUTH || "";
 
@@ -152,8 +178,12 @@ const PROBE = `(() => {
       const centre = q("center"), media = centre && centre.querySelector("img, video");
       const tags = rect(q("tags")), stage = rect(q("stage")), c = rect(centre), comments = rect(q("comments"));
       const colP = q("flank-prev"), colN = q("flank-next");
-      const status = q("flank-status");
-      const shown = !!media && getComputedStyle(centre).display !== "none" && getComputedStyle(media).visibility === "visible" && media.getBoundingClientRect().height > 0;
+      const status = q("flank-status"), notices = q("notices");
+      const tagsEl = q("tags"), head = tagsEl && tagsEl.querySelector(".mod-tags-head");
+      const shelf = tagsEl && tagsEl.querySelector(".mod-cats"), firstRow = tagsEl && tagsEl.querySelector(".mod-cat-group");
+      const frameEl = centre && centre.querySelector(".mod-frame"), fields = q("meta");
+      const cs = centre && getComputedStyle(centre);
+      const shown =!!media && getComputedStyle(centre).display !== "none" && getComputedStyle(media).visibility === "visible" && media.getBoundingClientRect().height > 0;
       const done = !!media && (media.tagName === "IMG" ? media.complete && media.naturalWidth > 0 : media.readyState >= 2);
       pv.samples.push({
         t: Date.now(), path: location.pathname,
@@ -166,8 +196,29 @@ const PROBE = `(() => {
         cOp: centre ? Number(getComputedStyle(centre).opacity) : null,
         scrollY: Math.round(scrollY), docH: document.documentElement.scrollHeight,
         status: status && status.classList.contains("is-shown") ? status.textContent : "",
+        notices: notices && !notices.hidden ? notices.children.length : 0,
         stageH: stage && Math.round(stage.height * 10) / 10,
         cW: c && Math.round(c.width), cH: c && Math.round(c.height),
+        // The centre's layout box, which the swap's transform does not touch.
+        bW: centre && centre.offsetWidth, bH: centre && centre.offsetHeight,
+        win: root.classList.contains("is-windowed"),
+        // The panel's head and the first row of its shelf against the
+        // viewport's bottom edge (positive: below the first screen).
+        foldHead: head ? Math.round(head.getBoundingClientRect().bottom - innerHeight) : null,
+        foldRow: firstRow ? Math.round(firstRow.getBoundingClientRect().bottom - innerHeight) : null,
+        shelfTop: shelf ? Math.round((shelf.getBoundingClientRect().top + scrollY) * 10) / 10 : null,
+        nH: notices && !notices.hidden ? Math.round((notices.getBoundingClientRect().height + parseFloat(getComputedStyle(notices).marginBottom)) * 10) / 10 : 0,
+        tagsBottom: tags && Math.round((tags.bottom + scrollY) * 10) / 10,
+        // The picture's frame and the media element, layout boxes (the swap's
+        // transform does not touch them), and the box the payload promised.
+        fW: frameEl && frameEl.offsetWidth, fH: frameEl && frameEl.offsetHeight,
+        mW: media && media.offsetWidth, mH: media && media.offsetHeight, kind: media ? media.tagName : null,
+        boxW: cs ? Number(cs.getPropertyValue("--mod-bw")) : null, boxH: cs ? Number(cs.getPropertyValue("--mod-bh")) : null,
+        // The header's fields: clipped, and whether they say so.
+        metaClip: !!fields && fields.scrollWidth > fields.clientWidth + 1,
+        metaCue: !!fields && (fields.classList.contains("is-clipped-end") || fields.classList.contains("is-clipped-start")),
+        metaTitle: !!fields && !!fields.title,
+        lightbox: !!root.querySelector(".mod-lightbox"),
         colP: colP && getComputedStyle(colP).display !== "none" ? Math.round(rect(colP).height * 10) / 10 : null,
         colN: colN && getComputedStyle(colN).display !== "none" ? Math.round(rect(colN).height * 10) / 10 : null,
         tileP: painted(colP), tileN: painted(colN),
@@ -275,21 +326,26 @@ function segments(samples, from) {
     const rows = seg.rows.filter((r) => r.tagsTop != null);
     const end = rows[rows.length - 1] || {};
     const tops = rows.map((r) => r.tagsTop);
+    const stageTops = rows.map((r) => r.stageTop);
     const cols = rows.filter((r) => r.colN != null);
     return {
       path: seg.path,
       frames: rows.length,
       tagsMove: tops.length ? Math.round((Math.max(...tops) - Math.min(...tops)) * 10) / 10 : null,
+      stageMove: stageTops.length ? Math.round((Math.max(...stageTops) - Math.min(...stageTops)) * 10) / 10 : null,
+      notices: end.notices || 0,
       stageMin: rows.length ? Math.min(...rows.map((r) => r.stageH)) : null,
       stageEnd: end.stageH,
       colGap: cols.length ? Math.max(...cols.map((r) => Math.max(Math.abs(r.colN - r.stageH), Math.abs(r.colP - r.stageH)))) : null,
       unpainted: cols.filter((r) => !(r.tileP && r.tileN)).length,
+      unwindowed: rows.filter((r) => !r.win).length,
+      end,
     };
   });
 }
 
 function report(scenario, segs) {
-  segs.forEach((s) => console.log("  " + scenario + " " + s.path + " frames=" + s.frames + " tagsMove=" + s.tagsMove + "px stageMin=" + s.stageMin + " stageEnd=" + s.stageEnd + " colGap=" + s.colGap + " unpaintedTileFrames=" + s.unpainted));
+  segs.forEach((s) => console.log("  " + scenario + " " + s.path + " frames=" + s.frames + " notices=" + s.notices + " tagsMove=" + s.tagsMove + "px stageMove=" + s.stageMove + "px stageMin=" + s.stageMin + " stageEnd=" + s.stageEnd + " colGap=" + s.colGap + " unpaintedTileFrames=" + s.unpainted));
 }
 
 async function rest(page) {
@@ -298,15 +354,44 @@ async function rest(page) {
   await sleep(IMG_DELAY + JSON_DELAY + 1500);
 }
 
+// What one settled frame must show, whatever the walk.
+// - The picture's frame is the picture's own shape inside the window, and
+//   the picture or video fills it: the empty space around a picture is the
+//   window's, so a click there is not a click on the picture, the zoom
+//   cursor and the raise follow the picture, and a video's controls sit on
+//   the video (review, 2026-10-18).
+// - At the default heights, the tag panel's head, and the first row of its
+//   shelf on a post with no notice, end on the first screen whatever post
+//   the visit opened on (the fit setting's promise, cut for one row).
+// - A header too long for its one line says so: a fade on the clipped edge,
+//   and the full line in its title.
+function judgeSettled(scenario, where, e) {
+  if (!e || !e.path) return;
+  if (e.done && !e.blocked && (e.kind === "IMG" || e.kind === "VIDEO") && e.boxW && e.boxH && e.fW && e.fH) {
+    const want = (e.boxW + 2) / (e.boxH + 2), got = e.fW / e.fH;
+    check(Math.abs(got - want) / want <= 0.02, scenario, where + ": the frame is the picture's own shape (" + e.fW + "x" + e.fH + " for a " + e.boxW + "x" + e.boxH + " " + e.kind.toLowerCase() + ")");
+    check(Math.abs(e.mW - (e.fW - 2)) <= 1 && Math.abs(e.mH - (e.fH - 2)) <= 1, scenario, where + ": the " + e.kind.toLowerCase() + " fills its frame (" + e.mW + "x" + e.mH + " in " + e.fW + "x" + e.fH + ")");
+    if (e.win) check(e.fW <= e.bW + 1 && e.fH <= e.bH + 1, scenario, where + ": the frame fits inside the window (" + e.fW + "x" + e.fH + " in " + e.bW + "x" + e.bH + ")");
+  }
+  if (FOLD && e.scrollY === 0) {
+    check(e.foldHead !== null && e.foldHead <= 0, scenario, where + ": the tag panel's head ends on the first screen (" + e.foldHead + " px past it)");
+    if (e.notices === 0 && e.foldRow !== null) check(e.foldRow <= 0, scenario, where + ": the first row of the shelf ends on the first screen (" + e.foldRow + " px past it)");
+  }
+  if (e.metaClip) check(e.metaCue && e.metaTitle, scenario, where + ": the header's clipped fields say so (fade " + e.metaCue + ", full line in the title " + e.metaTitle + ")");
+}
+
 function judgeSegments(scenario, segs, { shift = true } = {}) {
   report(scenario, segs);
   segs.forEach((s) => {
     if (shift) check(s.tagsMove !== null && s.tagsMove <= 1, scenario, s.path + ": the tag panel holds still from the commit frame on (moved " + s.tagsMove + " px)");
+    if (shift) check(s.stageMove !== null && s.stageMove <= 1, scenario, s.path + ": the stage holds still from the commit frame on (moved " + s.stageMove + " px)");
     check(s.stageMin !== null && s.stageEnd - s.stageMin <= 1, scenario, s.path + ": the stage never shorter than its settled height (min " + s.stageMin + " vs " + s.stageEnd + ")");
     if (s.colGap !== null) {
       check(s.colGap <= 1, scenario, s.path + ": flank columns as tall as the stage every frame (worst gap " + s.colGap + " px)");
       check(s.unpainted === 0, scenario, s.path + ": both current flank tiles painted every frame (" + s.unpainted + " frames without)");
     }
+    judgeSettled(scenario, s.path, s.end);
+    check(s.unwindowed === 0, scenario, s.path + ": the window exists on every frame (" + s.unwindowed + " of " + s.frames + " frames without; a viewport " + HEIGHT + " px tall)");
   });
 }
 
@@ -472,11 +557,16 @@ async function scenarioFail(browser, meta) {
 // ACROSS EACH COMMIT, not within it: segments() judges each post from its
 // own commit frame on, so a jump AT the commit -- the stage taking the next
 // post's box, a notice strip above it -- is excluded by construction (review,
-// 2026-10-18). This prints, for every consecutive pair of posts, how far the
-// tag panel, the stage, both flank columns and the comments moved between
-// their settled frames. Printed, not judged: the stage taking the size of the
-// post it shows is the stage's purpose; whether it should instead hold one
-// window for every post is the operator's call.
+// 2026-10-18). This judges, for every consecutive pair of posts, how far the
+// window (the centre's box), the stage, the tag panel's top edge and both
+// flank columns moved between their settled frames, and prints how far the
+// notices block, the shelf, the panel's bottom and the comments moved (the
+// panel's contents are the post's own). Operator, 2026-10-18: "one fixed
+// window" -- the image area is one size for every post, so none of the held
+// measures may move at a landing whatever the two posts' shapes; and notices
+// go below the image, so a post with one moves nothing above them, and the
+// shelf under them by their height alone. Answers the pairs it saw, so a
+// caller can check its coverage.
 function crossings(scenario, samples, from) {
   const settled = [];
   samples.filter((s) => s.t >= from && s.tagsTop != null).forEach((s) => {
@@ -484,11 +574,25 @@ function crossings(scenario, samples, from) {
     if (!last || last.path !== s.path) settled.push(s);
     else settled[settled.length - 1] = s;
   });
-  const d = (a, b, k) => (a[k] == null || b[k] == null ? "-" : Math.round((b[k] - a[k]) * 10) / 10);
+  const d = (a, b, k) => (a[k] == null || b[k] == null ? null : Math.round((b[k] - a[k]) * 10) / 10);
+  const HELD = [["bW", "window width"], ["bH", "window height"], ["stageTop", "stage top"], ["stageH", "stage height"], ["tagsTop", "tag panel"], ["colPx", "prev column x"], ["colNx", "next column x"], ["colP", "prev column height"], ["colN", "next column height"]];
+  const pairs = [];
   for (let i = 1; i < settled.length; i++) {
     const a = settled[i - 1], b = settled[i];
-    console.log("  " + scenario + " across " + a.path + " -> " + b.path + ": tags " + d(a, b, "tagsTop") + " px, stage top " + d(a, b, "stageTop") + ", stage height " + d(a, b, "stageH") + ", prev column x " + d(a, b, "colPx") + ", next column x " + d(a, b, "colNx") + ", comments " + d(a, b, "commentsTop"));
+    const moved = HELD.map(([k, words]) => [words, d(a, b, k)]).filter(([, v]) => v !== null);
+    const comments = d(a, b, "commentsTop"), shelf = d(a, b, "shelfTop"), notices = d(a, b, "nH"), bottom = d(a, b, "tagsBottom");
+    const said = (v) => (v === null ? "-" : v);
+    console.log("  " + scenario + " across " + a.path + " -> " + b.path + " (notices " + a.notices + " -> " + b.notices + "): " + moved.map(([w, v]) => w + " " + v).join(", ") + "; inside the panel (moved, not held): notices block " + said(notices) + ", shelf " + said(shelf) + ", panel bottom " + said(bottom) + ", comments " + said(comments));
+    const worst = moved.filter(([, v]) => Math.abs(v) > 1);
+    check(worst.length === 0, scenario, "across " + a.path + " -> " + b.path + ": the window, the stage, the tag panel's top edge and the flank columns hold still (" + (worst.length ? worst.map(([w, v]) => w + " " + v + " px").join(", ") : "none moved") + ")");
+    // The panel's contents are the post's own, so they are not held -- but
+    // the notices sit above the shelf (operator, 2026-10-18: "below the
+    // image"), and the shelf may move by the notices that arrived or left
+    // and by nothing else.
+    if (shelf !== null) check(Math.abs(shelf - notices) <= 1, scenario, "across " + a.path + " -> " + b.path + ": the shelf moves only by the notices above it (shelf " + shelf + " px, notices " + notices + " px)");
+    pairs.push({ from: a.path, to: b.path, notices: b.notices, shelves: shelf !== null });
   }
+  return pairs;
 }
 
 // Payload builds per step, by read: full (the page, a re-read), prefetch (a
@@ -610,10 +714,115 @@ async function scenarioComments(browser, meta) {
   await ctx.close();
 }
 
+// SHAPES: from the tall post with a creator tag, three presses at a normal
+// pace -- each once the last has landed and its picture is in -- through the
+// wide post with a family notice, the video and the small picture. The
+// window holds one size and nothing may move at any landing (operator,
+// 2026-10-18: "one fixed window"; notices "below the image"). The walk must
+// actually cross from a tall post into a wide one and land on a post with a
+// notice, or it proves nothing: both are checked.
+async function scenarioShapes(browser, meta) {
+  const start = IDS[IDS.length - 2];
+  const { ctx, page, errors } = await open(browser, meta, urlOf(start));
+  await unblockAll(page);
+  await rest(page);
+  // Beside the picture is not on it: a click in the window's empty space
+  // must not open the fullscreen viewer. Where the picture is drawn is worked
+  // out from its box and the window, not read from the page, so a frame that
+  // fills the window and letterboxes the picture inside it is caught.
+  const spot = await page.evaluate(() => {
+    const c = document.querySelector('[data-region="center"]'), r = c.getBoundingClientRect(), cs = getComputedStyle(c);
+    const bw = Number(cs.getPropertyValue("--mod-bw")), bh = Number(cs.getPropertyValue("--mod-bh"));
+    const s = Math.min(1, (r.width - 2) / bw, (r.height - 2) / bh), side = (r.width - (bw * s)) / 2, over = (r.height - (bh * s)) / 2;
+    if (side >= 6) return { x: r.left + (side / 2), y: r.top + (r.height / 2), margin: Math.round(side) };
+    if (over >= 6) return { x: r.left + (r.width / 2), y: r.top + (over / 2), margin: Math.round(over) };
+    return null;
+  });
+  check(Boolean(spot), "shapes", "the tall post leaves empty space in the window to click (" + (spot ? spot.margin + " px" : "none") + ")");
+  if (spot) {
+    await page.mouse.click(spot.x, spot.y);
+    await sleep(300);
+    const opened = await page.evaluate(() => Boolean(document.querySelector(".mod-lightbox")));
+    check(!opened, "shapes", "a click in the window's empty space, " + spot.margin + " px beside the picture, does not open the fullscreen viewer");
+    if (opened) { await page.keyboard.press("Escape"); await sleep(300); }
+  }
+  const t0 = await now(page);
+  for (let i = 0; i < 3; i++) {
+    const before = await page.evaluate(() => location.pathname);
+    await page.keyboard.press("ArrowRight");
+    await page.waitForFunction((b) => location.pathname !== b, before, { timeout: 15000 }).catch(() => {});
+    await page.waitForFunction(() => { const s = window.__pv.samples; const l = s[s.length - 1]; return l && l.done; }, null, { timeout: 15000 }).catch(() => {});
+    await sleep(600);
+  }
+  await sleep(500);
+  const { samples } = await dump(page);
+  judgeSegments("shapes", segments(samples, t0));
+  const pairs = crossings("shapes", samples, t0);
+  const shape = (p) => { const post = meta.byId.get(Number(p.split("/").pop())); return post.image_height > post.image_width ? "tall" : "wide"; };
+  check(pairs.length === 3, "shapes", "three presses -> three landings (" + pairs.length + ")");
+  check(pairs.some((p) => shape(p.from) === "tall" && shape(p.to) === "wide"), "shapes", "the walk crossed from a tall post into a wide one (" + pairs.map((p) => shape(p.from) + "->" + shape(p.to)).join(", ") + ")");
+  check(pairs.some((p) => p.notices > 0), "shapes", "the walk landed on a post with a notice (" + pairs.map((p) => p.to + ":" + p.notices).join(", ") + ")");
+  check(pairs.some((p) => p.notices > 0 && p.shelves), "shapes", "the walk crossed from a shelf onto a shelf under a notice, so the shelf's move was judged (" + pairs.map((p) => p.to + ":" + (p.shelves ? "shelves" : "-")).join(", ") + ")");
+  reportErrors("shapes", errors);
+  await ctx.close();
+}
+
 function reportErrors(scenario, errors) {
   const noise = /webpack-dev-server|ws:\/\/|CORS policy|Cross-Origin Request Blocked|Failed to load resource|Failed to fetch|did not load \(HTTP 500\)/;
   const mine = errors.filter((e) => !noise.test(e));
   check(mine.length === 0, scenario, "no script errors: " + JSON.stringify(mine));
+}
+
+// ENTRY: the window is cut from the screen, never from the post on it -- so
+// the same screen gives the same window whichever post the visit opens on: one
+// with no shelf, one with a one-row shelf, one with a taller shelf under a
+// notice (review, 2026-10-18: the cut read the entry post's shelf, 604 px
+// opening on one post and 561 on the next).
+async function scenarioEntry(browser, meta) {
+  const sizes = [];
+  for (const id of [IDS[IDS.length - 1], IDS[IDS.length - 2], IDS[5]]) {
+    const { ctx, page, errors } = await open(browser, meta, urlOf(id));
+    await unblockAll(page);
+    await rest(page);
+    const { samples } = await dump(page);
+    const segs = segments(samples, 0);
+    judgeSegments("entry", segs);
+    const e = segs[segs.length - 1].end;
+    sizes.push({ id, w: e.bW, h: e.bH, shelf: e.shelfTop !== null, notices: e.notices });
+    reportErrors("entry", errors);
+    await ctx.close();
+  }
+  console.log("  entry windows: " + sizes.map((s) => "#" + s.id + " " + s.w + "x" + s.h + (s.shelf ? " (shelf" : " (no shelf") + ", notices " + s.notices + ")").join(", "));
+  const [first] = sizes;
+  check(sizes.every((s) => Math.abs(s.w - first.w) <= 1 && Math.abs(s.h - first.h) <= 1), "entry", "one window whichever post the visit opens on (" + sizes.map((s) => s.w + "x" + s.h).join(", ") + ")");
+  check(sizes.some((s) => !s.shelf) && sizes.some((s) => s.shelf && s.notices > 0), "entry", "the entries covered a post with no shelf and one with a shelf under a notice");
+}
+
+// BANNER: something above the post view appears or goes after the window was cut
+// -- a dmail or verify-account notice dismissed, a navbar control wrapping.
+// The stage moves with it, so the window is re-cut: it gives up (or takes
+// back) exactly the banner's height, and the tag panel's head still ends on
+// the first screen (review, 2026-10-18: the window was cut once, on load).
+async function scenarioBanner(browser, meta) {
+  const start = IDS[IDS.length - 1];
+  const { ctx, page, errors } = await open(browser, meta, urlOf(start));
+  await unblockAll(page);
+  await rest(page);
+  const last = () => page.evaluate(() => window.__pv.samples[window.__pv.samples.length - 1]);
+  const before = await last();
+  await page.evaluate(() => { const b = document.createElement("div"); b.id = "pvshift-banner"; b.style.cssText = "height:80px;margin:0;padding:0"; const p = document.getElementById("page"); p.insertBefore(b, p.firstChild); });
+  await sleep(500);
+  const shown = await last();
+  await page.evaluate(() => document.getElementById("pvshift-banner").remove());
+  await sleep(500);
+  const gone = await last();
+  console.log("  banner window " + before.bH + " -> " + shown.bH + " with the banner -> " + gone.bH + " without; stage top " + before.stageTop + " -> " + shown.stageTop + " -> " + gone.stageTop + "; head past the fold " + before.foldHead + " / " + shown.foldHead + " / " + gone.foldHead);
+  check(Math.abs(shown.stageTop - before.stageTop - 80) <= 1, "banner", "the banner pushed the stage down by its 80 px (" + Math.round(shown.stageTop - before.stageTop) + ")");
+  check(Math.abs(before.bH - shown.bH - 80) <= 1, "banner", "the window gave up the banner's 80 px (" + before.bH + " -> " + shown.bH + ")");
+  check(Math.abs(gone.bH - before.bH) <= 1, "banner", "the window took them back when the banner went (" + shown.bH + " -> " + gone.bH + ", was " + before.bH + ")");
+  if (FOLD) check(shown.foldHead <= 0, "banner", "with the banner, the tag panel's head still ends on the first screen (" + shown.foldHead + " px past it)");
+  reportErrors("banner", errors);
+  await ctx.close();
 }
 
 (async () => {
@@ -634,6 +843,9 @@ function reportErrors(scenario, errors) {
       else if (s === "chain") await scenarioChain(browser, meta);
       else if (s === "random") await scenarioRandom(browser, meta);
       else if (s === "comments") await scenarioComments(browser, meta);
+      else if (s === "shapes") await scenarioShapes(browser, meta);
+      else if (s === "entry") await scenarioEntry(browser, meta);
+      else if (s === "banner") await scenarioBanner(browser, meta);
     }
   } finally {
     await browser.close();
