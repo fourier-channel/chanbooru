@@ -95,3 +95,19 @@ test("a block added afterwards reaches adopted elements too", () => {
   engine.apply();
   assert.ok(blocked(c));
 });
+
+// The counts describe the view (GALLERY_WINDOW.md section 2): the gallery
+// window holds posts outside its box, and "hidden in this view" counts the
+// box alone once the window sets the engine's scope. Filtering is untouched:
+// every post on the page is still matched and marked.
+test("a scope narrows the counts to the view and leaves the marks alone", () => {
+  const c = new El(4, "cat", "modgal-card"), d = new El(5, "cat", "modgal-card");
+  engine.adopt([c, d], []);
+  assert.equal(engine.blacklistedPostCount, 3, "fixture: centre, c and d hidden");
+  engine.scope = new Set(["4"]);
+  assert.equal(engine.blacklistedPostCount, 1);
+  assert.equal(engine.rules[0].matchCount, 1);
+  assert.ok(blocked(d), "a post outside the view is still marked");
+  engine.scope = null;
+  assert.equal(engine.blacklistedPostCount, 3, "no scope: the whole page, as before");
+});

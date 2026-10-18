@@ -110,33 +110,22 @@
     </div>
   <% end %>
 
-  <%# The grid. Each thumbnail carries the search into the post view.
-      data-tag-categories feeds the hover tag panel: name -> category for
-      every tag on this page, and ONLY those -- a tag missing from the map is
-      one the client must not display. %>
+  <%# The grid: the gallery window's box over the search (GridComponent; the
+      chunks the window fetches are drawn by the same component). %>
   <% if posts.any? %>
-    <div class="modgal-grid" data-tag-categories="<%= page_tag_categories.to_json %>"
-         data-tag-counts="<%= page_tag_counts.to_json %>">
-      <% posts.each do |post| %>
-        <%# A deleted post only reaches this grid when the viewer asked for one
-            (show_deleted). It is still veiled: asking to SEE THAT THEY EXIST is
-            not asking for a wall of the pictures. There is no reveal here --
-            the card is a link, and clicking it opens the post view, which
-            offers the reveal on the one image you chose. %>
-        <a class="modgal-card<%= " modgal-card--spoiler" if post.is_deleted? %>" href="<%= post_link(post) %>" title="post #<%= post.id %><%= " (deleted)" if post.is_deleted? %>" <%= tag.attributes(card_data(post)) %>>
-          <% thumb = thumb_for(post) %>
-          <% if thumb %>
-            <img class="modgal-thumb" src="<%= thumb %>" alt="" loading="lazy">
-          <% else %>
-            <span class="modgal-thumb modgal-thumb--gated">gated</span>
-          <% end %>
-          <span class="modgal-card-id">#<%= post.id %></span>
-          <% if (artist = artist_for(post)) %>
-            <span class="modgal-card-artist"><%= artist.tr("_", " ") %></span>
-          <% end %>
-        </a>
-      <% end %>
-    </div>
+    <%= render ModulationGalleryComponent::GridComponent.new(gallery: self) %>
+
+    <%# Every card the box could show is hidden by the viewer's blocklist:
+        gallery_window.js shows the one that is true, with its fix. A blocked
+        post is hidden, never thinned out by the server (operator, 2026-10-13). %>
+    <p class="modgal-empty modgal-empty--blocked" hidden>
+      Every post here is hidden by your blocklist.
+      <span class="modgal-empty-hint">Fix: lift a block in the blocklist (the block icon at the top of the page).</span>
+    </p>
+    <p class="modgal-empty modgal-empty--capped" hidden>
+      Every post on this page is hidden by your blocklist, and this account sees one page of results.
+      <span class="modgal-empty-hint">Fix: lift a block in the blocklist, or narrow the search.</span>
+    </p>
   <% else %>
     <%# Operator ruling 2026-09-04: no joke page, no dead end. The board simply
         clears, and the message says what is true and what to try next. %>
@@ -154,21 +143,19 @@
     </p>
   <% end %>
 
-  <%# Pagination. %>
-  <nav class="modgal-pager">
-    <% if current_page > 1 %>
-      <%= link_to "&lsaquo; prev".html_safe, page_url(current_page - 1), class: "modgal-page" %>
-    <% else %>
-      <span class="modgal-page is-disabled">&lsaquo; prev</span>
-    <% end %>
+  <%# The pager: prev, next and the count, no page number. A link without an
+      href is disabled; the window enables it when there is somewhere to go.
+      The keys are the numbered paginator's (a/left, d/right). %>
+  <nav class="modgal-pager" aria-label="Results">
+    <a class="modgal-page" rel="prev" data-window-go="prev" data-shortcut="a left" <%= tag.attributes(href: prev_href, "aria-disabled": prev_href.nil?.to_s) %>>&lsaquo; prev</a>
     <span class="modgal-page-cur">
-      page <%= current_page %><% if total_pages %> / <%= total_pages %><% end %>
-      <% if post_count %><span class="modgal-page-count"><%= number_with_delimiter(post_count) %> posts</span><% end %>
+      <% if post_count %><span class="modgal-page-count"><%= number_with_delimiter(post_count) %> posts in this search</span><% end %>
+      <% if windowing? && window_kind == :offset %><span class="modgal-page-note">position-based sort: results may shift</span><% end %>
     </span>
-    <% if more_pages? %>
-      <%= link_to "next &rsaquo;".html_safe, page_url(current_page + 1), class: "modgal-page" %>
-    <% else %>
-      <span class="modgal-page is-disabled">next &rsaquo;</span>
-    <% end %>
+    <a class="modgal-page" rel="next" data-window-go="next" data-shortcut="d right" <%= tag.attributes(href: next_href, "aria-disabled": next_href.nil?.to_s) %>>next &rsaquo;</a>
   </nav>
+  <%# What the window is doing or why it stopped. Its room is reserved, so a
+      line arriving or leaving moves nothing (no-forced-reflow). Focusable by
+      script only: a note's button that removes itself hands focus here. %>
+  <p class="modgal-window-status" role="status" tabindex="-1"><%= pager_note %></p>
 </section>

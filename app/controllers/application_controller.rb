@@ -224,6 +224,10 @@ class ApplicationController < ActionController::Base
 
       # if InvalidAuthenticityToken was raised, CurrentUser isn't set so we have to use the blank layout.
       layout = "blank" if CurrentUser.user.nil?
+      # Fork: the Modulation gallery window's script reads the refusal of a
+      # chunk it asked for and shows it in place (static/error.html+window):
+      # the sentence and its fix, not a whole page.
+      template, layout = "static/error", false if request.variant.window? && format == :html
 
       if @exception
         DanbooruLogger.log(@exception, expected: @expected)

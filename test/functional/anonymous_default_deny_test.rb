@@ -320,7 +320,9 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
       should "open a featured creator's tag page 1 and nothing else" do
         assert_admitted "#{posts_path}?tags=featured_maker"
         ["tags=featured_maker&page=2", "tags=featured_maker+1girl", "tags=featured_maker+order:random",
-         "tags=unfeatured_maker", "tags=featured_maker&page=b#{@made.first.id}", "tags=-featured_maker"].each do |query|
+         "tags=unfeatured_maker", "tags=featured_maker&page=b#{@made.first.id}", "tags=-featured_maker",
+         "tags=featured_maker&anchor=#{@made.first.id}", "tags=featured_maker&before=#{@made.last.id}",
+         "tags=featured_maker&variant=window&anchor=#{@made.first.id}"].each do |query|
           assert_refused "#{posts_path}?#{query}", why: :narrowed
         end
         assert_refused "/posts.json?tags=featured_maker", why: :narrowed
@@ -386,7 +388,9 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
       assert_admitted "#{posts_path}?page=1"
       assert_admitted "/posts.json"
       ["tags=id:1..20", "tags=id:21..40", "tags=order:random", "tags=1girl", "post[tags]=id:1..20",
-       "page=2", "page=b#{@newest.id}", "page=a1", "random=1", "md5=#{@old.md5}"].each do |query|
+       "page=2", "page=b#{@newest.id}", "page=a1", "random=1", "md5=#{@old.md5}",
+       "anchor=#{@newest.id}", "anchor=#{@newest.id}~5", "anchor=@20", "before=#{@newest.id}",
+       "variant=window&anchor=#{@newest.id}"].each do |query|
         assert_refused "#{posts_path}?#{query}", why: :narrowed
       end
       assert_refused "/posts.atom", why: :wrong_format

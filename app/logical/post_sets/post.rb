@@ -12,7 +12,19 @@ module PostSets
     MAX_SIDEBAR_TAGS = 25
     MAX_WILDCARD_TAGS = PostQueryBuilder::MAX_WILDCARD_TAGS
 
-    attr_reader :current_user, :page, :format, :tag_string, :post_query, :normalized_query, :show_votes
+    # THE GALLERY WINDOW (GALLERY_WINDOW.md section 2). The Modulation grid is
+    # a box of WINDOW_SLOTS -- 5 x 4, 4 x 5, 2 x 10 -- over the search's
+    # results, filled by the posts the viewer's blocklist lets render; the
+    # browser holds a run of results beyond the box and fetches more in
+    # chunks from a cursor (PostNeighbors::Seek). The page is drawn with
+    # WINDOW_CHUNK posts, so a blocklist that hides some still fills the box;
+    # a chunk asks for WINDOW_CHUNK..WINDOW_CHUNK_MAX, more when the
+    # blocklist is hiding more.
+    WINDOW_SLOTS = 20
+    WINDOW_CHUNK = 40
+    WINDOW_CHUNK_MAX = 100
+
+    attr_reader :current_user, :page, :format, :tag_string, :post_query, :normalized_query, :show_votes, :window, :anchor, :before
 
     alias_method :show_votes?, :show_votes
 
@@ -27,7 +39,12 @@ module PostSets
     end
     memoize :tag
 
-    def initialize(tags, page = 1, per_page = nil, user: CurrentUser.user, format: "html", show_votes: false)
+    # @param window [Symbol, nil] the Modulation gallery: :page for the page
+    #   it draws, :chunk for a run the window fetches (variant=window); nil
+    #   everywhere else, which pages as upstream does
+    # @param anchor [String, nil] a cursor: the window starts AT this place
+    # @param before [String, nil] a cursor: the chunk ends just before it
+    def initialize(tags, page = 1, per_page = nil, user: CurrentUser.user, format: "html", show_votes: false, window: nil, anchor: nil, before: nil) # rubocop:disable Metrics/ParameterLists
       @current_user = user
       @post_query = PostQuery.normalize(tags, current_user: user, tag_limit: user.tag_query_limit, safe_mode: CurrentUser.safe_mode?)
       @normalized_query = post_query.with_implicit_metatags
@@ -36,6 +53,9 @@ module PostSets
       @per_page = per_page
       @format = format.to_s
       @show_votes = show_votes
+      @window = window
+      @anchor = anchor.presence
+      @before = before.presence
     end
 
     # The title of the page for the <title> tag.
@@ -109,8 +129,17 @@ module PostSets
       posts.select { |p| p.safeblocked? && !p.levelblocked? && !p.banblocked? }
     end
 
+    # In the Modulation gallery the window sizes the page, not the account's
+    # "posts per page" or a limit: term: the box is WINDOW_SLOTS whatever
+    # they say, and the run behind it is the window's to size.
     def per_page
-      (@per_page || post_query.find_metatag(:limit) || CurrentUser.user.per_page).to_i.clamp(0, max_per_page)
+      if window && windowing?
+        (window == :chunk) ? (@per_page || WINDOW_CHUNK).to_i.clamp(WINDOW_CHUNK, WINDOW_CHUNK_MAX) : WINDOW_CHUNK
+      elsif window
+        [WINDOW_SLOTS, max_per_page].min
+      else
+        (@per_page || post_query.find_metatag(:limit) || CurrentUser.user.per_page).to_i.clamp(0, max_per_page)
+      end
     end
 
     def max_per_page
@@ -125,12 +154,128 @@ module PostSets
     def posts
       post_query.validate_tag_limit!
       enforce_browsing_cap!
+      check_window!
+      # A chunk counts nothing: the page it extends already showed the count.
+      # Except a random draw, where the count is what decides between a true
+      # shuffle and a sample (PostQueryBuilder#paginated_posts).
+      count = (window == :chunk && window_kind != :draw) ? nil : post_count
       # page_limit is the viewer's ORDINARY app-wide limit, passed explicitly so
       # paginate does not fall back to reading CurrentUser -- this set is handed
       # a user, and is built outside a request in tests and in the showcase. The
       # browsing cap is enforced above instead; see enforce_browsing_cap! for
       # why it must not be expressed here.
-      normalized_query.paginated_posts(page, includes: includes, count: post_count, search_count: !post_count.nil?, limit: per_page, max_limit: max_per_page, page_limit: current_user.page_limit).load
+      window_query.paginated_posts(page, includes: includes, count: count, search_count: !count.nil?, limit: per_page, max_limit: max_per_page, page_limit: current_user.page_limit, seek: seek).load
+    end
+
+    # Whether this set is the window: the Modulation gallery, for a viewer who
+    # may browse, under an order with a place to keep -- or a random draw,
+    # which the window extends with fresh draws. An old `page=b<id>` link is
+    # served as it always was, outside the window.
+    def windowing?
+      window.present? && current_user.can_browse_freely? && window_kind != :refused && !page.to_s.match?(/\A[ab]\d+\z/i)
+    end
+
+    # PostNeighbors::Seek.kind of this search's order: :key, :offset, :draw
+    # or :refused.
+    def window_kind
+      PostNeighbors::Seek.kind(effective_order)
+    end
+
+    delegate :effective_order, to: :normalized_query
+
+    # The search the window pages. A deleted post is dropped HERE, in the
+    # query, for every viewer who did not ask for deleted posts -- below the
+    # deleted-visibility level deleted_metatags already did -- rather than at
+    # render: a chunk that fetched a page of deleted posts would draw nothing
+    # and name no cursor past them.
+    def window_query
+      return normalized_query if window.nil? || show_deleted? || !current_user.can_see_deleted_posts?
+
+      normalized_query.build(PostQuery::AST.new(:and, [normalized_query.ast, -PostQuery::AST.metatag("status", "deleted")]))
+    end
+
+    # The cursor this set pages from: an anchor, a before, an old `page=N`
+    # read as the position it showed, or the head of the search. nil outside
+    # the window and for a random draw.
+    def seek
+      return nil unless windowing? && window_kind != :draw
+
+      direction = before ? :backward : :forward
+      cursor = anchor || before
+      cursor ||= "@#{(current_page - 1) * WINDOW_SLOTS}" if current_page > 1
+      found = cursor ? PostNeighbors::Seek.parse(effective_order, cursor, direction: direction) : PostNeighbors::Seek.head(effective_order)
+      found.resolve(window_query.posts)
+    end
+
+    # A cursor this set cannot keep is refused by name (422), never read as
+    # page 1: two at once, a cursor under order:random (a fresh draw every
+    # look) or order:none (no order at all).
+    def check_window!
+      return if window.nil? || (anchor.nil? && before.nil?)
+
+      raise PostNeighbors::NoPlace, "anchor= and before= cannot be used together. Fix: keep one of them." if anchor && before
+
+      PostNeighbors::Seek.refuse_kind!(effective_order)
+    end
+
+    # Each drawn post's cursor, by id: its key under a key sort, its
+    # position under any other.
+    def window_cursors
+      return {} unless seek
+
+      if seek.spec && seek.offset.nil?
+        posts.to_h { |post| [post.id, PostNeighbors::Seek.mint(post, effective_order)] }
+      else
+        posts.each_with_index.to_h { |post, i| [post.id, "@#{window_start + i}"] }
+      end
+    end
+
+    # The position of the first drawn post, for a position-based page.
+    def window_start
+      seek.backward? ? [seek.offset - per_page, 0].max : seek.offset
+    end
+
+    # Whether the search goes on past the last drawn post. A random draw has
+    # no place, so more is whether it came back full: one that came back
+    # short held the whole set. Never the count, which reads the search as
+    # typed (PostQuery#estimated_count), not what this viewer can see.
+    def window_more_ahead?
+      return false unless windowing?
+      return posts.size >= per_page if seek.nil?
+
+      seek.backward? || posts.more?
+    end
+
+    # Whether the search holds posts before the first drawn one.
+    def window_more_behind?
+      return false unless seek
+
+      seek.backward? ? posts.more? : !window_behind[:head]
+    end
+
+    # Where "prev" goes without the script: the place WINDOW_SLOTS posts back,
+    # or nil for the head of the search (a short way back lands on the head).
+    def window_prev_cursor
+      window_behind[:cursor]
+    end
+
+    # One look back from the first drawn post: WINDOW_SLOTS ids and keys, so
+    # it answers both whether this is the head and where prev lands.
+    def window_behind
+      return { head: true } if seek.nil? || (seek.id.nil? && seek.offset.to_i == 0 && !seek.backward?)
+
+      if seek.spec.nil? || (seek.offset && posts.empty?)
+        start = window_start
+        { head: start == 0, cursor: ("@#{start - WINDOW_SLOTS}" if start > WINDOW_SLOTS) }
+      else
+        first = posts.first
+        spec = seek.spec
+        from = first ? [first.id, PostNeighbors::Seek.key_of(spec, spec.value.call(first))] : [seek.id, seek.key]
+        back = PostNeighbors::Seek.new(spec: spec, id: from[0], key: from[1], direction: :backward)
+        rows = back.apply(window_query.posts).limit(WINDOW_SLOTS).pluck(Arel.sql("posts.id"), Arel.sql(spec.column))
+        far = rows.last
+        { head: rows.empty?, cursor: ("#{far[0]}~#{PostNeighbors::Seek.key_of(spec, far[1])}" if rows.size == WINDOW_SLOTS) }
+      end
     end
 
     # The browsing tier's page cap, enforced here rather than by handing the cap
@@ -150,9 +295,10 @@ module PostSets
     # the numbered path it was written for.
     def enforce_browsing_cap!
       cap = current_user.post_page_limit
-      # A cursor page (b<id> / a<id>) has no number -- current_page reads it as
-      # 1 -- and walks past whatever id it names, so the one-page tier gets none.
-      cursor = page.to_s.match?(/\A[ab]\d+\z/i) && !current_user.can_browse_freely?
+      # A cursor page (b<id> / a<id>, or the gallery window's anchor= and
+      # before=) has no number -- current_page reads it as 1 -- and walks past
+      # whatever place it names, so the one-page tier gets none.
+      cursor = (page.to_s.match?(/\A[ab]\d+\z/i) || anchor || before) && !current_user.can_browse_freely?
       return if current_page <= cap && !cursor
 
       raise PaginationExtension::PaginationError, "You cannot go beyond page #{cap}."
@@ -288,6 +434,6 @@ module PostSets
       end
     end
 
-    memoize :page_title, :posts
+    memoize :page_title, :posts, :seek, :window_kind, :effective_order, :window_query, :window_cursors, :window_behind
   end
 end

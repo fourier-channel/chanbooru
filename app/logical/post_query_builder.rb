@@ -141,13 +141,8 @@ class PostQueryBuilder
     # Fork: gate 3 for posts (PostQuery#matrix_rooms_condition).
     relation = relation.where(post_query.matrix_rooms_condition) if matrix_rooms && post_query.matrix_rooms_condition
 
-    # HACK: if we're using a date: or age: metatag, default to ordering by
-    # created_at instead of id so that the query will use the created_at index.
-    if post_query.has_metatag?(:date, :age) && post_query.find_metatag(:order).in?(["id", "id_asc"])
-      relation = relation.order_matches("created_at_asc")
-    elsif post_query.has_metatag?(:date, :age) && post_query.find_metatag(:order).in?(["id_desc", nil])
-      relation = relation.order_matches("created_at_desc")
-    elsif post_query.find_metatag(:order) == "custom"
+    case (order = effective_order(post_query))
+    when :custom
       # Fork: the id term the searcher typed, not one their situation added
       # (PostQuery#hidden_post_metatags' -id:, #gated_metatags' "or id:"),
       # which sit under a NOT or an OR -- or a viewer with anything hidden or
@@ -159,10 +154,14 @@ class PostQueryBuilder
       else
         relation = relation.none
       end
-    elsif post_query.has_metatag?(:ordfav, :ordvote, :ordpool, :ordfavgroup)
+    when :ord_metatag
       # no-op
-    else
+    when :random, :none
+      # random:N re-sorts by random() below, after whatever the typed order
+      # joined or filtered (order:rank's window), as it always has.
       relation = relation.order_matches(post_query.find_metatag(:order))
+    else
+      relation = relation.order_matches(order)
     end
 
     if count = post_query.find_metatag(:random)
@@ -172,6 +171,42 @@ class PostQueryBuilder
 
     relation = relation.includes(includes) if includes.present?
     relation
+  end
+
+  # THE ORDER A SEARCH IS LISTED BY, decided once for the listing (#posts)
+  # and the Modulation gallery window (PostSets::Post#window_kind), which
+  # pages through the same list by a cursor and must walk the order on
+  # screen (GALLERY_WINDOW.md section 2). One of:
+  #   - an order_matches key, downcased: the date:/age: swap below included,
+  #     and "id_desc" for a missing or unknown order (order_matches' own
+  #     fallback), so the window never keysets a sort the listing ignored;
+  #   - :random  -- order:random, or random:N (a sample, whatever it sorts);
+  #   - :none    -- order:none, which has no order to page through;
+  #   - :custom  -- order:custom, the order of the typed id: list;
+  #   - :ord_metatag -- ordfav/ordvote/ordpool/ordfavgroup, sorted by their
+  #     own metatag's join.
+  def effective_order(post_query)
+    order = post_query.find_metatag(:order)&.downcase
+
+    # HACK: if we're using a date: or age: metatag, default to ordering by
+    # created_at instead of id so that the query will use the created_at index.
+    if post_query.has_metatag?(:random) || order == "random"
+      :random
+    elsif post_query.has_metatag?(:date, :age) && order.in?(["id", "id_asc"])
+      "created_at_asc"
+    elsif post_query.has_metatag?(:date, :age) && order.in?(["id_desc", nil])
+      "created_at_desc"
+    elsif order == "custom"
+      :custom
+    elsif post_query.has_metatag?(:ordfav, :ordvote, :ordpool, :ordfavgroup)
+      :ord_metatag
+    elsif order == "none"
+      :none
+    elsif order.nil? || Post.unscoped.order_matches(order).order_values == ["posts.id DESC"]
+      "id_desc"
+    else
+      order
+    end
   end
 
   def paginated_posts(post_query, page, count:, small_search_threshold: Danbooru.config.small_search_threshold.to_i, includes: :media_asset, **options)

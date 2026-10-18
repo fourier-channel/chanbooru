@@ -226,7 +226,10 @@ module MembersOnly
   #     creator's pill on the front page links to. One term, nothing else --
   #     the rows are the operator's choice of what to show off (2026-10-08);
   #   - page blank or 1; limit (clamped to restricted_browsing_per_page as
-  #     for anyone below the browsing tier); size, show_votes, variant;
+  #     for anyone below the browsing tier); size, show_votes, variant
+  #     (the hover tooltip's; the gallery window's chunk is refused below
+  #     the browsing tier by the controller) -- and no `anchor` or `before`,
+  #     the gallery window's cursors;
   #   - in json ONLY, `tags=md5:<32 hex>[,<32 hex>...]` (up to the 20 rows a
   #     restricted page holds, fourier-auth's MAX_BATCH) with
   #     `only=md5,is_deleted,source` and `limit`, and NO other parameter:
@@ -252,6 +255,8 @@ module MembersOnly
     page = params[:page].to_s.strip
     return false unless page.empty? || page == "1"
     return false if params[:md5].present? || params[:random].present?
+    # The gallery window's cursors walk past page 1 like page=b<id> did.
+    return false if params[:anchor].present? || params[:before].present?
     return true if tags.empty?
 
     case request_format(controller.request)

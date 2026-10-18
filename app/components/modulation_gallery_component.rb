@@ -113,24 +113,15 @@ class ModulationGalleryComponent < ApplicationComponent
   # Deleted posts are dropped unless the viewer has asked for them, which is
   # upstream's rule -- PostPreviewComponent#render? refuses to draw a deleted
   # post unless show_deleted -- and it was lost when this gallery replaced that
-  # component. So on this fork a deleted post rendered in the default gallery,
-  # which is the one place upstream is careful to keep it out of.
+  # component. Worth naming, because the shape recurs: a fork that reimplements
+  # an upstream view inherits its LAYOUT and silently drops its GUARDS. The
+  # blacklist went the same way in this same component.
   #
-  # Worth naming, because the shape recurs: a fork that reimplements an upstream
-  # view inherits its LAYOUT and silently drops its GUARDS. The blacklist went
-  # the same way in this same component.
-  #
-  # Note the inconsistency this preserves rather than fixes: post_set counts
-  # deleted posts and this does not, so a page can report more results than it
-  # draws. That is upstream's behaviour too, and correcting it belongs in a
-  # change about pagination rather than one about a missing guard.
-  def posts
-    return post_set.posts if show_deleted?
-
-    post_set.posts.reject(&:is_deleted?)
-  end
-
-  delegate :show_deleted?, to: :post_set
+  # Dropped in the query now (PostSets::Post#window_query), not here: the
+  # gallery window pages by cursors minted from the cards it drew, and a
+  # chunk of deleted posts dropped at render would draw nothing and name no
+  # place past them.
+  delegate :posts, to: :post_set
 
   def query_string
     post_set.tag_string.to_s.strip
@@ -174,9 +165,13 @@ class ModulationGalleryComponent < ApplicationComponent
   # data-tags comes from FourierTagSource.blacklist_tags_for, NOT post.tag_string:
   # tag_string still holds the private creator tags, and this is the default view
   # of the site.
+  #
+  # data-key is the card's place in the search (PostNeighbors::Seek), which
+  # the gallery window pages from; none where the viewer has no window.
   def card_data(post)
     {
       "data-id" => post.id,
+      "data-key" => post_set.window_cursors[post.id],
       "data-tags" => blacklist_tags[post].to_a.join(" "),
       "data-rating" => post.rating,
       "data-flags" => post.status_flags,
@@ -248,22 +243,46 @@ class ModulationGalleryComponent < ApplicationComponent
     blacklist_tags[post].to_a.find { |t| page_tag_categories[t] == "artist" }
   end
 
-  def current_page
-    [post_set.current_page.to_i, 1].max
+  # --- the pager ---------------------------------------------------------
+  # Prev and next, and the count -- no page number: once each box depends on
+  # the viewer's own blocklist a page number cannot be exact
+  # (GALLERY_WINDOW.md section 2). The hrefs are the server's answer without
+  # the script: next opens the first post past the box, prev the place a box
+  # back (or the head). With it, gallery_window.js takes the click and moves
+  # the box over the posts the blocklist lets render.
+
+  delegate :post_count, :windowing?, :window_kind, to: :post_set
+
+  def next_href
+    return nil unless windowing?
+    return routes.posts_path(tags: query_string.presence) if window_kind == :draw
+
+    cursor = post_set.window_cursors[posts[PostSets::Post::WINDOW_SLOTS]&.id]
+    place_href(cursor) if cursor
   end
 
-  # --- parity with the upstream index -------------------------------------
-  # The upstream page keeps these in sidebar sections this gallery hides. They
-  # are search-scoped navigation, so they belong with the search controls rather
-  # than as a transplanted sidebar.
+  def prev_href
+    return nil unless windowing? && post_set.window_more_behind?
 
-  delegate :post_count, to: :post_set
+    place_href(post_set.window_prev_cursor)
+  end
 
-  def total_pages
-    count = post_count
-    return nil if count.nil? || post_set.per_page.to_i <= 0
+  # The search at a place, or at its head for nil. Through params: because
+  # `anchor:` is a URL helper's own option, the #fragment.
+  def place_href(cursor)
+    routes.posts_path(tags: query_string.presence, params: { anchor: cursor }.compact)
+  end
 
-    [(count.to_f / post_set.per_page).ceil, 1].max
+  # Why the pager cannot page, where that is not the account's one page
+  # (which truncated? explains).
+  def pager_note
+    return nil if windowing? || !can_browse? || posts.empty?
+
+    if post_set.window_kind == :refused
+      "order:none has no order to page through. Fix: pick a sort to page through the results."
+    else
+      "This link pages by post id (page=#{post_set.page}). Fix: open the search without page= to browse it."
+    end
   end
 
   # "Related": the same search seen another way. Deliberately only the ones that
@@ -332,13 +351,6 @@ class ModulationGalleryComponent < ApplicationComponent
     viewer.present? && viewer.can_browse_freely?
   end
 
-  def more_pages?
-    # A restricted viewer gets one page, so there is no next to offer. Not
-    # rendering the link is the point: a "next" that 410s is a bug-shaped way to
-    # express a policy.
-    can_browse? && posts.size >= post_set.per_page
-  end
-
   # Shown when there are more results than this viewer is allowed to page
   # through, so the cut-off is explained where it happens rather than being
   # discovered as a missing button.
@@ -352,10 +364,6 @@ class ModulationGalleryComponent < ApplicationComponent
     # does not depend on the order, and order:random would sort every matching
     # row (the page itself samples instead; PostQueryBuilder#paginated_posts).
     post_set.normalized_query.posts.reorder(nil).offset(posts.size).limit(1).pluck(:id).any?
-  end
-
-  def page_url(page)
-    routes.posts_path(tags: query_string.presence, page: (page if page > 1))
   end
 
   private

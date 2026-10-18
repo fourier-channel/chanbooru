@@ -40,6 +40,17 @@ class BlocklistComponentTest < ViewComponent::TestCase
       assert_css("#blocklist-panel a[href$='#user_blacklisted_tags']", text: "Edit as text", visible: :all)
     end
 
+    # The counts follow the gallery window's box, not the whole page: the
+    # page holds posts outside the box (GALLERY_WINDOW.md section 2).
+    should "count what is hidden in this view" do
+      trigger = page.find("#blocklist-trigger", visible: :all)
+      assert_match(/hidden in this view/, trigger["x-bind:aria-label"])
+      assert_match(/hidden in this view/, page.find(".blocklist-hidden", visible: :all)["x-text"])
+      # The pill's count title, inside its x-for template.
+      assert_equal 3, rendered_content.scan("hidden in this view").size
+      assert_no_match(/on this page/, rendered_content)
+    end
+
     should "send no enforced rules and say Blocklist, never Blacklist" do
       assert_no_css(".blacklist-enforced, .blacklist-censor", visible: :all)
       assert_no_match(/blacklist/i, page.text(:all))

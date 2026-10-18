@@ -19,15 +19,26 @@ function boot() {
   }
   grid.dataset.tagpopBooted = "1";
 
+  // The maps grow as the gallery window fetches chunks (gallery_window.js
+  // merges each chunk's into the grid), so they are read when a panel opens,
+  // parsed again only when the attribute has changed. A map that does not
+  // parse shows nothing: the map is the display gate.
   let cats = {};
   let counts = {};
-  try {
-    cats = JSON.parse(grid.dataset.tagCategories || "{}");
-    // Counts are OPTIONAL: an older cached page has no data-tag-counts, and a
-    // pill with no number is better than no panel at all.
-    counts = JSON.parse(grid.dataset.tagCounts || "{}");
-  } catch {
-    return;
+  let readFrom = null;
+  function readMaps() {
+    const source = (grid.dataset.tagCategories || "") + "\u0000" + (grid.dataset.tagCounts || "");
+    if (source === readFrom) { return; }
+    readFrom = source;
+    try {
+      cats = JSON.parse(grid.dataset.tagCategories || "{}");
+      // Counts are OPTIONAL: an older cached page has no data-tag-counts, and a
+      // pill with no number is better than no panel at all.
+      counts = JSON.parse(grid.dataset.tagCounts || "{}");
+    } catch {
+      cats = {};
+      counts = {};
+    }
   }
 
   // " 1234" -- a space then the number, inside the pill, to the right of the
@@ -88,6 +99,7 @@ function boot() {
   }
 
   function show(card) {
+    readMaps();
     const marks = marksOf(card);
     const groups = {};
     (card.getAttribute("data-tags") || "").split(/\s+/).forEach((tag) => {
@@ -185,6 +197,8 @@ function boot() {
   });
 
   window.addEventListener("scroll", hide, { passive: true });
+  // The window moved the box: the card under the panel may have left it.
+  grid.addEventListener("modgal:window-change", hide);
 }
 
 $(document).ready(boot);

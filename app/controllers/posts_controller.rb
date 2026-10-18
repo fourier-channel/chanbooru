@@ -5,9 +5,12 @@ class PostsController < ApplicationController
   layout "sidebar"
 
   before_action :log_search_query, only: :index
-  after_action :log_search_count, only: :index, if: -> { request.format.html? && response.successful? }
+  # Not for a gallery window chunk: the page it extends logged its search.
+  after_action :log_search_count, only: :index, if: -> { request.format.html? && response.successful? && !request.variant.window? }
 
   def index
+    refuse_window_chunk! if request.variant.window?
+
     if params[:md5].present?
       @post = authorize Post.find_by!(md5: params[:md5])
       # Same rule by the other door: an md5 lookup must not confirm a gated post
@@ -45,6 +48,8 @@ class PostsController < ApplicationController
 
       respond_with(@posts) do |format|
         format.atom
+        # The gallery window's chunk: the cards alone (posts/index.html+window).
+        format.html.window { render layout: false }
       end
     end
   end
@@ -219,8 +224,29 @@ class PostsController < ApplicationController
       tag_query = params[:tags] || params.dig(:post, :tags)
       tag_query = apply_modulation_panel_memory(tag_query)
       show_votes = (params[:show_votes].presence || cookies[:post_preview_show_votes].presence || "false").truthy?
-      PostSets::Post.new(tag_query, params[:page], params[:limit], format: request.format.symbol, show_votes: show_votes)
+      cursors = { anchor: params[:anchor].presence&.to_s, before: params[:before].presence&.to_s }
+      PostSets::Post.new(tag_query, params[:page], params[:limit], format: request.format.symbol, show_votes: show_votes, window: gallery_window, **cursors)
     end
+  end
+
+  # The Modulation gallery is a window over its search (GALLERY_WINDOW.md
+  # section 2): :page for the page it draws, :chunk for a run its script
+  # fetches. HTML and Modulation only -- the API, the feeds and the historical
+  # page keep their numbered pages untouched -- and not the Random button,
+  # which redirects to a random:N search the size of an ordinary page.
+  def gallery_window
+    return nil unless request.format.html? && modulation? && action_name == "index" && params[:random].blank?
+
+    request.variant.window? ? :chunk : :page
+  end
+
+  # A chunk is the Modulation gallery's, for a viewer who may browse: below
+  # the browsing tier the gallery is one page with nothing to fetch.
+  def refuse_window_chunk!
+    raise PostQuery::Error, "variant=window is the Modulation gallery's chunk of a search. Fix: add preset=modulation." unless modulation?
+    return if CurrentUser.user.can_browse_freely?
+
+    raise PaginationExtension::PaginationError, "The gallery window is for full accounts: this account sees one page of results. Fix: open the search without variant=window."
   end
 
   # fourier: the Modulation search panel retains its settings server-side and
@@ -232,6 +258,10 @@ class PostsController < ApplicationController
   # exactly what it asked.
   def apply_modulation_panel_memory(tag_query)
     return tag_query unless request.format.html? && modulation? && action_name == "index" && params[:random].blank?
+    # A gallery window chunk carries its page's search whole, the remembered
+    # sort already in it: re-reading the memory here would let another tab's
+    # change of sort reorder the run mid-walk, and record! on every chunk.
+    return tag_query if request.variant.window?
     # A signed-out viewer's gallery is the newest posts and nothing else
     # (MembersOnly.anonymous_post_listing): a sort remembered in their session
     # would be a query by another name.
@@ -272,7 +302,10 @@ class PostsController < ApplicationController
       limit: post_set.per_page,
       tag_count: post_set.post_query.tag_names.length,
       metatag_count: post_set.post_query.metatags.length,
-    })
+      anchor: post_set.anchor,
+      before: post_set.before,
+      variant: request.variant.first&.to_s,
+    }.compact)
   end
 
   def log_search_count

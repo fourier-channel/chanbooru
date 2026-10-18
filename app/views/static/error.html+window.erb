@@ -1,0 +1,3 @@
+<%# A refused gallery window chunk (variant=window): the message alone, which
+    names its fix, for the window's script to show where the posts stop. %>
+<p class="modgal-window-error" data-status="<%= response.status %>"><%= @message.presence || "Unexpected error: #{@exception.class}. Fix: reload the page." %></p>

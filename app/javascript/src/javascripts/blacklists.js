@@ -35,9 +35,13 @@ function csrfToken() {
 
 // The post view's flank pool is a lookup table, not something the page shows:
 // up to a few dozen candidates of which two are drawn. The counts say "hidden
-// on this page", so they leave it out.
+// in this view", so they leave it out -- and, where a surface has set the
+// engine's scope (the Modulation gallery window, whose page holds posts
+// outside its box), everything outside the scope too. The scope narrows the
+// COUNTS only; every post on the page is still matched and marked.
 function shownOnPage(post) {
-  return !post.post.classList.contains("mod-flank-poolitem");
+  const scope = post.blacklist.scope;
+  return !post.post.classList.contains("mod-flank-poolitem") && (!scope || scope.has(post.post.dataset.id));
 }
 
 // A post holds the set of blocks that match it. It is hidden while that set
@@ -130,7 +134,7 @@ class Rule {
     });
   }
 
-  // @returns {Number} - How many distinct posts on this page the block hides.
+  // @returns {Number} - How many distinct posts in this view the block hides.
   get matchCount() {
     return new Set([...this.posts].filter(shownOnPage).map(post => post.post.dataset.id)).size;
   }
@@ -167,6 +171,10 @@ class Blacklist {
     this.error = "";
     this.signedIn = false;
     this.saving = Promise.resolve();
+    // A Set of the post ids the counts describe, or null for the whole page.
+    // Set it through the root's .blacklist (the Alpine proxy), with a new Set
+    // each time, or the counts on the badge never update.
+    this.scope = null;
   }
 
   // @param {Array<{rule: String, locked: Boolean}>} blocks - The signed-in
@@ -363,7 +371,7 @@ class Blacklist {
     }
   }
 
-  // @returns {Number} - How many distinct posts on this page are hidden.
+  // @returns {Number} - How many distinct posts in this view are hidden.
   get blacklistedPostCount() {
     return new Set(this.posts.filter(post => post.blacklisted && shownOnPage(post)).map(post => post.post.dataset.id)).size;
   }

@@ -98,6 +98,11 @@ class PostQuery
     builder.paginated_posts(to_cnf, ...)
   end
 
+  # The order this search is listed by (PostQueryBuilder#effective_order).
+  def effective_order
+    builder.effective_order(self)
+  end
+
   # Perform a search and return N posts, or none if the search times out.
   #
   # @param n [Integer] The number of posts to return.

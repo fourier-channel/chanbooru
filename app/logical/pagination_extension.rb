@@ -20,10 +20,15 @@
 #
 # where a1000 means "after id 1000" and b1000 means "before id 1000".
 #
+# Fork: a third, the Modulation gallery window's (seek:), pages from a
+# PostNeighbors::Seek -- a cursor in any sort, not only by id -- one chunk at
+# a time, forward from an anchor or backward before one. It takes no page
+# number: `page` is ignored when a seek is given.
+#
 module PaginationExtension
   class PaginationError < StandardError; end
 
-  attr_accessor :current_page, :records_per_page, :paginator_count, :paginator_mode, :paginator_page_limit
+  attr_accessor :current_page, :records_per_page, :paginator_count, :paginator_mode, :paginator_page_limit, :paginator_seek
 
   # Paginate an ActiveRecord relation. Returns a relation for the given page and number of posts per page.
   #
@@ -33,7 +38,8 @@ module PaginationExtension
   # @param page_limit [Integer] the highest page the user can view
   # @param count [Integer] the precalculated number of search results, or nil to calculate it
   # @param search_count [Object] if truthy, don't calculate the number of results; assume a large number of results
-  def paginate(page, limit: nil, max_limit: 1000, page_limit: CurrentUser.user.page_limit, count: nil, search_count: nil)
+  # @param seek [PostNeighbors::Seek, nil] page from this cursor instead (the gallery window)
+  def paginate(page, limit: nil, max_limit: 1000, page_limit: CurrentUser.user.page_limit, count: nil, search_count: nil, seek: nil) # rubocop:disable Metrics/ParameterLists
     @records_per_page = limit || Danbooru.config.posts_per_page
     @records_per_page = @records_per_page.to_i.clamp(1, max_limit)
     @paginator_page_limit = page_limit
@@ -44,7 +50,9 @@ module PaginationExtension
       @paginator_count = Float::INFINITY
     end
 
-    if page.to_s =~ /\Ab(\d+)\z/i
+    if seek
+      paginate_seek(seek, records_per_page, page_limit)
+    elsif page.to_s =~ /\Ab(\d+)\z/i
       @paginator_mode = :sequential_before
       paginate_sequential_before($1, records_per_page)
     elsif page.to_s =~ /\Aa(\d+)\z/i
@@ -73,6 +81,25 @@ module PaginationExtension
 
   def paginate_numbered(page, limit)
     offset((page - 1) * limit).limit(limit)
+  end
+
+  # A position is an OFFSET, which is what the page limit bounds: counted in
+  # pages of the default size, the same reach a numbered page had.
+  def paginate_seek(seek, limit, page_limit)
+    reach = page_limit * Danbooru.config.posts_per_page.to_i
+    if seek.offset && seek.offset > reach
+      raise PaginationError, "You cannot go past result #{reach} in a position-based sort. Pick newest, oldest, score, favorites or date to go further."
+    end
+
+    @paginator_seek = seek
+    @paginator_mode = seek.backward? ? :seek_backward : :seek_forward
+    seek.page(self, limit)
+  end
+
+  # Whether the search goes on past this chunk, in the chunk's direction.
+  def more?
+    load
+    paginator_seek.more?(@records.size, records_per_page)
   end
 
   def is_first_page?
@@ -137,6 +164,10 @@ module PaginationExtension
       super.first(records_per_page)
     when :sequential_after
       super.first(records_per_page).reverse
+    when :seek_forward
+      super.first(records_per_page)
+    when :seek_backward
+      paginator_seek.reversed? ? super.first(records_per_page).reverse : super
     when :numbered
       super
     end

@@ -282,6 +282,13 @@ body:has(.modgal) {
   // whose display rule was doing the overriding.
   .modgal-card.blacklisted-hidden { display: none; }
 
+  // THE WINDOW'S MARK (GALLERY_WINDOW.md section 2): a card drawn or fetched
+  // but outside the box -- before its top-left post, or past the 20th card
+  // the blocklist lets render. Three classes under .modgal, so it beats
+  // .modgal-card's display without relying on bundle order (the trap
+  // above). No transition: a card enters and leaves the box in one frame.
+  .modgal-card.is-off { display: none; }
+
   .modgal-card {
     position: relative;
     display: block;
@@ -436,7 +443,7 @@ body:has(.modgal) {
     background: var(--mod-surface-2); border: 1px solid var(--mod-line);
     color: var(--mod-ink); text-decoration: none; font-size: 0.85rem;
     &:hover { border-color: var(--mod-ink-dim); }
-    &.is-disabled { opacity: 0.35; pointer-events: none; }
+    &[aria-disabled="true"] { opacity: 0.35; pointer-events: none; }
   }
 
   .modgal-page-cur {
@@ -444,6 +451,44 @@ body:has(.modgal) {
     color: var(--mod-ink-dim); font-family: ui-monospace, monospace; font-size: 0.8rem;
   }
   .modgal-page-count { font-size: 0.72rem; color: var(--mod-ink-dim); opacity: 0.75; }
+  .modgal-page-note { font-size: 0.72rem; color: var(--mod-ink-dim); }
+
+  // What the window is doing, or why it stopped. One line's room is always
+  // reserved, so a line arriving or leaving moves nothing below it
+  // (no-forced-reflow). Static text: no spinner, no looping animation.
+  .modgal-window-status {
+    min-height: 1.4em;
+    margin: 0.35rem 0 0;
+    text-align: center;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--mod-ink-dim);
+  }
+
+  // A stop the viewer has to act on: a refused or failed fetch, the
+  // blocklist engine missing. It stays until its Retry is pressed or the
+  // page reloads; the cards already shown stay too.
+  .modgal-window-alert {
+    margin: 0.35rem 0 0;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius);
+    background: var(--mod-surface-2);
+    color: var(--mod-ink);
+    font-size: 0.8rem;
+    text-align: center;
+
+    button {
+      margin-left: 0.5rem;
+      padding: 0.1rem 0.6rem;
+      border: 1px solid var(--mod-line);
+      border-radius: var(--mod-radius);
+      background: var(--mod-surface);
+      color: var(--mod-ink);
+      font: inherit;
+      cursor: pointer;
+    }
+  }
 }
 
 [x-cloak] { display: none !important; }

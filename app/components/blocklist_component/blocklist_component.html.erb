@@ -19,7 +19,7 @@
           aria-haspopup="dialog" aria-controls="blocklist-panel" aria-expanded="false"
           x-bind:aria-expanded="open.toString()"
           aria-label="Blocklist"
-          x-bind:aria-label="`Blocklist: ${blacklist.blacklistedPostCount} hidden on this page, ${blacklist.rules.length} blocks`"
+          x-bind:aria-label="`Blocklist: ${blacklist.blacklistedPostCount} hidden in this view, ${blacklist.rules.length} blocks`"
           x-on:click="open = !open; if (open) $nextTick(() => $refs.input.focus())">
     <svg class="blocklist-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg>
     <%# The badge's room is always reserved, so a count arriving or leaving
@@ -34,7 +34,7 @@
   <div id="blocklist-panel" class="blocklist-panel" role="dialog" aria-label="Your blocklist" hidden x-bind:hidden="!open">
     <div class="blocklist-head">
       <h2 class="blocklist-title">Blocklist</h2>
-      <span class="blocklist-hidden" x-text="`${blacklist.blacklistedPostCount} hidden on this page`"></span>
+      <span class="blocklist-hidden" x-text="`${blacklist.blacklistedPostCount} hidden in this view`"></span>
     </div>
 
     <%# ui-front: jQuery UI attaches the autocomplete menu inside this form, so
@@ -55,7 +55,7 @@
         <li class="blocklist-pill" x-bind:class="rule.locked && 'is-locked'">
           <span class="blocklist-pill-rule" x-text="rule.string" x-bind:title="rule.string"></span>
           <span class="blocklist-pill-count" x-show="rule.matchCount > 0" x-text="rule.matchCount"
-                x-bind:title="`${rule.matchCount} hidden on this page`"></span>
+                x-bind:title="`${rule.matchCount} hidden in this view`"></span>
           <button type="button" class="blocklist-pill-lock"
                   x-bind:aria-pressed="rule.locked.toString()"
                   x-bind:aria-label="(rule.locked ? 'Unlock ' : 'Lock ') + rule.string"
