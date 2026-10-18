@@ -17,6 +17,12 @@
 --                  prefixes with an explicit keep|pseudonymize rule each)
 --   expected_head  newest migration version in this checkout's db/migrate
 --
+-- STATISTICS FIRST: a fresh pg_restore never ANALYZEs, and the throwaway
+-- container runs with autovacuum off (an autovacuum of the rewritten posts
+-- table was OOM-killed at a 3 GB cap, 2026-10-18), so nothing gathers planner
+-- statistics: run ANALYZE on the copy before phase=before. Without them the
+-- verifier's shape() planned nested loops and ran an hour; with them, 28 s.
+--
 -- REFUSES TO RUN unless: anon_guard.armed has a row (created by hand after the
 -- restore, never present on production), the server listens on no TCP address,
 -- the copy is not already anonymized, its migration head equals expected_head,
