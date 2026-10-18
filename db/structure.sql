@@ -6084,17 +6084,17 @@ CREATE INDEX index_fourier_tag_sources_on_post_id_and_status ON public.fourier_t
 
 
 --
--- Name: index_fourier_tag_sources_on_tag_private; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX index_fourier_tag_sources_on_tag_private ON public.fourier_tag_sources USING btree (tag) WHERE (public = false);
-
-
---
 -- Name: index_fourier_tag_sources_on_post_id_and_tag; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX index_fourier_tag_sources_on_post_id_and_tag ON public.fourier_tag_sources USING btree (post_id, tag);
+
+
+--
+-- Name: index_fourier_tag_sources_on_tag_private; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_fourier_tag_sources_on_tag_private ON public.fourier_tag_sources USING btree (tag) WHERE (public = false);
 
 
 --
@@ -7237,6 +7237,13 @@ CREATE INDEX index_posts_on_source_trgm ON public.posts USING gin (source public
 
 CREATE INDEX index_posts_on_string_to_array_tag_string ON public.posts USING gin (string_to_array(tag_string, ' '::text));
 ALTER INDEX public.index_posts_on_string_to_array_tag_string ALTER COLUMN 1 SET STATISTICS 3000;
+
+
+--
+-- Name: index_posts_on_tag_count_and_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_posts_on_tag_count_and_id ON public.posts USING btree (tag_count, id);
 
 
 --
@@ -9168,6 +9175,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261018000000'),
 ('20261015000001'),
 ('20261015000000'),
 ('20261013000000'),
