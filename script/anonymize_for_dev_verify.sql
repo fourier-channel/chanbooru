@@ -37,6 +37,11 @@ SELECT :'phase' IN ('before', 'after', 'final') AS phase_ok,
   DO $$ BEGIN RAISE EXCEPTION 'set -v phase=before, after or final'; END $$;
 \endif
 
+-- For the whole session, every phase and transaction (SET LOCAL would end at
+-- the first COMMIT): a hashed subplan over 1.25M ids needs ~50 MB; at the
+-- server default (4 MB) it spilled and was re-read once per upload -- 457 GB
+-- of reads in 30 min (traced by the drill's hook, 2026-10-18).
+SET work_mem = '256MB';
 BEGIN;
 SET LOCAL search_path = public;
 CREATE TEMP TABLE anon_v_input ON COMMIT DROP AS SELECT :'cfg'::jsonb AS cfg;
@@ -207,6 +212,7 @@ BEGIN
     SELECT ma.id FROM media_assets ma WHERE EXISTS (SELECT 1 FROM posts p WHERE p.md5 = ma.md5) OR ma.id IN (SELECT id FROM anon_v_pinned);
   -- A temp table never gets statistics on its own: unanalyzed, the planner
   -- took 200 ids for 1.2M and ran kept:ai_tags as a nested loop -- an hour.
+  CREATE UNIQUE INDEX IF NOT EXISTS anon_v_kept_assets_id ON anon_v_kept_assets (id);
   ANALYZE anon_v_kept_assets;
   metric := 'kept:media_assets'; SELECT count(*)::text INTO val FROM anon_v_kept_assets; RETURN NEXT;
   metric := 'kept:media_metadata'; SELECT count(*)::text INTO val FROM media_metadata WHERE media_asset_id IN (SELECT id FROM anon_v_kept_assets); RETURN NEXT;
@@ -214,7 +220,10 @@ BEGIN
   metric := 'kept:ai_tags'; SELECT count(*)::text INTO val FROM ai_tags WHERE media_asset_id IN (SELECT id FROM anon_v_kept_assets); RETURN NEXT;
   metric := 'kept:uploads'; SELECT count(*)::text INTO val FROM uploads u
     WHERE NOT EXISTS (SELECT 1 FROM upload_media_assets x WHERE x.upload_id = u.id)
-       OR EXISTS (SELECT 1 FROM upload_media_assets x WHERE x.upload_id = u.id AND (x.media_asset_id IS NULL OR x.media_asset_id IN (SELECT id FROM anon_v_kept_assets))); RETURN NEXT;
+       OR EXISTS (SELECT 1 FROM upload_media_assets x WHERE x.upload_id = u.id
+                   AND (x.media_asset_id IS NULL OR EXISTS (SELECT 1 FROM anon_v_kept_assets k WHERE k.id = x.media_asset_id))); RETURN NEXT;
+  -- An indexed lookup, not IN (subquery): inside the correlated EXISTS an IN
+  -- is a subplan whose cost depends on work_mem; the index makes it one probe.
   metric := 'kept:matrix_media'; SELECT count(*)::text INTO val FROM matrix_media mm WHERE EXISTS (SELECT 1 FROM post_mxcs pm WHERE pm.mxc = mm.mxc); RETURN NEXT;
   metric := 'kept:matrix_rooms'; SELECT count(*)::text INTO val FROM matrix_rooms WHERE id IN (
       SELECT unnest(room_ids) FROM posts UNION SELECT unnest(mm.room_ids) FROM matrix_media mm WHERE EXISTS (SELECT 1 FROM post_mxcs pm WHERE pm.mxc = mm.mxc)); RETURN NEXT;
