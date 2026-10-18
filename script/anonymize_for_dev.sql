@@ -17,11 +17,13 @@
 --                  prefixes with an explicit keep|pseudonymize rule each)
 --   expected_head  newest migration version in this checkout's db/migrate
 --
--- STATISTICS FIRST: a fresh pg_restore never ANALYZEs, and the throwaway
--- container runs with autovacuum off (an autovacuum of the rewritten posts
--- table was OOM-killed at a 3 GB cap, 2026-10-18), so nothing gathers planner
--- statistics: run ANALYZE on the copy before phase=before. Without them the
--- verifier's shape() planned nested loops and ran an hour; with them, 28 s.
+-- VACUUM (ANALYZE) A FRESH RESTORE FIRST: the throwaway container runs with
+-- autovacuum off (an autovacuum of the rewritten posts table was OOM-killed at
+-- a 3 GB cap, 2026-10-18). On a fresh pg_restore the visibility map is unset,
+-- so an index-only scan pays a heap fetch per entry; with a temp table's
+-- missing statistics (now ANALYZEd where each is made) the verifier's shape()
+-- planned a nested loop over 31M ai_tags entries and ran an hour on a fresh
+-- copy, 11 s on a vacuumed one (measured by the drill's hook, 2026-10-18).
 --
 -- REFUSES TO RUN unless: anon_guard.armed has a row (created by hand after the
 -- restore, never present on production), the server listens on no TCP address,
@@ -685,13 +687,19 @@ TRUNCATE good_job_executions, good_jobs, good_job_batches, good_job_processes, g
 CREATE TEMP TABLE anon_pinned ON COMMIT DROP AS
   SELECT media_asset_id AS id FROM post_replacements WHERE media_asset_id IS NOT NULL
   UNION SELECT old_media_asset_id FROM post_replacements WHERE old_media_asset_id IS NOT NULL;
+-- A temp table never gets statistics on its own: without ANALYZE the planner
+-- takes ~200 rows and picks a nested loop per row against tables of tens of
+-- millions (2026-10-18: an hour in the verifier's twin of this set).
+ANALYZE anon_pinned;
 CREATE TEMP TABLE anon_dead_assets ON COMMIT DROP AS
   SELECT ma.id FROM media_assets ma
    WHERE NOT EXISTS (SELECT 1 FROM posts p WHERE p.md5 = ma.md5)
      AND ma.id NOT IN (SELECT id FROM anon_pinned);
 CREATE UNIQUE INDEX ON anon_dead_assets (id);
+ANALYZE anon_dead_assets;
 CREATE TEMP TABLE anon_dead_uploads ON COMMIT DROP AS
   SELECT DISTINCT upload_id FROM upload_media_assets WHERE media_asset_id IN (SELECT id FROM anon_dead_assets);
+ANALYZE anon_dead_uploads;
 DELETE FROM media_metadata WHERE media_asset_id IN (SELECT id FROM anon_dead_assets);
 DELETE FROM upload_media_assets WHERE media_asset_id IN (SELECT id FROM anon_dead_assets);
 -- ai_tags has no foreign key: orphans would survive silently.
@@ -707,6 +715,7 @@ DELETE FROM matrix_media mm WHERE NOT EXISTS (SELECT 1 FROM post_mxcs pm WHERE p
 CREATE TEMP TABLE anon_live_rooms ON COMMIT DROP AS
   SELECT DISTINCT unnest(room_ids) AS id FROM posts
   UNION SELECT DISTINCT unnest(room_ids) FROM matrix_media;
+ANALYZE anon_live_rooms;
 DELETE FROM matrix_rooms WHERE id NOT IN (SELECT id FROM anon_live_rooms WHERE id IS NOT NULL);
 UPDATE matrix_placement_cursors SET "position" = 0, lap_started_at = NULL;
 

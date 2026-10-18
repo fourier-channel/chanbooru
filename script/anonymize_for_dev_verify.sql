@@ -202,8 +202,12 @@ BEGIN
   CREATE TEMP TABLE IF NOT EXISTS anon_v_pinned AS
     SELECT media_asset_id AS id FROM post_replacements WHERE media_asset_id IS NOT NULL
     UNION SELECT old_media_asset_id FROM post_replacements WHERE old_media_asset_id IS NOT NULL;
+  ANALYZE anon_v_pinned;
   CREATE TEMP TABLE IF NOT EXISTS anon_v_kept_assets AS
     SELECT ma.id FROM media_assets ma WHERE EXISTS (SELECT 1 FROM posts p WHERE p.md5 = ma.md5) OR ma.id IN (SELECT id FROM anon_v_pinned);
+  -- A temp table never gets statistics on its own: unanalyzed, the planner
+  -- took 200 ids for 1.2M and ran kept:ai_tags as a nested loop -- an hour.
+  ANALYZE anon_v_kept_assets;
   metric := 'kept:media_assets'; SELECT count(*)::text INTO val FROM anon_v_kept_assets; RETURN NEXT;
   metric := 'kept:media_metadata'; SELECT count(*)::text INTO val FROM media_metadata WHERE media_asset_id IN (SELECT id FROM anon_v_kept_assets); RETURN NEXT;
   metric := 'kept:upload_media_assets'; SELECT count(*)::text INTO val FROM upload_media_assets WHERE media_asset_id IS NULL OR media_asset_id IN (SELECT id FROM anon_v_kept_assets); RETURN NEXT;
@@ -503,6 +507,7 @@ INSERT INTO anon_snapshot.ledger (kind, value) SELECT 'room', lower(btrim(room_i
 INSERT INTO anon_snapshot.ledger (kind, value)
 SELECT 'banished', t.name FROM tags t JOIN tag_quarantines q ON q.tag_id = t.id WHERE q.state = 'banished';
 CREATE TABLE anon_snapshot.private_pairs AS SELECT post_id, tag FROM fourier_tag_sources WHERE NOT public;
+ANALYZE anon_snapshot.private_pairs;
 
 -- Bare names that are also words of kept vocabulary (tags no rule renames,
 -- the filler and mod-log words the anonymizer writes) cannot be told from
