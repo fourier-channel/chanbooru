@@ -193,13 +193,33 @@ image (gate 11).
     default_user_level            RESTRICTED (10)
 
 A viewer at or above `full_browsing_level` browses without restriction. Below
-it, a search returns at most 20 posts and ONE page -- `?limit=` is clamped to
-the same ceiling and a second page is refused, or the restriction would be one
-query parameter wide -- and there is no post-to-post navigation. A cursor of
-any kind is a second page: `page=a<id>`/`b<id>`, the gallery window's
-`anchor=` and `before=`, and its `variant=window` chunks are refused alike
-(410 signed in; 404 signed out, where the anonymous default-deny answers
-first).
+it -- signed out, Matrix-only, Restricted -- EVERY list is at most 20 records
+and ONE page: posts, and tags, users, wiki pages, artists, pools, favorites,
+versions and the rest (operator, 2026-10-18: "every listing"). `?limit=` is
+clamped to the same ceiling and a second page is refused, or the restriction
+would be one query parameter wide, and there is no post-to-post navigation
+(`show_seq`, the pool and favorite group bars, the post view's neighbours). A
+cursor of any kind is a second page: `page=a<id>`/`b<id>`, the gallery
+window's `anchor=` and `before=`, and its `variant=window` chunks are refused
+alike, with 410 (a signed-out viewer meets the default-deny's 404 first on any
+door not open to them, gate 10).
+
+The limit is asked of the user in one place -- `User#can_browse_freely?`,
+`#listing_page_limit`, `#listing_per_page_limit`, derived from level -- and
+enforced where every surface passes: `PaginationExtension#paginate` for every
+list, the walkers for "the next post", and each unpaged list at its source
+(autocomplete, related tags, IQDB matches, DText embeds). An id array inside a
+response (`pools/N.json` `post_ids`, `?only=children[...]`) carries its first
+20 -- except a favorite group's own creator, who gets its whole `post_ids`:
+reading back what they wrote is not browsing, and an API read-append-save
+would otherwise drop the rest of their own group (operator, 2026-10-19: "Keep
+it"; pools have no creator, so no exemption). A creator's page shows its first 20 posts, then "Sign in to see more!" and
+the rest as empty cards with no id, URL, tag or link. The hero band is exempt
+by name (`PaginationExtension::TIER_EXEMPT`). One page size holds for every
+list: 200 a page for a full account, 20 below. Reach over time is not capped
+(operator, 2026-10-18: "No cap until measured"). Live since 2026-10-19
+(chanbooru 739045224); a test walks every GET route and requires each list to
+be bounded, with a full-account control per row.
 
 An ordinary signup starts AT the threshold, as Member (gate 0); only a signup
 flagged as suspicious starts below it. Lifting a Restricted account is an
@@ -223,6 +243,7 @@ that is gone. The status page is admin-only (`status_page_visibility_level`).
 | | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
 | the post | see gate 10 | capped: 20 results, one page | visible | visible | visible | visible | visible |
+| any list (tags, users, pools...) | see gate 10 | capped: 20, one page | 200 a page | 200 a page | 200 a page | 200 a page | 200 a page |
 | a retired section | 404 | 404 | 404 | 404 | 404 | 404 (Owner: opens) | 404 |
 
 ---
@@ -782,6 +803,7 @@ directly, never through the Matrix route.
 | a 403 with a `cf-mitigated` header, on any page | 7 -- the edge challenge, working |
 | curl or a script gets 403 where a browser works | 7 -- no command-line tool can pass it |
 | a signed-out visitor gets 404 on a page that loads when signed in | 10 -- the anonymous default-deny |
+| a list stops at 20, or its page 2 or a cursor answers 410 | 2 -- below full browsing every list is one page of 20 |
 | cannot register | 0 -- no token, or a spent, expired or revoked one |
 | a booru image is broken but the post page loads | 3 -- the image follows its post: deleted, jailed, gated or hidden for this reader. A 503 means the booru or sampling was unreachable |
 | a Matrix upload's image is broken | 3 -- the viewer is not in the room it was posted in, or has no Matrix session |
