@@ -31,7 +31,8 @@ class BulkUpdateRequest::Command::Nuke < BulkUpdateRequest::Command
     end
 
     if query.is_metatag?(:pool)
-      affected_pool&.update(is_deleted: true, post_ids: [])
+      # Fork: a pool that cannot be saved fails the line, not silently.
+      affected_pool&.update!(is_deleted: true, post_ids: [])
     else
       BulkUpdateRequest::Command::MassUpdate.mass_update(@tag_or_pool, "-#{@tag_or_pool}")
     end

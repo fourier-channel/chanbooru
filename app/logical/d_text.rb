@@ -266,8 +266,15 @@ class DText
         "BUR ##{id} has been rejected.\n\n#{embedded_script}"
       when "processing"
         "BUR ##{id} is being processed.\n\n#{embedded_script}"
+      # Fork: a run that skipped posts says how many post edits it skipped
+      # (one post skipped by two lines is two); a failed one, where it
+      # stopped (BulkUpdateRequest#results). With no record (the script was
+      # edited since) there is no count to give.
+      when "partial"
+        skipped = bur.results.present? ? "it skipped #{bur.skipped_count} #{"post edit".pluralize(bur.skipped_count)}" : "its last run skipped posts"
+        "BUR ##{id} has been approved by <@#{bur.approver&.name}>, but #{skipped}.\n\n#{embedded_script}"
       when "failed"
-        "BUR ##{id} has failed.\n\n#{embedded_script}"
+        "BUR ##{id} has failed#{" at line #{bur.failed_line}" if bur.failed_line}.\n\n#{embedded_script}"
       else # should never happen
         "BUR ##{id} has an unknown status.\n\n#{embedded_script}"
       end

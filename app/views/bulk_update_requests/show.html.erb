@@ -4,6 +4,8 @@
 
     <div class="card-elevated px-4 py-2 flex flex-col items-start gap-4">
       <table class="aligned-vertical table-xs">
+        <%# Fork: no forum row, votes or links while the forum is retired (BulkUpdateRequest.forum_retired?): they would be 404s to all but the owner. %>
+        <% unless BulkUpdateRequest.forum_retired? %>
         <tr>
           <th>Forum</th>
 
@@ -13,6 +15,7 @@
             <td><em>None</em></td>
           <% end %>
         </tr>
+        <% end %>
         <tr>
           <th>Creator</th>
           <td><%= link_to_user @bulk_update_request.user %></td>
@@ -21,9 +24,25 @@
           <th>Date</th>
           <td><%= time_ago_in_words_tagged @bulk_update_request.created_at %></td>
         </tr>
+        <%# Fork: the requester's reason, kept on the request (it lived only in the forum post, and the forum is retired). Plain text, never DText: free text, often filed by a bot for someone else (operator default, 2026-10-19). %>
+        <% if @bulk_update_request.reason.present? %>
+          <tr>
+            <th>Reason</th>
+            <td id="bulk-update-request-reason" class="whitespace-pre-wrap break-words"><%= @bulk_update_request.reason %></td>
+          </tr>
+        <% end %>
         <tr>
           <th>Status</th>
-          <td><%= @bulk_update_request.status %></td>
+          <%# Fork: a run that skipped posts says how many post edits it skipped (one post skipped by two lines is two); a failed one, where it stopped (BulkUpdateRequest#results). With no record (the script was edited since) there is no count to give. %>
+          <td id="bulk-update-request-status">
+            <% if @bulk_update_request.status == "partial" && @bulk_update_request.results.present? %>
+              partial: <%= pluralize(@bulk_update_request.skipped_count, "post edit") %> skipped
+            <% elsif @bulk_update_request.failed_line.present? %>
+              failed at line <%= @bulk_update_request.failed_line %>
+            <% else %>
+              <%= @bulk_update_request.status %>
+            <% end %>
+          </td>
         </tr>
         <% if @bulk_update_request.approver.present? %>
         <tr>
@@ -32,7 +51,7 @@
         </tr>
         <% end %>
 
-        <% if @bulk_update_request.forum_post.present? %>
+        <% if @bulk_update_request.forum_post.present? && !BulkUpdateRequest.forum_retired? %>
           <tr>
             <th>Votes</th>
             <td>
@@ -47,7 +66,62 @@
         <%= format_text @bulk_update_request.processor.to_dtext %>
       </div>
 
-      <% if @bulk_update_request.forum_post.present? %>
+      <%# Fork: what each line of the last run did (BulkUpdateRequest#lines: the skipped posts the viewer may see, at most 100 a line). A processed request with no record says so rather than reading as a clean run. %>
+      <% if @bulk_update_request.results.present? %>
+        <% lines = @bulk_update_request.lines %>
+        <% dtext_references = DText.preprocess(lines.pluck("command")) %>
+        <div id="bulk-update-request-result" class="w-full">
+          <h2>Result</h2>
+          <table class="striped table-xs w-full">
+            <thead>
+              <tr>
+                <th>Line</th>
+                <th>Command</th>
+                <th>State</th>
+                <th>Posts</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% lines.each do |line| %>
+                <tr data-state="<%= line["state"] %>">
+                  <td><%= line["line"] %></td>
+                  <td class="prose"><%= format_text(line["command"], inline: true, references: dtext_references) %></td>
+                  <td><%= line["state"].tr("_", " ") %></td>
+                  <td>
+                    <% unless line["matched"].nil? %>
+                      <div><%= line["matched"] %> matched</div>
+                    <% end %>
+                    <% if line["skipped"].to_i > 0 %>
+                      <div><%= line["skipped"] %> skipped</div>
+                    <% end %>
+                  </td>
+                  <td>
+                    <% line["skipped_reasons"].each do |reason| %>
+                      <div><%= reason["message"] %> (<%= reason["count"] %>)</div>
+                    <% end %>
+                    <% if line["skipped_post_ids"].any? %>
+                      <div><%= safe_join(line["skipped_post_ids"].map { |id| link_to("post ##{id}", post_path(id)) }, ", ") %></div>
+                    <% end %>
+                    <% if line["error"].present? %>
+                      <div><%= line["error"] %></div>
+                    <% end %>
+                    <% if line["remedy"].present? %>
+                      <div><%= line["remedy"] %></div>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% elsif @bulk_update_request.status.in?(%w[approved partial failed]) %>
+        <div id="bulk-update-request-result">
+          <p><em>No record of this run was kept.</em></p>
+        </div>
+      <% end %>
+
+      <% if @bulk_update_request.forum_post.present? && !BulkUpdateRequest.forum_retired? %>
         <%= render "forum_post_votes/list", votes: @bulk_update_request.forum_post.votes, forum_post: @bulk_update_request.forum_post %>
       <% end %>
     </div>

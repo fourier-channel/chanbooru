@@ -455,7 +455,9 @@ CREATE TABLE public.bulk_update_requests (
     updated_at timestamp without time zone NOT NULL,
     approver_id integer,
     forum_post_id integer,
-    tags text[] DEFAULT '{}'::text[] NOT NULL
+    tags text[] DEFAULT '{}'::text[] NOT NULL,
+    results jsonb DEFAULT '[]'::jsonb NOT NULL,
+    reason text
 );
 
 
@@ -9175,6 +9177,8 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261019132157'),
+('20261019122025'),
 ('20261018000000'),
 ('20261015000001'),
 ('20261015000000'),

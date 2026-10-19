@@ -8,6 +8,6 @@ imply cat_ears -> animal_ears
 mass update old_tag -> new_tag
 [/code]
 
-A Builder or above reviews it. When approved, every line is applied and every affected post is edited. Requests are the record of why the vocabulary is the way it is.
+A Builder or above reviews it. When approved, the lines run in order, and the request keeps a record of what each one did. A post that refuses an edit, or takes only part of it (a deprecated tag is not added, a tag an implication holds is not removed), is named with its reason, and the request then reads "partial" and can be approved again once it is fixed. A line that fails stops the run there: the lines before it stay applied, and the request names the failed line and what to do. Requests are the record of why the vocabulary is the way it is.
 
 The forum, where upstream discusses these, is not part of this site. Discuss a request on Matrix.

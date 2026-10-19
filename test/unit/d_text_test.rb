@@ -117,6 +117,21 @@ class DTextTest < ActiveSupport::TestCase
         end
       end
 
+      # Fork: a run that skipped posts reads "partial" and says how many; a
+      # failed one names the line it stopped at (BulkUpdateRequest#results).
+      should "embed a partial BUR as approved with its skips, and a failed one with its line" do
+        @bur = create(:bulk_update_request, approver: create(:admin_user), status: "partial", results: [{ line: 1, state: "skipped_some", skipped: 2 }].as_json)
+        assert_match(%r{BUR ##{@bur.id}</a> has been approved by .+, but it skipped 2 post edits\.}, format_text("[bur:#{@bur.id}]"))
+
+        # skipped_count sums the lines' skips; with no record (the script
+        # was edited since) there is no count to give.
+        @bur.update_columns(results: []) # rubocop:disable Rails/SkipsModelValidations
+        assert_match(%r{BUR ##{@bur.id}</a> has been approved by .+, but its last run skipped posts\.}, format_text("[bur:#{@bur.id}]"))
+
+        @bur.update!(status: "failed", results: [{ line: 1, state: "done", skipped: 0 }, { line: 3, state: "failed", skipped: nil }].as_json)
+        assert_match(%r{BUR ##{@bur.id}</a> has failed at line 3\.}, format_text("[bur:#{@bur.id}]"))
+      end
+
       should "not parse [bur:<id>] tags inside [code] blocks" do
         assert_equal("<pre>[bur:1]</pre>", format_text("[code][bur:1][/code]"))
       end

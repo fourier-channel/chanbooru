@@ -39,8 +39,15 @@ class BulkUpdateRequest::Command
 
   # Execute the command.
   #
+  # Fork: a command that retags posts by search (mass update, nuke of a tag,
+  # convert) returns MassUpdate.mass_update's { matched:, skipped: }, which
+  # the processor records on the line (BulkUpdateRequest#results); any other
+  # return value means the command counts no posts. A post that refuses the
+  # edit is a skip; anything raised fails the line.
+  #
   # @param approver [User] the user approving the BUR (required by some commands)
   # @param forum_topic [ForumTopic] the forum topic associated with the BUR (required by some commands)
+  # @return [Hash, Object] { matched: Integer, skipped: [{ post_id:, reasons: [String] }] } for a retag by search
   def process!(**)
     raise NotImplementedError
   end

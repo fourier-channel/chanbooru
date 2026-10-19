@@ -193,6 +193,11 @@ class ApplicationController < ActionController::Base
         render_error_page(422, exception, message: exception.message)
       when UpgradeCode::InvalidCodeError, UpgradeCode::RedeemedCodeError, UpgradeCode::AlreadyUpgradedError
         render_error_page(422, exception, message: exception.message)
+      when BulkUpdateRequest::Processor::Error
+        # Fork: a refused BUR filing or approval -- the sentence, and each
+        # script line at fault (empty when none is), for the card and the
+        # bot that relays it.
+        render_error_page(422, exception, message: exception.message, errors: exception.errors)
       when RateLimiter::RateLimitError
         render_error_page(429, exception, message: "You're doing that too fast. Wait a minute and try again.")
       when PageRemovedError
@@ -209,7 +214,7 @@ class ApplicationController < ActionController::Base
       end
     end
 
-    def render_error_page(status, exception = nil, message: "", template: "static/error", format: request.format.symbol, layout: "default")
+    def render_error_page(status, exception = nil, message: "", errors: nil, template: "static/error", format: request.format.symbol, layout: "default") # rubocop:disable Metrics/ParameterLists
       @exception = exception
       @expected = status < 500
       @message = message.to_s.encode("utf-8", invalid: :replace, undef: :replace)
@@ -220,7 +225,8 @@ class ApplicationController < ActionController::Base
       @backtrace = Rails.backtrace_cleaner.clean(@exception.backtrace) if @exception && show_error_backtrace?
       format = :html unless format.in?(%i[html json xml js atom])
 
-      @api_response = { success: false, error: @exception.class.to_s, message: @message, backtrace: @backtrace }.compact
+      # Fork: `errors` when the refusal lists what it was refused for (BulkUpdateRequest::Processor::Error).
+      @api_response = { success: false, error: @exception.class.to_s, message: @message, errors: errors, backtrace: @backtrace }.compact
 
       # if InvalidAuthenticityToken was raised, CurrentUser isn't set so we have to use the blank layout.
       layout = "blank" if CurrentUser.user.nil?

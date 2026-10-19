@@ -27,6 +27,12 @@ class BulkUpdateRequestsController < ApplicationController
   def create
     @bulk_update_request = authorize BulkUpdateRequest.new(user: CurrentUser.user, **permitted_attributes(BulkUpdateRequest))
     @bulk_update_request.save
+    # Fork: a refused filing answers an API caller as a refused approval
+    # does -- 422, the sentence and each script line at fault -- which the
+    # bot relays (technetium-81, 2026-10-19). The page re-renders its form.
+    if @bulk_update_request.errors.any? && !request.format.html?
+      raise BulkUpdateRequest::Processor::Error.new(@bulk_update_request.errors.full_messages.join("; "), errors: @bulk_update_request.line_errors)
+    end
     respond_with(@bulk_update_request, location: @bulk_update_request.forum_post || @bulk_update_request.forum_topic || @bulk_update_request)
   end
 

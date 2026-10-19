@@ -78,15 +78,20 @@ class BulkUpdateRequest::Command::Convert < BulkUpdateRequest::Command
     wiki_page = WikiPage.find_by_title(from_query) || WikiPage.new(title: from_query.tag_name)
 
     pool.description = wiki_page.body if pool.description.blank? && wiki_page.body.present?
-    pool.save
+    # Fork: saved with a bang, so a pool or wiki page that cannot be saved
+    # fails the line BEFORE the mass update below takes the tag off every
+    # post -- upstream's unchecked save stripped the tag into no pool.
+    pool.save!
 
     wiki_page.body = "This tag has been moved to {{pool:#{pool.name}}}."
-    wiki_page.save
+    wiki_page.save!
 
     # at the end so that the pool can be created first
     BulkUpdateRequest::Command::MassUpdate.mass_update(@antecedent, "#{@consequent} -#{@antecedent}")
   end
 
+  # Fork: saves with a bang, as convert_tag_to_pool, and returns the mass
+  # update's result for the run record.
   def convert_pool_to_tag
     pool = from_query.pool
     wiki_page = WikiPage.find_by_title(to_query) || WikiPage.new(title: to_query.tag_name)
@@ -94,10 +99,11 @@ class BulkUpdateRequest::Command::Convert < BulkUpdateRequest::Command
     wiki_page.is_deleted = false
 
     wiki_page.body = pool.description if wiki_page.body.blank?
-    wiki_page.save
+    wiki_page.save!
 
-    BulkUpdateRequest::Command::MassUpdate.mass_update(from_query, to_query)
+    result = BulkUpdateRequest::Command::MassUpdate.mass_update(from_query, to_query)
 
-    pool.update(is_deleted: true, description: "This pool has been moved to [[#{@consequent}]].", post_ids: [])
+    pool.update!(is_deleted: true, description: "This pool has been moved to [[#{@consequent}]].", post_ids: [])
+    result
   end
 end

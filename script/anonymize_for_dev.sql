@@ -118,7 +118,7 @@ artist_urls: url=fill
 artist_versions: name=map group_name=map other_names=blank urls=blank
 artists: name=map group_name=map other_names=blank
 bans: reason=fill
-bulk_update_requests: script=map status=keep tags=derive
+bulk_update_requests: script=map status=keep tags=derive results=blank reason=fill
 character_claims: tag_name=map status=keep note=fill creator_slug=map
 comments: body=fill
 creator_galleries: slug=map matrix_id=map title=fill bio=fill style=keep matrix_contact=map settings=blank default_audience=keep
@@ -787,9 +787,14 @@ UPDATE tag_aliases SET antecedent_name = pg_temp.tm(antecedent_name), consequent
 UPDATE tag_implications SET antecedent_name = pg_temp.tm(antecedent_name), consequent_name = pg_temp.tm(consequent_name),
                             reason = pg_temp.fill(reason, 'Implication reason ' || id);
 UPDATE tag_quarantines SET note = pg_temp.fill(note, 'Quarantine note ' || id);
+-- A request's reason is free text naming who asked; its run record (results)
+-- holds the real tag names of each line and skip, so it is reset to the empty
+-- list the app reads as "no record" (an array: BulkUpdateRequest#lines maps it).
 UPDATE bulk_update_requests
    SET script = pg_temp.qstr(script),
-       tags = coalesce((SELECT array_agg(t ORDER BY t COLLATE "C") FROM (SELECT DISTINCT pg_temp.tm(x) AS t FROM unnest(tags) x) y), '{}');
+       tags = coalesce((SELECT array_agg(t ORDER BY t COLLATE "C") FROM (SELECT DISTINCT pg_temp.tm(x) AS t FROM unnest(tags) x) y), '{}'),
+       results = '[]'::jsonb,
+       reason = pg_temp.fill(reason, 'BUR reason ' || id);
 UPDATE fourier_tag_sources f SET tag = m.fake FROM anon_tagmap m WHERE f.tag = m.real;
 
 UPDATE artists a

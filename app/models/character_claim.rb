@@ -319,7 +319,13 @@ class CharacterClaim < ApplicationRecord
     end
     "#{old_name} -> #{new_name}: #{why}" if why
   rescue CreatorPrefixes::ConfigError => e
-    "#{old_name} -> #{new_name}: its ownership cannot be checked while the creator-prefix list is broken (#{e.message}): fix the list, then move it"
+    # Fork: words only. What is wrong with the list (a path on the server,
+    # an errno, the parser's words, the fix's command) goes to the log: this
+    # sentence reaches a bulk update request's refusal, which a bot relays
+    # into a room (technetium-81, 2026-10-19).
+    DanbooruLogger.info("move #{old_name} -> #{new_name}: ownership not checked, the creator-prefix list is broken: #{e.message}")
+    "#{old_name} -> #{new_name}: its ownership cannot be checked while the creator-prefix list is broken; the server log says what is wrong. " \
+      "The site owner fixes the list, then move it again"
   end
 
   # Raised by TagMover, before anything moves, for a move whose ownership the
@@ -442,7 +448,11 @@ class CharacterClaim < ApplicationRecord
     reason = CharacterClaim.refusal(tag_name, slug)
     errors.add(:base, reason) if reason
   rescue CreatorPrefixes::ConfigError => e
-    errors.add(:base, "claims cannot be checked while the creator-prefix list is broken: #{e.message}")
+    # Fork: words only, as move_refusal: this reaches a bulk update
+    # request's run record (TagMover takes a claim up on a move), which
+    # every reader sees.
+    DanbooruLogger.info("claim of #{tag_name}: not checked, the creator-prefix list is broken: #{e.message}")
+    errors.add(:base, "claims cannot be checked while the creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again")
   end
 
   def approved_or_new? = approved? || new_record?

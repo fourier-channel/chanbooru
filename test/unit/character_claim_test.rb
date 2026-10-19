@@ -92,6 +92,33 @@ class CharacterClaimTest < ActiveSupport::TestCase
         assert_not(claim.valid?)
         assert_includes(claim.errors.full_messages.join, "cannot be checked while the creator-prefix list is broken")
       end
+
+      # Fork: what is wrong with the list (its path on the server, the
+      # parser's words) goes to the log; the refusal is words only. It
+      # reaches a bulk update request's run record, which every reader sees
+      # and a bot relays into a room (technetium-81, 2026-10-19).
+      should "keep the list's path and the parser's words out of the refusal, and log them" do
+        DanbooruLogger.stubs(:info)
+        DanbooruLogger.expects(:info).with { |message, *| message.include?(@path) }.at_least_once
+        claim = CharacterClaim.new(creator_gallery: @gallery, tag_name: "maple_(saber)")
+        claim.valid?
+        words = claim.errors.full_messages.join("\n")
+
+        assert_not_includes(words, @dir)
+        assert_no_match(/YAML|Psych|unclosed/i, words)
+        assert_match(/the server log says what is wrong/, words)
+      end
+
+      should "keep them out of a move's refusal too" do
+        DanbooruLogger.stubs(:info)
+        DanbooruLogger.expects(:info).with { |message, *| message.include?(@path) }.at_least_once
+        why = CharacterClaim.move_refusal("oc_maple", "maple_(saber)")
+
+        assert_match(/\Aoc_maple -> maple_\(saber\): its ownership cannot be checked while the creator-prefix list is broken/, why)
+        assert_not_includes(why, @dir)
+        assert_no_match(/YAML|Psych|unclosed/i, why)
+        assert_match(/the server log says what is wrong/, why)
+      end
     end
   end
 

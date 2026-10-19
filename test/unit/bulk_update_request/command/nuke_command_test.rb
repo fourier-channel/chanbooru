@@ -66,6 +66,14 @@ class NukeCommandTest < ActiveSupport::TestCase
         assert_equal("approved", @bur.reload.status)
         assert_equal(User.system, @pool.versions.last.updater)
       end
+
+      # Fork: the processor records what the mass update did on the line.
+      should "pass the mass update result up" do
+        result = { matched: 3, skipped: [] }
+        BulkUpdateRequest::Command::MassUpdate.stubs(:mass_update).returns(result)
+
+        assert_same(result, BulkUpdateRequest::Command.parse("nuke bar").process!(approver: @admin, forum_topic: nil))
+      end
     end
   end
 end

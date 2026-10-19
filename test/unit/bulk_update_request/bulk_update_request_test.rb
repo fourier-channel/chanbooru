@@ -241,6 +241,194 @@ class BulkUpdateRequestTest < ActiveSupport::TestCase
       end
     end
 
+    # Fork: a request keeps the record of its run (results), one entry a
+    # line, numbered as the script has them: what each line did, what it
+    # skipped and why, and the line a run stopped at. Upstream kept only a
+    # status, so a run that skipped posts or failed halfway read the same as
+    # one that did everything.
+    context "the record of a run" do
+      should "start empty" do
+        assert_equal([], BulkUpdateRequest.new.results)
+        assert_equal([], create(:bulk_update_request).reload.results)
+      end
+
+      should "record every line of a clean run" do
+        @bur = create_bur!("create alias aaa -> bbb\n\nmass update ccc -> ddd", @admin)
+
+        assert_equal("approved", @bur.reload.status)
+        assert_equal([
+          { "line" => 1, "command" => "create alias [[aaa]] -> [[bbb]]", "state" => "done", "matched" => nil, "skipped" => 0, "skipped_post_ids" => [], "skipped_reasons" => [], "error" => nil, "remedy" => nil },
+          { "line" => 3, "command" => "mass update [[ccc]] -> [[ddd]]", "state" => "done", "matched" => 0, "skipped" => 0, "skipped_post_ids" => [], "skipped_reasons" => [], "error" => nil, "remedy" => nil },
+        ], @bur.results)
+        assert_equal(0, @bur.skipped_count)
+        assert_nil(@bur.failed_line)
+      end
+
+      should "name the failed line, keep the lines before it, and run none after it" do
+        BulkUpdateRequest::Command::MassUpdate.stubs(:mass_update).raises(RuntimeError.new("boom from 10.0.0.1"))
+        @bur = create(:bulk_update_request, script: "create alias aaa -> bbb\nmass update foo -> bar\ncreate implication ccc -> ddd")
+        @bur.approve!(@admin)
+        assert_raises(RuntimeError) { perform_enqueued_jobs(only: ProcessBulkUpdateRequestJob) }
+
+        @bur.reload
+        assert_equal("failed", @bur.status)
+        assert_equal(%w[done failed not_run], @bur.results.pluck("state"))
+        assert_equal(2, @bur.failed_line)
+        failed = @bur.results.second
+        assert_nil(failed["matched"])
+        assert_match(/\ALine 2 /, failed["error"])
+        assert_match(/approve this request again/, failed["remedy"])
+        # The jobs pages are retired (a 404 to all but the owner): the
+        # remedy names who can read the error, and where.
+        assert_match(/the site owner can read the full error in the server log/, failed["remedy"])
+        assert_no_match(/job log/, failed["remedy"])
+        # Words only: never the raw exception, its class or an address.
+        assert_no_match(/boom|10\.0\.0\.1|RuntimeError/, @bur.results.to_json)
+        assert_equal(true, TagAlias.active.exists?(antecedent_name: "aaa", consequent_name: "bbb"))
+        assert_equal(false, TagImplication.exists?(antecedent_name: "ccc", consequent_name: "ddd"))
+      end
+
+      should "name the failed line in the words of the record that refused" do
+        create(:post, tag_string: "cute")
+        create(:wiki_page, title: "cute", body: "a cute thing")
+        @bur = create(:bulk_update_request, script: "convert cute -> pool:123")
+        @bur.approve!(@admin)
+        assert_raises(ActiveRecord::RecordInvalid) { perform_enqueued_jobs(only: ProcessBulkUpdateRequestJob) }
+
+        assert_equal(1, @bur.reload.failed_line)
+        assert_equal("Line 1 stopped: Name cannot contain only digits.", @bur.results.first["error"])
+      end
+
+      should "go on past a line that skipped posts, and end partial" do
+        @post = create(:post, tag_string: "foo")
+        @bur = create_bur!("update foo -> parent:#{@post.id}\ncreate alias xx -> yy", @admin)
+
+        assert_equal("partial", @bur.reload.status)
+        assert_equal(%w[skipped_some done], @bur.results.pluck("state"))
+        assert_match(/approve this request again/, @bur.results.first["remedy"])
+        assert_equal(1, @bur.skipped_count)
+        assert_nil(@bur.failed_line)
+        assert_equal(true, TagAlias.active.exists?(antecedent_name: "xx", consequent_name: "yy"))
+      end
+
+      should "keep at most 1,000 skipped ids a line, count every skip, and give every skip a reason" do
+        skips = (1..1500).map { |id| { post_id: id, reasons: [] } }
+        BulkUpdateRequest::Command::MassUpdate.stubs(:mass_update).returns({ matched: 1500, skipped: skips })
+        @bur = create_bur!("mass update foo -> bar", @admin)
+
+        line = @bur.reload.results.first
+        assert_equal(1500, line["skipped"])
+        assert_equal((1..1000).to_a, line["skipped_post_ids"])
+        assert_equal([{ "message" => "The post could not be saved, and gave no reason", "count" => 1500 }], line["skipped_reasons"])
+      end
+
+      should "clear the previous run's record when approved again" do
+        TagAlias.any_instance.stubs(:process!).raises(RuntimeError.new("oh no"))
+        @bur = create(:bulk_update_request, script: "alias foo -> bar")
+        @bur.approve!(@admin)
+        assert_raises(RuntimeError) { perform_enqueued_jobs(only: ProcessBulkUpdateRequestJob) }
+        assert_equal(["failed"], @bur.reload.results.pluck("state"))
+
+        TagAlias.any_instance.unstub(:process!)
+        @bur.approve!(@admin)
+        assert_equal([], @bur.reload.results)
+        perform_enqueued_jobs(only: ProcessBulkUpdateRequestJob)
+
+        assert_equal("approved", @bur.reload.status)
+        assert_equal(["done"], @bur.results.pluck("state"))
+      end
+
+      should "let a partial request be approved again, and run it again" do
+        @post = create(:post, tag_string: "foo")
+        @bur = create_bur!("alias aaa -> bbb\nupdate foo -> parent:#{@post.id}", @admin)
+        assert_equal("partial", @bur.reload.status)
+
+        @post.update!(tag_string: "qux")
+        @bur.approve!(@admin)
+        perform_enqueued_jobs(only: ProcessBulkUpdateRequestJob)
+
+        assert_equal("approved", @bur.reload.status)
+        assert_equal(%w[done done], @bur.results.pluck("state"))
+      end
+
+      # A partial run reached the end of the script, so its implications
+      # are active: approving it again must not be refused for them.
+      should "let a partial request whose implication already ran be approved again" do
+        @post = create(:post, tag_string: "foo")
+        @bur = create_bur!("imply ccc -> ddd\nupdate foo -> parent:#{@post.id}", @admin)
+        assert_equal("partial", @bur.reload.status)
+        assert_equal(true, TagImplication.active.exists?(antecedent_name: "ccc", consequent_name: "ddd"))
+
+        @post.update!(tag_string: "qux")
+        @bur.approve!(@admin)
+        perform_enqueued_jobs(only: ProcessBulkUpdateRequestJob)
+
+        assert_equal("approved", @bur.reload.status)
+        assert_equal(%w[done done], @bur.results.pluck("state"))
+        assert_equal(1, TagImplication.where(antecedent_name: "ccc", consequent_name: "ddd").count)
+      end
+
+      # Lines after a failure did not run, so nothing was counted for them.
+      should "count nothing on the lines a failure kept from running" do
+        BulkUpdateRequest::Command::MassUpdate.stubs(:mass_update).raises(RuntimeError.new("boom"))
+        @bur = create(:bulk_update_request, script: "mass update foo -> bar\ncreate implication ccc -> ddd")
+        @bur.approve!(@admin)
+        assert_raises(RuntimeError) { perform_enqueued_jobs(only: ProcessBulkUpdateRequestJob) }
+
+        not_run = @bur.reload.results.second
+        assert_equal("not_run", not_run["state"])
+        assert_nil(not_run["matched"])
+        assert_nil(not_run["skipped"])
+      end
+
+      # The record describes the script that ran. Once the script is
+      # edited its line numbers and commands no longer match, and a command
+      # it holds may name a tag the edit took out of `tags` (NamesTags
+      # judges a row by `tags` alone), so the edit clears it.
+      should "clear the record when the script is edited" do
+        @post = create(:post, tag_string: "foo")
+        @bur = create_bur!("alias aaa -> bbb\nupdate foo -> parent:#{@post.id}", @admin)
+        assert_equal("partial", @bur.reload.status)
+        assert_equal(2, @bur.results.size)
+
+        @bur.update!(status: "partial") # no script change: the record stays
+        assert_equal(2, @bur.reload.results.size)
+
+        CurrentUser.scoped(@admin) { @bur.update!(script: "update foo -> qux") }
+        @bur.reload
+        assert_equal([], @bur.results)
+        assert_equal([[], 0, nil], [@bur.lines, @bur.skipped_count, @bur.failed_line])
+        assert_equal("partial", @bur.status)
+      end
+
+      # A reason may embed a post (!post #N), checked as it is filed. The
+      # post can be rerated afterwards; that must not stop the request from
+      # being approved, run or rejected, which all save it again.
+      should "approve, run and reject a request whose reason embeds a post rerated since" do
+        post = create(:post, rating: "s")
+        approved = create(:bulk_update_request, script: "create alias aaa -> bbb", reason: "see\n\n!post ##{post.id}")
+        rejected = create(:bulk_update_request, script: "create alias ccc -> ddd", reason: "see\n\n!post ##{post.id}")
+        post.update_columns(rating: "e") # rubocop:disable Rails/SkipsModelValidations
+
+        approved.reload.approve!(@admin)
+        perform_enqueued_jobs(only: ProcessBulkUpdateRequestJob)
+        rejected.reload.reject!(@admin)
+
+        assert_equal("approved", approved.reload.status)
+        assert_equal("rejected", rejected.reload.status)
+        # Still refused when it is filed.
+        filed = build(:bulk_update_request, script: "create alias eee -> fff", reason: "see\n\n!post ##{post.id}")
+        assert_equal(false, filed.valid?)
+        assert_equal(["Reason can't include NSFW images"], filed.errors.full_messages)
+      end
+
+      should "count a partial request approvable again, and an approved or processing one not" do
+        assert_equal(true, Pundit.policy!(@admin, create(:bulk_update_request, status: "partial")).approve?)
+        assert_equal(false, Pundit.policy!(@admin, create(:bulk_update_request, status: "approved")).approve?)
+        assert_equal(false, Pundit.policy!(@admin, create(:bulk_update_request, status: "processing")).approve?)
+      end
+    end
+
     should "create a forum topic" do
       user = create(:user)
       bur = create(:bulk_update_request, user: user, reason: "zzz", script: "create alias aaa -> bbb")
@@ -252,6 +440,69 @@ class BulkUpdateRequestTest < ActiveSupport::TestCase
       assert_equal(user, bur.forum_topic.updater)
       assert_equal(user, bur.forum_post.creator)
       assert_equal(user, bur.forum_post.updater)
+      # Fork: the reason is kept on the request too, forum or no forum.
+      assert_equal("zzz", BulkUpdateRequest.find(bur.id).reason)
+    end
+
+    # Fork: while the forum is retired (Danbooru.config.retired_sections,
+    # FourierRetiredSections) a request opens no topic -- its link would be a
+    # 404 to everyone but the owner -- and keeps its reason on itself. The
+    # test env retires nothing, so the inherited tests above measure upstream;
+    # this context switches the forum off.
+    context "while the forum is retired" do
+      setup do
+        Danbooru.config.stubs(:retired_sections).returns(%w[forum_topics forum_posts forum_post_votes forum_topic_visits])
+      end
+
+      should "create no forum topic and no forum post" do
+        assert_no_difference(["ForumTopic.count", "ForumPost.count"]) do
+          @bur = create(:bulk_update_request, reason: "zzz")
+        end
+
+        assert_nil(@bur.forum_topic)
+        assert_nil(@bur.forum_post)
+      end
+
+      should "keep the reason on the request" do
+        bur = create(:bulk_update_request, reason: "zzz")
+
+        assert_equal("zzz", BulkUpdateRequest.find(bur.id).reason)
+        assert_equal(:text, BulkUpdateRequest.columns_hash["reason"]&.type)
+        assert_equal(true, BulkUpdateRequest.columns_hash["reason"]&.null)
+      end
+
+      should "not require a title" do
+        assert_equal(true, build(:bulk_update_request, title: nil).valid?)
+      end
+
+      should "refuse a forum topic or post, and say what to do" do
+        message = "Forum topics are retired on this site, so a request cannot be attached to one. Send the request without forum_topic_id or forum_post_id"
+        topic = create(:forum_topic)
+        bur = build(:bulk_update_request, forum_topic: topic)
+
+        assert_equal(false, bur.valid?)
+        assert_equal([message], bur.errors.full_messages)
+
+        bur = create(:bulk_update_request)
+        assert_equal(false, bur.update(forum_post: create(:forum_post, topic: topic)))
+        assert_equal([message], bur.errors.full_messages)
+        assert_nil(BulkUpdateRequest.find(bur.id).forum_post_id)
+      end
+
+      should "be approved, processed and rejected with no forum topic" do
+        approved = create(:bulk_update_request, script: "create alias aaa -> bbb")
+        rejected = create(:bulk_update_request, script: "create alias ccc -> ddd")
+
+        assert_no_difference(["ForumTopic.count", "ForumPost.count"]) do
+          approved.approve!(@admin)
+          perform_enqueued_jobs(only: ProcessBulkUpdateRequestJob)
+          rejected.reject!(@admin)
+        end
+
+        assert_equal("approved", approved.reload.status)
+        assert_equal("active", TagAlias.find_by!(antecedent_name: "aaa", consequent_name: "bbb").status)
+        assert_equal("rejected", rejected.reload.status)
+      end
     end
 
     context "with an associated forum topic" do
@@ -261,9 +512,34 @@ class BulkUpdateRequestTest < ActiveSupport::TestCase
         @req = create(:bulk_update_request, script: "create alias AAA -> BBB", forum_topic: @topic, forum_post: @post)
       end
 
-      should "leave the BUR pending if there is a validation error during approval" do
-        @req.stubs(:update!).raises(BulkUpdateRequest::Processor::Error.new("blah"))
-        assert_equal("pending", @req.reload.status)
+      # Fork: replaces upstream's "leave the BUR pending if there is a
+      # validation error during approval", which stubbed update! and never
+      # called approve! -- it passed with approve! deleted.
+      should "refuse approval with Processor::Error and leave the BUR pending when a line no longer validates" do
+        create(:tag_alias, antecedent_name: "bbb", consequent_name: "ccc")
+
+        assert_no_enqueued_jobs(only: ProcessBulkUpdateRequestJob) do
+          assert_no_difference(-> { @topic.forum_posts.count }) do
+            error = assert_raises(BulkUpdateRequest::Processor::Error) { @req.approve!(@admin) }
+            assert_match(/bbb is already aliased to ccc/, error.message)
+            assert_match(/Fix:/, error.message)
+            assert_equal([{ line: 1, text: "create alias AAA -> BBB", reason: "Can't create alias [[aaa]] -> [[bbb]] (bbb is already aliased to ccc)" }], error.errors)
+          end
+        end
+
+        @req = BulkUpdateRequest.find(@req.id)
+        assert_equal("pending", @req.status)
+        assert_nil(@req.approver_id)
+      end
+
+      should "approve after the cause is fixed (the refusal is not sticky)" do
+        conflict = create(:tag_alias, antecedent_name: "bbb", consequent_name: "ccc")
+        assert_raises(BulkUpdateRequest::Processor::Error) { @req.approve!(@admin) }
+
+        conflict.update!(status: "deleted")
+        @req = BulkUpdateRequest.find(@req.id)
+        assert_enqueued_jobs(1, only: ProcessBulkUpdateRequestJob) { @req.approve!(@admin) }
+        assert_equal("processing", @req.reload.status)
       end
 
       should "leave the BUR pending if there is an unexpected error during approval" do

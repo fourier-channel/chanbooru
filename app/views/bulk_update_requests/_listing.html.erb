@@ -1,10 +1,12 @@
 <% dtext_references = DText.preprocess(bulk_update_requests.map(&:processor).map(&:to_dtext)) %>
 
+<%# Fork: no topic links or votes while the forum is retired (BulkUpdateRequest.forum_retired?): they would be 404s to all but the owner. %>
+<% forum = !BulkUpdateRequest.forum_retired? %>
 <%= table_for bulk_update_requests, width: "100%" do |t| %>
   <% t.column "Request" do |request| %>
-      <% if request.forum_post.present? %>
+      <% if forum && request.forum_post.present? %>
         <p><%= link_to "Topic ##{request.forum_topic_id}: #{request.forum_topic.title}", request.forum_post %></p>
-      <% elsif request.forum_topic.present? %>
+      <% elsif forum && request.forum_topic.present? %>
         <p><%= link_to "Topic ##{request.forum_topic_id}: #{request.forum_topic.title}", request.forum_topic %></p>
       <% end %>
 
@@ -12,6 +14,7 @@
         <%= format_text(request.processor.to_dtext, references: dtext_references) %>
       </div>
   <% end %>
+  <% if forum %>
   <% t.column "Votes" do |request| %>
     <% if request.forum_post.present? %>
       <%= link_to forum_post_votes_path(search: { forum_post_id: request.forum_post_id }) do %>
@@ -20,8 +23,16 @@
       <% end %>
     <% end %>
   <% end %>
+  <% end %>
   <% t.column "Status" do |request| %>
-    <%= request.status %>
+    <%# Fork: a run that skipped posts says how many post edits it skipped; a failed one, where it stopped (BulkUpdateRequest#results). With no record there is no count to give. %>
+    <% if request.status == "partial" && request.results.present? %>
+      partial (<%= pluralize(request.skipped_count, "post edit") %> skipped)
+    <% elsif request.failed_line.present? %>
+      failed at line <%= request.failed_line %>
+    <% else %>
+      <%= request.status %>
+    <% end %>
     <% if request.is_approved? %>
       <br>by <%= link_to_user request.approver %>
     <% end %>

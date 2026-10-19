@@ -450,6 +450,12 @@ BEGIN
   INSERT INTO tag_aliases (antecedent_name, consequent_name, creator_id, status, created_at, updated_at, reason)
   VALUES (t2, t1, uid, 'deleted', now(), now(), 'per ' || nm) RETURNING id INTO xid;
   INSERT INTO anon_snapshot.canary_rows (tbl, keycol, val) VALUES ('tag_aliases', 'id', xid);
+  INSERT INTO bulk_update_requests (user_id, script, status, created_at, updated_at, tags, results, reason)
+  VALUES (uid, 'create alias ' || t2 || ' -> ' || t1, 'partial', now(), now(), ARRAY[t1, t2],
+          jsonb_build_array(jsonb_build_object('line', 1, 'command', 'create alias [[' || t2 || ']] -> [[' || t1 || ']]', 'state', 'skipped_some',
+                                               'skipped_reasons', jsonb_build_array(jsonb_build_object('message', 'refused by ' || mx, 'count', 1)))),
+          'asked by ' || mx || ' for ' || nm) RETURNING id INTO xid;
+  INSERT INTO anon_snapshot.canary_rows (tbl, keycol, val) VALUES ('bulk_update_requests', 'id', xid);
   INSERT INTO wiki_pages (title, body, created_at, updated_at, other_names) VALUES (t1, 'about ' || mx, now(), now(), ARRAY[nm]) RETURNING id INTO xid;
   INSERT INTO anon_snapshot.canary_rows (tbl, keycol, val) VALUES ('wiki_pages', 'id', xid);
   INSERT INTO artists (name, created_at, updated_at, other_names) VALUES (t1, now(), now(), ARRAY[nm]) RETURNING id INTO xid;
@@ -607,6 +613,7 @@ BEGIN
     IF n > 0 THEN RAISE EXCEPTION '%: % rows survived the purge', t, n; END IF;
   END LOOP;
   IF EXISTS (SELECT 1 FROM fourier_tag_sources WHERE NOT public) THEN RAISE EXCEPTION 'fourier_tag_sources: a private row survived'; END IF;
+  IF EXISTS (SELECT 1 FROM bulk_update_requests WHERE results <> '[]'::jsonb) THEN RAISE EXCEPTION 'bulk_update_requests: a run record (results) survived'; END IF;
   SELECT count(*) INTO n FROM anon_snapshot.private_pairs p JOIN post_versions pv ON pv.post_id = p.post_id
    WHERE p.tag = ANY (string_to_array(pv.tags, ' ')) OR p.tag = ANY (pv.added_tags) OR p.tag = ANY (pv.removed_tags);
   IF n > 0 THEN RAISE EXCEPTION 'post_versions: % versions still carry a creator-private tag of their post', n; END IF;

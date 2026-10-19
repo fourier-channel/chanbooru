@@ -24,6 +24,13 @@ class BulkUpdateRequest::Command::CreateImplication < BulkUpdateRequest::Command
   end
 
   def validate(context:, errors:)
+    # Fork: approving again (a partial or failed request) finds this line's
+    # implication already active -- a partial run reached the end of its
+    # script -- which TagImplication's uniqueness, checked in every context,
+    # would refuse. TagImplication.approve! keeps an active one, as an
+    # alias's approval already may (TagAlias, `on: %i[create update request]`).
+    return if context == :approval && TagImplication.active.exists?(antecedent_name: @antecedent, consequent_name: @consequent)
+
     tag_implication = TagImplication.new(creator: User.system, antecedent_name: @antecedent, consequent_name: @consequent, status: "active")
     tag_implication.save(context: context)
     if tag_implication.errors.present?

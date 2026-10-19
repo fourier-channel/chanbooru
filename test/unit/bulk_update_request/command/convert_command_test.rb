@@ -124,6 +124,41 @@ class ConvertCommandTest < ActiveSupport::TestCase
         assert_equal([other_post.id, @post.id], @pool.post_ids)
         assert_equal("This tag has been moved to {{pool:cute_pool}}.", @wiki.reload.body)
       end
+
+      # Fork: a pool that cannot be saved fails the line before the tag is
+      # stripped -- upstream's unchecked save went on to take the tag off
+      # every post, into no pool, and called the request approved.
+      should "fail the line and leave the tag on its posts when the pool cannot be saved" do
+        @post = create(:post, tag_string: "bar cute")
+        @wiki = create(:wiki_page, title: "cute", body: "a cute thing")
+        @bur = create(:bulk_update_request, script: "convert cute -> pool:123")
+        @bur.approve!(@admin)
+
+        assert_raises(ActiveRecord::RecordInvalid) { perform_enqueued_jobs(only: ProcessBulkUpdateRequestJob) }
+        assert_equal("failed", @bur.reload.status)
+        assert_equal("bar cute", @post.reload.tag_string)
+        assert_equal("a cute thing", @wiki.reload.body)
+      end
+
+      # Fork: the processor records what the mass update did on the line.
+      context "with the mass update's result" do
+        setup do
+          @result = { matched: 1, skipped: [] }
+          BulkUpdateRequest::Command::MassUpdate.stubs(:mass_update).returns(@result)
+        end
+
+        should "pass it up from a tag to pool conversion" do
+          create(:wiki_page, title: "cute", body: "a b c")
+
+          assert_same(@result, BulkUpdateRequest::Command.parse("convert cute -> pool:cute_pool").process!(approver: @admin, forum_topic: nil))
+        end
+
+        should "pass it up from a pool to tag conversion" do
+          create(:pool, name: "cute_pool", description: "a b c")
+
+          assert_same(@result, BulkUpdateRequest::Command.parse("convert pool:cute_pool -> cute").process!(approver: @admin, forum_topic: nil))
+        end
+      end
     end
   end
 end
