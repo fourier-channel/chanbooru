@@ -1201,6 +1201,89 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
       end
     end
 
+    # Fork: BUR review 2026-10-19, M2. A creator's private prompt tag the
+    # posting bot leaked into tag_string, taken off it by
+    # FourierPrivateTagCleanup (the F-B10 fixture). Reverting to a version
+    # from before the cleanup would publish it again under the member's name
+    # -- a member who cannot even see what they restored, since history
+    # withholds it. Typing the tag by hand stays a person's own choice.
+    context "revert action, for a creator's private tag the posting bot leaked" do
+      setup do
+        @tunnel = create(:builder_user, name: "tunnel")
+        @admin = create(:admin_user)
+        @member = create(:user)
+        @creator = create(:user)
+        as(@tunnel) { @leaked = create(:post, uploader: @tunnel, tag_string: "41chan_alice landscape secret_prompt_tag") }
+        FourierTagSource.record_partition!(@leaked, { creator: %w[secret_prompt_tag], auto: %w[landscape] }, @tunnel)
+        FourierPostCreator.create!(post: @leaked, mxid: "@alice:41chan.net", recorded_by: @tunnel.id)
+        FourierPrivateTagCleanup.apply!(FourierPrivateTagCleanup.plan, user: @admin)
+        @leaked.reload
+        assert_equal("41chan_alice landscape", @leaked.tag_string, "fixture: the cleanup took it off the public list")
+        @bot_version = @leaked.versions.order(:version).first
+      end
+
+      should "refuse a member's revert that would put a creator's private tag back" do
+        put_auth revert_post_path(@leaked, format: :json), @member, params: { version_id: @bot_version.id }
+
+        assert_response 422
+        assert_equal("41chan_alice landscape", @leaked.reload.tag_string)
+        assert_equal("This version would put back 1 tag(s) only the post's creator may publish; add any tag you mean by hand.", response.parsed_body["message"])
+        assert_not_includes(response.body, "secret_prompt_tag")
+      end
+
+      # The private row is looked up under the name the restored tag LANDS
+      # as: an alias moved the tag and its row (TagMover), so the version
+      # holds the old name and the post's row the new one.
+      should "refuse a member's revert after an alias moved the leaked tag and the cleanup took it off" do
+        as(@tunnel) { @moved = create(:post, uploader: @tunnel, tag_string: "41chan_alice landscape leaked_term") }
+        FourierTagSource.record_partition!(@moved, { creator: %w[leaked_term], auto: %w[landscape] }, @tunnel)
+        FourierPostCreator.create!(post: @moved, mxid: "@alice:41chan.net", recorded_by: @tunnel.id)
+        TagAlias.approve!(antecedent_name: "leaked_term", consequent_name: "moved_term", approver: @admin)
+        assert(FourierTagSource.exists?(post_id: @moved.id, tag: "moved_term", public: false), "fixture: the alias moved the private row")
+        FourierPrivateTagCleanup.apply!(FourierPrivateTagCleanup.plan, user: @admin)
+        assert_equal("41chan_alice landscape", @moved.reload.tag_string, "fixture: the cleanup took the moved tag off")
+
+        put_auth revert_post_path(@moved, format: :json), @member, params: { version_id: @moved.versions.order(:version).first.id }
+
+        assert_response 422
+        assert_equal("41chan_alice landscape", @moved.reload.tag_string)
+      end
+
+      should "refuse it to an admin too: no admin bypass" do
+        put_auth revert_post_path(@leaked, format: :json), @admin, params: { version_id: @bot_version.id }
+
+        assert_response 422
+        assert_equal("41chan_alice landscape", @leaked.reload.tag_string)
+      end
+
+      should "let the creator revert it" do
+        put_auth revert_post_path(@leaked), @creator, params: { version_id: @bot_version.id }, headers: { "X-Fourier-Identity" => "@alice:41chan.net" }
+
+        assert_redirected_to post_path(@leaked)
+        assert_includes(@leaked.reload.tag_array, "secret_prompt_tag")
+      end
+
+      should "let a member type the tag by hand, and revert to the version where a person did" do
+        put_auth post_path(@leaked), @member, params: { post: { old_tag_string: @leaked.tag_string, tag_string: "41chan_alice landscape secret_prompt_tag" }}
+        assert_includes(@leaked.reload.tag_array, "secret_prompt_tag", "typed by hand")
+        typed = @leaked.versions.order(:version).last
+        as(@admin) { @leaked.update!(tag_string: "41chan_alice landscape") }
+
+        put_auth revert_post_path(@leaked), create(:user), params: { version_id: typed.id }
+
+        assert_redirected_to post_path(@leaked)
+        assert_includes(@leaked.reload.tag_array, "secret_prompt_tag")
+      end
+
+      should "leave an ordinary revert alone" do
+        as(@member) { @leaked.update!(tag_string: "41chan_alice landscape sky") }
+        put_auth revert_post_path(@leaked), create(:user), params: { version_id: @leaked.versions.order(:version).second.id }
+
+        assert_redirected_to post_path(@leaked)
+        assert_equal("41chan_alice landscape", @leaked.reload.tag_string)
+      end
+    end
+
     context "copy_notes action" do
       setup do
         as(@user) do

@@ -74,6 +74,19 @@ class CreatorTagReleaseTest < ActionDispatch::IntegrationTest
     assert_equal 200, status_for(@alices, @member)
   end
 
+  # Fork: in words (BUR review 2026-10-19). What is wrong with the list
+  # (a path on the server, an errno, the fix's command) goes to the log,
+  # never into the creator's notice.
+  should "refuse a creator's release in words while the prefix list cannot be read, and log what is wrong" do
+    Rails.logger.stubs(:error)
+    Rails.logger.expects(:error).with { |message, *| message.to_s.include?("the creator-prefix list is broken: ") && message.to_s.include?(@path) }.at_least_once
+    File.delete(@path)
+    post_auth update_release_creator_prefixes_path, @alice, params: { tag_name: "aichan_alice", released: "true" }
+
+    assert_not CreatorTagRelease.exists?(tag_name: "aichan_alice")
+    assert_equal "Releases cannot be checked while the creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again", flash[:notice]
+  end
+
   should "land a release made from a creator's panel back on the default audience it hands over to" do
     panel = "http://#{host}/creators/some-creator/edit"
     post_auth update_release_creator_prefixes_path, @alice, params: { tag_name: "aichan_alice", released: "true" }, headers: { "Referer" => panel }

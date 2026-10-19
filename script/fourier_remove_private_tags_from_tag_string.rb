@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
-# List -- and, with --apply, remove -- private creator tags that still sit in a
-# post's PUBLIC tag_string (round-two finding 15). The rules, and why any post
-# carries one, are in app/logical/fourier_private_tag_cleanup.rb; this only
-# runs them.
+# List -- and, with --apply, remove -- private creator tags the posting bot
+# leaked into a post's PUBLIC tag_string (round-two finding 15; judged by who
+# added each occurrence since the BUR review of 2026-10-19). The rules, and why
+# any post carries one, are in app/logical/fourier_private_tag_cleanup.rb;
+# this only runs them.
 #
 #   bin/rails runner script/fourier_remove_private_tags_from_tag_string.rb              dry run
 #   bin/rails runner script/fourier_remove_private_tags_from_tag_string.rb -- --apply   remove

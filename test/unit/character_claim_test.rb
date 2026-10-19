@@ -98,8 +98,8 @@ class CharacterClaimTest < ActiveSupport::TestCase
       # reaches a bulk update request's run record, which every reader sees
       # and a bot relays into a room (technetium-81, 2026-10-19).
       should "keep the list's path and the parser's words out of the refusal, and log them" do
-        DanbooruLogger.stubs(:info)
-        DanbooruLogger.expects(:info).with { |message, *| message.include?(@path) }.at_least_once
+        Rails.logger.stubs(:error)
+        Rails.logger.expects(:error).with { |message, *| message.to_s.include?("the creator-prefix list is broken: ") && message.to_s.include?(@path) }.at_least_once
         claim = CharacterClaim.new(creator_gallery: @gallery, tag_name: "maple_(saber)")
         claim.valid?
         words = claim.errors.full_messages.join("\n")
@@ -110,8 +110,8 @@ class CharacterClaimTest < ActiveSupport::TestCase
       end
 
       should "keep them out of a move's refusal too" do
-        DanbooruLogger.stubs(:info)
-        DanbooruLogger.expects(:info).with { |message, *| message.include?(@path) }.at_least_once
+        Rails.logger.stubs(:error)
+        Rails.logger.expects(:error).with { |message, *| message.to_s.include?("the creator-prefix list is broken: ") && message.to_s.include?(@path) }.at_least_once
         why = CharacterClaim.move_refusal("oc_maple", "maple_(saber)")
 
         assert_match(/\Aoc_maple -> maple_\(saber\): its ownership cannot be checked while the creator-prefix list is broken/, why)

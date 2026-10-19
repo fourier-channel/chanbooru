@@ -51,4 +51,35 @@ class ModulationGalleryComponentTest < ViewComponent::TestCase
     assert_css(".modgal-window-status", text: /order:none has no order to page through. Fix: pick a sort/)
     assert_no_css(".modgal-grid[data-window]")
   end
+
+  # Fork: a provenance row stays behind when its tag leaves the post (BUR
+  # review 2026-10-19, claim 1): a hand edit, a bulk update and the
+  # private-tag cleanup all write tag_string and never the sidecar, and undo
+  # and revert bring the tag back with its provenance. Such a dormant row is
+  # provenance for nothing on that post, so it may neither colour another
+  # card's pill nor put its name into the page.
+  context "a provenance row whose tag has left its post" do
+    setup do
+      @bot = create(:builder_user, name: "tunnel")
+      @carrier, @emptied = as(@bot) { create_list(:post, 2, tag_string: "gdorm dormant_x kept_y") }
+      FourierTagSource.record_partition!(@emptied, { auto: %w[dormant_x kept_y] }, @bot)
+      as(@member) { @emptied.update!(tag_string: "gdorm kept_y") }
+      assert(FourierTagSource.exists?(post_id: @emptied.id, tag: "dormant_x", public: true), "fixture: the row stayed behind")
+    end
+
+    should "not colour a page pill from a row whose tag has left its own post" do
+      draw("gdorm -gdorm_absent")
+
+      assert_css(".mod-unitag [data-tag='dormant_x'].mod-pill--unsourced")
+      assert_css(".mod-unitag [data-tag='dormant_x'] .mod-pill-dot--manual")
+      assert_css(".mod-unitag [data-tag='kept_y'].mod-pill--auto", text: "kept y")
+    end
+
+    should "not publish a dormant row's name in data-tag-marks" do
+      draw("gdorm -gdorm_absent")
+      marks = page.find(".modgal-card[data-id='#{@emptied.id}']", visible: :all)["data-tag-marks"]
+
+      assert_equal(%w[kept_y], JSON.parse(marks).keys)
+    end
+  end
 end

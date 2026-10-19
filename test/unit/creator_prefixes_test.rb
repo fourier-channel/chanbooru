@@ -152,11 +152,19 @@ class CreatorPrefixesTest < ActiveSupport::TestCase
       assert_includes(@post.reload.tag_array, "newsite_x")
     end
 
+    # Fork: and say so in words. What is wrong with the list (its path on the
+    # server, the errno, the fix's command) goes to the log: the refusal
+    # reaches Technetium's editor and the posting bot, which relays a
+    # refused edit into a room (technetium-81, 2026-10-19).
     should "pause a member's tag edits, never unlock them, when the list cannot be read" do
+      Rails.logger.stubs(:error)
+      Rails.logger.expects(:error).with { |message, *| message.to_s.include?("the creator-prefix list is broken: ") && message.to_s.include?(@path) && message.to_s.include?("cannot be read") }.at_least_once
       File.delete(@path)
       as(@member) { @post.update(tag_string: "long_hair") }
 
-      assert_match(/Tag changes are paused: .*cannot be read/, @post.errors.full_messages.join)
+      words = @post.errors.full_messages.join("\n")
+      assert_equal("Tag changes are paused while the creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again", words)
+      assert_not_includes(words, @dir)
       assert_equal("aichan_selph long_hair", @post.reload.tag_string)
     end
   end

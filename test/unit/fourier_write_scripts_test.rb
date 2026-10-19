@@ -87,7 +87,10 @@ class FourierWriteScriptsTest < ActiveSupport::TestCase
 
       assert_equal 2, status
       assert_match(/FAIL: post versions are not kept/, err)
-      assert_includes out, "POST\t#{@post.id}\t1", "the dry-run listing still prints"
+      # Without versions, who added a tag cannot be read, so nothing is a
+      # candidate (FourierPrivateTagLineage): the dry run says why instead.
+      assert_includes out, "nothing is planned", "the dry run says why it lists nothing"
+      assert_not_includes out, "POST\t#{@post.id}\t", "no post is a candidate without lineage"
       assert_includes @post.reload.tag_array, SECRET
     end
 

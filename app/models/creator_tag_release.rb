@@ -81,6 +81,10 @@ class CreatorTagRelease < ApplicationRecord
   def under_a_listed_prefix
     errors.add(:tag_name, "#{tag_name} carries no listed creator prefix") unless CreatorPrefixes.locked?(tag_name)
   rescue CreatorPrefixes::ConfigError => e
-    errors.add(:base, e.message)
+    # Fork: words only (BUR review 2026-10-19): this refusal is the notice a
+    # creator releasing their own tag reads. What is wrong with the list --
+    # a path on the server, an errno, the fix's command -- goes to the log.
+    Rails.logger.error("release of #{tag_name}: not checked, the creator-prefix list is broken: #{e.message}")
+    errors.add(:base, "Releases cannot be checked while the creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again")
   end
 end

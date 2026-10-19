@@ -364,6 +364,12 @@ class PostVersion < ApplicationRecord
     added = changes[:added_tags] - changes[:obsolete_added_tags]
     removed = changes[:removed_tags] - changes[:obsolete_removed_tags]
 
+    # Fork: never publishes a creator's private tag again (BUR review
+    # 2026-10-19, M2): undoing FourierPrivateTagCleanup's edit would put back
+    # what the posting bot leaked, which history withholds from the very
+    # person undoing. The tags it removed are read from the version before.
+    FourierPrivateTagLineage.refuse_restore!(post, removed, source: previous)
+
     added.each do |tag|
       case tag
       when /^source:/

@@ -325,6 +325,23 @@ class CreatorPanelTest < ActionDispatch::IntegrationTest
       end
     end
 
+    # Fork: in words (BUR review 2026-10-19). What is wrong with the list
+    # (a path on the server, an errno, the fix's command) goes to the log,
+    # never into the creator's notice.
+    should "say in words that the prefix list is broken, and log what is wrong with it" do
+      broken = "the creator-prefix list /srv/booru/config/creator_prefixes.yml cannot be read (EACCES). Fix: chmod 644 /srv/booru/config/creator_prefixes.yml " \
+               "(the canon copy is fourier-basis ops/hetzner/danbooru/creator_prefixes.yml)"
+      Rails.logger.stubs(:error)
+      Rails.logger.expects(:error).with { |message, *| message.to_s.include?("the creator-prefix list is broken: ") && message.to_s.include?(broken) }.at_least_once
+      CreatorGallery.any_instance.stubs(:set_default_audience!).raises(CreatorPrefixes::ConfigError, broken)
+      before = state
+      panel(@maple, "default_audience", audience: "private")
+
+      assert_response :redirect
+      assert_equal("Not saved: the creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again.", flash[:notice])
+      assert_equal(before, state)
+    end
+
     should "say Nothing changed for a write that changes nothing, and log nothing" do
       panel(@maple, "default_audience", audience: "public")
       before = state

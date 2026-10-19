@@ -3,6 +3,11 @@
 require "test_helper"
 
 class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
+  # What CreatorPrefixes says when the live list cannot be read: a path on
+  # the server, an errno, the fix's command. For the log, never a page.
+  BROKEN = "the creator-prefix list /srv/booru/config/creator_prefixes.yml cannot be read (EACCES). Fix: chmod 644 /srv/booru/config/creator_prefixes.yml " \
+           "(the canon copy is fourier-basis ops/hetzner/danbooru/creator_prefixes.yml)"
+
   def edit_as(user, headers: @maple_header, **params)
     get_auth edit_creator_gallery_path(@gallery), user, headers: headers, params: params
     assert_response :success
@@ -155,10 +160,27 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
         assert_select "#creator-panel-release", text: /aichan_maple follow the aichan_ site rule/
       end
 
-      should "say so when even the release copy of the prefix list cannot be read" do
-        CreatorPanelComponent.any_instance.stubs(:held_back).raises(CreatorPrefixes::ConfigError, "the list broke")
+      # Fork: in words (BUR review 2026-10-19). What is wrong with the list
+      # (a path on the server, an errno, the fix's command) goes to the log,
+      # never onto a creator's page.
+      should "say so in words when even the release copy of the prefix list cannot be read, and log what is wrong" do
+        Rails.logger.stubs(:error)
+        Rails.logger.expects(:error).with { |message, *| message.to_s.include?("the creator-prefix list is broken: ") && message.to_s.include?(BROKEN) }.at_least_once
+        CreatorPanelComponent.any_instance.stubs(:held_back).raises(CreatorPrefixes::ConfigError, BROKEN)
         edit_as(@admin, headers: {})
-        assert_select "#creator-panel-release", text: /The creator prefix list cannot be read right now \(the list broke\)/
+        assert_select "#creator-panel-release", text: /The creator prefix list cannot be read right now; the server log says what is wrong\. This panel will say which of your tags are held back once the site owner fixes it\./
+        assert_no_match(%r{/srv|EACCES|chmod|fourier-basis}, response.body)
+      end
+
+      should "keep what is wrong with the live prefix list off the creator's own edit page" do
+        Rails.logger.stubs(:error)
+        Rails.logger.expects(:error).with { |message, *| message.to_s.include?("the creator-prefix list is broken: ") && message.to_s.include?(BROKEN) }.at_least_once
+        CreatorPrefixes.visibility_config
+        CreatorPrefixes.stubs(:config).raises(CreatorPrefixes::ConfigError, BROKEN)
+
+        edit_as(@maple)
+        assert_match(/Creator tags cannot be claimed right now: the creator-prefix list is broken; the server log says what is wrong\. The site owner fixes the list, then try again/, response.body)
+        assert_no_match(%r{/srv|EACCES|chmod|fourier-basis}, response.body)
       end
 
       should "open one post's editor for a post the creator controls, and refuse others in one sentence" do

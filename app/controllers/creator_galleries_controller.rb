@@ -147,8 +147,12 @@ class CreatorGalleriesController < ApplicationController
       (Artist.exists?(name: tag) || Tag.exists?(name: tag)) && ArtistClaim.prepare(@gallery, CurrentUser.user, tag).second.nil?
     end
   rescue CreatorPrefixes::ConfigError => e
+    # Fork: words only (BUR review 2026-10-19). What is wrong with the list
+    # -- a path on the server, an errno, the fix's command -- goes to the
+    # log, never onto the creator's page.
+    Rails.logger.error("creator page @#{@gallery.slug}: claim offers not shown, the creator-prefix list is broken: #{e.message}")
     @claim_offers = []
-    flash.now[:notice] = "Creator tags cannot be claimed right now: #{e.message}"
+    flash.now[:notice] = "Creator tags cannot be claimed right now: the creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again"
   end
 
   # Claim your page. A non-admin may only create the gallery for their own
@@ -411,7 +415,10 @@ class CreatorGalleriesController < ApplicationController
   rescue ActiveRecord::RecordNotUnique
     panel_redirect(act, stay, "Someone else changed this at the same moment. Reload the page and try again.")
   rescue CreatorPrefixes::ConfigError => e
-    panel_redirect(act, stay, "Not saved: the creator prefix list cannot be read right now (#{e.message}). Try again once it can.")
+    # Fork: words only, as the edit page's claim offers (BUR review
+    # 2026-10-19); what is wrong with the list goes to the log.
+    Rails.logger.error("creator panel @#{@gallery.slug}: #{act} not saved, the creator-prefix list is broken: #{e.message}")
+    panel_redirect(act, stay, "Not saved: the creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again.")
   end
 
   # Back to the block the act answers on, or to the one group left open.

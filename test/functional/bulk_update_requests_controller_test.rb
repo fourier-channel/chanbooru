@@ -142,6 +142,53 @@ class BulkUpdateRequestsControllerTest < ActionDispatch::IntegrationTest
           assert_response 404
         end
       end
+
+      # Fork: while the creator-prefix list is broken nothing can say whether
+      # the filer is a posting bot (TagBanishment.pipeline? asks
+      # CreatorPrefixes.editor?), so a filing is refused in words; it
+      # answered 500 for every account below admin. What is wrong with the
+      # list (a server path, an errno, the fix's command) stays in the log:
+      # the refusal reaches a room through the bot.
+      context "while the creator-prefix list is broken" do
+        setup do
+          @broken = "the creator-prefix list /srv/booru/config/creator_prefixes.yml cannot be read (EACCES). Fix: chmod 644 /srv/booru/config/creator_prefixes.yml " \
+                    "(the canon copy is fourier-basis ops/hetzner/danbooru/creator_prefixes.yml)"
+          CreatorPrefixes.stubs(:config).raises(CreatorPrefixes::ConfigError, @broken)
+          @tunnel = create(:approver_user, name: "tunnel")
+          @key = create(:api_key, user: @tunnel)
+        end
+
+        should "refuse a member's or a posting bot's filing with 422 and a sentence naming its fix, and file nothing" do
+          Rails.logger.stubs(:error)
+          Rails.logger.expects(:error).with { |message, *| message.to_s.include?("the creator-prefix list is broken: ") && message.to_s.include?(@broken) }.at_least(2)
+          assert_no_difference("BulkUpdateRequest.count") do
+            post_auth bulk_update_requests_path(format: :json), @user, params: { bulk_update_request: attributes_for(:bulk_update_request) }
+            assert_response 422
+            member = response.parsed_body
+
+            post bulk_update_requests_path(format: :json), params: { bulk_update_request: attributes_for(:bulk_update_request) },
+                                                           headers: { "Authorization" => ActionController::HttpAuthentication::Basic.encode_credentials(@tunnel.name, @key.key) }
+            assert_response 422
+            [member, response.parsed_body].each do |body|
+              assert_equal("BulkUpdateRequest::Processor::Error", body["error"])
+              assert_equal("This request cannot be checked while the creator-prefix list is broken; the server log says what is wrong. " \
+                           "The site owner fixes the list, then try again", body["message"])
+              assert_equal([], body["errors"])
+              assert_no_match(%r{/srv|EACCES|chmod|hetzner|fourier-basis}, body.to_json)
+            end
+          end
+        end
+
+        should "re-render the form with the sentence for a member on the booru" do
+          assert_no_difference("BulkUpdateRequest.count") do
+            post_auth bulk_update_requests_path, @user, params: { bulk_update_request: attributes_for(:bulk_update_request) }
+          end
+
+          assert_response :success
+          assert_match(/cannot be checked while the creator-prefix list is broken; the server log says what is wrong/, response.body)
+          assert_no_match(%r{/srv|EACCES}, response.body)
+        end
+      end
     end
 
     context "#update" do

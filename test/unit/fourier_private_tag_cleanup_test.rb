@@ -61,9 +61,14 @@ class FourierPrivateTagCleanupTest < ActiveSupport::TestCase
       assert_includes FourierTagSource.for_viewer(@legacy, nil, request: creator)[:creator], SECRET
       assert_empty FourierTagSource.for_viewer(@legacy, nil)[:creator]
 
-      # Revertible like any edit: the version before it still has the tag.
+      # Revertible by the post's creator alone: the version before it still
+      # has the tag, and putting it back publishes the creator's prompt
+      # again, so an admin's revert is refused (FourierPrivateTagLineage,
+      # BUR review 2026-10-19: no admin bypass).
       before = @legacy.versions.order(:version).find { |v| v.tag_array.include?(SECRET) }
-      as(@admin) do
+      assert_raises(FourierPrivateTagLineage::RestoreRefused) { as(@admin) { @legacy.revert_to(before) } }
+      assert_equal %w[41chan_alice landscape], @legacy.tag_array, "a refused revert assigns nothing"
+      CurrentUser.set(user: create(:user), request: creator) do
         @legacy.revert_to(before)
         @legacy.save!
       end
@@ -79,13 +84,104 @@ class FourierPrivateTagCleanupTest < ActiveSupport::TestCase
       assert_empty result[:removed]
     end
 
-    should "report a tag the ordinary edit puts back as kept, not removed" do
+    should "report a tag the ordinary edit puts back as kept, not removed, and name every cause" do
       create(:tag_implication, antecedent_name: "landscape", consequent_name: SECRET)
 
       result = FourierPrivateTagCleanup.apply!(FourierPrivateTagCleanup.plan, user: @admin)
       assert_equal [[@legacy.id, 1]], result[:kept]
       assert_empty result[:removed]
       assert_includes @legacy.reload.tag_array, SECRET
+
+      # The ordinary edit re-adds an implied tag AND what the booru derives
+      # itself (Post#add_automatic_tags from the file, Tag.automatic_tags_for
+      # from another tag's name); the remedy must not name implications alone.
+      kept = FourierPrivateTagCleanup.result_lines(result, user: @admin).find { |line| line.start_with?("KEPT") }
+      assert_match(/implies/, kept)
+      assert_match(/derives from the file or from another tag's name/, kept)
+    end
+
+    # The plan lists a tag only where the POSTING BOT put that occurrence on
+    # the public list (FourierPrivateTagLineage). Anyone else's add is that
+    # person's own choice, public to everyone (operator, 2026-10-19).
+    should "not plan a tag a person, a bulk update or an implication put on the public list" do
+      member = create(:user)
+      as(@bot) do
+        @typed = create(:post, uploader: @bot, tag_string: "landscape")
+        @bulk = create(:post, uploader: @bot, tag_string: "bulk_source")
+        @implied = create(:post, uploader: @bot, tag_string: "implying_source")
+      end
+      { @typed => "typed_secret", @bulk => "bulk_secret", @implied => "implied_secret" }.each do |post, name|
+        FourierTagSource.record_partition!(post, { creator: [name] }, @bot)
+      end
+      as(member) { @typed.update!(tag_string: "landscape typed_secret") }
+      create_bur!("mass update bulk_source -> bulk_secret", @admin)
+      TagImplication.approve!(antecedent_name: "implying_source", consequent_name: "implied_secret", approver: @admin)
+      assert_includes @typed.reload.tag_array, "typed_secret", "fixture"
+      assert_includes @bulk.reload.tag_array, "bulk_secret", "fixture"
+      assert_includes @implied.reload.tag_array, "implied_secret", "fixture"
+
+      plan = FourierPrivateTagCleanup.plan
+      assert_equal({ @legacy.id => [SECRET] }, plan.posts, "the bot's legacy add stays planned; the three public adds do not")
+      assert_equal 3, plan.skipped[:public]
+      lines = FourierPrivateTagCleanup.report_lines(plan)
+      assert_includes lines, "# 3 pair(s) skipped: put on the public list by a person, a bulk update or an implication -- that edit's own choice, not a leak"
+      assert lines.none? { |line| line.match?(/typed_secret|bulk_secret|implied_secret/) }, lines.join("\n")
+    end
+
+    should "not plan a label the posting bot publishes on purpose, though the prompt names it too" do
+      as(@bot) do
+        @ai = create(:post, uploader: @bot, tag_string: "landscape ai-generated")
+        @discord = create(:post, uploader: @bot, tag_string: "landscape no_train")
+      end
+      FourierTagSource.record_partition!(@ai, { creator: ["ai-generated"], auto: %w[landscape] }, @bot)
+      FourierTagSource.record_partition!(@discord, { creator: ["no_train"], auto: %w[landscape] }, @bot)
+
+      plan = FourierPrivateTagCleanup.plan
+      assert_equal({ @legacy.id => [SECRET] }, plan.posts)
+      assert_equal 2, plan.skipped[:label]
+      assert_includes FourierPrivateTagCleanup.report_lines(plan), "# 2 pair(s) skipped: a label the posting bot publishes on purpose, not a leak"
+    end
+
+    should "plan a bot leak an alias or a rename moved, under the name it now has" do
+      as(@bot) { @renamed = create(:post, uploader: @bot, tag_string: "landscape rename_leak") }
+      FourierTagSource.record_partition!(@renamed, { creator: ["rename_leak"], auto: %w[landscape] }, @bot)
+      TagAlias.approve!(antecedent_name: SECRET, consequent_name: "aliased_secret", approver: @admin)
+      create_bur!("rename rename_leak -> renamed_leak", @admin)
+      assert_includes @legacy.reload.tag_array, "aliased_secret", "fixture"
+      assert_includes @renamed.reload.tag_array, "renamed_leak", "fixture"
+
+      plan = FourierPrivateTagCleanup.plan
+      assert_equal({ @legacy.id => ["aliased_secret"], @renamed.id => ["renamed_leak"] }, plan.posts)
+    end
+
+    should "not plan a tag whose add its history cannot show, and count it apart" do
+      @legacy.versions.order(:version).first.update_columns(version: 2) # rubocop:disable Rails/SkipsModelValidations
+
+      plan = FourierPrivateTagCleanup.plan
+      assert_empty plan.posts
+      assert_equal 1, plan.skipped[:unknown]
+      assert_includes FourierPrivateTagCleanup.report_lines(plan), "# 1 pair(s) skipped: who added them cannot be read from the post's versions; nothing is removed blind"
+    end
+
+    should "plan nothing where post versions are not kept, and say why" do
+      PostVersion.stubs(:enabled?).returns(false)
+
+      plan = FourierPrivateTagCleanup.plan
+      assert_empty plan.posts
+      assert_not plan.versions_kept
+      assert_equal 1, plan.skipped[:unknown]
+      assert_match(/who added each tag cannot be read, so nothing is planned/, FourierPrivateTagCleanup.report_lines(plan).first)
+    end
+
+    should "remove only the bot's occurrences from a post that also carries a tag a person typed" do
+      FourierTagSource.record_partition!(@legacy, { creator: [SECRET, "typed_secret"], auto: %w[landscape] }, @bot)
+      as(create(:user)) { @legacy.update!(tag_string: "41chan_alice landscape #{SECRET} typed_secret") }
+
+      plan = FourierPrivateTagCleanup.plan
+      assert_equal({ @legacy.id => [SECRET] }, plan.posts)
+      result = FourierPrivateTagCleanup.apply!(plan, user: @admin)
+      assert_equal [[@legacy.id, 1]], result[:removed]
+      assert_equal %w[41chan_alice landscape typed_secret], @legacy.reload.tag_array
     end
 
     should "report one failed post without stopping the rest" do

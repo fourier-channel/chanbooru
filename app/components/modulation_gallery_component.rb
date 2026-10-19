@@ -185,10 +185,17 @@ class ModulationGalleryComponent < ApplicationComponent
   # two answers the facet pills get, per post rather than per page. Public
   # rows, one pluck for the page. A tag with no row is left out -- the panel
   # draws it unsourced with a white lamp, which is what no row means.
+  #
+  # Fork: only rows for a tag the card carries (card_tags). A row stays
+  # behind when its tag leaves the post -- a hand edit, a bulk update and the
+  # private-tag cleanup write tag_string, never the sidecar -- and such a
+  # dormant row is provenance for nothing here; its name was written into
+  # the page source all the same (BUR review 2026-10-19).
   def card_tag_marks
     @card_tag_marks ||= FourierTagSource.publicly_visible
       .where(post_id: posts.map(&:id))
       .pluck(:post_id, :tag, :source, :status)
+      .select { |post_id, tag, _, _| card_tags.fetch(post_id, Set.new).include?(tag) }
       .group_by(&:first)
       .transform_values do |rows|
         rows.to_h { |_, tag, source, status| [tag, [provenance_bucket(source, status == FourierTagSource::PENDING), FourierTagSource.lamp_of(source).to_s]] }
@@ -197,6 +204,12 @@ class ModulationGalleryComponent < ApplicationComponent
 
   def blacklist_tags
     @blacklist_tags ||= FourierTagSource.blacklist_tags_for(posts, viewer)
+  end
+
+  # Fork: post id -> the Set of tags its card carries (data-tags), which a
+  # provenance row must name to count for that card.
+  def card_tags
+    @card_tags ||= posts.to_h { |post| [post.id, blacklist_tags[post].to_a.to_set] }
   end
 
   def thumb_for(post)
@@ -373,15 +386,19 @@ class ModulationGalleryComponent < ApplicationComponent
   end
 
   # PROVENANCE, for the page. name -> "creator" | "both" | "auto" | "meta" |
-  # "pending", for every sidebar tag that has a public provenance row on any
-  # post of this page; a name with none is unsourced. One grouped query for
-  # the page: bit_or over the source flags says who put the name there
-  # anywhere on the page, which is the honest answer for a list that
+  # "pending", for every sidebar tag that has a public provenance row on a
+  # post of this page that carries it; a name with none is unsourced. One
+  # query for the page: the OR of the source flags says who put the name
+  # there anywhere on the page, which is the honest answer for a list that
   # aggregates the page. Public rows only -- the sidebar's names come from
   # tag_string, which never holds a private creator tag, so a private row
   # could only ever add information this viewer may not have.
   #
-  # And THE LAMP, from the same bit_or: which model put the name there
+  # Fork: and only rows whose tag the post still carries (card_tags). A row
+  # left behind when its tag left its post coloured every other card's pill
+  # for that name (BUR review 2026-10-19).
+  #
+  # And THE LAMP, from the same OR: which model put the name there
   # anywhere on the page (FourierTagSource.lamp_of) -- the pill's dot, per
   # formant. name -> [bucket, lamp]; a name with no row is unsourced, manual.
   def page_tag_provenance
@@ -392,9 +409,14 @@ class ModulationGalleryComponent < ApplicationComponent
       else
         FourierTagSource.publicly_visible
           .where(post_id: posts.map(&:id), tag: names)
-          .group(:tag)
-          .pluck(:tag, Arel.sql("bit_or(source)"), Arel.sql("bool_and(status = #{FourierTagSource::PENDING})"))
-          .to_h { |tag, source, pending| [tag, [provenance_bucket(source, pending), FourierTagSource.lamp_of(source)]] }
+          .pluck(:post_id, :tag, :source, :status)
+          .select { |post_id, tag, _, _| card_tags.fetch(post_id, Set.new).include?(tag) }
+          .group_by { |_, tag, _, _| tag }
+          .to_h do |tag, rows|
+            source = rows.map { |_, _, bits, _| bits }.reduce(0, :|)
+            pending = rows.all? { |_, _, _, status| status == FourierTagSource::PENDING }
+            [tag, [provenance_bucket(source, pending), FourierTagSource.lamp_of(source)]]
+          end
       end
     end
   end

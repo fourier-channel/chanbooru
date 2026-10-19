@@ -976,6 +976,12 @@ class Post < ApplicationRecord
         raise RevertError, "You cannot revert to a previous version of another post."
       end
 
+      # Fork: never publishes a creator's private tag again (BUR review
+      # 2026-10-19, M2): a version from before FourierPrivateTagCleanup holds
+      # what the posting bot leaked, and history withholds it from the very
+      # person reverting. Refused unless they are the post's creator.
+      FourierPrivateTagLineage.refuse_restore!(self, target.tag_array, source: target)
+
       self.tag_string = target.tags
       self.rating = target.rating
       self.source = target.source
@@ -2053,7 +2059,14 @@ class Post < ApplicationRecord
                         "only the posting service or an admin can add or remove #{(locked.size == 1) ? "it" : "them"}. " \
                         "To correct a post's creator, ask an admin (prefixes are listed at /creator_prefixes)")
     rescue CreatorPrefixes::ConfigError => e
-      errors.add(:base, "Tag changes are paused: #{e.message}")
+      # Fork: words only. What is wrong with the list (a path on the
+      # server, an errno, the fix's command) goes to the log: this refusal
+      # reaches Technetium's tag editor and the posting bot, which relays a
+      # refused edit into a room (technetium-81, 2026-10-19). Logged at
+      # :error, which production keeps (Danbooru.config.log_level); every
+      # "the server log says what is wrong" refusal logs the same way.
+      Rails.logger.error("post ##{id || "(new)"}: tag change paused, the creator-prefix list is broken: #{e.message}")
+      errors.add(:base, "Tag changes are paused while the creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again")
     end
 
     # A FLAGGED name (TagQuarantine) is added to or removed from a post only

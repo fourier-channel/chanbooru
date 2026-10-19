@@ -52,5 +52,25 @@ class CreatorPrefixesControllerTest < ActionDispatch::IntegrationTest
       assert_response :success
       assert_nil(response.parsed_body["match"])
     end
+
+    # Fork: in words (BUR review 2026-10-19). Every member reads this page,
+    # and the JSON reaches clients: what is wrong with the list (a path on
+    # the server, an errno, the fix's command) goes to the log.
+    should "say in words that the list is broken, and log what is wrong with it" do
+      broken = "the creator-prefix list /srv/booru/config/creator_prefixes.yml cannot be read (EACCES). Fix: chmod 644 /srv/booru/config/creator_prefixes.yml " \
+               "(the canon copy is fourier-basis ops/hetzner/danbooru/creator_prefixes.yml)"
+      words = "The creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again"
+      Rails.logger.stubs(:error)
+      Rails.logger.expects(:error).with { |message, *| message.to_s.include?("the creator-prefix list is broken: ") && message.to_s.include?(broken) }.at_least(2)
+      CreatorPrefixes.stubs(:config).raises(CreatorPrefixes::ConfigError, broken)
+
+      get_auth creator_prefixes_path, @member
+      assert_response 503
+      assert_equal(words, response.body)
+
+      get_auth creator_prefixes_path(tag: "4chan_bob", format: :json), @member
+      assert_response 503
+      assert_equal({ "error" => words }, response.parsed_body)
+    end
   end
 end

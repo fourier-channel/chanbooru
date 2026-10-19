@@ -36,7 +36,11 @@
         </div>
       <% end %>
     <% rescue CreatorPrefixes::ConfigError => e %>
-      <p id="creator-panel-release" class="modcreator-panel-warn">The creator prefix list cannot be read right now (<%= e.message %>); this panel will say which of your tags are held back once it can.</p>
+      <%# Fork: words only (BUR review 2026-10-19). What is wrong with the
+          list -- a path on the server, an errno, the fix's command -- goes
+          to the log, never onto the creator's page. %>
+      <% Rails.logger.error("creator panel ##{gallery.id}: release state not shown, the creator-prefix list is broken: #{e.message}") %>
+      <p id="creator-panel-release" class="modcreator-panel-warn">The creator prefix list cannot be read right now; the server log says what is wrong. This panel will say which of your tags are held back once the site owner fixes it.</p>
     <% end %>
 
     <%# --- 1. requests waiting (Q5) --- %>

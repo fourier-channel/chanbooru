@@ -39,9 +39,14 @@ class CreatorPrefixesController < ApplicationController
       end
     end
   rescue CreatorPrefixes::ConfigError => e
+    # Fork: words only (BUR review 2026-10-19). Every member reads this page
+    # and clients read its JSON; what is wrong with the list -- a path on
+    # the server, an errno, the fix's command -- goes to the log.
+    Rails.logger.error("creator prefixes page: not shown, the creator-prefix list is broken: #{e.message}")
+    words = "The creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again"
     respond_to do |format|
-      format.html { render plain: e.message, status: :service_unavailable }
-      format.json { render json: { error: e.message }, status: :service_unavailable }
+      format.html { render plain: words, status: :service_unavailable }
+      format.json { render json: { error: words }, status: :service_unavailable }
     end
   end
 

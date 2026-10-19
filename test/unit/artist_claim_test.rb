@@ -172,6 +172,38 @@ class ArtistClaimTest < ActiveSupport::TestCase
       end
     end
 
+    # Fork: a broken list refuses the claim, in words only: what is wrong
+    # with it (its path on the server, the parser's words) goes to the log,
+    # as CharacterClaim's refusal does (technetium-81, 2026-10-19).
+    context "with a broken prefix list" do
+      setup do
+        @dir = Dir.mktmpdir("artist-claim-broken")
+        @path = File.join(@dir, "creator_prefixes.yml")
+        @was = ENV.fetch("FOURIER_CREATOR_PREFIXES", nil)
+        File.write(@path, "prefixes: [unclosed\n")
+        ENV["FOURIER_CREATOR_PREFIXES"] = @path
+        CreatorPrefixes.reset!
+      end
+
+      teardown do
+        ENV["FOURIER_CREATOR_PREFIXES"] = @was
+        CreatorPrefixes.reset!
+        FileUtils.rm_rf(@dir)
+      end
+
+      should "refuse the claim in words, and log what is wrong with the list" do
+        Rails.logger.stubs(:error)
+        Rails.logger.expects(:error).with { |message, *| message.to_s.include?("the creator-prefix list is broken: ") && message.to_s.include?(@path) }.at_least_once
+        claim = ArtistClaim.new(artist: @artist, creator_gallery: @gallery)
+
+        assert_not(claim.valid?)
+        words = claim.errors.full_messages.join("\n")
+        assert_match(/claims cannot be checked while the creator-prefix list is broken; the server log says what is wrong/, words)
+        assert_not_includes(words, @dir)
+        assert_no_match(/YAML|Psych|unclosed/i, words)
+      end
+    end
+
     # A tag outside the lock is one any member can add to any post, so a claim
     # on it would hand its holder whatever posts someone chose to tag.
     should "refuse a tag that no listed prefix locks" do

@@ -198,6 +198,10 @@ class ApplicationController < ActionController::Base
         # script line at fault (empty when none is), for the card and the
         # bot that relays it.
         render_error_page(422, exception, message: exception.message, errors: exception.errors)
+      when FourierPrivateTagLineage::RestoreRefused
+        # Fork: a revert or undo that would publish a creator's private tag
+        # again; the sentence names no tag and says what to do instead.
+        render_error_page(422, exception, message: exception.message)
       when RateLimiter::RateLimitError
         render_error_page(429, exception, message: "You're doing that too fast. Wait a minute and try again.")
       when PageRemovedError

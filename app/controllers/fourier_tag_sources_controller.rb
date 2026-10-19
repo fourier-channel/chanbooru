@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 # Receives per-tag provenance at post creation and records it in
-# the fourier_tag_sources sidecar (the redesigned tag buckets). Builder+ only
-# (the posting bots: fourier-sampling and fourier-tunnel).
+# the fourier_tag_sources sidecar (the redesigned tag buckets). The posting
+# bots only (fourier-sampling and fourier-tunnel: posting_bot?, below).
 # POST /fourier/posts/:post_id/tag_sources
 #   { creator: [], auto: [], both: [], meta: [], pending: [], spectrum: [], hydra: [] }
 # POST /posts/tag_source_models -- model bits only, for posts already recorded.
@@ -23,8 +23,8 @@ class FourierTagSourcesController < ApplicationController
   respond_to :json
 
   def create
-    raise User::PrivilegeError unless CurrentUser.user.is_builder?
-    skip_authorization # gated on is_builder? above, not a per-record Pundit policy
+    refuse_unless_posting_bot!
+    skip_authorization # gated on refuse_unless_posting_bot! above, not a per-record Pundit policy
 
     return create_with_mxc if params.key?(:mxc)
 
@@ -49,8 +49,8 @@ class FourierTagSourcesController < ApplicationController
   # mass-assigned, and this app answers an unpermitted key with a 403, which
   # would make a malformed body look like a refused login.
   def models
-    raise User::PrivilegeError unless CurrentUser.user.is_builder?
-    skip_authorization # gated on is_builder? above, as create is
+    refuse_unless_posting_bot!
+    skip_authorization # gated on refuse_unless_posting_bot! above, as create is
 
     entries = params[:posts]
     limit = FourierTagSource::MAX_MODEL_POSTS
@@ -104,6 +104,23 @@ class FourierTagSourcesController < ApplicationController
   end
 
   private
+
+  # Fork: both writes are the posting bots' alone, by name
+  # (FourierCreatorPrivacy.posting_bot?), whatever an account's level (BUR
+  # review 2026-10-19, M3). Gated on is_builder? they let any builder,
+  # moderator or admin ask record_models! whether a creator's private row
+  # exists ("inserted" against "skipped" for a tag on the post), read
+  # create's `recorded` count, mint creator rows, and delete them with
+  # replace_creator -- and a creator's private data is the creator's, with
+  # no moderator or admin bypass (FourierCreatorPrivacy). Asked by name:
+  # PostingAccounts.may_post? says yes to every account where posting is not
+  # restricted to the bots.
+  def refuse_unless_posting_bot!
+    return if FourierCreatorPrivacy.posting_bot?(CurrentUser.user)
+
+    raise User::PrivilegeError, "Tag provenance is recorded by the site's posting bots only, and this account is not one of them. " \
+                                "Fix: send it from a posting bot's account (Danbooru.config.fourier_posting_bot_names)"
+  end
 
   # create, carrying an mxc (see the header). A missing post -- or one
   # carrying a flagged tag the bot did not upload, which answers as missing

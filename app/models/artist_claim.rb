@@ -217,7 +217,11 @@ class ArtistClaim < ApplicationRecord
     reason = ArtistClaim.refusal(tag_name, creator_gallery&.matrix_id)
     errors.add(:base, reason) if reason
   rescue CreatorPrefixes::ConfigError => e
-    errors.add(:base, "claims cannot be checked while the creator-prefix list is broken: #{e.message}")
+    # Fork: words only, as CharacterClaim's refusal: what is wrong with the
+    # list (a path on the server, an errno, the parser's words) goes to the
+    # log (technetium-81, 2026-10-19).
+    Rails.logger.error("claim of #{tag_name}: not checked, the creator-prefix list is broken: #{e.message}")
+    errors.add(:base, "claims cannot be checked while the creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again")
   end
 
   def approved_or_new? = approved? || new_record?

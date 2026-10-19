@@ -133,6 +133,22 @@ class FourierOriginalCharacterTest < ActiveSupport::TestCase
       assert_match(/creator-prefix list is broken/, refused["maple_(saber)"])
       assert_nil(Tag.find_by_name("maple_(saber)"))
     end
+
+    # Fork: what is wrong with the list (its path on the server, the
+    # parser's words) goes to the log; the refusal is words only. The
+    # posting bot relays it (original_characters_not_declared), and a bot
+    # posts no address into a room (technetium-81, 2026-10-19).
+    should "keep the list's path and the parser's words out of the refusal, and log them" do
+      Rails.logger.stubs(:error)
+      Rails.logger.expects(:error).with { |message, *| message.to_s.include?("the creator-prefix list is broken: ") && message.to_s.include?(@path) }.at_least_once
+      creator!("@saber:41chan.net")
+
+      why = record({ oc: ["maple_(saber)"] })["maple_(saber)"]
+
+      assert_not_includes(why, @dir)
+      assert_no_match(/YAML|Psych|unclosed/i, why)
+      assert_match(/the creator-prefix list is broken, so maple_\(saber\) cannot be checked and was not declared; the server log says what is wrong/, why)
+    end
   end
 
   should "declare every 2026-09-19 shape with no alias AS ITSELF, whoever posted it: on the post, public, a character" do

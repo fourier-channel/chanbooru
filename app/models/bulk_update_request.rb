@@ -215,6 +215,16 @@ class BulkUpdateRequest < ApplicationRecord
       messages, @line_errors = withheld(processor.errors.full_messages, processor.line_errors, bot ? User.anonymous : CurrentUser.user)
       messages.each { |error| errors.add(:base, error) }
     end
+  rescue CreatorPrefixes::ConfigError => e
+    # Fork: while the creator-prefix list is broken nothing can say whether
+    # the filer is a posting bot (TagBanishment.pipeline? asks
+    # CreatorPrefixes.editor?, which raises), and every filing below admin
+    # answered 500. Refused in words instead, as a locked tag edit is; what
+    # is wrong with the list goes to the log, since the refusal reaches a
+    # room through the bot (technetium-81, 2026-10-19).
+    Rails.logger.error("bulk update request: not checked, the creator-prefix list is broken: #{e.message}")
+    @line_errors = []
+    errors.add(:base, "This request cannot be checked while the creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again")
   end
 
   # Fork: the script's own checks run with the system account's sight

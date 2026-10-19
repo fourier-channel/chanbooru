@@ -374,7 +374,14 @@ class FourierTagSource < ApplicationRecord
         "claim it from your creator page (an admin reviews a name that has history), then send the tags again"
     end
   rescue CreatorPrefixes::ConfigError => e
-    "the creator-prefix list is broken, so #{name} cannot be checked and was not declared (#{e.message}): fix the list, then send the tags again"
+    # Fork: words only. What is wrong with the list (a path on the server,
+    # an errno, the parser's words, the fix's command) goes to the log, and
+    # without the name, which may be a private prompt term: this sentence is
+    # original_characters_not_declared, which the posting bot relays
+    # (technetium-81, 2026-10-19).
+    Rails.logger.error("original character on post ##{post.id}: not checked, the creator-prefix list is broken: #{e.message}")
+    "the creator-prefix list is broken, so #{name} cannot be checked and was not declared; the server log says what is wrong. " \
+      "The site owner fixes the list, then send the tags again"
   end
 
   # An original character is DECLARED, not merely recorded: the name goes on

@@ -14,7 +14,7 @@ require "test_helper"
 class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
   context "POST /posts/:post_id/tag_sources" do
     setup do
-      @bot = create(:builder_user)
+      @bot = create(:builder_user, name: "tunnel")
       @post = create(:post, tag_string: "a b m")
     end
 
@@ -151,9 +151,42 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
     FourierTagSource.where(post_id: post.id).order(:tag).pluck(:tag, :source, :status, :public, :added_by, :created_at)
   end
 
+  # Fork: the provenance routes are the posting bots' alone (BUR review
+  # 2026-10-19, M3). Gated on is_builder? they let any builder, moderator or
+  # admin ask record_models! whether a creator's private row exists (a tag
+  # on the post answers "inserted" with no row and "skipped" with one), read
+  # create's `recorded` count, mint creator rows, and delete them all with
+  # replace_creator -- against the rule that a creator's private data is the
+  # creator's, with no moderator or admin bypass (FourierCreatorPrivacy).
+  context "an account that is not a posting bot" do
+    setup do
+      @post = create(:post, tag_string: "a b m secret")
+      FourierTagSource.record_partition!(@post, { creator: %w[secret] }, create(:user))
+    end
+
+    should "refuse the model-bits and partition routes to a builder who is not a posting account" do
+      [create(:builder_user), create(:moderator_user), create(:admin_user)].each do |user|
+        before = everything_about(@post)
+
+        post_auth "/posts/#{@post.id}/tag_sources.json", user, as: :json, params: { auto: %w[a], creator: %w[guess] }
+        assert_response 403, "create, as #{user.level_string}"
+        post_auth "/posts/#{@post.id}/tag_sources.json", user, as: :json, params: { replace_creator: true, creator: [] }
+        assert_response 403, "replace_creator, as #{user.level_string}"
+        models(user, [{ post_id: @post.id, spectrum: %w[secret], hydra: %w[secret] }])
+        assert_response 403, "models, as #{user.level_string}"
+        assert_not_includes(response.body, "skipped", "models, as #{user.level_string}")
+        post_auth "/posts/#{@post.id}/tag_sources.json", user, as: :json, params: { mxc: "mxc://41chan.net/notabot" }
+        assert_response 403, "mxc, as #{user.level_string}"
+
+        assert_equal(before, everything_about(@post), "no row written or deleted, as #{user.level_string}")
+        assert_not(PostMxc.exists?(mxc: "mxc://41chan.net/notabot"), "no mxc recorded, as #{user.level_string}")
+      end
+    end
+  end
+
   context "POST /posts/tag_source_models" do
     setup do
-      @bot = create(:builder_user)
+      @bot = create(:builder_user, name: "sample")
       @post = create(:post, tag_string: "a b m")
       # Rows as the retag timer left them: model rows with no model bit.
       FourierTagSource.record_partition!(@post, { auto: %w[a b], meta: %w[m] }, @bot)
@@ -219,16 +252,16 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       assert_equal :both, row(@post, "a").lamp
     end
 
-    # Round-two finding 5: this route is builder+, so every moderator reaches
-    # it, and "updated" for a creator's private tag against "skipped" for a
-    # wrong guess confirmed the guess -- while rewriting the private row. A
-    # private row is now neither answered for nor written: its tag reads
-    # exactly as a tag the post does not have. Both shapes: the tunnel's
-    # (the private tag is not in tag_string) and the 2026-08-04..06 one
-    # (it is, and the insert path must not reach its row either).
-    should "neither touch nor reveal a creator's private row, to a moderator guessing" do
+    # Round-two finding 5: "updated" for a creator's private tag against
+    # "skipped" for a wrong guess confirmed the guess -- while rewriting the
+    # private row. A private row is neither answered for nor written: its tag
+    # reads exactly as a tag the post does not have. Both shapes: the
+    # tunnel's (the private tag is not in tag_string) and the 2026-08-04..06
+    # one (it is, and the insert path must not reach its row either). Asked
+    # of the posting bot, the route's only caller since 2026-10-19 (no other
+    # account reaches it: "an account that is not a posting bot", above).
+    should "neither touch nor reveal a creator's private row, to the posting bot guessing" do
       creator = create(:user)
-      moderator = create(:moderator_user)
       FourierTagSource.record_partition!(@post, { creator: %w[secret] }, creator)
       legacy = create(:post, tag_string: "a legacy_secret")
       FourierTagSource.record_partition!(legacy, { creator: %w[legacy_secret] }, creator)
@@ -237,7 +270,7 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       answers = [
         [@post, "secret"], [@post, "wrong_guess"], [legacy, "legacy_secret"], [legacy, "another_wrong_guess"],
       ].map do |post, guess|
-        models(moderator, [{ post_id: post.id, spectrum: [guess], hydra: [guess] }])
+        models(@bot, [{ post_id: post.id, spectrum: [guess], hydra: [guess] }])
         assert_response :success
         response.parsed_body
       end
@@ -292,7 +325,7 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       assert_response :success
     end
 
-    should "refuse anyone below builder" do
+    should "refuse an account that is not a posting bot" do
       models(create(:user), [{ post_id: @post.id, hydra: %w[a] }])
 
       assert_response 403
@@ -360,7 +393,7 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
   # route, with "mxc". On its duplicate path the body carries ONLY the mxc.
   context "POST /posts/:post_id/tag_sources with an mxc" do
     setup do
-      @bot = create(:builder_user)
+      @bot = create(:builder_user, name: "tunnel")
       @post = create(:post, md5: SecureRandom.hex(16), tag_string: "a b", source: "mxc://41chan.net/original")
     end
 
@@ -430,7 +463,7 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       assert_match(%r{mxc://<server>/<media id>}, response.parsed_body["error"])
     end
 
-    should "refuse a caller below Builder" do
+    should "refuse a caller that is not a posting bot" do
       post_auth "/posts/#{@post.id}/tag_sources.json", create(:user), as: :json, params: { mxc: "mxc://41chan.net/dup7" }
       assert_response 403
       assert_not PostMxc.exists?(mxc: "mxc://41chan.net/dup7")
