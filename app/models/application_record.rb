@@ -33,7 +33,6 @@ class ApplicationRecord < ActiveRecord::Base
         search_params = params.fetch(:search, {}).permit!
         search_params = defaults.merge(search_params).with_indifferent_access
 
-        max_limit = (params[:format] == "sitemap") ? 10_000 : 1_000
         # Fork: a listing whose rows name posts is for members only
         # (MembersOnly, operator ruling 2026-10-07), asked here because every
         # index door passes through, so a listing added later is covered
@@ -43,7 +42,11 @@ class ApplicationRecord < ActiveRecord::Base
         # Fork: rows about a post the searcher may not see are not results --
         # see without_hidden_posts. Here, at the one place every index door
         # passes through, so the count and paginator never include them.
-        search(search_params, current_user).without_hidden_posts(current_user).paginate(page, limit: limit, max_limit: max_limit, count: count, search_count: count_pages)
+        #
+        # And the page is the searcher's (User#listing_per_page_limit and
+        # #listing_page_limit, asked by paginate): 200 at most for a full
+        # account, one page of 20 below full browsing, for every model.
+        search(search_params, current_user).without_hidden_posts(current_user).paginate(page, limit: limit, count: count, search_count: count_pages, viewer: current_user)
       end
     end
   end
@@ -223,6 +226,13 @@ class ApplicationRecord < ActiveRecord::Base
     # consequent_aliases, /artists.json?only=tag_alias, /wiki_pages.json?only=
     # dtext_links, /posts/:id.json?only=ai_tags. Only those: a nested record
     # about a hidden POST keeps the narrower rule above (its post left out).
+    #
+    # And a nested list is a list (ACCOUNT_LIMITS.md 2.3, and every listing
+    # is bounded): below full browsing it carries the first page,
+    # User#listing_per_page_limit, as the viewer's own listing would.
+    # ?only=children[...] named every child, a tag's consequent_aliases every
+    # alias, and a wiki page's dtext_links[embedded_post] every post it
+    # embeds, past the embeds its own page draws.
     private def serializable_add_includes(options = {})
       viewer = CurrentUser.user
       hidden = lambda do |record|
@@ -234,7 +244,9 @@ class ApplicationRecord < ActiveRecord::Base
       end
       super do |association, records, opts|
         if records.respond_to?(:to_ary)
-          yield association, records.to_ary.reject(&hidden), opts
+          shown = records.to_ary.reject(&hidden)
+          shown = shown.first(viewer.listing_per_page_limit) unless viewer.can_browse_freely?
+          yield association, shown, opts
         elsif !hidden.call(records)
           yield association, records, opts
         end

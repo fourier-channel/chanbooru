@@ -12,8 +12,8 @@
 #
 # THE LISTING RULE (operator, 2026-10-07): "An anonymous viewer is not
 # supposed to be paging through all of the content 20 posts at a time." The
-# browsing cap (PostSets::Post#enforce_browsing_cap!) held /posts to one page,
-# but nothing else asked it. Measured on production that day as a signed-out
+# browsing cap held /posts to one page, but then nothing else asked it.
+# Measured on production that day as a signed-out
 # visitor: /explore/posts/popular answered every page, every date and any
 # `limit=` (walking ?date= backwards enumerates the whole booru at page 1);
 # /artist_commentaries?page=2 answered 40 posts with previews and their source
@@ -33,9 +33,16 @@
 #   /recommended_posts and /moderator/dashboard.
 #
 # A post's own page, /posts and the landing page are not listings in this
-# sense and are untouched: /posts keeps its browsing cap, and a post's page
-# answers by Post#hidden_from?. A signed-in member at ANY level sees exactly
-# what they saw before.
+# sense and are untouched; a post's page answers by Post#hidden_from?. A
+# signed-in member at ANY level sees exactly what they saw before.
+#
+# TWO RULES, ONE FACT EACH (ACCOUNT_LIMITS.md section 4). This module decides
+# PRESENCE -- which doors, and which posts, a visitor with no account and no
+# Matrix identity reaches at all -- and refuses with 404. The browsing tier
+# decides REACH -- one page of every list, 20 at most, no cursor, no walking
+# -- for everyone below full browsing (signed out, Matrix-only, Restricted),
+# and refuses with 410 (PaginationExtension#paginate, the walkers). Neither
+# says what the other says: a signed-out page=2 or cursor is the tier's.
 module MembersOnly
   module_function
 
@@ -212,12 +219,10 @@ module MembersOnly
 
   # /posts for a signed-out viewer is THE NEWEST POSTS AND NOTHING ELSE.
   #
-  # The browsing cap held them to "page 1", but a tag query is a page 1 of
+  # The browsing tier holds them to one page, but a tag query is a page 1 of
   # its own: /posts?tags=id:1..20, then id:21..40, walks the whole booru
-  # without ever leaving page 1, and so does page=b<id> (sequential paging
-  # reads as page 1 to the cap). Measured on production 2026-10-07 as a
-  # signed-out visitor: id:1..20, id:21..40, order:random and page=b878000
-  # all answered 200.
+  # without ever leaving page 1. Measured on production 2026-10-07 as a
+  # signed-out visitor: id:1..20, id:21..40 and order:random all answered 200.
   #
   # What a signed-out viewer may pass, exactly:
   #   - no tags at all (`tags`, `post[tags]` blank) -- the newest posts;
@@ -225,11 +230,9 @@ module MembersOnly
   #     landing row's tag list (anonymous_featured_tags): the page a featured
   #     creator's pill on the front page links to. One term, nothing else --
   #     the rows are the operator's choice of what to show off (2026-10-08);
-  #   - page blank or 1; limit (clamped to restricted_browsing_per_page as
-  #     for anyone below the browsing tier); size, show_votes, variant
-  #     (the hover tooltip's; the gallery window's chunk is refused below
-  #     the browsing tier by the controller) -- and no `anchor` or `before`,
-  #     the gallery window's cursors;
+  #   - page, limit, size, show_votes, variant, anchor and before -- which
+  #     are the browsing tier's to bound (one page, 20 at most, no cursor;
+  #     PaginationExtension#paginate), not this rule's;
   #   - in json ONLY, `tags=md5:<32 hex>[,<32 hex>...]` (up to the 20 rows a
   #     restricted page holds, fourier-auth's MAX_BATCH) with
   #     `only=md5,is_deleted,source` and `limit`, and NO other parameter:
@@ -252,11 +255,7 @@ module MembersOnly
   def anonymous_post_listing(controller)
     params = controller.params
     tags = (params[:tags].presence || params.dig(:post, :tags)).to_s.strip
-    page = params[:page].to_s.strip
-    return false unless page.empty? || page == "1"
     return false if params[:md5].present? || params[:random].present?
-    # The gallery window's cursors walk past page 1 like page=b<id> did.
-    return false if params[:anchor].present? || params[:before].present?
     return true if tags.empty?
 
     case request_format(controller.request)

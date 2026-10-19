@@ -172,6 +172,12 @@ class PostNeighbors
 
     def backward? = direction == :backward
 
+    # Whether this seek names a place in its search -- an anchor, a before or
+    # a position past the head -- which walks past page 1, as a/b cursors
+    # do, so the browsing tier refuses it (PaginationExtension#paginate). The
+    # head of the search is page 1.
+    def place? = !id.nil? || offset.to_i.positive? || backward?
+
     # A keyset backward page is fetched nearest first and flipped for display;
     # an offset page is fetched in display order either way.
     def reversed? = backward? && offset.nil?
@@ -257,7 +263,14 @@ class PostNeighbors
   # { ids:, more: } -- the next `depth` post ids in `direction`, nearest
   # first, and whether a row lies past them. One more row than asked for is
   # fetched, so `more` is exact: exactly `depth` remaining is not more.
+  #
+  # A walk, so the browsing tier's (ACCOUNT_LIMITS.md 2.2): a viewer below
+  # full browsing is refused here whatever asked -- the post view's payload,
+  # its prefetch or /posts/:id/show_seq -- and a page asks
+  # User#can_browse_freely? before it draws a link.
   def run(direction, depth = DEPTH)
+    raise PaginationExtension::BrowsingCapError, user unless user.can_browse_freely?
+
     ids = neighbor_ids(direction, depth + 1)
     { ids: ids.first(depth), more: ids.size > depth }
   end

@@ -137,7 +137,7 @@
           <%= wiki_page_other_names_list(wiki_page) %>
         <% end %>
         <div class="prose">
-          <%= wiki_page.dtext_body.format_text %>
+          <%= wiki_page.dtext_body.format_text(current_user: CurrentUser.user) %>
           <%= render "tag_relationships/alias_and_implication_list", tag: wiki_page.tag %>
 
           <% if wiki_page.tag&.is_deprecated? %>

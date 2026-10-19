@@ -11,8 +11,8 @@
     <% selected = selected_pool == pool %>
     <% first_post_id = pool.visible_post_ids.first %>
     <% last_post_id = pool.visible_post_ids.last %>
-    <% previous_post_id = pool.previous_post_id(post.id) %>
-    <% next_post_id = pool.next_post_id(post.id) %>
+    <% previous_post_id = pool.previous_post_id(post.id, current_user) %>
+    <% next_post_id = pool.next_post_id(post.id, current_user) %>
 
     <%= tag.li class: "pool-navbar pool-category-#{pool.category}", "data-selected": selected do %>
       <span class="first">
@@ -41,8 +41,8 @@
     <% selected = selected_favgroup == favgroup %>
     <% first_post_id = favgroup.visible_post_ids.first %>
     <% last_post_id = favgroup.visible_post_ids.last %>
-    <% previous_post_id = favgroup.previous_post_id(post.id) %>
-    <% next_post_id = favgroup.next_post_id(post.id) %>
+    <% previous_post_id = favgroup.previous_post_id(post.id, current_user) %>
+    <% next_post_id = favgroup.next_post_id(post.id, current_user) %>
 
     <%= tag.li class: "favgroup-navbar", "data-selected": selected do %>
       <span class="first">

@@ -1248,11 +1248,14 @@ class PostQueryBuilderTest < ActiveSupport::TestCase
       create(:saved_search, query: "aaa", labels: ["zzz"], user: CurrentUser.user)
       create(:saved_search, query: "bbb", user: CurrentUser.user)
 
-      Danbooru.config.stubs(:redis_url).returns("redis://localhost:6379")
-      Redis.any_instance.stubs(:exists?).with("search:aaa").returns(true)
-      Redis.any_instance.stubs(:exists?).with("search:bbb").returns(true)
-      Redis.any_instance.stubs(:smembers).with("search:aaa").returns([@post1.id])
-      Redis.any_instance.stubs(:smembers).with("search:bbb").returns([@post2.id])
+      # SavedSearch.redis is memoized on the class: stubbing redis_url instead
+      # would leave a client for a server that isn't there to every later test.
+      redis = stub("redis")
+      redis.stubs(:exists?).with("search:aaa").returns(true)
+      redis.stubs(:exists?).with("search:bbb").returns(true)
+      redis.stubs(:smembers).with("search:aaa").returns([@post1.id])
+      redis.stubs(:smembers).with("search:bbb").returns([@post2.id])
+      SavedSearch.stubs(:redis).returns(redis)
 
       assert_tag_match([@post1], "search:zzz")
       assert_tag_match([@post1], "search:ZZZ")

@@ -31,6 +31,9 @@ class RelatedTagQuery
     @tag_sample_size = 500 if @tag_sample_size == 0
     @limit = limit.to_i.clamp(0, 1000)
     @limit = 100 if @limit == 0
+    # A list, so at most the viewer's page (User#listing_per_page_limit), here
+    # at its one source (ACCOUNT_LIMITS.md 2.4).
+    @limit = [@limit, user.listing_per_page_limit].min
   end
 
   def related_tags
@@ -127,14 +130,13 @@ class RelatedTagQuery
   end
 
   # The list of tags mentioned in the wiki page of the queried tag. General tags aren't included when looking up characters.
+  #
+  # Fork: a list, so at most the viewer's page (User#listing_per_page_limit)
+  # -- the viewer's, not `limit`, which the post-edit wiki tab leaves at 100.
   memoize def wiki_page_tags
     tags = without_hidden_names(wiki_page&.tags.to_a)
-
-    if tag&.category == TagCategory::CHARACTER
-      tags.reject { |t| t.category == TagCategory::GENERAL }
-    else
-      tags
-    end
+    tags = tags.reject { |t| t.category == TagCategory::GENERAL } if tag&.category == TagCategory::CHARACTER
+    tags.first(user.listing_per_page_limit)
   end
 
   def serializable_hash(options = {})

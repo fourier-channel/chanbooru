@@ -3,7 +3,8 @@
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <% 0.upto(@relation.maximum(:id).to_i / @limit) do |page| %>
     <% lo = page * @limit %>
-    <% hi = (page + 1) * @limit %>
+    <%# An inclusive range of @limit ids: (page + 1) * @limit is the next one's first. %>
+    <% hi = ((page + 1) * @limit) - 1 %>
     <% lastmod = @relation.where(id: lo..hi).maximum(:updated_at)&.iso8601 %>
     <% if @sitemap == "posts" %>
       <% loc = posts_url(limit: @limit, format: :sitemap, tags: "id:#{lo}..#{hi}") %>

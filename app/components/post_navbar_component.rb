@@ -12,8 +12,10 @@ class PostNavbarComponent < ApplicationComponent
     @search = search.presence || "status:any"
   end
 
+  # Every bar here walks post to post, so none is drawn below full browsing
+  # (the browsing tier; the walkers refuse it as well, ACCOUNT_LIMITS.md 2.2).
   def render?
-    has_search_navbar? || pools.any? || favgroups.any?
+    current_user.can_browse_freely? && (has_search_navbar? || pools.any? || favgroups.any?)
   end
 
   def pools

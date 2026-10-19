@@ -174,28 +174,6 @@ class FavoriteGroup < ApplicationRecord
     visible_post_ids.size
   end
 
-  def first_post?(post_id)
-    post_id == visible_post_ids.first
-  end
-
-  def last_post?(post_id)
-    post_id == visible_post_ids.last
-  end
-
-  def previous_post_id(post_id)
-    return nil if first_post?(post_id) || visible_post_ids.exclude?(post_id)
-
-    n = visible_post_ids.index(post_id) - 1
-    visible_post_ids[n]
-  end
-
-  def next_post_id(post_id)
-    return nil if last_post?(post_id) || visible_post_ids.exclude?(post_id)
-
-    n = visible_post_ids.index(post_id) + 1
-    visible_post_ids[n]
-  end
-
   def last_page
     (post_count / CurrentUser.user.per_page.to_f).ceil
   end

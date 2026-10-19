@@ -51,7 +51,9 @@ class AutocompleteService
     @query = query.to_s
     @type = type.to_s.to_sym
     @current_user = current_user
-    @limit = limit
+    # A list, so at most the viewer's page (User#listing_per_page_limit), here
+    # at its one source (ACCOUNT_LIMITS.md 2.4).
+    @limit = [limit.to_i, current_user.listing_per_page_limit].min
     @enabled = enabled
   end
 

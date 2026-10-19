@@ -319,11 +319,15 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
 
       should "open a featured creator's tag page 1 and nothing else" do
         assert_admitted "#{posts_path}?tags=featured_maker"
-        ["tags=featured_maker&page=2", "tags=featured_maker+1girl", "tags=featured_maker+order:random",
-         "tags=unfeatured_maker", "tags=featured_maker&page=b#{@made.first.id}", "tags=-featured_maker",
-         "tags=featured_maker&anchor=#{@made.first.id}", "tags=featured_maker&before=#{@made.last.id}",
-         "tags=featured_maker&variant=window&anchor=#{@made.first.id}"].each do |query|
+        ["tags=featured_maker+1girl", "tags=featured_maker+order:random",
+         "tags=unfeatured_maker", "tags=-featured_maker"].each do |query|
           assert_refused "#{posts_path}?#{query}", why: :narrowed
+        end
+        # Past page 1 is the browsing tier's to refuse (410), not this rule's.
+        ["tags=featured_maker&page=2", "tags=featured_maker&page=b#{@made.first.id}",
+         "tags=featured_maker&preset=modulation&anchor=#{@made.first.id}", "tags=featured_maker&preset=modulation&before=#{@made.last.id}",
+         "tags=featured_maker&preset=modulation&variant=window&anchor=#{@made.first.id}"].each do |query|
+          assert_admitted "#{posts_path}?#{query}", status: 410
         end
         assert_refused "/posts.json?tags=featured_maker", why: :narrowed
         assert_refused "/posts.atom?tags=featured_maker", why: :wrong_format
@@ -388,10 +392,15 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
       assert_admitted "#{posts_path}?page=1"
       assert_admitted "/posts.json"
       ["tags=id:1..20", "tags=id:21..40", "tags=order:random", "tags=1girl", "post[tags]=id:1..20",
-       "page=2", "page=b#{@newest.id}", "page=a1", "random=1", "md5=#{@old.md5}",
-       "anchor=#{@newest.id}", "anchor=#{@newest.id}~5", "anchor=@20", "before=#{@newest.id}",
-       "variant=window&anchor=#{@newest.id}"].each do |query|
+       "random=1", "md5=#{@old.md5}"].each do |query|
         assert_refused "#{posts_path}?#{query}", why: :narrowed
+      end
+      # Past page 1 -- a page, a cursor, the window's anchor or before -- is
+      # the browsing tier's to refuse (410), for every viewer below it.
+      ["page=2", "page=b#{@newest.id}", "page=a1",
+       "preset=modulation&anchor=#{@newest.id}", "preset=modulation&anchor=#{@newest.id}~#{@newest.id}", "preset=modulation&anchor=@20",
+       "preset=modulation&before=#{@newest.id}", "preset=modulation&variant=window&anchor=#{@newest.id}"].each do |query|
+        assert_admitted "#{posts_path}?#{query}", status: 410
       end
       assert_refused "/posts.atom", why: :wrong_format
       assert_refused "/posts.json?tags=md5:#{@old.md5}+id:1..20", why: :narrowed

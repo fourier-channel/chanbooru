@@ -1,10 +1,15 @@
+<%# The first page of the group is drawn to be dragged: a list of posts, so the
+    viewer's page (User#listing_per_page_limit). The rest go back with the
+    save by id, in their order, after the ones drawn -- so a reorder never
+    drops a post it did not draw (upstream drew 1,000 and dropped the rest). %>
+<% posts = @favorite_group.posts.includes(:media_asset).limit(CurrentUser.user.listing_per_page_limit).to_a %>
 <div id="c-favorite-group-orders">
   <div id="a-edit">
     <h1>Order Favorite Group: <%= @favorite_group.pretty_name %></h1>
     <p>Drag and drop the list below to determine ordering.</p>
 
     <ul id="sortable">
-      <% @favorite_group.posts.includes(:media_asset).limit(1_000).each do |post| %>
+      <% posts.each do |post| %>
         <%= tag.li id: "favorite_group[post_ids]_#{post.id}" do -%>
           <%= post_preview(post, show_deleted: true).presence || "Hidden: Post ##{post.id}" -%>
         <% end -%>
@@ -12,6 +17,9 @@
     </ul>
 
     <%= edit_form_for(@favorite_group, :format => :js, :html => {:id => "ordering-form"}) do |f| %>
+      <% (@favorite_group.visible_post_ids - posts.map(&:id)).each do |post_id| %>
+        <%= hidden_field_tag "favorite_group[post_ids][]", post_id, id: nil %>
+      <% end %>
       <%= submit_tag "Save" %>
     <% end %>
   </div>

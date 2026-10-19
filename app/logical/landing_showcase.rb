@@ -180,12 +180,10 @@ class LandingShowcase
 
   def posts_for(query)
     PostQuery.new(query, current_user: viewer)
-             # The viewer's ORDINARY page limit, passed explicitly so paginate does not
-             # read CurrentUser -- this class is handed a viewer precisely so it need
-             # not touch the thread-global. Deliberately not 1: that would make page 1
-             # the last allowed page, which puts paginate into a mode whose results are
-             # reversed, and "Newest Posts" would render oldest-first. See
-             # PostSets::Post#enforce_browsing_cap!.
+             # Paged for the viewer this class is handed (posts_with_timeout passes the
+             # query's user to paginate), and exempt from the browsing tier BY NAME:
+             # the hero band is the anonymous draw (operator, 2026-10-08), and capped
+             # at 20 its signed-out rows would run short (PaginationExtension::TIER_EXEMPT).
              # Fetch WIDE, then filter. The row wants PER_CATEGORY posts and the
              # filter below drops anything that is not a visible image or video, so a
              # window of exactly twice the target quietly returned short rows -- the
@@ -205,7 +203,7 @@ class LandingShowcase
              # 3s for an anonymous visitor but 9s for platinum and 60s in development,
              # which is not a cap on the front page, it is a cap on most of it.
              .posts_with_timeout(PER_CATEGORY * FETCH_WIDTH, timeout: QUERY_TIMEOUT_SECONDS * 1_000,
-                                                             includes: [:media_asset, :uploader], page_limit: viewer.page_limit)
+                                                             includes: [:media_asset, :uploader], tier_exempt: :hero_band)
              .select { |post| showable?(post) }
   rescue StandardError => e
     # The landing page is the first thing a stranger sees, so one bad category

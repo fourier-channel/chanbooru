@@ -14,18 +14,39 @@ class StaticControllerTest < ActionDispatch::IntegrationTest
   end
 
   context "sitemap action" do
+    # Each file the index lists is one page of its range, so the index pages
+    # by the page a file serves (User#listing_per_page_limit): a range wider
+    # than that left all but its first page unreachable, silently.
     [Artist, ForumTopic, Pool, Post, Tag, User, WikiPage].each do |klass|
-      should "work for #{klass.model_name.plural}" do
-        as(create(:user)) { create_list(klass.model_name.singular.to_sym, 3) }
-        # One page wider than every id: the index pages by id ranges of
-        # `limit`, and the test database keeps rows (the system user) while its
-        # sequences climb run after run, so at the default 10,000 the new rows
-        # land in a second page once a sequence crosses a multiple of it.
-        get sitemap_path(sitemap: klass.model_name.plural, limit: (2**31) - 1), as: :xml
+      should "list #{klass.model_name.plural} files that each serve their whole range" do
+        Danbooru.config.stubs(:restricted_browsing_per_page).returns(2)
+        member = create(:user)
+        as(member) { create_list(klass.model_name.singular.to_sym, 3) }
+        relation = { Tag => Tag.nonempty, Artist => Artist.undeleted, ForumTopic => ForumTopic.undeleted, Pool => Pool.undeleted, WikiPage => WikiPage.undeleted }.fetch(klass, klass.all)
 
-        assert_response :success
-        assert_equal(1, response.parsed_body.css("sitemap loc").size)
+        [member, create(:restricted_user)].each do |viewer|
+          login_as(viewer)
+          get sitemap_path(sitemap: klass.model_name.plural), as: :xml
+          assert_response :success
+          locs = response.parsed_body.css("sitemap loc").map { |loc| Addressable::URI.parse(loc.text) }
+          assert_not_empty(locs)
+          locs.each do |uri|
+            range = uri.query_values["tags"]&.delete_prefix("id:") || uri.query_values["search[id]"]
+            lo, hi = range.split("..").map(&:to_i)
+            assert_operator(hi - lo + 1, :<=, viewer.listing_per_page_limit, "#{viewer.level_string}: #{uri} is wider than one page")
+            get uri.request_uri
+            assert_response :success, uri.to_s
+            served = Nokogiri::XML(response.body).remove_namespaces!.css("url > loc").size
+            assert_equal(relation.where(id: lo..hi).count, served, "#{viewer.level_string}: #{uri}")
+            assert_operator(served, :<=, viewer.listing_per_page_limit)
+          end
+        end
       end
+    end
+
+    should "serve an index for a limit of zero" do
+      get sitemap_path(sitemap: "pools", limit: 0), as: :xml
+      assert_response :success
     end
 
     should "work when the sitemap is empty" do

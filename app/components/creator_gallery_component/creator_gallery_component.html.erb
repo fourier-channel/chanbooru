@@ -50,7 +50,7 @@
     </div>
   <% end %>
 
-  <% posts = featured_posts %>
+  <% posts = shown_posts %>
   <% if posts.any? %>
     <div class="modcreator-gallery">
       <% posts.each_with_index do |post, i| %>
@@ -64,6 +64,19 @@
         </a>
       <% end %>
     </div>
+    <% if locked_count > 0 %>
+      <%# Past the browsing tier's page: the notice, then one empty card a post.
+          Nothing in these cards is the post's -- no id, URL, tag or link. %>
+      <p class="modcreator-more">
+        <%= member? ? "A full account sees the rest." : "Sign in to see more!" %>
+        <span class="modcreator-more-count"><%= pluralize(locked_count, "more post") %> in this gallery</span>
+      </p>
+      <div class="modcreator-gallery modcreator-gallery--locked" aria-hidden="true">
+        <% locked_count.times do %>
+          <div class="modcreator-card modcreator-card--locked"></div>
+        <% end %>
+      </div>
+    <% end %>
   <% else %>
     <p class="modcreator-empty">No featured posts yet.</p>
   <% end %>

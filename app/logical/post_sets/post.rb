@@ -8,7 +8,6 @@ module PostSets
   class Post
     extend Memoist
 
-    MAX_PER_PAGE = 200
     MAX_SIDEBAR_TAGS = 25
     MAX_WILDCARD_TAGS = PostQueryBuilder::MAX_WILDCARD_TAGS
 
@@ -132,45 +131,37 @@ module PostSets
     # In the Modulation gallery the window sizes the page, not the account's
     # "posts per page" or a limit: term: the box is WINDOW_SLOTS whatever
     # they say, and the run behind it is the window's to size.
+    #
+    # Clamped to the viewer's page (User#listing_per_page_limit) here as well
+    # as in paginate, because it is read before the query: the Random
+    # button's random:N and the gallery's cut-off note.
     def per_page
       if window && windowing?
         (window == :chunk) ? (@per_page || WINDOW_CHUNK).to_i.clamp(WINDOW_CHUNK, WINDOW_CHUNK_MAX) : WINDOW_CHUNK
       elsif window
-        [WINDOW_SLOTS, max_per_page].min
+        [WINDOW_SLOTS, current_user.listing_per_page_limit].min
       else
-        (@per_page || post_query.find_metatag(:limit) || CurrentUser.user.per_page).to_i.clamp(0, max_per_page)
+        (@per_page || post_query.find_metatag(:limit) || current_user.per_page).to_i.clamp(0, current_user.listing_per_page_limit)
       end
-    end
-
-    def max_per_page
-      # A restricted viewer's ceiling clamps ?limit= as well, because per_page
-      # clamps to this -- otherwise the whole restriction would be one query
-      # parameter wide.
-      return Danbooru.config.restricted_browsing_per_page.to_i unless current_user.can_browse_freely?
-
-      (format.to_sym == :sitemap) ? 10_000 : MAX_PER_PAGE
     end
 
     def posts
       post_query.validate_tag_limit!
-      enforce_browsing_cap!
       check_window!
       # A chunk counts nothing: the page it extends already showed the count.
       # Except a random draw, where the count is what decides between a true
       # shuffle and a sample (PostQueryBuilder#paginated_posts).
       count = (window == :chunk && window_kind != :draw) ? nil : post_count
-      # page_limit is the viewer's ORDINARY app-wide limit, passed explicitly so
-      # paginate does not fall back to reading CurrentUser -- this set is handed
-      # a user, and is built outside a request in tests and in the showcase. The
-      # browsing cap is enforced above instead; see enforce_browsing_cap! for
-      # why it must not be expressed here.
-      window_query.paginated_posts(page, includes: includes, count: count, search_count: !count.nil?, limit: per_page, max_limit: max_per_page, page_limit: current_user.page_limit, seek: seek).load
+      # viewer: this set is handed a user, and is built outside a request in
+      # tests; paginate asks it, not CurrentUser, for the browsing tier.
+      window_query.paginated_posts(page, includes: includes, count: count, search_count: !count.nil?, limit: per_page, seek: seek, viewer: current_user).load
     end
 
     # Whether this set is the window: the Modulation gallery, for a viewer who
     # may browse, under an order with a place to keep -- or a random draw,
     # which the window extends with fresh draws. An old `page=b<id>` link is
-    # served as it always was, outside the window.
+    # served as it always was, outside the window. This decides what is
+    # DRAWN; a cursor is refused below the tier by paginate (#seek).
     def windowing?
       window.present? && current_user.can_browse_freely? && window_kind != :refused && !page.to_s.match?(/\A[ab]\d+\z/i)
     end
@@ -197,8 +188,13 @@ module PostSets
     # The cursor this set pages from: an anchor, a before, an old `page=N`
     # read as the position it showed, or the head of the search. nil outside
     # the window and for a random draw.
+    #
+    # An anchor or a before becomes a seek for EVERY viewer, so a viewer below
+    # the browsing tier is refused by paginate (a seek that names a place),
+    # never handed page 1 for a cursor (ACCOUNT_LIMITS.md section 4).
     def seek
-      return nil unless windowing? && window_kind != :draw
+      return nil if window.nil? || window_kind == :draw || page.to_s.match?(PaginationExtension::CURSOR)
+      return nil unless windowing? || anchor || before
 
       direction = before ? :backward : :forward
       cursor = anchor || before
@@ -278,32 +274,6 @@ module PostSets
       end
     end
 
-    # The browsing tier's page cap, enforced here rather than by handing the cap
-    # to paginate as its page_limit.
-    #
-    # Passing page_limit: 1 looked equivalent and was not. paginate has a branch
-    # for "you are on the last page you are allowed" that switches the paginator
-    # into sequential_after mode while still building numbered SQL -- and
-    # PaginationExtension#records REVERSES results in that mode, because a real
-    # sequential-after query fetches ascending and has to be flipped for display.
-    # This one had not been. The visible effect was that every signed-out visitor
-    # saw the gallery oldest-first: page 1 was also the last allowed page, so the
-    # equality branch fired on every request they ever made.
-    #
-    # Upstream never reaches it because its smallest page_limit is 1000. Raising
-    # the error ourselves keeps the 410 and the message while leaving paginate on
-    # the numbered path it was written for.
-    def enforce_browsing_cap!
-      cap = current_user.post_page_limit
-      # A cursor page (b<id> / a<id>, or the gallery window's anchor= and
-      # before=) has no number -- current_page reads it as 1 -- and walks past
-      # whatever place it names, so the one-page tier gets none.
-      cursor = (page.to_s.match?(/\A[ab]\d+\z/i) || anchor || before) && !current_user.can_browse_freely?
-      return if current_page <= cap && !cursor
-
-      raise PaginationExtension::PaginationError, "You cannot go beyond page #{cap}."
-    end
-
     # @return [Integer, nil] The number of posts returned by the search, or nil if unknown.
     def post_count
       return 0 if artist.present? && artist.is_banned? && !current_user.is_approver?
@@ -370,6 +340,10 @@ module PostSets
       # -- the viewer's own upload, or one its creator let them in to -- whose
       # gated name is shown on that post's own tag list and in no listing
       # (operator, 2026-10-14: gated tag names follow the post).
+      #
+      # And a list of tags, so at most the viewer's page
+      # (User#listing_per_page_limit): a wildcard drew 100 of them for a viewer
+      # /tags holds to 20.
       def sidebar_tags
         hidden = Tag.hidden_names_for(current_user, by_creator: false).to_set
         if artist.present? && artist.is_banned? && !current_user.is_approver?
@@ -390,7 +364,7 @@ module PostSets
           sort_sidebar_tags(similar_tags.presence || frequent_tags)
         else
           sort_sidebar_tags(frequent_tags)
-        end.reject { |tag| hidden.include?(tag.name) }
+        end.reject { |tag| hidden.include?(tag.name) }.first(current_user.listing_per_page_limit)
       end
 
       # Sort the list of tags by category. For artist, character, and copyright tags, subsort them by post count. For

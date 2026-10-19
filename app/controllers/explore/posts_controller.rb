@@ -27,7 +27,10 @@ module Explore
     private
 
     def parse_date(params)
-      date = params[:date].present? ? Date.parse(params[:date]) : Date.today
+      # Fork: Date.current, the site's day, which the window below is built in.
+      # Date.today is the server clock's, and for the hours its day ran ahead
+      # of the site's, "today" was a window no post had reached yet.
+      date = params[:date].present? ? Date.parse(params[:date]) : Date.current
       scale = params[:scale].in?(["day", "week", "month"]) ? params[:scale] : "day"
       min_date = date.send("beginning_of_#{scale}")
       max_date = date.send("next_#{scale}").send("beginning_of_#{scale}")

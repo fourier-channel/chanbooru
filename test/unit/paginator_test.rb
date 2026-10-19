@@ -1,9 +1,11 @@
 require "test_helper"
 
 class PaginatorTest < ActiveSupport::TestCase
+  # A full account: these measure the paginator's own mechanics, which the
+  # browsing tier (browsing_tier_test.rb) bounds for a viewer below it.
   setup do
     @posts = create_list(:post, 5)
-    CurrentUser.user = User.anonymous
+    CurrentUser.user = create(:user)
   end
 
   teardown do
@@ -88,6 +90,34 @@ class PaginatorTest < ActiveSupport::TestCase
       assert_equal(false, Post.paginate(5, limit: 1).is_first_page?)
       assert_equal(true, Post.paginate(5, limit: 1).is_last_page?)
       assert_equal(true, Post.paginate(6, limit: 1).is_last_page?)
+    end
+  end
+
+  # THE LAST ALLOWED PAGE (ACCOUNT_LIMITS.md 2.0). paginate switched to
+  # sequential_after mode on page == page_limit while still building numbered
+  # SQL, and #records reverses that mode's rows: the page came out backward,
+  # with no current_page and a "next" pointing back into itself. Upstream hits
+  # it for a Member on exactly page 1000; a one-page tier hits it on page 1.
+  context "the last page a viewer may reach" do
+    setup do
+      create_list(:post, 2)
+    end
+
+    should "list the same rows in the same order as that page under a higher limit" do
+      numbered = Post.order(id: :desc).paginate(3, limit: 2, page_limit: 4)
+      last = Post.order(id: :desc).paginate(3, limit: 2, page_limit: 3)
+
+      assert_equal(2, numbered.size, "fixture: page 3 holds two rows, so a reversal shows")
+      assert_equal(numbered.map(&:id), last.map(&:id))
+      assert_equal(:numbered, last.paginator_mode)
+      assert_equal(3, last.current_page)
+    end
+
+    should "go back by number, and on only by a cursor for a viewer who may use one" do
+      last = Post.order(id: :desc).paginate(3, limit: 2, page_limit: 3)
+
+      assert_equal(2, last.prev_page)
+      assert_equal("b#{last.records.last.id}", last.next_page)
     end
   end
 end

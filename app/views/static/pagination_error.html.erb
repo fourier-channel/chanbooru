@@ -5,9 +5,11 @@
 <p>
   <%= @message %>
 
+  <%# Below full browsing the message is the browsing tier's and names its own
+      fix (PaginationExtension::BrowsingCapError): page_limit is not theirs. %>
   <% if CurrentUser.is_gold? %>
     Try narrowing your search terms.
-  <% else %>
+  <% elsif CurrentUser.user.can_browse_freely? %>
     Try narrowing your search terms, or <%= link_to "upgrade your account", new_user_upgrade_path  %> to go beyond page <%= CurrentUser.user.page_limit %>.
   <% end %>
 </p>

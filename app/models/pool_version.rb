@@ -30,10 +30,19 @@ class PoolVersion < ApplicationRecord
     @hidden_post_ids.visible(ids)
   end
 
+  # `ids` as `user` is shown them: without the hidden posts and, below full
+  # browsing, their first page, as a pool's own array is (PostIdList
+  # #serializable_hash; ACCOUNT_LIMITS.md 2.3). The JSON arrays and the HTML
+  # diff (PoolVersionsHelper) both ask this, so the two cannot differ.
+  def shown_ids(ids, user = CurrentUser.user)
+    visible = visible_ids(ids, user)
+    user.can_browse_freely? ? visible : visible.first(user.listing_per_page_limit)
+  end
+
   def serializable_hash(...)
     hash = super
     %w[post_ids added_post_ids removed_post_ids].each do |key|
-      hash[key] = visible_ids(hash[key]) if hash[key].is_a?(Array)
+      hash[key] = shown_ids(hash[key]) if hash[key].is_a?(Array)
     end
     hash
   end

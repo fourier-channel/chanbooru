@@ -25,6 +25,18 @@ class LandingShowcaseCacheTest < ActiveSupport::TestCase
       assert_equal [1, 2, 3], LandingShowcaseCache.read(creators_row)[:ids]
     end
 
+    # Each creator's search is the hero band's, so exempt from the browsing
+    # tier (TIER_EXEMPT): run as anonymous, it would otherwise find the
+    # viewer's page of posts, not PER_TAG.
+    should "find PER_TAG posts a creator whatever the browsing cap" do
+      Danbooru.config.stubs(:restricted_browsing_per_page).returns(2)
+      user = create(:user)
+      ids = as(user) { Array.new(LandingShowcaseCache::PER_TAG) { create(:post, tag_string: "alpha", rating: "g") } }.map(&:id)
+
+      LandingShowcaseCache.refresh!(creators_row)
+      assert_equal ids.sort, LandingShowcaseCache.read(creators_row)[:ids].sort
+    end
+
     should "store the rest when only one search fails" do
       PostQuery.any_instance.stubs(:posts_with_timeout).raises(ActiveRecord::QueryCanceled).then.returns([stub(id: 8)])
 

@@ -20,7 +20,7 @@
     <% end %>
 
     <div id="wiki-page-body" class="dtext prose">
-      <%= @wiki_page_version.dtext_body.format_text %>
+      <%= @wiki_page_version.dtext_body.format_text(current_user: CurrentUser.user) %>
     </div>
   </div>
 <% end %>

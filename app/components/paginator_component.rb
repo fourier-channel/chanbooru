@@ -31,7 +31,9 @@ class PaginatorComponent < ApplicationComponent
     if page.nil?
       tag.span anchor, **options
     else
-      hidden = paginator_mode == :numbered && page > paginator_page_limit
+      # A cursor ("b<id>") is the way on past the last numbered page, for a
+      # viewer who may use one (PaginationExtension#next_page).
+      hidden = paginator_mode == :numbered && page.is_a?(Integer) && page > paginator_page_limit
       link_to anchor, url_for_page(page), **options, hidden: hidden
     end
   end

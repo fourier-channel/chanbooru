@@ -97,12 +97,25 @@ class DText
 
     fragment = parsed_html.dup
 
-    fragment.css("media-embed").each do |node|
-      replace_media_embed!(node, posts: references[:posts], media_assets: references[:media_assets], current_user:)
+    # Fork: embeds are lists -- of pictures, and of the alias, implication and
+    # BUR records [ta:N] [ti:N] [bur:N] draw -- so each holds at most the
+    # viewer's page (User#listing_per_page_limit; ACCOUNT_LIMITS.md 2.4): past
+    # it an embed is drawn as unavailable and says why. The viewer is
+    # `current_user`, so a caller rendering for a real viewer passes them.
+    page = current_user.listing_per_page_limit
+    past_page = current_user.can_browse_freely? ? "Embeds past the first #{page} are not drawn: a page holds #{page} at most." : "Embeds past the first #{page} are for a full account."
+    fragment.css("media-embed").each_with_index do |node, i|
+      shown = i < page
+      replace_media_embed!(node, posts: shown ? references[:posts] : [], media_assets: shown ? references[:media_assets] : [], current_user:)
+      node.at_css(".media-embed-caption")&.content = past_page unless shown
     end
 
-    fragment.css("tag-request-embed").each do |node|
-      replace_tag_request_embed!(node, tag_aliases: references[:tag_aliases], tag_implications: references[:tag_implications], bulk_update_requests: references[:bulk_update_requests])
+    fragment.css("tag-request-embed").each_with_index do |node, i|
+      if i < page
+        replace_tag_request_embed!(node, tag_aliases: references[:tag_aliases], tag_implications: references[:tag_implications], bulk_update_requests: references[:bulk_update_requests])
+      else
+        node.replace(DText.parse("#{node["data-type"].tr("-", " ")} ##{node["data-id"].to_i}: #{past_page}"))
+      end
     end
 
     fragment.css("a.dtext-wiki-link").each do |node|

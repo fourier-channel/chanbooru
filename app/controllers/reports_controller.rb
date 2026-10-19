@@ -15,7 +15,9 @@ class ReportsController < ApplicationController
     @to = params.dig(:search, :to) || Time.zone.now
     @columns = params.dig(:search, :columns).to_s.split(/[[:space:],]/).map(&:to_sym)
     @group = params.dig(:search, :group)&.downcase&.tr(" ", "_")
-    @group_limit = params.dig(:search, :group_limit)&.to_i || 10
+    # Fork: a grouped report is a list of one row a group (an uploader, an
+    # approver...), so at most the viewer's page (User#listing_per_page_limit).
+    @group_limit = (params.dig(:search, :group_limit) || 10).to_i.clamp(1, CurrentUser.user.listing_per_page_limit)
     authorize nil, policy_class: ReportPolicy
 
     case @report

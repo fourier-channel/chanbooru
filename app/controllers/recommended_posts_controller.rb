@@ -8,7 +8,7 @@ class RecommendedPostsController < ApplicationController
   def index
     # Fork: a listing of posts -- members only (MembersOnly).
     MembersOnly.post_listing!(CurrentUser.user)
-    limit = params.fetch(:limit, 100).to_i.clamp(0, 200)
+    limit = params.fetch(:limit, 100).to_i.clamp(0, CurrentUser.user.listing_per_page_limit)
     @recs = RecommenderService.search(search_params).take(limit)
     @posts = @recs.pluck(:post)
 

@@ -25,30 +25,70 @@
 # a time, forward from an anchor or backward before one. It takes no page
 # number: `page` is ignored when a seek is given.
 #
+# Fork: THE BROWSING TIER IS ENFORCED HERE (ACCOUNT_LIMITS.md 2.1), at the
+# one place every list passes through -- posts, and tags, users, wiki pages,
+# artists and the rest (operator, 2026-10-18: "every listing"). For a viewer
+# below full browsing (User#can_browse_freely?) a list is one page of at most
+# User#listing_per_page_limit records: page 2, any a/b cursor, and a seek that
+# names a place are refused (BrowsingCapError, 410). Nothing here knows which
+# model it pages, so a list added later is bounded without knowing. The one
+# way past is by name, from TIER_EXEMPT.
 module PaginationExtension
   class PaginationError < StandardError; end
 
-  attr_accessor :current_page, :records_per_page, :paginator_count, :paginator_mode, :paginator_page_limit, :paginator_seek
+  # The tier's refusal: a page, a cursor or a walk past what a viewer below
+  # full browsing gets. A PaginationError, so it answers 410.
+  class BrowsingCapError < PaginationError
+    def initialize(viewer)
+      super("This account sees one page of each list, #{viewer.listing_per_page_limit} at most, with no next or previous. " \
+            "Fix: a full account browses further; ask staff for one.")
+    end
+  end
+
+  # A surface that is not bounded by the tier, by name and with the reason
+  # (the pattern of MembersOnly::ANONYMOUS_DOORS): bounded unless it opts out
+  # here. An unknown name raises.
+  TIER_EXEMPT = {
+    hero_band: "operator 2026-10-08: the anonymous draw; its scope is the enabled rows the operator chose (a834a630f)",
+  }.freeze
+
+  # A cursor page: after or before an id.
+  CURSOR = /\A[ab]\d+\z/i
+
+  attr_accessor :current_page, :records_per_page, :paginator_count, :paginator_mode, :paginator_page_limit, :paginator_seek, :paginator_cursors
 
   # Paginate an ActiveRecord relation. Returns a relation for the given page and number of posts per page.
   #
   # @param page [String] the page number, or an "aNNN" or "bNNN" string
   # @param limit [Integer] the number of posts per page
-  # @param max_limit [Integer] the maximum number of posts per page the user can view
-  # @param page_limit [Integer] the highest page the user can view
+  # @param max_limit [Integer] the most records per page this surface serves (the viewer's own ceiling applies too)
+  # @param page_limit [Integer] the highest page this surface serves (default: the viewer's)
   # @param count [Integer] the precalculated number of search results, or nil to calculate it
   # @param search_count [Object] if truthy, don't calculate the number of results; assume a large number of results
   # @param seek [PostNeighbors::Seek, nil] page from this cursor instead (the gallery window)
-  def paginate(page, limit: nil, max_limit: 1000, page_limit: CurrentUser.user.page_limit, count: nil, search_count: nil, seek: nil) # rubocop:disable Metrics/ParameterLists
+  # @param viewer [User] whose limits apply: pass it wherever CurrentUser is not the viewer
+  # @param tier_exempt [Symbol, nil] a TIER_EXEMPT key
+  def paginate(page, limit: nil, max_limit: User::MAX_PER_PAGE, page_limit: nil, count: nil, search_count: nil, seek: nil, viewer: CurrentUser.user, tier_exempt: nil) # rubocop:disable Metrics/ParameterLists
+    raise ArgumentError, "paginate has no viewer: CurrentUser is unset outside a request. Fix: pass viewer:." if viewer.nil?
+    raise ArgumentError, "#{tier_exempt.inspect} is not a TIER_EXEMPT key. Fix: add it to PaginationExtension::TIER_EXEMPT with its reason, or drop tier_exempt:." if tier_exempt && !TIER_EXEMPT.key?(tier_exempt)
+
+    capped = tier_exempt.nil? && !viewer.can_browse_freely?
+    page_limit ||= viewer.page_limit
+    page_limit = [page_limit, viewer.listing_page_limit].min if capped
+    max_limit = [max_limit, tier_exempt ? User::MAX_PER_PAGE : viewer.listing_per_page_limit].min
+
     @records_per_page = limit || Danbooru.config.posts_per_page
     @records_per_page = @records_per_page.to_i.clamp(1, max_limit)
     @paginator_page_limit = page_limit
+    @paginator_cursors = !capped
 
     if count.present?
       @paginator_count = count
     elsif !search_count.nil? && search_count.blank?
       @paginator_count = Float::INFINITY
     end
+
+    raise BrowsingCapError, viewer if capped && (page.to_s.match?(CURSOR) || seek&.place? || page.to_i > page_limit)
 
     if seek
       paginate_seek(seek, records_per_page, page_limit)
@@ -60,10 +100,11 @@ module PaginationExtension
       paginate_sequential_after($1, records_per_page)
     elsif page.to_i > page_limit
       raise PaginationError, "You cannot go beyond page #{page_limit}."
-    elsif page.to_i == page_limit
-      @paginator_mode = :sequential_after
-      paginate_numbered(page.to_i, records_per_page)
     else
+      # The last page a viewer may reach is numbered like every other: it
+      # once switched to sequential_after here while building numbered SQL,
+      # and #records reversed it (ACCOUNT_LIMITS.md 2.0). #next_page goes on
+      # from it by cursor, for a viewer who may use one.
       @paginator_mode = :numbered
       @current_page = [page.to_i, 1].max
 
@@ -143,8 +184,10 @@ module PaginationExtension
   def next_page
     if is_last_page?
       nil
-    elsif paginator_mode == :numbered
+    elsif paginator_mode == :numbered && current_page < paginator_page_limit
       current_page + 1
+    elsif paginator_mode == :numbered
+      "b#{records.last.id}" if paginator_cursors && records.present?
     elsif records.present?
       "b#{records.last.id}"
     else

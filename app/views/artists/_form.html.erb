@@ -11,7 +11,7 @@
     </div>
 
     <div class="prose">
-      <%= @artist.wiki_page.dtext_body.format_text %>
+      <%= @artist.wiki_page.dtext_body.format_text(current_user: CurrentUser.user) %>
     </div>
   <% end %>
 

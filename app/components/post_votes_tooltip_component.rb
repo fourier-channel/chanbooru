@@ -12,8 +12,10 @@ class PostVotesTooltipComponent < ApplicationComponent
     @current_user = current_user
   end
 
+  # Fork: a list of users, so at most the viewer's page
+  # (User#listing_per_page_limit; ACCOUNT_LIMITS.md: every list is bounded).
   def votes
-    @post.votes.active.includes(:user).order(id: :desc)
+    @post.votes.active.includes(:user).order(id: :desc).limit(current_user.listing_per_page_limit)
   end
 
   def vote_icon(vote)

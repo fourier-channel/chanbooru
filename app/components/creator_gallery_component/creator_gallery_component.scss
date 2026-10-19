@@ -92,6 +92,21 @@ body:has(.modcreator) {
   }
   .modcreator-empty { color: var(--mod-ink-dim); text-align: center; padding: 2.5rem 0; }
 
+  // Past the browsing tier's page: the notice, then empty cards the size of
+  // the ones above, so the gallery reads as long as it is.
+  .modcreator-more {
+    margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem;
+    color: var(--mod-ink); font-weight: 550;
+  }
+
+  .modcreator-more-count { color: var(--mod-ink-dim); font-weight: 400; font-size: 0.85rem; }
+
+  .modcreator-card--locked {
+    aspect-ratio: 1 / 1; min-height: 120px;
+    background: repeating-linear-gradient(45deg, var(--mod-surface) 0 6px, var(--mod-surface-2) 6px 12px);
+    &:hover { border-color: var(--mod-line); transform: none; }
+  }
+
   // ============ STYLE VARIANTS ============
   // grid -- uniform responsive squares
   &.modcreator--grid .modcreator-gallery {

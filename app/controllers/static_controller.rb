@@ -40,7 +40,11 @@ class StaticController < ApplicationController
 
   def sitemap_index
     @sitemap = params[:sitemap]
-    @limit = params.fetch(:limit, 10_000).to_i
+    # Fork: each file the index lists is one page of its id range, and a page
+    # is the viewer's (User#listing_per_page_limit), so a range is no wider: a
+    # range of 10,000 served its first page and left the rest unreachable.
+    page = CurrentUser.user.listing_per_page_limit
+    @limit = params.fetch(:limit, page).to_i.clamp(1, page)
 
     case @sitemap
     when "artists"

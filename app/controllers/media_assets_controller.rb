@@ -4,7 +4,7 @@ class MediaAssetsController < ApplicationController
   respond_to :html, :json, :xml, :js
 
   def index
-    @limit = params.fetch(:limit, CurrentUser.user.per_page).to_i.clamp(0, PostSets::Post::MAX_PER_PAGE)
+    @limit = params.fetch(:limit, CurrentUser.user.per_page).to_i.clamp(0, CurrentUser.user.listing_per_page_limit)
     @preview_size = params[:size].presence || cookies[:post_preview_size].presence || MediaAssetGalleryComponent::DEFAULT_SIZE
 
     @media_assets = authorize MediaAsset.visible(CurrentUser.user).paginated_search(params, limit: @limit, count_pages: false)

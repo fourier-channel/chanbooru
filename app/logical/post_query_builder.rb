@@ -168,7 +168,7 @@ class PostQueryBuilder
     end
 
     if count = post_query.find_metatag(:random)
-      count = Integer(count).clamp(0, PostSets::Post::MAX_PER_PAGE)
+      count = Integer(count).clamp(0, User::MAX_PER_PAGE)
       relation = relation.random(count)
     end
 

@@ -66,6 +66,8 @@ class ApplicationControllerTest < ActionDispatch::IntegrationTest
       end
     end
 
+    # Signed out, page 2 is already past the browsing tier; a Member measures
+    # the page limit itself.
     context "on a PaginationError" do
       should "return 410 Gone even with a bad file extension" do
         get posts_path(page: 999_999_999), as: :json
@@ -76,6 +78,12 @@ class ApplicationControllerTest < ActionDispatch::IntegrationTest
 
         get posts_path(page: 999_999_999), as: :blah
         assert_response 410
+      end
+
+      should "return 410 Gone to a Member past the page limit" do
+        get_auth posts_path(page: 1001), create(:user), as: :json
+        assert_response 410
+        assert_equal("PaginationExtension::PaginationError", response.parsed_body["error"])
       end
     end
 

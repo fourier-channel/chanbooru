@@ -55,9 +55,45 @@ module PostIdList
     self.post_ids = after.fetch(nil, []) + post_ids.flat_map { |id| [id, *after.delete(id)] }
   end
 
+  # The post before and after `post_id` in this list, for `user`: a walk,
+  # so the browsing tier's (ACCOUNT_LIMITS.md 2.2). Below full browsing it is
+  # refused, and the post page draws no pool or favorite group bar
+  # (PostNavbarComponent#render?).
+  def previous_post_id(post_id, user = CurrentUser.user)
+    neighbour_id(post_id, -1, user)
+  end
+
+  def next_post_id(post_id, user = CurrentUser.user)
+    neighbour_id(post_id, 1, user)
+  end
+
+  # Below full browsing the array is the first page of the list, the same
+  # first page the record's own page shows: pools/N.json was one request for
+  # the whole pool whatever `limit` said (ACCOUNT_LIMITS.md 2.3).
+  #
+  # Except to the record's own creator (a favorite group's; a pool has none):
+  # those are the ids they wrote, the edit form shows them whole, and an API
+  # client writing back a cut array -- read, append one, save -- dropped the
+  # rest of its own group.
   def serializable_hash(...)
     hash = super
-    hash["post_ids"] = visible_post_ids if hash.key?("post_ids")
+    if hash.key?("post_ids")
+      viewer = CurrentUser.user
+      ids = visible_post_ids(viewer)
+      whole = viewer.can_browse_freely? || (respond_to?(:creator_id) && creator_id == viewer.id)
+      hash["post_ids"] = whole ? ids : ids.first(viewer.listing_per_page_limit)
+    end
     hash
+  end
+
+  private
+
+  # XXX finds the first copy when the list holds a post twice (#2042).
+  def neighbour_id(post_id, step, user)
+    raise PaginationExtension::BrowsingCapError, user unless user.can_browse_freely?
+
+    ids = visible_post_ids(user)
+    at = ids.index(post_id)
+    ids[at + step] if at && (at + step).between?(0, ids.size - 1)
   end
 end

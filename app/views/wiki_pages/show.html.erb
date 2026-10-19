@@ -36,7 +36,7 @@
         <% end %>
       </p>
     <% else %>
-      <%= @wiki_page.dtext_body.format_text %>
+      <%= @wiki_page.dtext_body.format_text(current_user: CurrentUser.user) %>
     <% end %>
 
     <% if @wiki_page.artist.present? && !@wiki_page.artist.is_deleted? %>

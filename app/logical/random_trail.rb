@@ -83,7 +83,15 @@ class RandomTrail
   # the depth: candidates past the first fresh one come from the client's
   # next hop, which rolls again at the new frontier. A side has no more only
   # when its roll came back empty and the window reaches that end.
+  #
+  # A walk, so the browsing tier's backstop (ACCOUNT_LIMITS.md 2.2): the post
+  # view asks User#can_browse_freely? before it gets here, and a viewer below
+  # full browsing is refused here whatever asked. With no account, the viewer
+  # is the anonymous one.
   def neighbours_for(post, depth: 1, &roll)
+    viewer = @viewer || User.anonymous
+    raise PaginationExtension::BrowsingCapError, viewer unless viewer.can_browse_freely?
+
     @anchor = post.id
     i = @ids.index(post.id)
     if i.nil?

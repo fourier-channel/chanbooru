@@ -85,6 +85,11 @@ class User < ApplicationRecord
   # fills from its own storage. Changing it never touches existing accounts.
   DEFAULT_BLACKLIST = ""
 
+  # The largest page any list serves, to anyone (operator, 2026-10-18: "one
+  # page size for every list: 200 for full accounts, 20 below"). The ceiling
+  # of the per_page preference too. See #listing_per_page_limit.
+  MAX_PER_PAGE = 200
+
   # The number of backup codes to generate for a user.
   MAX_BACKUP_CODES = 3
 
@@ -138,7 +143,7 @@ class User < ApplicationRecord
   validates :name, user_name: true, on: :create
   validates :password, length: { minimum: 5 }, if: ->(rec) { rec.new_record? || rec.password.present? }
   validates :default_image_size, inclusion: { in: %w[large original] }
-  validates :per_page, inclusion: { in: (1..PostSets::Post::MAX_PER_PAGE) }
+  validates :per_page, inclusion: { in: (1..MAX_PER_PAGE) }
   validates :password, confirmation: { message: "Passwords don't match" }
   validates :comment_threshold, inclusion: { in: (-100..5) }
   validates :level, inclusion: { in: User::Levels.constants.map { |c| User::Levels.const_get(c) }}, if: :level_changed?
@@ -735,9 +740,11 @@ class User < ApplicationRecord
       # anon two." The number of tags does not predict a search's cost -- the
       # mix of tag sizes does (production: 12 common tags 87 ms, 3 tags of
       # mixed sizes 2 s) -- and the statement timeout bounds every search
-      # whatever its length. Signed-out viewers and restricted accounts keep 2.
+      # whatever its length. Signed-out viewers and restricted accounts keep 2:
+      # the population below full browsing, so the two move together if the
+      # threshold does.
       def tag_query_limit(level)
-        if level >= User::Levels::MEMBER
+        if level >= Danbooru.config.full_browsing_level.to_i
           Float::INFINITY
         else
           2
@@ -796,21 +803,35 @@ class User < ApplicationRecord
       User.page_limit(level)
     end
 
+    # THE BROWSING TIER, asked of the user (ACCOUNT_LIMITS.md section 1).
+    # Operator, 2026-10-17: "If an account has a certain limit on one surface
+    # it should have that limit across all surfaces." So these three are the
+    # one place the answer lives, derived from level like page_limit and the
+    # statement timeout, and every surface asks them: PaginationExtension
+    # #paginate for every list, the walkers for "the next post", and each
+    # unpaged list at its one source. full_browsing_level and
+    # restricted_browsing_per_page are read here and nowhere else.
+
     # Whether this viewer may browse the archive rather than only see what they
-    # are pointed at. See Danbooru.config.full_browsing_level for what the
-    # restriction is and is not.
+    # are pointed at: use a cursor, a page past the first, or the next post.
+    # See Danbooru.config.full_browsing_level for what the restriction is and
+    # is not.
     def can_browse_freely?
       level >= Danbooru.config.full_browsing_level.to_i
     end
 
-    # The highest page of POST results this viewer may reach.
-    #
-    # Deliberately not folded into #page_limit: that one is the default for
-    # every paginated resource in the app, so lowering it would silently cap the
-    # forum, comments and tag lists too. The restriction is about browsing the
-    # archive, and nothing else.
-    def post_page_limit
+    # The highest page of ANY list this viewer may reach: one below full
+    # browsing (operator, 2026-10-18: "every listing", posts and tags, users,
+    # wiki and artists alike).
+    def listing_page_limit
       can_browse_freely? ? page_limit : 1
+    end
+
+    # The most records a page of any list holds for this viewer: a ceiling,
+    # not a default, so it clamps ?limit= too, or the restriction would be one
+    # query parameter wide.
+    def listing_per_page_limit
+      can_browse_freely? ? MAX_PER_PAGE : Danbooru.config.restricted_browsing_per_page.to_i
     end
 
     def tag_query_limit

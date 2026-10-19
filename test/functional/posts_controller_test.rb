@@ -36,7 +36,7 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
       end
 
       # Fork: as a Member. Below full browsing (signed out, Restricted) a
-      # cursor page is refused like page 2 (PostSets::Post#enforce_browsing_cap!):
+      # cursor page is refused like page 2 (PaginationExtension#paginate):
       # "b123".to_i read as page 1 and walked past the cursor.
       context "when using sequential pagination" do
         should "work with page=a0" do
@@ -257,11 +257,21 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
           assert_select "h1", "Search Error"
         end
 
+        # A Member: the 1000-page limit itself. Signed out, page 2 is already
+        # past the browsing tier (browsing_tier_surfaces_test.rb).
         should "render an error when exceeding the page limit" do
-          get posts_path, params: { page: 1001 }
+          get_auth posts_path, create(:user), params: { page: 1001 }
 
           assert_response 410
           assert_select "h1", "Search Error"
+          assert_match(/beyond page 1000/, response.body)
+        end
+
+        should "refuse a signed-out page past the first by the browsing tier" do
+          get posts_path, params: { page: 1001 }
+
+          assert_response 410
+          assert_match(/one page of each list/, response.body)
         end
 
         should "render if the search count times out" do
@@ -518,15 +528,43 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
       end
     end
 
+    # One hop through the search, by PostNeighbors: a walk, so a full
+    # account's; below full browsing it is refused (410).
     context "show_seq action" do
       should "render" do
         posts = create_list(:post, 3)
 
-        get show_seq_post_path(posts[1].id), params: { seq: "prev" }
+        get_auth show_seq_post_path(posts[1].id), @user, params: { seq: "prev" }
         assert_redirected_to(posts[2])
 
-        get show_seq_post_path(posts[1].id), params: { seq: "next" }
+        get_auth show_seq_post_path(posts[1].id), @user, params: { seq: "next" }
         assert_redirected_to(posts[0])
+      end
+
+      should "follow the search's order" do
+        posts = [5, 9, 1].map { |score| create(:post, score: score) }
+
+        get_auth show_seq_post_path(posts[1].id), @user, params: { seq: "next", q: "order:score" }
+        assert_redirected_to(post_path(posts[0], q: "order:score"))
+      end
+
+      should "stay put at the end of the search, and 404 a post that is not there" do
+        posts = create_list(:post, 2)
+
+        get_auth show_seq_post_path(posts[0].id), @user, params: { seq: "next", q: "id:#{posts.map(&:id).join(",")}" }
+        assert_redirected_to(post_path(posts[0], q: "id:#{posts.map(&:id).join(",")}"))
+
+        get_auth show_seq_post_path(999_999_999), @user, params: { seq: "next" }
+        assert_response 404
+      end
+
+      should "be refused below full browsing" do
+        post = create(:post)
+
+        get show_seq_post_path(post.id), params: { seq: "next" }
+        assert_response 410
+        get_auth show_seq_post_path(post.id), create(:restricted_user), params: { seq: "next" }
+        assert_response 410
       end
     end
 
@@ -715,13 +753,23 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
         end
       end
 
+      # The pool bar walks post to post, so a full account's: below full
+      # browsing it is not drawn (the browsing tier).
       context "with pools" do
         should "render the pool list" do
+          as(@user) { @post.update(tag_string: "newpool:comic") }
+          get_auth post_path(@post), @user
+
+          assert_response :success
+          assert_select ".pool-navbar .pool-name", /Pool: comic/
+        end
+
+        should "not render it below full browsing" do
           as(@user) { @post.update(tag_string: "newpool:comic") }
           get post_path(@post)
 
           assert_response :success
-          assert_select ".pool-navbar .pool-name", /Pool: comic/
+          assert_select ".pool-navbar", 0
         end
       end
 

@@ -166,11 +166,12 @@ class LandingShowcaseCache
     end
 
     # The ids one search found, or nil when it failed -- nil and not [], so a
-    # failure is never mistaken for a creator with nothing to show.
+    # failure is never mistaken for a creator with nothing to show. The hero
+    # band's, so exempt from the browsing tier by name (TIER_EXEMPT).
     def ids_for(query, viewer)
       PostQuery.new(query, current_user: viewer)
                .posts_with_timeout(PER_TAG, timeout: QUERY_TIMEOUT_SECONDS * 1_000,
-                                            page_limit: viewer.page_limit)
+                                            tier_exempt: :hero_band)
                .map(&:id)
     rescue StandardError => e
       # One bad tag must not cost the other nineteen. Reported, never swallowed:

@@ -7,7 +7,7 @@ class ModqueueController < ApplicationController
   def index
     authorize :modqueue
     @mode = params.fetch(:mode, "gallery")
-    @limit = params.fetch(:limit, CurrentUser.user.per_page).to_i.clamp(0, PostSets::Post::MAX_PER_PAGE)
+    @limit = params.fetch(:limit, CurrentUser.user.per_page).to_i.clamp(0, CurrentUser.user.listing_per_page_limit)
     @order = params.dig(:search, :order) || "modqueue"
     @tags = params.dig(:search, :tags)
 

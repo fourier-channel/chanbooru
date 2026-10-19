@@ -2542,12 +2542,19 @@ class Post < ApplicationRecord
   # deleted ones keep upstream's rule: shown when this post or its parent is
   # deleted, or the viewer asked to see deleted children.
   #
+  # Siblings and children are lists, so below full browsing each is its
+  # first page, User#listing_per_page_limit (ACCOUNT_LIMITS.md 2.3). The
+  # parent is one hop within a family, not a walk, and stays.
+  #
   # @return [Hash{Symbol => Object}] parent: a Post or nil; siblings: and
   #   children: Arrays of Post
   def relatives_shown_to(viewer)
     shown_parent = parent unless parent.nil? || parent.hidden_beyond_deletion?(viewer)
     include_deleted = is_deleted? || shown_parent&.is_deleted? || viewer.show_deleted_children?
-    shown = ->(posts) { (include_deleted ? posts : posts.undeleted).includes(:media_asset).reject { |post| post.hidden_beyond_deletion?(viewer) } }
+    shown = lambda do |posts|
+      found = (include_deleted ? posts : posts.undeleted).includes(:media_asset).reject { |post| post.hidden_beyond_deletion?(viewer) }
+      viewer.can_browse_freely? ? found : found.first(viewer.listing_per_page_limit)
+    end
 
     { parent: shown_parent, siblings: shown_parent.nil? ? [] : shown.call(shown_parent.children), children: shown.call(children) }
   end

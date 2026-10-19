@@ -275,10 +275,14 @@ class PostNeighborsTest < ActiveSupport::TestCase
       end
     end
 
+    # The viewers who may walk: below full browsing the walk is refused
+    # (browsing_tier_test.rb), whatever the filter.
     should "give the neighbours the runs of the id path's ordering, with no hidden-id list" do
-      orderings = @viewers.transform_values { |viewer| ids("rfq order:id_desc", viewer) }
+      walkers = @viewers.select { |_who, viewer| viewer.can_browse_freely? }
+      assert_equal(@viewers.size - 1, walkers.size, "fixture: only the anonymous viewer is below full browsing")
+      orderings = walkers.transform_values { |viewer| ids("rfq order:id_desc", viewer) }
       CreatorPrefixes.expects(:hidden_post_ids_for).never
-      @viewers.each do |who, viewer|
+      walkers.each do |who, viewer|
         ordered = orderings[who]
         ordered.each_with_index do |id, i|
           CreatorVisibility.forget!

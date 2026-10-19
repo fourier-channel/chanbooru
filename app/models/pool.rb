@@ -198,29 +198,6 @@ class Pool < ApplicationRecord
     visible_post_ids.size
   end
 
-  def first_post?(post_id)
-    post_id == visible_post_ids.first
-  end
-
-  def last_post?(post_id)
-    post_id == visible_post_ids.last
-  end
-
-  # XXX finds wrong post when the pool contains multiple copies of the same post (#2042).
-  def previous_post_id(post_id)
-    return nil if first_post?(post_id) || visible_post_ids.exclude?(post_id)
-
-    n = visible_post_ids.index(post_id) - 1
-    visible_post_ids[n]
-  end
-
-  def next_post_id(post_id)
-    return nil if last_post?(post_id) || visible_post_ids.exclude?(post_id)
-
-    n = visible_post_ids.index(post_id) + 1
-    visible_post_ids[n]
-  end
-
   def cover_post
     (post_count > 0) ? Post.find(visible_post_ids.first) : nil
   end

@@ -440,6 +440,26 @@ module Danbooru
       20
     end
 
+    # THE BROWSING TIER (ACCOUNT_LIMITS.md 2.7). Defaults here so a clean
+    # checkout answers them; config/danbooru_local_config.rb, which carries the
+    # reasoning, overrides them only where it differs. Read only in user.rb
+    # (User#can_browse_freely?, #listing_page_limit, #listing_per_page_limit).
+    #
+    # A viewer at or above this level browses without restriction.
+    def full_browsing_level
+      User::Levels::MEMBER
+    end
+
+    # How many records a viewer below full browsing sees per page of any list.
+    def restricted_browsing_per_page
+      20
+    end
+
+    # The level a newly created account starts at.
+    def default_user_level
+      User::Levels::RESTRICTED
+    end
+
     # Tags that are not visible in safe mode.
     def safe_mode_restricted_tags
       []

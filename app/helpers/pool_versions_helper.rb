@@ -37,8 +37,9 @@ module PoolVersionsHelper
       return ""
     end
 
-    # Fork: a post hidden from the viewer is not named in a pool's history
-    # either (Pool#visible_post_ids, 2026-10-08).
-    render "pool_versions/diff", diff: diff.transform_values { |ids| pool_version.visible_ids(ids) }
+    # Fork: the ids as the viewer is shown them (PoolVersion#shown_ids): no
+    # post hidden from them (Pool#visible_post_ids, 2026-10-08), and below
+    # full browsing the first page, as the JSON arrays are.
+    render "pool_versions/diff", diff: diff.transform_values { |ids| pool_version.shown_ids(ids) }
   end
 end

@@ -1,14 +1,17 @@
 require "test_helper"
 
 class PaginatorComponentTest < ViewComponent::TestCase
+  # Fork: paginate asks a viewer for the browsing tier, and outside a request
+  # there is no CurrentUser to default to: a full account, so the paginator's
+  # own mechanics are what is measured.
   def render_sequential_paginator(records, page: 1, limit: 3, page_limit: 100)
-    records = records.paginate(page, limit: limit, page_limit: page_limit)
+    records = records.paginate(page, limit: limit, page_limit: page_limit, viewer: build(:user))
     params = ActionController::Parameters.new(controller: records.model_name.plural, action: :index)
     render_inline(SequentialPaginatorComponent.new(records: records, params: params))
   end
 
   def render_numbered_paginator(records, page: 1, limit: 3, page_limit: 100)
-    records = records.paginate(page, limit: limit, page_limit: page_limit)
+    records = records.paginate(page, limit: limit, page_limit: page_limit, viewer: build(:user))
     params = ActionController::Parameters.new(controller: records.model_name.plural, action: :index)
     render_inline(NumberedPaginatorComponent.new(records: records, params: params))
   end

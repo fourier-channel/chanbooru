@@ -20,11 +20,27 @@ class CreatorGalleryComponent < ApplicationComponent
 
   # Curated posts, in the creator's order, filtered to what the viewer may see.
   def featured_posts
-    gallery.creator_gallery_posts.includes(post: :media_asset).filter_map do |cgp|
+    @featured_posts ||= gallery.creator_gallery_posts.includes(post: :media_asset).filter_map do |cgp|
       # hidden_from? too: a curated post can sit under a creator prefix the
       # list hides from this viewer, and visible? does not know about that.
       cgp.post if cgp.post&.visible?(viewer) && !cgp.post.hidden_from?(viewer)
     end
+  end
+
+  # THE GALLERY IS A LIST, bounded like every other (operator, 2026-10-18):
+  # below full browsing the first User#listing_per_page_limit posts are drawn
+  # in full, and the rest of the gallery is laid out as it would be, one card
+  # a post, carrying nothing of the post -- no media URL, no tags, no id, no
+  # link -- so a visitor sees how much there is and view-source holds empty
+  # boxes. "The opposite of the sudden fade to transparency paywall."
+  def shown_posts
+    viewer.can_browse_freely? ? featured_posts : featured_posts.first(viewer.listing_per_page_limit)
+  end
+
+  # How many posts lie past the cut: drawn as empty cards, and counted
+  # (counts are a non issue, operator 2026-10-17).
+  def locked_count
+    featured_posts.size - shown_posts.size
   end
 
   def messages

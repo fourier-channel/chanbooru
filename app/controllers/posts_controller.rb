@@ -89,14 +89,17 @@ class PostsController < ApplicationController
     end
   end
 
+  # The historical navbar's prev/next: one hop through the search, by the one
+  # walker (PostNeighbors), so it follows the search's order; the browsing
+  # tier refuses it below full browsing (410).
   def show_seq
     authorize Post
-    context = PostSearchContext.new(params)
-    if context.post_id
-      redirect_to(post_path(context.post_id, q: params[:q]))
-    else
-      redirect_to(post_path(params[:id], q: params[:q]))
-    end
+    post = Post.find(params.expect(:id))
+    raise ActiveRecord::RecordNotFound if post.hidden_from?(CurrentUser.user)
+
+    direction = (params[:seq] == "prev") ? :prev : :next
+    found = PostNeighbors.new(post: post, tags: params[:q].presence || params[:tags]).run(direction, 1)[:ids].first
+    redirect_to(post_path(found || post.id, q: params[:q]))
   end
 
   def create
@@ -241,7 +244,10 @@ class PostsController < ApplicationController
   end
 
   # A chunk is the Modulation gallery's, for a viewer who may browse: below
-  # the browsing tier the gallery is one page with nothing to fetch.
+  # the browsing tier the gallery is one page with nothing to fetch, so the
+  # window is never drawn for them (PostSets::Post#windowing?) and a chunk
+  # is refused by name. A chunk's cursor is refused by paginate, as any
+  # cursor is; this is the window's own decision, for the head chunk.
   def refuse_window_chunk!
     raise PostQuery::Error, "variant=window is the Modulation gallery's chunk of a search. Fix: add preset=modulation." unless modulation?
     return if CurrentUser.user.can_browse_freely?

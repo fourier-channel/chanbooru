@@ -654,21 +654,20 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         set = PostSets::Post.new("", 1, 200, user: @restricted)
 
         assert_equal(Danbooru.config.restricted_browsing_per_page, set.per_page)
-        assert_equal(1, @restricted.post_page_limit)
+        assert_equal(1, @restricted.listing_page_limit)
       end
 
       should "not clamp a full account" do
         set = PostSets::Post.new("", 1, 200, user: @member)
 
         assert_equal(200, set.per_page)
-        assert_operator(@member.post_page_limit, :>, 1)
+        assert_operator(@member.listing_page_limit, :>, 1)
       end
 
-      # Regression, and the reason the cap is not expressed as paginate's
-      # page_limit: doing that made page 1 also the LAST allowed page, which
-      # switches the paginator into sequential_after mode -- and records are
-      # reversed in that mode. Every signed-out visitor saw the gallery
-      # oldest-first, on every request, silently.
+      # Regression: page 1 is the LAST page this viewer may reach, and the
+      # paginator once switched to sequential_after mode there -- whose
+      # records are reversed. Every signed-out visitor saw the gallery
+      # oldest-first, on every request, silently (paginator_test.rb).
       should "show a restricted viewer the newest posts first, like everyone else" do
         posts = as(@user) { create_list(:post, 4, tag_string: "ordering_probe") }
         newest_first = posts.map(&:id).sort.reverse
@@ -680,11 +679,13 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         assert_equal(newest_first, member_ids, "the two tiers must not disagree about order")
       end
 
-      # The restriction is about the post archive. Lowering the app-wide page
-      # limit instead would have capped the forum and the tag lists too.
-      should "leave other paginated resources alone" do
-        get_auth forum_topics_path(page: 2), @restricted
+      # Every listing, not only posts (operator, 2026-10-18): the tier bounds
+      # the tag list as it bounds the gallery.
+      should "bound every other list as well" do
+        get_auth tags_path(page: 2), @restricted
+        assert_response 410
 
+        get_auth tags_path(page: 2), @member
         assert_response :success
       end
 

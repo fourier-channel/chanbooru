@@ -22,8 +22,12 @@ class IqdbClient
 
   concerning :QueryMethods do
     # Search for an image by file, URL, hash, or post ID.
+    #
+    # Fork: the matches are a list of posts, so at most the searcher's page
+    # (User#listing_per_page_limit; ACCOUNT_LIMITS.md 2.4) -- asked of IQDB,
+    # and kept, whatever IQDB returns.
     def search(post_id: nil, media_asset_id: nil, file: nil, hash: nil, url: nil, image_url: nil, file_url: nil, limit: 20, user: CurrentUser.user)
-      limit = limit.to_i.clamp(1, 1000)
+      limit = limit.to_i.clamp(1, [1000, user.listing_per_page_limit].min)
       target_url = url.presence || file_url.presence || image_url.presence
 
       if file.present?
@@ -49,7 +53,7 @@ class IqdbClient
         results = []
       end
 
-      process_results(results, user: user)
+      process_results(results, user: user).first(limit)
     ensure
       file.try(:close)
     end

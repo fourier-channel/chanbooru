@@ -98,9 +98,11 @@ class CreatorGalleriesController < ApplicationController
     "inherit" => "It now follows your default, which has its own groups; the ticked groups were not kept.",
   }.freeze
 
+  # A list, so at most the viewer's page (User#listing_per_page_limit;
+  # ACCOUNT_LIMITS.md 2.4): 60 for a full account, one page below.
   def index
     skip_authorization
-    @galleries = CreatorGallery.order(updated_at: :desc).limit(60)
+    @galleries = CreatorGallery.order(updated_at: :desc).limit([60, CurrentUser.user.listing_per_page_limit].min)
   end
 
   # The visitor's own standing with this creator's groups, and nothing else:

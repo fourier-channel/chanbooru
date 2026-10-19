@@ -11,6 +11,20 @@ class ApplicationHelperTest < ActionView::TestCase
       end
     end
 
+    # A help wiki is drawn as the viewer: its embeds are theirs to see, and a
+    # full account is not held to the page of a viewer below full browsing.
+    context "embed_wiki method" do
+      should "draw a wiki's embeds as the viewer sees them" do
+        Danbooru.config.stubs(:restricted_browsing_per_page).returns(2)
+        posts = create_list(:post, 5, rating: "g")
+        create(:wiki_page, title: "help:tierembed", body: posts.map { |p| "!post ##{p.id}" }.join("\n\n"))
+        drawn = -> { Nokogiri::HTML5.fragment(embed_wiki("help:tierembed")).css("article.dtext-media-embed .media-embed-image img").size }
+
+        CurrentUser.scoped(create(:user)) { assert_equal(5, drawn.call) }
+        CurrentUser.scoped(create(:restricted_user)) { assert_equal(2, drawn.call) }
+      end
+    end
+
     context "link_to_media_asset method" do
       should "render link" do
         media_asset = create(:media_asset, file_ext: "jpg")

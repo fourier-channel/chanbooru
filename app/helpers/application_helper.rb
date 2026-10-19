@@ -251,9 +251,11 @@ module ApplicationHelper
     link_to(text, url, class: user_class, data: data)
   end
 
+  # Fork: drawn as the viewer, as every wiki body is (DText#format_text): its
+  # embeds are theirs to see, and at most their page of them.
   def embed_wiki(title, classes: nil, **options)
     wiki = WikiPage.find_by(title: title)
-    text = wiki&.dtext_body&.format_text
+    text = wiki&.dtext_body&.format_text(current_user: CurrentUser.user)
     tag.div(text, class: "prose #{classes}".strip, **options)
   end
 

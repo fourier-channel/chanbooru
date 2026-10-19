@@ -15,7 +15,11 @@ class RandomTrailTest < ActiveSupport::TestCase
   Stand = Struct.new(:id)
 
   # An anonymous viewer's trail, held in a session Hash, starting at `ids`.
+  # The trail is a walk, which the browsing tier refuses below full browsing
+  # (browsing_tier_test.rb); the session-held trail is reached only when the
+  # threshold lets a signed-out viewer browse, so that is the case set here.
   def trail(ids = [])
+    Danbooru.config.stubs(:full_browsing_level).returns(User::Levels::ANONYMOUS)
     session = {}
     session[RandomTrail::SESSION_KEY] = { "q" => "", "ids" => ids } if ids.any?
     RandomTrail.new(nil, session, "")

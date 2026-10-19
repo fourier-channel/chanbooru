@@ -197,6 +197,16 @@ class LandingShowcaseTest < ActiveSupport::TestCase
                    "the row must fill to PER_CATEGORY when the posts exist"
     end
 
+    # The hero band is exempt from the browsing tier by name (TIER_EXEMPT):
+    # without it a signed-out draw fetches the viewer's page, not 80, and the
+    # row runs short whenever the newest few are not showable.
+    should "fill the row for a signed-out viewer whatever the browsing cap" do
+      Danbooru.config.stubs(:restricted_browsing_per_page).returns(2)
+      slides = LandingShowcase.new(viewer: User.anonymous).categories
+                              .find { |c| c[:key] == "new" }.to_h[:slides].to_a
+      assert_equal LandingShowcase::PER_CATEGORY, slides.length
+    end
+
     should "be newest first, so a new post displaces the oldest rather than reshuffling" do
       slides = LandingShowcase.new(viewer: User.anonymous).categories
                               .find { |c| c[:key] == "new" }.to_h[:slides].to_a.pluck(:id)
