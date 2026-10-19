@@ -71,6 +71,41 @@ function probeCredentials(src) {
   }
 }
 
+// Fork: a 503 is the media gate's TRANSIENT refusal -- fourier-auth fails
+// closed when it cannot ask the booru in time, and says Retry-After: 2 (the
+// Worker keeps that refusal as long). Incident 2026-10-19: 78 thumbnails were
+// refused in a burst and each card stayed up until the reader middle-clicked,
+// though the next ask would have been answered. So a 503 card tries its image
+// again ONCE, about three seconds on, jittered so a gallery's cards do not
+// all come back in the same instant. Never a second time: a reload that fails
+// is carded as any failure is, and stays. Every other status is final.
+//
+// A reload that loads says so on the image, bubbling (HEALED_EVENT): a page
+// that marked the picture failed when it first failed takes the mark back.
+// The hero band's conveyor does -- it shapes a failed cell like a card and
+// never promotes it (modulation_landing_component.js).
+const RETRY_STATUS = 503;
+const RETRY_AFTER_MS = 3000;
+const RETRY_JITTER_MS = 1000;
+const HEALED_EVENT = "errorcard:healed";
+
+function retryOnce(img, src) {
+  if (img.dataset.errorRetried) { return; }
+  img.dataset.errorRetried = "1";
+
+  setTimeout(() => {
+    // Let the image's next failure be carded again.
+    delete img.dataset.errorCarded;
+    img.classList.remove("error-card");
+    // The next load is the picture -- or, when it failed again, its new
+    // card, which cardify has marked by then.
+    img.addEventListener("load", () => {
+      if (!img.dataset.errorCarded) { img.dispatchEvent(new CustomEvent(HEALED_EVENT, { bubbles: true })); }
+    }, { once: true });
+    img.setAttribute("src", src);
+  }, RETRY_AFTER_MS + Math.floor(Math.random() * RETRY_JITTER_MS));
+}
+
 function resolveStatus(src) {
   if (!src) { return Promise.resolve(UNKNOWN); }
 
@@ -100,6 +135,7 @@ function cardify(img) {
     // aspect ratio and should be shown whole.
     img.setAttribute("src", cardUrl(status, parseInt(width, 10) || 0));
     img.removeAttribute("srcset");
+    if (status === RETRY_STATUS && src) { retryOnce(img, src); }
   });
 }
 

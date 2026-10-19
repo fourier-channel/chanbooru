@@ -282,6 +282,17 @@ function initLanding(root) {
       const cell = el.closest(".mod-cell");
       if (cell) { cell.classList.add("is-failed"); }
       scheduleRender();
+    });
+    // Fork: a 503 is the media gate's transient refusal, and error_card.js
+    // tries it once more (incident 2026-10-19). A reload that loads takes
+    // the failure back: the cell gets the picture's shape again and can be
+    // promoted. The error listener above stays armed, so a later failure --
+    // the full sample, on promotion -- marks it failed as a first one would.
+    el.addEventListener("errorcard:healed", () => {
+      failed.delete(String(slide.id));
+      const cell = el.closest(".mod-cell");
+      if (cell) { cell.classList.remove("is-failed"); }
+      scheduleRender();
     }, { once: true });
     el.src = (slide.kind === "video" ? null : slide.thumb) || slide.src;
     return el;
@@ -410,7 +421,8 @@ function initLanding(root) {
   // Give a cell back. `failed` is deliberately NOT cleared: it is keyed by
   // slide id, and a slide whose media would not load will not load on the next
   // lap either. Forgetting that would re-request every broken file every time
-  // the belt came round.
+  // the belt came round. The one way out is error_card's single retry of a
+  // 503 loading (see mediaEl), which takes the slide out itself.
   function dropCell(a, slide) {
     const key = `${a}:${slide.id}`;
     const cell = cells.get(key);

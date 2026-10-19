@@ -58,7 +58,9 @@ class PostQuery
   # @param row_filter [Boolean] exclude the tags that hide posts from the
   #   viewer as ONE row filter (#hidden_tags_condition) rather than as the
   #   creator-prefix id list and one term per gated or banished tag. For the
-  #   post view's neighbours and random's rolls; see #hidden_tags_condition.
+  #   post view's neighbours, random's rolls, fourier-auth's md5 ask
+  #   (PostSets::Post#md5_ask?) and the signed-out newest page that ask is
+  #   held to (MembersOnly.anonymous_newest_ids); see #hidden_tags_condition.
   def initialize(search_or_ast, current_user: User.anonymous, tag_limit: nil, safe_mode: false, implicit: false, estimated: nil, row_filter: false) # rubocop:disable Metrics/ParameterLists
     if search_or_ast.is_a?(AST)
       @ast = search_or_ast
@@ -310,6 +312,10 @@ class PostQuery
   # times per row: one && term ran the same statement in 30-37 ms against
   # 289-306. NOT for counts or galleries: there the id list is what made an
   # exact count fast (#hidden_post_metatags), and they are unchanged. The
+  # md5 ask goes through the gallery's PostSet but counts nothing, and its
+  # rows come off the md5 index (PostSets::Post#md5_ask?); the signed-out
+  # newest page it is held to is a gallery's first page, uncounted, walked
+  # off the id index to its 20 rows (MembersOnly.anonymous_newest_ids). The
   # small id lists -- a creator's panel, the quarantine, a viewer's own
   # gated allow -- stay ids here too.
   #

@@ -384,9 +384,34 @@ module MembersOnly
   # seconds of cache: a crawler walking ids must not cost a search each.
   # Searched in the mode it is cached under, not the asking request's: the
   # md5 ask reads both modes from one request.
+  #
+  # Fork, incident 2026-10-19 (fourier-auth's md5 asks, signed out first for
+  # every image, timing out in bursts). Built as the gallery builds it, this
+  # page cost 0.47 s on production -- the pluck of every hidden creator-prefix
+  # post id and its ~530 KB literal -- and every signed-out ask arriving after
+  # it expired rebuilt it, in both modes. Now:
+  #   - built with the hidden tags as one row filter and no count, as the md5
+  #     ask itself is (PostSets::Post#md5_ask?): the same page
+  #     (md5_ask_test), its 20 rows walked off the id index;
+  #   - race_condition_ttl: the first ask after the 30 s rebuilds it while
+  #     an ask arriving meanwhile is served the ids just expired. Five
+  #     minutes, the most the Redis store keeps an entry past its expiry, so
+  #     a burst after a quiet spell is covered too. Best-effort, not a lock:
+  #     asks that read it in the same instant, before the first has put the
+  #     stale copy back, rebuild it as well (3 of 4 did on dev, 2026-10-19),
+  #     which the row filter makes a few ms each. Stale only while a
+  #     rebuild is in flight -- or, after one that failed, for up to those
+  #     five minutes, when the next ask tries again -- and only ever ids
+  #     that were on this page minutes before: a signed-out md5 ask still
+  #     keeps a row only for a post its own search finds visible, and a
+  #     post page still asks Post#hidden_from?.
   def anonymous_newest_ids(safe_mode)
-    Rails.cache.fetch(["members_only", "anonymous_newest", safe_mode ? "safe" : "all"], expires_in: 30.seconds) do
-      CurrentUser.set(safe_mode: safe_mode) { PostSets::Post.new(nil, 1, user: User.anonymous).posts.map(&:id) }
+    Rails.cache.fetch(["members_only", "anonymous_newest", safe_mode ? "safe" : "all"], expires_in: 30.seconds, race_condition_ttl: 5.minutes) do
+      anonymous = User.anonymous
+      CurrentUser.set(safe_mode: safe_mode) do
+        query = PostQuery.normalize(nil, current_user: anonymous, safe_mode: safe_mode, row_filter: true).with_implicit_metatags
+        query.paginated_posts(1, count: nil, includes: nil, limit: anonymous.per_page, viewer: anonymous).map(&:id)
+      end
     end.to_set
   end
 end

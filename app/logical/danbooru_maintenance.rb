@@ -6,7 +6,8 @@ module DanbooruMaintenance
   def hourly
     queue PrunePostsJob
     queue PruneRateLimitsJob
-    queue RegeneratePostCountsJob
+    # Fork: RegeneratePostCountsJob is NOT here: it runs hourly at :43, on its
+    # own clock in config/initializers/clockwork.rb, off the hour (2026-10-19).
     queue PruneUploadsJob
     queue PruneJobsJob
     queue PruneBansJob

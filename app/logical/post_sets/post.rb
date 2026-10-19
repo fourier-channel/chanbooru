@@ -45,12 +45,13 @@ module PostSets
     # @param before [String, nil] a cursor: the chunk ends just before it
     def initialize(tags, page = 1, per_page = nil, user: CurrentUser.user, format: "html", show_votes: false, window: nil, anchor: nil, before: nil) # rubocop:disable Metrics/ParameterLists
       @current_user = user
-      @post_query = PostQuery.normalize(tags, current_user: user, tag_limit: user.tag_query_limit, safe_mode: CurrentUser.safe_mode?)
-      @normalized_query = post_query.with_implicit_metatags
       @tag_string = tags
+      @format = format.to_s
+      # Fork: fourier-auth's md5 ask excludes the viewer's hidden tags as one row filter (#md5_ask?).
+      @post_query = PostQuery.normalize(tags, current_user: user, tag_limit: user.tag_query_limit, safe_mode: CurrentUser.safe_mode?, row_filter: md5_ask?)
+      @normalized_query = post_query.with_implicit_metatags
       @page = page
       @per_page = per_page
-      @format = format.to_s
       @show_votes = show_votes
       @window = window
       @anchor = anchor.presence
@@ -150,8 +151,9 @@ module PostSets
       check_window!
       # A chunk counts nothing: the page it extends already showed the count.
       # Except a random draw, where the count is what decides between a true
-      # shuffle and a sample (PostQueryBuilder#paginated_posts).
-      count = (window == :chunk && window_kind != :draw) ? nil : post_count
+      # shuffle and a sample (PostQueryBuilder#paginated_posts). Nor does the
+      # md5 ask (#md5_ask?): its answer is its rows.
+      count = ((window == :chunk && window_kind != :draw) || md5_ask?) ? nil : post_count
       # viewer: this set is handed a user, and is built outside a request in
       # tests; paginate asks it, not CurrentUser, for the browsing tier.
       window_query.paginated_posts(page, includes: includes, count: count, search_count: !count.nil?, limit: per_page, seek: seek, viewer: current_user).load
@@ -164,6 +166,22 @@ module PostSets
     # DRAWN; a cursor is refused below the tier by paginate (#seek).
     def windowing?
       window.present? && current_user.can_browse_freely? && window_kind != :refused && !page.to_s.match?(/\A[ab]\d+\z/i)
+    end
+
+    # FOURIER-AUTH'S MD5 ASK (booru-visibility.js): tags=md5:<1-20 hashes>,
+    # in json or xml, asked for every image the media gate serves, signed out
+    # and then as the reader. Fork, incident 2026-10-19: built as a gallery,
+    # each ask plucked every hidden creator-prefix post id (~69,600, 0.4 s),
+    # compiled them into a ~530 KB literal and ran an exact COUNT keyed on its
+    # batch, so never cached -- 0.5-1.1 s around a 15 ms SELECT -- and 78 asks
+    # passed fourier-auth's 4 s budget and were refused. Built instead with
+    # the hidden tags as one row filter (PostQuery row_filter:, as the post
+    # view's neighbours are) and no count: the same posts either way
+    # (md5_ask_test's parity table), and its rows, 20 at most, come off the
+    # md5 index, so the filter runs on those rows alone. Signed out, the
+    # answer still passes MembersOnly.anonymous_md5_rows (PostsController).
+    def md5_ask?
+      format.in?(%w[json xml]) && tag_string.to_s.strip.match?(MembersOnly::ANONYMOUS_MD5_QUERY)
     end
 
     # PostNeighbors::Seek.kind of this search's order: :key, :offset, :draw

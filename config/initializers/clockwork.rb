@@ -13,6 +13,18 @@ module Clockwork
     DanbooruMaintenance.hourly
   end
 
+  # Fork: the tag-count rebuild, hourly but OFF the hour. It aggregates the
+  # whole posts table (80-132 s a run on production) and ran at :00 with the
+  # other hourly jobs, sampling's burst of new posts and the 5-minute timers;
+  # in the incident of 2026-10-19 (fourier-auth's visibility asks timing out,
+  # images refused with a 503) its 05:00 run was the longest in 8 hours.
+  # :43 is clear of :00 and :30, of the deployment's own clock-aligned
+  # timers (read 2026-10-19: every five minutes on 0 and 2 past, and a few
+  # daily ones in the first quarter of an hour) and of everything else here.
+  every(1.hour, "regenerate-post-counts", at: "**:43") do
+    DanbooruMaintenance.queue(RegeneratePostCountsJob)
+  end
+
   # The multi-creator carousel rows: one search per creator, off the request
   # path, on the interval the cache class declares. Was part of `hourly`;
   # moved out on 2026-09-19 because an hour was far too long for a front page
