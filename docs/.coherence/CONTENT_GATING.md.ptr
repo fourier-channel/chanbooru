@@ -1,7 +1,7 @@
 {
   "build_stamp": null,
-  "hydrated_at": "2026-10-19T04:19:12Z",
-  "hydrated_hash": "sha256c:56b3bf12237273dd78931cae9c66b91888b61c9366bf8f474edf99df72faa538",
+  "hydrated_at": "2026-10-19T05:09:22Z",
+  "hydrated_hash": "sha256c:0f6ce02012f27737d4a693972fd9a832ce7573763ec02d60732f74a5adceca8c",
   "pinned": null,
   "source": "coherence://brain/CONTENT_GATING.md"
 }

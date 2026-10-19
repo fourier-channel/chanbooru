@@ -118,17 +118,21 @@ then fails and an account cannot be handed out on a token that ran out in
 between. The model is MAS's registration tokens on the Matrix side,
 deliberately, so both halves of the site work the same way.
 
-An account so created starts at **Member** (`UserSignup#initial_level`), or at
-**Restricted** when the signup is flagged: `new_user_verification?` is on, and
-the signup comes from a banned IP, looks like a sockpuppet, reuses a recent IP
-or comes through a proxy. `default_user_level` (Restricted) is the level of an
-account made any other way.
+An account so created starts at **Restricted**, the configured
+`default_user_level` (`UserSignup#initial_level`; operator, 2026-10-19:
+"Restricted, as configured"; live since 2026-10-19, chanbooru 39e0199c4). A
+signup flagged by verification -- `new_user_verification?` is on, and the
+signup comes from a banned IP, looks like a sockpuppet, reuses a recent IP or
+comes through a proxy -- is Restricted whatever the default. Until 2026-10-19
+an unflagged invite signup started at Member; accounts made before then keep
+their level. `default_user_level` is also the level of an account made any
+other way.
 
 **Example:** no tag -- this gate is about who exists, not what they see.
 
 | | can register |
 |---|---|
-| holds a valid, unspent, unexpired token | yes, as Member; as Restricted if the signup is flagged |
+| holds a valid, unspent, unexpired token | yes, as Restricted (the configured default), flagged or not |
 | holds no token, or a spent, expired or revoked one | no |
 
 ---
@@ -221,9 +225,8 @@ list: 200 a page for a full account, 20 below. Reach over time is not capped
 (chanbooru 739045224); a test walks every GET route and requires each list to
 be bounded, with a full-account control per row.
 
-An ordinary signup starts AT the threshold, as Member (gate 0); only a signup
-flagged as suspicious starts below it. Lifting a Restricted account is an
-explicit act by staff.
+A new signup starts below the threshold, as Restricted (gate 0). Lifting a
+Restricted account to Member is an explicit act by staff.
 
 **Retired sections** do not exist on this fork for anyone but the Owner:
 
