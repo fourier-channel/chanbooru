@@ -134,8 +134,11 @@ build, deploy, first owner, an upload, and the image served back.
    image only when a runtime file changed, so a code change takes seconds.
    `sudo bin/chanbooru-deploy --rollback` goes back one release.
 
-5. **Make the first account, which becomes the Owner.** Signup needs an
-   invite code; mint one as the system account the database was seeded with:
+5. **Make the first account, which becomes the Owner.** Do this before any
+   other account exists: the first account made by any route becomes the
+   Owner, whatever level it was given -- the posting account in step 6
+   included. Signup needs an invite code; mint one as the system account the
+   database was seeded with:
 
         sudo docker compose exec danbooru bin/rails runner \
           'puts SignupToken.create!(creator: User.system, usage_limit: 1, note: "first owner").token'
