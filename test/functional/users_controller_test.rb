@@ -449,6 +449,14 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     end
 
     context "create action" do
+      # Upstream's policy, which these tests assert: a signup starts at Member
+      # unless verification flags it. This site starts an invitee at
+      # Danbooru.config.default_user_level (Restricted); signup_token_test.rb
+      # asserts that.
+      setup do
+        Danbooru.config.stubs(:default_user_level).returns(User::Levels::MEMBER)
+      end
+
       should "create a user" do
         freeze_time
         post users_path, params: { user: { name: "xxx", password: "xxxxx1", password_confirmation: "xxxxx1" }}

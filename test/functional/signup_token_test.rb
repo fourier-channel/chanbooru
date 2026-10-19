@@ -46,6 +46,40 @@ class SignupTokenTest < ActionDispatch::IntegrationTest
       assert_equal(1, @token.reload.times_used)
     end
 
+    # Operator, 2026-10-19: "Restricted, as configured". An invitee starts at
+    # Danbooru.config.default_user_level -- Restricted on this site, so full
+    # browsing is granted by a promotion, never had by signing up. From a
+    # public, unflagged IP, as an invitee arrives in production.
+    context "the level an invitee starts at" do
+      setup do
+        self.remote_addr = "187.37.226.17"
+      end
+
+      should "be the configured default level" do
+        Danbooru.config.stubs(:default_user_level).returns(User::Levels::RESTRICTED)
+        signup("GOODCODE1234", fresh: false)
+
+        assert_equal(User::Levels::RESTRICTED, User.last.level)
+        assert_equal(false, User.last.requires_verification)
+      end
+
+      should "follow the configured default, not a constant" do
+        Danbooru.config.stubs(:default_user_level).returns(User::Levels::MEMBER)
+        signup("GOODCODE1234", fresh: false)
+
+        assert_equal(User::Levels::MEMBER, User.last.level)
+      end
+
+      should "be Restricted when verification flags the signup, whatever the default" do
+        Danbooru.config.stubs(:default_user_level).returns(User::Levels::MEMBER)
+        create(:ip_ban, ip_addr: remote_addr, category: :partial)
+        signup("GOODCODE1234", fresh: false)
+
+        assert_equal(User::Levels::RESTRICTED, User.last.level)
+        assert_equal(true, User.last.requires_verification)
+      end
+    end
+
     should "refuse with NO token at all" do
       assert_no_difference("User.count") { signup(nil) }
       assert_response 403

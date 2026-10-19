@@ -42,12 +42,17 @@ class UserSignup
     is_ip_banned? || is_sockpuppet? || is_recently_used_ip? || is_proxy?
   end
 
-  # @return [Integer] Returns whether the new account should be Restricted or a Member
+  # Fork: an unflagged signup starts at Danbooru.config.default_user_level, not
+  # upstream's Member -- Restricted on this site, so full browsing is granted by
+  # a promotion, never had by signing up (operator, 2026-10-19). A signup
+  # verification flags is Restricted whatever the default.
+  #
+  # @return [Integer] the level the new account starts at
   def initial_level
     if requires_verification?
       User::Levels::RESTRICTED
     else
-      User::Levels::MEMBER
+      Danbooru.config.default_user_level
     end
   end
 
