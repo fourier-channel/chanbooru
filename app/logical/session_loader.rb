@@ -254,6 +254,15 @@ class SessionLoader
 
     if user.is_deleted?
       logout(user)
+    elsif session[:login_id].present? && LoginSession.inactive.exists?(login_id: session[:login_id])
+      # Fork: a login that is no longer active is over -- logged out, or
+      # revoked by a password reset from the server (PasswordReveal) or an
+      # account deletion. Upstream marks the row and nothing reads it, and the
+      # cookie store keeps the whole session in the cookie, so a copy taken
+      # before the logout or the reset went on working. Nothing legitimate
+      # sends an inactive login: logout empties the session it ends. The
+      # cookie's session is emptied; the row keeps saying how it ended.
+      request.reset_session
     else
       CurrentUser.user = user
     end

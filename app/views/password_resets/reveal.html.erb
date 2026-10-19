@@ -1,0 +1,21 @@
+<%# Fork: the page a one-time password link opens (PasswordReveal). It only
+    names the account and offers the button; the password is read by the
+    button's PUT, so a link preview or prefetcher that GETs this uses nothing up. %>
+<% page_title "New Password" %>
+
+<div id="c-password-resets">
+  <div id="a-reveal">
+    <div class="card mt-8 p-4 max-w-480px mx-auto flex flex-col gap-4 items-center">
+      <h1>New Password</h1>
+
+      <p class="w-full">An administrator set a new password for <strong><%= @user.pretty_name %></strong>. It can be shown once.</p>
+
+      <p class="w-full">Show it where nobody else can see your screen. Once it has been shown, this link stops working.</p>
+
+      <%= form_tag(password_reset_path, method: :put, class: "w-full flex justify-center") do %>
+        <%= hidden_field_tag :reveal, params[:reveal] %>
+        <%= submit_tag "Show my password", class: "button-primary" %>
+      <% end %>
+    </div>
+  </div>
+</div>

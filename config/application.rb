@@ -81,6 +81,12 @@ module Danbooru
     #
     # https://guides.rubyonrails.org/configuring.html#config-filter-parameters
     config.filter_parameters += [:password, :api_key, :secret, :ip_addr, :address, :email_verification_key, :signed_id] if !Rails.env.local?
+    # Fork: the one-time password link's token (?reveal=, PasswordReveal) opens
+    # a password for whoever holds it, so it is filtered in every environment
+    # (a dev box runs on a copy of real accounts): as its own parameter, and
+    # inside another one's value, plain or URL-encoded -- the login link's
+    # ?url= carries the page's whole address. config/nginx.conf masks the same.
+    config.filter_parameters += [:reveal, ->(_key, value) { value.gsub!(/(reveal(?:=|%3D))[^&\s]+/i, "\\1[FILTERED]") if value.is_a?(String) }]
 
     raise "Danbooru.config.secret_key_base not configured" if Danbooru.config.secret_key_base.blank?
     config.secret_key_base = Danbooru.config.secret_key_base

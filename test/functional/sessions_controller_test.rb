@@ -724,6 +724,22 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
         assert_equal(@user.login_sessions.last.login_id, @user.user_events.last.login_session_id)
       end
 
+      # Fork: the session lives whole in the cookie, so a copy taken before the
+      # logout still carries the user id and the login id. The login is over,
+      # and SessionLoader refuses it.
+      should "end the login for a copy of the cookie taken before logging out" do
+        login_as(@user)
+        copied = cookies[Danbooru.config.session_cookie_name]
+        delete session_path
+
+        cookies[Danbooru.config.session_cookie_name] = copied
+        get password_reset_path
+
+        assert_response :success
+        assert_nil(session[:user_id])
+        assert_equal("logged_out", @user.login_sessions.sole.status)
+      end
+
       should "not fail if the user is already logged out" do
         delete session_path
 

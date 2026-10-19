@@ -172,6 +172,13 @@ module Danbooru
     def session_cookie_domain
     end
 
+    # Fork: how long the one-time link from bin/chanbooru-reset-password shows
+    # the new password before it stops working (PasswordReveal). Seconds, or a
+    # Duration; DANBOORU_PASSWORD_REVEAL_TTL overrides it in seconds.
+    def password_reveal_ttl
+      24.hours
+    end
+
     # Debug mode does some things to make testing easier. It outputs more verbose logs, it disables parallel testing,
     # and it replaces Danbooru's custom exception page with the default Rails exception page. This is only useful during
     # development and testing.

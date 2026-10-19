@@ -1,0 +1,29 @@
+<%# Fork: the one showing of a password an administrator set (PasswordReveal).
+    The answer is sent no-store (PasswordResetsController), and nothing here is
+    fragment-cached: this page is rendered once, for one request. %>
+<% page_title "Your New Password" %>
+
+<div id="c-password-resets">
+  <div id="a-revealed">
+    <div class="card mt-8 p-4 max-w-480px mx-auto flex flex-col gap-4 items-center">
+      <h1>Your New Password</h1>
+
+      <p class="w-full">For the account <strong><%= @user.pretty_name %></strong>:</p>
+
+      <% @reveal["secrets"].each do |secret| %>
+        <div class="w-full flex flex-col gap-2 items-center">
+          <span><%= secret["label"].humanize %> password</span>
+          <%# It wraps, at a line height of its own (the body's fixed one makes wrapped lines collide): on a narrow phone it is wider than the card, and an unwrapped line is centred off the left edge, out of reach. %>
+          <pre class="block !text-xxl leading-normal text-center whitespace-pre-wrap break-all max-w-full"><%= secret["password"] %></pre>
+          <%= tag.button class: "button-outline-primary", onclick: "Danbooru.Utility.copyToClipboard('#{j secret["password"]}')" do %>
+            <%= copy_icon %> Copy
+          <% end %>
+        </div>
+      <% end %>
+
+      <p class="w-full">This is the only time it will be shown. Copy it now, before you leave this page.</p>
+
+      <p class="w-full"><%= link_to "Sign in", login_path %> with it, then choose a password of your own on the <%= link_to "change password", edit_password_path %> page.</p>
+    </div>
+  </div>
+</div>

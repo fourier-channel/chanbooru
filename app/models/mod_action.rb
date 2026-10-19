@@ -13,6 +13,7 @@ class ModAction < ApplicationRecord
     moderation_report_rejected
     email_address_update
     backup_code_send
+    user_password_reset # Fork: see the category below
   ]
 
   # Fork: categories ADMINS alone may read. A hidden creator is hidden from
@@ -183,6 +184,11 @@ class ModAction < ApplicationRecord
     tag_flag_release: 1121,
     tag_banish: 1122,
     tag_unbanish: 1123,
+    # A booru password reset from the server's command line, written by the
+    # system user (PasswordReveal, operator rulings 2026-10-19). Moderators
+    # and up, as an admin's change of someone's email is: it says an account
+    # was taken over or locked out. Never carries the password.
+    user_password_reset: 1124,
   }
 
   normalizes :category, with: ->(category) { category.to_s.parameterize.underscore.presence }
