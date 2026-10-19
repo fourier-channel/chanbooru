@@ -1,17 +1,12 @@
-# This is a Docker Compose file that will launch a minimal Danbooru instance.
-# This is suitable as a quick demo or for personal use, but is not recommended
-# for a large public-facing site.
+# chanbooru's compose file, driven by bin/chanbooru-deploy. It does NOT start
+# from a bare clone: it needs .env, .env.local, config/danbooru_local_config.rb,
+# fourier-config/, the image directory on the storage drive and an installed
+# release, which the steps in README.md "Installing it somewhere else" make.
 #
-# ## Quickstart
-#
-# First run `bin/setup`. Then run `docker compose up` to start a Danbooru instance on http://localhost:3000.
-#
-# Run `docker compose down` to stop the instance.
-#
-# Run `docker volume rm danbooru-data danbooru-images iqdb-data` to delete all
-# your data if you no longer need it.
-#
-# See below for more commands for running your instance.
+# The rest of this header is upstream's. Its commands assume upstream's compose
+# file: here images live in the host directory bin/chanbooru-storage installs,
+# not a volume, and the volumes are named <project>-data, <project>-iqdb-data
+# and <project>-sqs-data (danbooru-data, ... for the default project name).
 #
 # ## Configuration
 #

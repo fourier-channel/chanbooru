@@ -10,16 +10,23 @@ These scripts are specific to this project.
 | Script | Description |
 |--------|-------------|
 | `build-docker-image` | Build a Docker image from the current Git commit. |
+| `build-watch` | Filter a Docker build log down to step starts, finishes, cache hits and errors. |
+| `chanbooru-deploy` | Fork: bring a host up to a commit -- check the image directory, rebuild the image only when a runtime file changed, install and activate the release, recreate the containers, verify the running revision and the front page. `--rollback` goes back one release. |
+| `chanbooru-release` | Fork: install, activate, list and prune releases (one commit's app tree, compiled assets and bootsnap cache) under `/srv/danbooru`. |
+| `chanbooru-storage` | Fork: install (once) and check (every deploy) the host image directory on the storage drive. |
 | `danbooru-dev-entrypoint` | Entrypoint for containers started with `bin/dev` / `docker-compose.dev.yaml`. |
 | `dev` | Shortcut for `docker compose -f docker-compose.dev.yaml`. |
 | `devcontainer-entrypoint` | Entrypoint for the devcontainer. |
 | `find-untested-urls` | Find commented URLs in `app/logical/source/url/` that have no parser test coverage. |
 | `generate-changelog` | Generate a changelog from Git commits between two refs. |
-| `generate-source-tests` | Generate skeleton parsing and extracting tests for a URL strategy. |
 | `github-print-test-results` | Parse JUnit test output and print GitHub workflow annotations and a summary. |
 | `media-conv` | Convert media files using Danbooru's media conversion logic. |
+| `landing-cpu` | Fork: measure where the landing page's CPU goes in a headless browser. |
+| `landing-preview` | Fork: render the landing carousel with live data and the working tree's code. |
 | `media-ls` | List properties of media files (like `ls`, but using Danbooru's media file logic). |
-| `setup` | Install Docker and Git, clone the repo, and initialize config files for a fresh install. |
+| `permission-matrix` | Fork: print who can do what, per level, across every policy. |
+| `postview-shift` | Fork: measure whether the post view holds still while the next post loads. |
+| `setup` | Upstream's: installs Docker and Git and clones UPSTREAM Danbooru. It does not install this fork; see "Installing it somewhere else" in the top-level README. |
 | `test-sources` | Run all of a specific site's parsing & extractor tests. |
 | `update` | Update Ruby gems and npm packages and run pending migrations. |
 

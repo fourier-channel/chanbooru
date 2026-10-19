@@ -1,3 +1,7 @@
+> **chanbooru:** this is upstream Danbooru's guide. It installs upstream, not
+> this fork, and its compose commands do not match this fork's compose file.
+> To run chanbooru, see "Installing it somewhere else" in `README.md`.
+
  # Quickstart
 
 Run this to start a Danbooru instance:

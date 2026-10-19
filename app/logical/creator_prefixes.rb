@@ -64,17 +64,33 @@ module CreatorPrefixes
     stat = begin
       File.stat(file)
     rescue Errno::ENOENT, Errno::EACCES => e
-      raise ConfigError, "the creator-prefix list #{file} cannot be read (#{e.class.name.demodulize}). " \
-                         "Fix: restore it (the canon copy is fourier-basis ops/hetzner/danbooru/creator_prefixes.yml)"
+      raise ConfigError, unreadable_message(file, e)
     end
     stamp = [file, stat.size, stat.mtime.to_f, stat.ino]
     @mutex.synchronize do
       return @cache[:value] if @cache && @cache[:stamp] == stamp
 
-      value = parse(File.read(file), file)
+      # The stat above needs only the directory; the read needs the file. An
+      # unreadable list fails the same named way as a missing one, rather than
+      # escaping as Errno::EACCES and taking down every page that asks.
+      text = begin
+        File.read(file)
+      rescue Errno::ENOENT, Errno::EACCES => e
+        raise ConfigError, unreadable_message(file, e)
+      end
+      value = parse(text, file)
       @cache = { stamp: stamp, value: value }
       value
     end
+  end
+
+  def unreadable_message(file, error)
+    fix = if error.is_a?(Errno::EACCES)
+      "make it readable by the app's user (uid 1000), e.g. chmod 644 #{file}"
+    else
+      "restore it (the canon copy is fourier-basis ops/hetzner/danbooru/creator_prefixes.yml)"
+    end
+    "the creator-prefix list #{file} cannot be read (#{error.class.name.demodulize}). Fix: #{fix}"
   end
 
   def parse(text, file)

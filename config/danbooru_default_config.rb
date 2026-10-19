@@ -243,6 +243,79 @@ module Danbooru
       true
     end
 
+    # FORK POLICY DEFAULTS. Tracked code calls every setting below, and until
+    # 2026-10-19 they were defined only in the untracked
+    # config/danbooru_local_config.rb, so a clean checkout with an empty local
+    # config raised NoMethodError on every request, /up included (found by a
+    # fresh-host install rehearsal). The values are the deployment's own, so a
+    # new instance starts with the fork's policy; the local config, which
+    # carries the reasoning for each, overrides them only where it differs.
+    # Each test-environment branch keeps upstream's inherited suite on the
+    # upstream rule; the fork's own tests stub the real value.
+
+    # Public signup is closed outside tests; accounts come from signup tokens.
+    def enable_signup?
+      Rails.env.test?
+    end
+
+    # Signup needs an admin-issued signup token (an "invite code").
+    def signup_requires_token?
+      true
+    end
+
+    # The first experience a viewer gets: the Modulation skin.
+    def default_experience_preset
+      Rails.env.test? ? "historical" : "modulation"
+    end
+
+    # Who may see deleted posts at all.
+    def deleted_post_visibility_level
+      Rails.env.test? ? User::Levels::ANONYMOUS : User::Levels::ADMIN
+    end
+
+    # Sections this fork does not run, matched against controller_name by
+    # FourierRetiredSections, which 404s them for everyone but the owner.
+    def retired_sections
+      return [] if Rails.env.test?
+
+      %w[
+        comments
+        comment_votes
+        forum_topics
+        forum_posts
+        forum_post_votes
+        forum_topic_visits
+        notes
+        note_versions
+        media_assets
+        ai_tags
+        media_metadata
+        metrics
+        jobs
+      ]
+    end
+
+    # Whether the standalone /logout page is retired. DELETE /session, the
+    # actual logout, stays open to everyone.
+    def logout_page_retired?
+      !Rails.env.test?
+    end
+
+    # The minimum level that may read /status.
+    def status_page_visibility_level
+      Rails.env.test? ? User::Levels::ANONYMOUS : User::Levels::ADMIN
+    end
+
+    # Video pixel formats accepted beyond upstream's allowlist, each measured.
+    def extra_video_pix_fmts
+      Rails.env.test? ? [] : %w[yuv420p10le yuv444p yuv444p10le yuv422p yuv422p10le]
+    end
+
+    # The tag the troll jail applies; gated, and it drives a notice on the post.
+    def troll_jail_tag
+      "troll_jail"
+    end
+
     # An array of regexes containing disallowed usernames.
     def user_name_blacklist
       []

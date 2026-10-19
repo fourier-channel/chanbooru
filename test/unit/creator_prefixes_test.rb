@@ -75,6 +75,17 @@ class CreatorPrefixesTest < ActiveSupport::TestCase
       assert_raises(CreatorPrefixes::ConfigError) { CreatorPrefixes.entries }
     end
 
+    should "fail loudly, not crash the page, when the list exists but cannot be read" do
+      skip "root reads any file, so an unreadable list cannot be made" if Process.uid.zero?
+
+      # The stat needs only the directory; it is the read that is refused.
+      File.chmod(0o000, @path)
+      error = assert_raises(CreatorPrefixes::ConfigError) { CreatorPrefixes.entries }
+      assert_match(/#{Regexp.escape(@path)}.*EACCES.*Fix:/, error.message)
+    ensure
+      File.chmod(0o644, @path) if File.exist?(@path)
+    end
+
     should "ship a repo default that matches the operator's three entries" do
       ENV["FOURIER_CREATOR_PREFIXES"] = nil
       CreatorPrefixes.reset!
