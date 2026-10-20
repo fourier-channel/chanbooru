@@ -29,8 +29,8 @@ which is why nearly every signed-out cell says gate 10.
 
 | example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| an ordinary post (`1girl`) on the newest page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| an ordinary post, not being shown to signed-out visitors | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| an ordinary post (`1girl`) on the site's welcome page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| that same `1girl`, once it leaves the hero band | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 | a sensitive tag, `loli` (gate 1) | {no: gate 10} / {no: gate 10} | {no: gate 1} / {no: gate 1} | {no: gate 1} / {no: gate 1} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 | deleted by a moderator (gate 4) | {no: gate 10} / {no: gate 10} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} | {yes: its own} / {yes: its own} |
 | jailed, `troll_jail` (gate 4) | {no: gate 10} / {no: gate 10} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} |
@@ -144,10 +144,7 @@ too.
 ## 1. Sensitive tags -- a property of the post
 
 These tags mark material the site does not serve casually. They describe the
-**content**, not the viewer.
-
-    loli  shota  toddlercon  child  toddler  baby  infant
-    young  aged_down  age_regression  troll_jail
+**content**, not the viewer. `loli` is one.
 
 **Below Gold, a post carrying any of them does not exist** -- signed out,
 Restricted and Member alike. It is left out of results, counts, paging and
@@ -160,15 +157,9 @@ a viewer the post's **creator lets in** (gate 9), which opens the post and its
 image -- never for a signed-out or banned viewer, and never for a jailed post;
 and a reader of a live published page that shows the image (gate 11).
 
-`troll_jail` is on the list, but a jailed post is also deleted, so gates 4 and
-5 have already hidden it.
-
-**Example: `loli`**
-
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
+| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| a post tagged `loli`, and its image | hidden | hidden | hidden | visible | visible | visible | visible |
-| the word `loli` in tag lists and autocomplete | absent | absent | absent | shown | shown | shown | shown |
+| a sensitive tag, `loli` (gate 1) | {no: gate 10} / {no: gate 10} | {no: gate 1} / {no: gate 1} | {no: gate 1} / {no: gate 1} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 
 ---
 
@@ -292,20 +283,11 @@ neither, the original is served; `?dl=1` serves it as a download.
 **Nothing is kept on the homeserver, and there is no fallback.** An image that
 storage does not hold is refused (404); there is no second source.
 
-**Example 1: an image on a `1girl` post collected from 4chan.** The image
-follows its post, including gate 10 for a signed-out visitor.
-
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
+| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| the image, while the post is on the newest posts or recently shown signed out | loads | loads | loads | loads | loads | loads | loads |
-| the image, otherwise | refused (gate 10) | loads | loads | loads | loads | loads | loads |
-
-**Example 2: a Matrix upload by `41chan_alice`, posted in a room called #art.**
-
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
-|---|---|---|---|---|---|---|---|
-| joined to #art, signed in through Matrix: post and image | -- | visible | visible | visible | visible | visible | visible |
-| not joined to #art, or not signed in through Matrix: post and image | hidden | hidden | hidden | hidden | hidden | hidden | visible |
+| an ordinary post (`1girl`) on the site's welcome page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| that same `1girl`, once it leaves the hero band | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| a Matrix upload, viewer not in its room (gate 3) | {no: gate 10} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {yes} / {yes: via R2} |
 
 ---
 
@@ -329,17 +311,10 @@ unseen by the place that controls it.
 Inherited from standard Danbooru and unchanged: a taken-down post is hidden
 below Moderator, and a banned post below Approver.
 
-**Example 1: a post a moderator deleted.**
-
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
+| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| a deleted post | hidden | hidden | hidden | hidden | hidden | visible | visible (its own) |
-
-**Example 2: a jailed post, tagged `troll_jail` -- deleted, or not.**
-
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
-|---|---|---|---|---|---|---|---|
-| a jailed post | hidden | hidden | hidden | hidden | hidden | hidden | visible |
+| deleted by a moderator (gate 4) | {no: gate 10} / {no: gate 10} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} | {yes: its own} / {yes: its own} |
+| jailed, `troll_jail` (gate 4) | {no: gate 10} / {no: gate 10} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} |
 
 A published page never shows a jailed image (gate 11).
 
@@ -381,15 +356,11 @@ thumbnail and image. Its page, tags and image address are still served. It
 decides what you choose not to see; who MAY see a post is decided by the
 gates.
 
-**Example 1: a post that gains `gore`.**
-
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
+| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| the post (now jailed), and its image | hidden | hidden | hidden | hidden | hidden | hidden | visible |
-| the same post released from the jail, still tagged `gore` | hidden | hidden | hidden | hidden | hidden | hidden | visible |
-| the word `gore` in tag lists and autocomplete | absent | absent | absent | absent | absent | absent | shown |
+| a banished tag, `gore` (gate 5) | {no: gate 10} / {no: gate 10} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {yes} / {yes} |
 
-**Example 2: a post tagged `insect`, for a viewer who has blocked `insect`.**
+**Your blocklist, for a post tagged `insect`.**
 
 | | the viewer who blocked `insect` | every other viewer |
 |---|---|---|
@@ -483,12 +454,9 @@ posts; and an admin or that creator can **release** the tag, after which its
 posts follow the ordinary rules. Prefix tags are locked: only an admin or a
 bot can add or remove one.
 
-**Example: `aichan_someone`, a Discord post.**
-
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
+| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| the post and image | hidden | hidden | hidden | hidden | hidden | visible | visible |
-| the tag name in lists and autocomplete | absent | absent | absent | absent | absent | shown | shown |
+| a hidden source, `aichan_someone` (gate 8) | {no: gate 10} / {no: gate 10} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {yes} / {yes} | {yes} / {yes} |
 
 Also visible to `someone`, once their claim on `aichan_someone` is approved.
 Once the tag is released, the post follows the other gates like any other.
@@ -512,15 +480,13 @@ missing post. **Admins always see**, and every admin view of a post its
 creator hid is written to the moderation log. Moderators can neither see nor
 act on it.
 
-**Example: a post by `41chan_alice`, set to private, with bob named.**
-
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
+| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| a viewer alice has not named | hidden | hidden | hidden | hidden | hidden | visible (logged) | visible |
-| bob, named, signed in | -- | visible | visible | visible | visible | visible | visible |
+| its creator set it to private (gate 9) | {no: gate 10} / {no: gate 10} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {yes: logged} / {yes: logged} | {yes} / {yes} |
 
-Also visible to alice herself. If alice blocks carol, carol cannot see it, even
-through a group alice opened.
+Say the post is by `41chan_alice` and she named bob: bob sees it too, and so
+does alice herself. If alice blocks carol, carol cannot see it, even through a
+group alice opened.
 
 ---
 
@@ -550,13 +516,10 @@ post is not on the front page either.
 that post's page would open for them. A cached answer can outlast a post's
 "being shown" status by about three minutes.
 
-**Example: a `1girl` post that is not on the front page.**
-
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
+| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| its page | 404 | 20 results, one page | visible | visible | visible | visible | visible |
-| its image, by address | refused | loads | loads | loads | loads | loads | loads |
-| the same post, while among the newest or shown signed out within an hour or two | visible | 20 results, one page | visible | visible | visible | visible | visible |
+| an ordinary post (`1girl`) on the site's welcome page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| that same `1girl`, once it leaves the hero band | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 
 ---
 
@@ -612,12 +575,9 @@ quick review.
 - A flag jails nothing and hides nothing from an admin. That is the difference
   from a banishment.
 
-**Example: a post carrying a tag an admin has flagged.**
-
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
+| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| the post and its image | hidden | hidden | hidden | hidden | hidden | visible | visible (its own) |
-| the tag's name in tag lists and autocomplete | absent | absent | absent | absent | absent | shown | shown |
+| a flagged tag (gate 12) | {no: gate 10} / {no: gate 10} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {yes} / {yes} | {yes: its own} / {yes: its own} |
 
 ---
 
@@ -667,7 +627,8 @@ them. Rulings and their history are in git, the phase registry and memory,
 not here.
 
 **By gate.** 0: `enable_signup?`, `signup_requires_token?`,
-`UserSignup#initial_level`, `default_user_level`. 1: `restricted_tags`,
+`UserSignup#initial_level`, `default_user_level`. 1: `restricted_tags`
+(the full list, which the public page does not print),
 `PostQuery#gated_metatags`, `Post#hidden_as_gated?`. 1/3/4/5/8/9/12:
 `Post#hidden_from?`, asked by every door. 2: `User#can_browse_freely?`,
 `#listing_page_limit`, `#listing_per_page_limit`,
