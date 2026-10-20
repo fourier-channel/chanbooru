@@ -69,8 +69,9 @@ build, deploy, first owner, an upload, and the image served back.
 
 ### Steps
 
-1. **Clone the fork's branch.** The repository's default branch, `master`, is
-   a pristine mirror of upstream; the fork is `chanbooru`.
+1. **Clone the fork's branch.** The fork is `chanbooru`, the repository's
+   default branch; `master` is a pristine mirror of upstream. The `-b` keeps
+   the command right whatever the default is.
 
         sudo git clone -b chanbooru https://github.com/fourier-channel/chanbooru /opt/danbooru
         cd /opt/danbooru
