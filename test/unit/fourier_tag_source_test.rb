@@ -101,8 +101,11 @@ class FourierTagSourceTest < ActiveSupport::TestCase
       refute_includes lamp[:spectrum], "byhand"
     end
 
+    # The tunnel's shape: the private tag is its row and not in tag_string. A
+    # tag on the public list shows to everyone (2026-10-19), so the private
+    # tag this read must not hand out is one outside tag_string.
     should "answer one live read with everything a pool needs, and no private tag" do
-      @post.update!(tag_string: "a secret bkub 1girl")
+      @post.update!(tag_string: "a bkub 1girl")
       # update_columns, not update!: Versionable needs a CurrentUser and the
       # category is all this test cares about.
       Tag.find_or_create_by_name("bkub").update_columns(category: TagCategory::ARTIST)
@@ -207,23 +210,27 @@ class FourierTagSourceTest < ActiveSupport::TestCase
     end
 
     # The shape of posts from 2026-08-04..06 (fourier-tunnel e5e7e19), when the
-    # tunnel put creator tags into tag_string as well. Production still holds
-    # one (script/fourier_remove_private_tags_from_tag_string.rb takes it out).
-    should "surface private tags to the creator but not to anonymous viewers" do
+    # tunnel put creator tags into tag_string as well, and of any tag a person
+    # puts on the public list that the prompt also holds. The creator sees it
+    # as theirs; an anonymous viewer sees the public tag and never the creator
+    # bucket (operator ruling 2026-10-19).
+    should "surface a private tag to the creator as theirs, and to anonymous viewers only as the public tag it also is" do
       @post.update!(tag_string: "secret a")
       FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => ["a"] }, @user)
       assert_includes FourierTagSource.for_viewer(@post, @user)[:creator], "secret"
       assert_empty FourierTagSource.for_viewer(@post, nil)[:creator]
+      assert_equal ["secret"], FourierTagSource.for_viewer(@post, nil)[:unsourced]
       assert_includes FourierTagSource.for_viewer(@post, nil)[:auto], "a"
     end
 
     # Operator ruling 2026-09-29: the creator decides, and nobody holds a role
     # that overrides that. The account that RECORDED the rows is not the
     # creator either -- for a tunnel post that account is the posting bot.
-    # In the 2026-08-04..06 shape, where tag_string carries the private tag and
-    # blacklist_tags_for has to take it OUT for everyone but the creator.
+    # In the tunnel's shape, where the private tag is its row alone: a tag on
+    # the public list shows to everyone (2026-10-19, see "show everyone else"
+    # below), so only a tag outside tag_string is the creator's to withhold.
     should "withhold private tags from a moderator, an admin and the account that recorded them" do
-      @post.update!(tag_string: "secret a")
+      @post.update!(tag_string: "a")
       recorder = create(:builder_user)
       FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => ["a"] }, recorder)
       assert_equal recorder.id, FourierTagSource.find_by!(post_id: @post.id, tag: "secret").added_by
@@ -250,10 +257,12 @@ class FourierTagSourceTest < ActiveSupport::TestCase
 
     # record_models! reads which rows exist and then writes; the poster writes
     # this table the whole time. A private row that lands between the read and
-    # the write meets the insert's ON CONFLICT and falls through to the OR
-    # update -- which must not reach it (round-two finding 5). The concurrent
-    # writer is played by the insert itself, writing the row just before it.
-    should "not rewrite a private row written between record_models!'s read and its write" do
+    # the write meets the insert's ON CONFLICT, and is then what one there
+    # before is: for a tag on the public list, the public both row (see
+    # "light a model's lamp" below), counted as inserted, as the row it beat
+    # would have been. The concurrent writer is played by the insert itself,
+    # writing the row just before it.
+    should "make a private row written between record_models!'s read and its write the public both row, as one there before" do
       @post.update!(tag_string: "a secret")
       FourierTagSource.record_partition!(@post, { "auto" => ["a"] }, @user)
       post = @post
@@ -267,11 +276,52 @@ class FourierTagSourceTest < ActiveSupport::TestCase
       result = FourierTagSource.record_models!([{ post_id: @post.id, hydra: ["secret"] }], @user)
 
       row = FourierTagSource.find_by!(post_id: @post.id, tag: "secret")
-      assert_equal FourierTagSource::CREATOR, row.source, "the late private row was rewritten"
-      assert_equal false, row.public
-      assert_equal({ updated: 0, inserted: 0, skipped: 1, missing_posts: [] }, result)
+      assert_equal FourierTagSource::CREATOR | FourierTagSource::AUTO | FourierTagSource::HYDRA, row.source
+      assert_equal true, row.public
+      assert_equal user.id, row.added_by, "only the bits and public change"
+      assert_equal({ updated: 0, inserted: 1, skipped: 0, missing_posts: [] }, result)
     ensure
       FourierTagSource.singleton_class.send(:remove_method, :insert_all) if FourierTagSource.singleton_class.method_defined?(:insert_all, false)
+    end
+
+    # A private row never subtracts from anyone's view (operator ruling
+    # 2026-10-19), and a model's finding is part of the view: a tag on the
+    # public list that a model reports lights that model's lamp for everyone,
+    # whether or not the creator's prompt also holds it. Skipping the private
+    # row left that tag white and unsourced on a prompted post and lit it on
+    # every other. It becomes the row record_partition! writes when the
+    # autotagger finds a prompt's tag: the public both row, which everyone
+    # reads as both, in its own colouring -- the model agrees with what the
+    # creator asked for (operator, 2026-10-19).
+    should "light a model's lamp on a public-listed tag the creator's prompt also holds, and show it as both to everyone" do
+      plain = create(:post, uploader: @user)
+      [@post, plain].each do |post|
+        post.update!(tag_string: "a guess", rating: "s")
+        FourierTagSource.record_partition!(post, { "auto" => ["a"] }, @user)
+      end
+      FourierTagSource.record_partition!(@post, { "creator" => %w[guess unlisted] }, @user)
+
+      result = FourierTagSource.record_models!([plain, @post].map { |post| { post_id: post.id, hydra: %w[guess unlisted] } }, @user)
+
+      assert_equal({ updated: 0, inserted: 2, skipped: 2, missing_posts: [] }, result)
+      assert_equal ["guess"], FourierTagSource.buckets_and_lamps_for(plain, nil).last[:hydra], "fixture: the model's lamp is lit"
+      assert_equal ["guess"], FourierTagSource.matrix_projection(@post)[:sources][:both]
+      [nil, create(:user), create(:moderator_user), create(:admin_user), @user].each do |viewer|
+        label = viewer&.level_string.inspect
+        buckets, lamps = FourierTagSource.buckets_and_lamps_for(@post, viewer)
+        assert_equal ["guess"], buckets[:both], label
+        assert_equal ["a"], buckets[:auto], label
+        assert_equal ["guess"], lamps[:hydra], label
+        assert_equal ["guess"], FourierTagSource.live_read(@post, viewer)[:both], label
+      end
+      assert_equal ["unlisted"], FourierTagSource.buckets_and_lamps_for(@post, @user).first[:creator]
+      [nil, create(:user), create(:moderator_user), create(:admin_user)].each do |viewer|
+        label = viewer&.level_string.inspect
+        assert_equal FourierTagSource.buckets_and_lamps_for(plain, viewer).last, FourierTagSource.buckets_and_lamps_for(@post, viewer).last, "#{label}: the lamps of a post with no prompt"
+        assert_not_includes FourierTagSource.live_read(@post, viewer).to_json, "unlisted", label
+      end
+      unlisted = FourierTagSource.find_by!(post_id: @post.id, tag: "unlisted")
+      assert_equal [FourierTagSource::CREATOR, false], [unlisted.source, unlisted.public], "a private tag off the list is never written"
     end
 
     should "show a tag that has no provenance row instead of dropping it" do
@@ -284,21 +334,108 @@ class FourierTagSourceTest < ActiveSupport::TestCase
       refute_includes buckets[:unsourced], "a"
     end
 
-    should "not leak a private tag back through the unsourced fallback" do
+    # OPERATOR RULING 2026-10-19 (memory a-private-row-must-not-hide-a-public-tag):
+    # a tag on the post's public list shows to EVERYONE, even when the
+    # creator's private prompt row names it too. What anyone but the creator
+    # sees depends only on tag_string and PUBLIC rows; a private row adds to
+    # the creator's view and never subtracts from anyone's. With no public row
+    # behind it the tag reads as what it is to them: unsourced, white lamp
+    # (operator, 2026-09-20). Until then the private row hid it from them --
+    # while /posts/:id.json, tag search and the sidebar showed it -- and the
+    # hiding told a stranger the prompt held the word.
+    should "show everyone else a tag that is on the public list and in a creator's private row, as unsourced with a white lamp" do
       @post.update!(tag_string: "secret a")
       FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => ["a"] }, @user)
 
-      # The creator sees it, once, in the bucket that says where it came from.
-      mine = FourierTagSource.for_viewer(@post, @user)
-      assert_includes mine[:creator], "secret"
-      refute_includes mine[:unsourced], "secret"
+      [nil, User.anonymous, create(:user), create(:moderator_user), create(:admin_user)].each do |viewer|
+        label = viewer&.level_string.inspect
+        buckets, lamps = FourierTagSource.buckets_and_lamps_for(@post, viewer)
+        assert_equal ["secret"], buckets[:unsourced], label
+        assert_empty buckets[:creator], label
+        assert_includes lamps[:manual], "secret", label
+        assert_includes FourierTagSource.live_read(@post, viewer)[:tag_string].split, "secret", label
+      end
+    end
 
-      # Everyone else sees it nowhere. A private tag has a row; it is simply not
-      # a VISIBLE one, and that must not read as "no row, so show it".
-      theirs = FourierTagSource.for_viewer(@post, nil)
-      assert_empty theirs[:creator]
-      refute_includes theirs[:unsourced], "secret"
-      assert_empty theirs.values.flatten.grep(/secret/)
+    # The same ruling, asked as the oracle it closed: two posts that differ
+    # only in whether the creator's prompt holds a tag both carry publicly
+    # must read the same to everyone but the creator, door by door.
+    should "answer a non-creator identically whether or not the creator's prompt holds a tag" do
+      plain = create(:post, uploader: @user)
+      [@post, plain].each do |post|
+        post.update!(tag_string: "a guess", rating: "s")
+        FourierTagSource.record_partition!(post, { "auto" => ["a"] }, @user)
+      end
+      FourierTagSource.record_partition!(@post, { "creator" => ["guess"] }, @user)
+      assert_not FourierTagSource.find_by!(post_id: @post.id, tag: "guess").public, "fixture: the prompt's row is private"
+
+      answer = lambda do |post, viewer|
+        { buckets: FourierTagSource.buckets_and_lamps_for(post, viewer), live: FourierTagSource.live_read(post, viewer),
+          blacklist: FourierTagSource.blacklist_tags_for([post], viewer)[post] }
+      end
+      [nil, create(:user), create(:moderator_user), create(:admin_user)].each do |viewer|
+        assert_equal answer.call(plain, viewer), answer.call(@post, viewer), viewer&.level_string.inspect
+      end
+      assert_not_equal answer.call(plain, @user), answer.call(@post, @user), "fixture: the creator's own view differs"
+    end
+
+    should "keep the creator's view: the tag once, in the creator bucket" do
+      @post.update!(tag_string: "secret a")
+      FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => ["a"] }, @user)
+
+      buckets, lamps = FourierTagSource.buckets_and_lamps_for(@post, @user)
+      assert_equal ["secret"], buckets[:creator]
+      assert_equal ["secret"], buckets.values.flatten.grep("secret"), "once"
+      assert_includes lamps[:manual], "secret"
+      assert_equal ["secret"], FourierTagSource.live_read(@post, @user)[:tag_string].split.grep("secret")
+      assert_includes FourierTagSource.blacklist_tags_for([@post], @user)[@post], "secret"
+    end
+
+    # data-tags is what a viewer's blocklist matches (blacklist_tags_for), and
+    # a tag the viewer is shown is a tag the viewer can block.
+    should "publish a public-listed tag in a non-creator's data-tags even when a private row names it" do
+      @post.update!(tag_string: "secret a")
+      FourierTagSource.record_partition!(@post, { "creator" => ["secret"], "auto" => ["a"] }, @user)
+
+      [nil, User.anonymous, create(:user), create(:moderator_user), create(:admin_user)].each do |viewer|
+        assert_equal %w[a secret], FourierTagSource.blacklist_tags_for([@post], viewer)[@post].sort, viewer&.level_string.inspect
+      end
+    end
+
+    # A BOTH row (CREATOR | AUTO) is public on purpose (record_partition!),
+    # and its colouring says the model agrees with what the creator asked
+    # for (operator, 2026-10-19). So every viewer -- signed out, a member, a
+    # moderator, an admin -- reads it exactly as the creator does: in :both,
+    # with its model's lamp. Only a creator-ONLY row is private.
+    should "show a both row as both to every viewer, exactly as the creator sees it" do
+      @post.update!(tag_string: "a shared")
+      FourierTagSource.record_partition!(@post, { "creator" => ["shared"], "auto" => %w[a shared], "hydra" => ["shared"] }, @user)
+      assert_equal [:both, true], FourierTagSource.find_by!(post_id: @post.id, tag: "shared").then { |row| [row.bucket, row.public] }, "fixture: a public both row"
+
+      mine = FourierTagSource.buckets_and_lamps_for(@post, @user)
+      assert_equal ["shared"], mine.first[:both]
+      assert_equal ["a"], mine.first[:auto]
+      assert_equal ["shared"], mine.last[:hydra]
+      [nil, User.anonymous, create(:user), create(:moderator_user), create(:admin_user)].each do |viewer|
+        label = viewer&.level_string.inspect
+        assert_equal mine, FourierTagSource.buckets_and_lamps_for(@post, viewer), label
+        assert_equal ["shared"], FourierTagSource.live_read(@post, viewer)[:both], label
+      end
+    end
+
+    # Matrix room state is read by every member of the room, and a both row
+    # is public: it travels as :both, beside the autotagger's own, in the
+    # projection's shape -- creator, auto, both, meta, in that order.
+    should "carry a both row as both in the Matrix projection" do
+      @post.update!(tag_string: "z_auto b_shared")
+      FourierTagSource.record_partition!(@post, { "creator" => ["b_shared"], "auto" => %w[z_auto b_shared], "hydra" => ["b_shared"] }, @user)
+
+      proj = FourierTagSource.matrix_projection(@post)
+      assert_equal %i[creator auto both meta], proj[:sources].keys
+      assert_equal ["b_shared"], proj[:sources][:both]
+      assert_equal ["z_auto"], proj[:sources][:auto]
+      assert_equal %w[z_auto b_shared], proj[:tags]
+      assert_equal ["b_shared"], proj[:lamp][:hydra]
     end
 
     should "keep the unsourced fallback out of the public matrix projection" do

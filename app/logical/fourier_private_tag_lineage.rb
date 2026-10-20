@@ -2,9 +2,10 @@
 
 # WHO PUT A TAG ON A POST'S PUBLIC LIST, per occurrence (BUR review
 # 2026-10-19). THE ONE PLACE this is decided: the private-tag cleanup's plan
-# (FourierPrivateTagCleanup) and the revert/undo refusal (refuse_restore!)
-# ask here, and anything else that must tell a leak from a choice asks here
-# too rather than deciding it again.
+# (FourierPrivateTagCleanup), the revert/undo refusal (refuse_restore!) and
+# post history's redaction and search guard (PostVersion.private_names_withheld,
+# through runs) ask here, and anything else that must tell a leak from a
+# choice asks here too rather than deciding it again.
 #
 # Why it is needed. A private creator tag (a FourierTagSource row with
 # public: false, the creator's prompt -- FourierCreatorPrivacy) sometimes
@@ -79,6 +80,27 @@ module FourierPrivateTagLineage
     end
   end
 
+  # One RUN of a tag on one post: from the add that began it to the removal
+  # that ended it, through every move between -- a move continues it under
+  # the new name. Its `kind` is its lineage, `began` the version that began
+  # it, `names` every name it went by (oldest first), `ended` the version
+  # whose snapshot first lacks it (nil while the newest version holds it),
+  # and `joined` the run it went on as when a move put two names onto one.
+  # Compared by identity: two runs are never the same run because they look
+  # alike.
+  class Run
+    attr_accessor :kind, :began, :names, :ended, :joined
+
+    def initialize(kind, began, name)
+      @kind = kind
+      @began = began
+      @names = [name]
+    end
+
+    # The run this one ends as: itself, or the one a move joined it into.
+    def last = joined ? joined.last : self
+  end
+
   module_function
 
   # name => BOT | PUBLIC | UNKNOWN for every tag `version`'s snapshot holds,
@@ -97,12 +119,28 @@ module FourierPrivateTagLineage
   # @param versions [Array<PostVersion>]
   # @return [Array<Array(PostVersion, Hash{String => Symbol})>]
   def walk(versions)
+    runs(versions).map { |version, state| [version, state.transform_values(&:kind)] }
+  end
+
+  # [[version, { name => Run }], ...] for `versions` (one post's), oldest
+  # first: the run of every tag each version's snapshot holds, under the
+  # rules at the top. walk is this with each run's kind; history redaction
+  # (PostVersion.private_names_withheld) reads the runs themselves, to tell
+  # an occurrence the post still carries from one that has ended.
+  #
+  # `pairs` ([old name, new name, moved at], from linked_moves) and
+  # `updaters` (user id => name) spare a caller walking many posts the
+  # lookups it has made once already; without them they are made here.
+  #
+  # @param versions [Array<PostVersion>]
+  # @return [Array<Array(PostVersion, Hash{String => Run})>]
+  def runs(versions, pairs: nil, updaters: nil)
     versions = versions.sort_by { |version| [version.version.to_i, version.id] }
     return [] if versions.empty?
 
-    names = User.where(id: versions.map(&:updater_id).uniq).pluck(:id, :name).to_h
+    names = updaters || User.where(id: versions.map(&:updater_id).uniq).pluck(:id, :name).to_h
     bots = FourierCreatorPrivacy.posting_bot_names
-    move_pairs = moves(versions)
+    move_pairs = moves(versions, pairs)
 
     state = {}
     previous = nil
@@ -122,45 +160,84 @@ module FourierPrivateTagLineage
         origin = PUBLIC
       end
       # new name => the old names it moved from. Two moved onto one (two
-      # aliases with one consequent, in one version) take the lineage
+      # aliases with one consequent, in one version) go on as the run
       # nearest a leak: BOT, then UNKNOWN, then PUBLIC.
-      moved = (updater == Danbooru.config.system_user) ? move_pairs.select { |from, to| removed.include?(from) && added.include?(to) }.group_by(&:last).transform_values { |pairs| pairs.map(&:first) } : {}
-      lineage = lambda do |name|
+      moved = (updater == Danbooru.config.system_user) ? move_pairs.select { |from, to| removed.include?(from) && added.include?(to) }.group_by(&:last).transform_values { |into| into.map(&:first) } : {}
+      run_of = lambda do |name|
         if moved.key?(name)
-          moved[name].map { |from| state.fetch(from, UNKNOWN) }.min_by { |kind| [BOT, UNKNOWN, PUBLIC].index(kind) }
-        elsif PUBLIC_LABELS.include?(name)
-          PUBLIC
+          olds = moved[name].map { |from| state.fetch(from) { Run.new(UNKNOWN, version, from) } }
+          kept = olds.min_by { |run| [BOT, UNKNOWN, PUBLIC].index(run.kind) }
+          olds.reject { |run| run.equal?(kept) }.each { |run| run.joined = kept }
+          kept.names << name
+          kept
         else
-          origin
+          Run.new(PUBLIC_LABELS.include?(name) ? PUBLIC : origin, version, name)
         end
       end
 
-      state = state.except(*removed).merge(added.index_with(&lineage))
+      (removed - moved.values.flatten).each { |name| state[name].ended = version }
+      state = state.except(*removed).merge(added.index_with(&run_of))
       previous = version
       [version, state]
     end
   end
 
-  # [old name, new name] for every move between a name some version dropped
-  # and a name it gained: an alias (any status: an alias removed later still
-  # moved the posts when it was made); a rename filed in a bulk update
-  # request that ran (BulkUpdateRequest::Command::Rename runs TagMover with
-  # no alias row); and for either, the *_(cosplay) and *_(style) tags
-  # TagMover moves along with it (move_cosplay_tag!, move_style_tag!), which
-  # leave no row of their own.
-  def moves(versions)
-    pairs = versions.each_cons(2).map { |a, b| [a.tag_array - b.tag_array, b.tag_array - a.tag_array] }
-    removed = pairs.flat_map(&:first).uniq
-    added = pairs.flat_map(&:last).uniq
+  # [old name, new name] for every move (move_pairs, or `pairs` when the
+  # caller has them) between a name some version dropped and a name it
+  # gained.
+  def moves(versions, pairs = nil)
+    steps = versions.each_cons(2).map { |a, b| [a.tag_array - b.tag_array, b.tag_array - a.tag_array] }
+    removed = steps.flat_map(&:first).uniq
+    added = steps.flat_map(&:last).uniq
     return [] if removed.empty? || added.empty?
 
-    olds = (removed + removed.map { |name| name.delete_suffix("_(cosplay)").delete_suffix("_(style)") }).uniq
-    aliases = TagAlias.where(antecedent_name: olds).distinct.pluck(:antecedent_name, :consequent_name)
-    renames = BulkUpdateRequest.where.not(status: %w[pending rejected]).where_array_includes_any(:tags, olds).flat_map do |request|
-      request.processor.commands.grep(BulkUpdateRequest::Command::Rename).map(&:affected_tags)
+    (pairs || move_pairs(removed)).filter_map { |from, to, _| [from, to] if removed.include?(from) && added.include?(to) }.uniq
+  end
+
+  # [old name, new name, moved at] for every move with a name in `names` on
+  # either side: an alias (any status: an alias removed later still moved
+  # the posts when it was made); a rename filed in a bulk update request
+  # that ran (BulkUpdateRequest::Command::Rename runs TagMover with no alias
+  # row); and for either, the *_(cosplay) and *_(style) tags TagMover moves
+  # along with it (move_cosplay_tag!, move_style_tag!), which leave no row of
+  # their own. `moved at` is the row's updated_at, which is never earlier
+  # than the move: an alias is made active, and a request approved, once its
+  # TagMover has run.
+  def move_pairs(names)
+    base = (names + names.map { |name| name.delete_suffix("_(cosplay)").delete_suffix("_(style)") }).uniq
+    return [] if base.empty?
+
+    aliases = TagAlias.where(antecedent_name: base).or(TagAlias.where(consequent_name: base)).distinct.pluck(:antecedent_name, :consequent_name, :updated_at)
+    renames = BulkUpdateRequest.where.not(status: %w[pending rejected]).where_array_includes_any(:tags, base).flat_map do |request|
+      request.processor.commands.grep(BulkUpdateRequest::Command::Rename).map { |command| [*command.affected_tags, request.updated_at] }
     end
-    (aliases + renames).flat_map { |from, to| [[from, to], ["#{from}_(cosplay)", "#{to}_(cosplay)"], ["#{from}_(style)", "#{to}_(style)"]] }
-                       .select { |from, to| removed.include?(from) && added.include?(to) }.uniq
+    (aliases + renames).flat_map { |from, to, at| [[from, to, at], ["#{from}_(cosplay)", "#{to}_(cosplay)", at], ["#{from}_(style)", "#{to}_(style)", at]] }
+                       .select { |from, to, _| names.include?(from) || names.include?(to) }.uniq
+  end
+
+  # Every move (move_pairs) linked to a name in `names` through any number
+  # of moves, either way: move_pairs, asked again only for each name a pair
+  # brings in.
+  def linked_moves(names, known = names, found = [])
+    pairs = found | move_pairs(names)
+    more = pairs.flat_map { |from, to, _| [from, to] }.uniq - known
+    more.empty? ? pairs : linked_moves(more, known | more, pairs)
+  end
+
+  # name => when it stopped being the name of a tag in `names`, for every
+  # name such a tag went by before, through any number of `pairs` ([old
+  # name, new name, moved at]): the time of the move from it, the latest
+  # where it moved more than once. A creator's private row moves with its
+  # tag (move_tag!), so an occurrence of an earlier name that began before
+  # that time is the same prompt term under its old name. One that began
+  # after it is a tag of that name used again -- a rename leaves no alias,
+  # and a removed alias frees its name -- and is not.
+  def earlier_names(names, pairs, found = {})
+    later = names | found.keys
+    step = pairs.select { |from, to, _| later.include?(to) && names.exclude?(from) }
+                .group_by(&:first).transform_values { |moves| moves.map(&:last).max }
+    merged = found.merge(step) { |_, a, b| [a, b].max }
+    (merged == found) ? found : earlier_names(names, pairs, merged)
   end
 
   # post_id => { name => BOT | PUBLIC | UNKNOWN } for every tag each post's

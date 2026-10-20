@@ -120,6 +120,45 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       assert_response :success
     end
 
+    # Technetium's read (BUR review 2026-10-19). A both row is public and
+    # reads as both to every viewer, its colouring saying the model agrees
+    # with what the creator asked for (operator, 2026-10-19), and ?scope=public,
+    # which a bot writes into Matrix room state, carries it as the both
+    # source. Only creator-ONLY rows are private: the creator, by verified
+    # identity, reads them; for everyone else a tag on the public list that
+    # the prompt also holds is an ordinary unsourced tag (operator ruling
+    # 2026-10-19), and one off the list is never named.
+    should "answer every viewer a both row as both, and only the creator their private tags" do
+      prompted = create(:post, tag_string: "a listed shared", uploader: @uploader)
+      FourierTagSource.record_partition!(prompted, { creator: %w[listed shared unlisted_term], auto: %w[a shared] }, @uploader)
+      FourierPostCreator.create!(post: prompted, mxid: "@alice:41chan.net", recorded_by: @uploader.id)
+
+      [nil, create(:user), create(:moderator_user), create(:admin_user)].each do |user|
+        label = user ? user.level_string : "anonymous"
+        user ? get_auth("/posts/#{prompted.id}/tag_sources.json", user) : get("/posts/#{prompted.id}/tag_sources.json")
+        assert_response :success
+        body = response.parsed_body
+        assert_equal ["shared"], body["both"], label
+        assert_equal [], body["creator"], label
+        assert_equal ["a"], body["auto"], label
+        assert_equal ["listed"], body["unsourced"], label
+        assert_equal %w[a listed shared], body["tag_string"].split.sort, label
+        assert_not_includes response.body, "unlisted_term", label
+      end
+
+      get "/posts/#{prompted.id}/tag_sources.json", headers: { "X-Fourier-Identity" => "@alice:41chan.net" }
+      body = response.parsed_body
+      assert_equal ["shared"], body["both"]
+      assert_equal %w[listed unlisted_term], body["creator"].sort
+      assert_equal ["a"], body["auto"]
+
+      get "/posts/#{prompted.id}/tag_sources.json", params: { scope: "public" }
+      assert_equal %w[creator auto both meta], response.parsed_body["sources"].keys
+      assert_equal ["shared"], response.parsed_body.dig("sources", "both")
+      assert_equal ["a"], response.parsed_body.dig("sources", "auto")
+      assert_equal %w[a shared], response.parsed_body["tags"].sort
+    end
+
     should "answer nothing about a gated post to a signed-out caller" do
       gated = create(:post, tag_string: "a child", uploader: @uploader)
       assert gated.gated?, "fixture: the post is gated"
@@ -253,22 +292,27 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
     end
 
     # Round-two finding 5: "updated" for a creator's private tag against
-    # "skipped" for a wrong guess confirmed the guess -- while rewriting the
-    # private row. A private row is neither answered for nor written: its tag
-    # reads exactly as a tag the post does not have. Both shapes: the
-    # tunnel's (the private tag is not in tag_string) and the 2026-08-04..06
-    # one (it is, and the insert path must not reach its row either). Asked
-    # of the posting bot, the route's only caller since 2026-10-19 (no other
-    # account reaches it: "an account that is not a posting bot", above).
-    should "neither touch nor reveal a creator's private row, to the posting bot guessing" do
+    # "skipped" for a wrong guess confirmed the guess. The answer depends on
+    # the post's public list and public rows alone, never on a private row.
+    # A private tag the post does not carry (the tunnel's shape) reads
+    # exactly as a tag the post does not have: skipped, its row untouched. A
+    # tag on the public list (the 2026-08-04..06 shape, or a person's add)
+    # reads exactly as one with no row: inserted -- its private row becomes
+    # the public both row, which everyone reads as both (operator, 2026-10-19:
+    # a private row never subtracts from anyone's view, a model's lamp
+    # included, and a both row is public in its own colouring). Asked of the
+    # posting bot, the route's only caller since 2026-10-19 (no other account
+    # reaches it: "an account that is not a posting bot", above).
+    should "answer the posting bot by the public list alone, whatever a creator's private row holds" do
       creator = create(:user)
       FourierTagSource.record_partition!(@post, { creator: %w[secret] }, creator)
       legacy = create(:post, tag_string: "a legacy_secret")
       FourierTagSource.record_partition!(legacy, { creator: %w[legacy_secret] }, creator)
-      before = [row(@post, "secret").attributes, row(legacy, "legacy_secret").attributes]
+      control = create(:post, tag_string: "a legacy_secret")
+      before = row(@post, "secret").attributes
 
       answers = [
-        [@post, "secret"], [@post, "wrong_guess"], [legacy, "legacy_secret"], [legacy, "another_wrong_guess"],
+        [@post, "secret"], [@post, "wrong_guess"], [legacy, "legacy_secret"], [control, "legacy_secret"], [legacy, "another_wrong_guess"],
       ].map do |post, guess|
         models(@bot, [{ post_id: post.id, spectrum: [guess], hydra: [guess] }])
         assert_response :success
@@ -276,8 +320,11 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       end
 
       skipped = { "updated" => 0, "inserted" => 0, "skipped" => 1, "missing_posts" => [] }
-      assert_equal [skipped] * 4, answers, "a right guess and a wrong one must read the same"
-      assert_equal before, [row(@post, "secret").attributes, row(legacy, "legacy_secret").attributes]
+      inserted = { "updated" => 0, "inserted" => 1, "skipped" => 0, "missing_posts" => [] }
+      assert_equal [skipped, skipped, inserted, inserted, skipped], answers, "a right guess and a wrong one must read the same"
+      assert_equal before, row(@post, "secret").attributes
+      assert_equal [FourierTagSource::CREATOR | FourierTagSource::AUTO | FourierTagSource::SPECTRUM | FourierTagSource::HYDRA, true],
+                   [row(legacy, "legacy_secret").source, row(legacy, "legacy_secret").public]
       assert_nil row(legacy, "another_wrong_guess")
     end
 

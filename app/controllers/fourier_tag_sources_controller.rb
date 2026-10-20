@@ -41,9 +41,10 @@ class FourierTagSourcesController < ApplicationController
   #
   # Which model reported each tag, for posts that already exist. The retag
   # timer in fourier-sampling adds hydra's tags to old posts, and create is no
-  # way to say which model found them: it re-files buckets. This route ONLY
-  # ORs model bits in (the rules are on FourierTagSource.record_models!), so
-  # sending the same body again changes nothing.
+  # way to say which model found them: it re-files buckets. This route ORs
+  # model bits in, and makes a listed tag's private row the public both row
+  # (the rules are on FourierTagSource.record_models!), so sending the same
+  # body again changes nothing.
   #
   # Reads params[:posts] directly rather than through permit: nothing here is
   # mass-assigned, and this app answers an unpermitted key with a 403, which

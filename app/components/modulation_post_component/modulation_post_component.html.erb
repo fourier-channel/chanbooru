@@ -1436,11 +1436,11 @@
     //
     // WHAT THIS VIEWER HAS SEEN. old_tag_string must be what the client was
     // looking at, and for this page that is the union of the buckets -- which
-    // is deliberately NOT post.tag_string: the denormalised string still holds
-    // private creator tags, and publishing it to build a write would put them
-    // in the page source of every post. Danbooru applies only the DIFFERENCE
-    // between the two strings, so a tag in neither is untouched -- private
-    // tags a viewer cannot see are therefore neither removed nor disturbed,
+    // is deliberately NOT post.tag_string: the buckets are what this viewer
+    // may see (the public list, and for the post's creator their private tags
+    // as well; FourierTagSource.live_read). Danbooru applies only the
+    // DIFFERENCE between the two strings, so a tag in neither is untouched --
+    // a name this viewer may not be shown is neither removed nor disturbed,
     // and a concurrent edit by someone else survives for the same reason.
     const BUCKETS = ["creator", "both", "auto", "pending", "unsourced", "meta"];
     function seenTagString() {

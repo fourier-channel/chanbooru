@@ -778,17 +778,23 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
         assert_not_nil(payload["more"])
       end
 
-      # tag_string still holds the private creator tags; publishing it here
-      # would put them in the page source of the default view.
+      # A private creator tag is its row alone, outside tag_string (the
+      # tunnel's shape); publishing it here would put a prompt term in the
+      # page source of the default view. A name the prompt holds that is ALSO
+      # on the public list is public to everyone (operator ruling 2026-10-19).
       should "not publish private creator tags to an anonymous caller" do
         FourierTagSource.create!(post: @post, tag: "secret_prompt_tag", source: FourierTagSource::CREATOR, status: FourierTagSource::APPROVED, public: false)
-        @post.update!(tag_string: "aaaa bbbb secret_prompt_tag")
+        FourierTagSource.create!(post: @post, tag: "listed_prompt_tag", source: FourierTagSource::CREATOR, status: FourierTagSource::APPROVED, public: false)
+        @post.update!(tag_string: "aaaa bbbb listed_prompt_tag")
 
         get post_modulation_path(post_id: @post.id), as: :json
 
         assert_response :success
-        assert_not_includes(response.parsed_body.dig("blacklist", "data-tags").to_s.split, "secret_prompt_tag")
-        assert_includes(response.parsed_body.dig("blacklist", "data-tags").to_s.split, "aaaa")
+        data_tags = response.parsed_body.dig("blacklist", "data-tags").to_s.split
+        assert_not_includes(data_tags, "secret_prompt_tag")
+        assert_not_includes(response.body, "secret_prompt_tag")
+        assert_includes(data_tags, "aaaa")
+        assert_includes(data_tags, "listed_prompt_tag")
       end
 
       # Regression: the comment section renders a form partial for anyone who may

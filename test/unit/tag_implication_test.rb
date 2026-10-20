@@ -128,6 +128,22 @@ class TagImplicationTest < ActiveSupport::TestCase
       assert_equal(CurrentUser.user, p2.versions.last.updater)
     end
 
+    # Fork: operator ruling 2026-10-19 -- a tag on a post's public list shows
+    # to everyone, even when the creator's private prompt row names it. The
+    # implication writes tag_string and no sidecar row.
+    should "leave an implied tag visible to everyone when the creator's prompt also holds it" do
+      post = create(:post, tag_string: "sword", uploader: create(:user))
+      FourierTagSource.record_partition!(post, { creator: ["weapon"] }, @admin)
+      TagImplication.approve!(antecedent_name: "sword", consequent_name: "weapon", approver: @admin)
+
+      assert_equal("sword weapon", post.reload.tag_string)
+      [nil, create(:user), @admin].each do |viewer|
+        label = viewer&.level_string.inspect
+        assert_includes(FourierTagSource.for_viewer(post, viewer)[:unsourced], "weapon", label)
+        assert_includes(FourierTagSource.blacklist_tags_for([post], viewer)[post], "weapon", label)
+      end
+    end
+
     context "when calculating implied tags" do
       should "include tags for all active implications" do
         # a -> b -> c -> d; b -> b1; c -> c1

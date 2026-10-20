@@ -167,35 +167,46 @@ class FourierTagSource < ApplicationRecord
   # For each tag named in either list, after the same name resolution
   # record_partition! uses:
   #
-  #   a row exists              source |= the bits (whatever the row is)
-  #   no row, tag on the post   insert AUTO | bits, public, approved
-  #   neither                   skip
+  #   a public row                     source |= the bits
+  #   a private row, tag on the post   source |= AUTO | bits, made public
+  #   a private row, tag not on it     skip, the row untouched
+  #   no row, tag on the post          insert AUTO | bits, public, approved
+  #   no row, tag not on the post      skip
   #
-  # Never clears a bit, never touches bucket bits, public, status, added_by
-  # or created_at, and never fans out: the lamp is not part of the public
-  # projection.
+  # Never clears a bit, never touches status, added_by or created_at, and
+  # never fans out: the lamp is not part of the public projection.
   #
-  # NEVER A PRIVATE ROW (round-two finding 5). This route is builder+, which
-  # is every moderator and admin, and the creator-only ruling (2026-09-29)
-  # excludes every one of them. Answering "updated" for a creator's private
-  # tag and "skipped" for a wrong guess confirmed, one guess per call, which
-  # prompt tags a creator's post carries -- and rewrote the private row's bits
-  # as it did. So the OR update is scoped to public rows: a private row is an
-  # existing row that is never written, and its tag counts as skipped exactly
-  # like a tag the post does not have. It is never inserted over either --
-  # the insert only fills tags with no row at all, and one written between
-  # the read and the insert meets ON CONFLICT and then the same public-only
-  # update. A creator's private tag that a model also found keeps no lamp.
+  # A PRIVATE ROW IS WRITTEN ONLY WHERE ITS TAG IS ON THE PUBLIC LIST
+  # (operator ruling 2026-10-19: a private row never subtracts from anyone's
+  # view). A tag on the post's public list that a model reports becomes what
+  # record_partition! writes when the autotagger finds a prompt's tag: the
+  # public both row, CREATOR | AUTO with the model's bits, which everyone
+  # reads as both, in its own colouring: the model agrees with what the
+  # creator asked for (operator, 2026-10-19). Only a creator-ONLY row is
+  # private. A private tag the post does not carry -- every tunnel
+  # post's prompt -- is never written: a model's finding does not put a tag
+  # on a post, and the row is the creator's alone. So the answer depends on
+  # the public list and public rows only: a listed tag counts as inserted
+  # whether its only row is private or there is none, and an unlisted one as
+  # skipped whether or not the prompt holds it. That is round-two finding 5's
+  # requirement -- "updated" for a creator's private tag against "skipped"
+  # for a wrong guess confirmed, one guess per call, which prompt tags a post
+  # carries -- kept on a route the posting bots alone may call since
+  # 2026-10-19. This replaced never writing a private row at all, which left
+  # a listed tag white and unsourced on a prompted post while the same tag
+  # lit a model's lamp on every other.
   #
   # Every (post, tag) asked about lands in exactly one count: `updated` if its
-  # bits changed, `inserted` if its row is new, `skipped` otherwise -- not on
-  # the post, or already carrying those bits. So a second identical call
-  # reports everything as skipped, which is what idempotent looks like.
+  # bits changed, `inserted` if its public row is new (a private row made
+  # public included), `skipped` otherwise -- not on the post, or already
+  # carrying those bits. So a second identical call reports everything as
+  # skipped, which is what idempotent looks like.
   #
-  # Race-safe without a lock. The poster writes this table continuously: the
+  # Race-safe without a lock. The poster writes this table continuously: each
   # update is one conditional statement, and an insert that meets a row
-  # written since the read is ON CONFLICT DO NOTHING, then OR'd like any
-  # other existing row.
+  # written since the read is ON CONFLICT DO NOTHING, then written like any
+  # other existing row -- made public if it is a private one for a listed
+  # tag, OR'd if it is public.
   #
   # @param entries [Array<Hash>] { post_id:, spectrum: [names], hydra: [names] }
   # @return [Hash] { updated:, inserted:, skipped:, missing_posts: [ids] }
@@ -228,13 +239,16 @@ class FourierTagSource < ApplicationRecord
         rows = fresh.map { |t| { post_id: post_id, tag: t, source: AUTO | bits[t], status: APPROVED, public: true, added_by: user&.id, created_at: now } }
         inserted = insert_all(rows, unique_by: %i[post_id tag], returning: %w[tag]).rows.flatten
         result[:inserted] += inserted.size
-        existing += fresh - inserted # lost the race to another writer: OR into its row below
+        existing += fresh - inserted # lost the race to another writer: write its row below
       end
 
       existing.group_by { |t| bits[t] }.each do |b, tags|
+        listed = tags.select { |t| on_post.include?(t) }
+        made = listed.empty? ? 0 : where(post_id: post_id, tag: listed, public: false).update_all(["source = source | ?, public = TRUE", AUTO | b]) # rubocop:disable Rails/SkipsModelValidations
         changed = where(post_id: post_id, tag: tags, public: true).where("source & ? <> ?", b, b).update_all(["source = source | ?", b])
+        result[:inserted] += made
         result[:updated] += changed
-        result[:skipped] += tags.size - changed
+        result[:skipped] += tags.size - made - changed
       end
     end
     result
@@ -484,11 +498,18 @@ class FourierTagSource < ApplicationRecord
   # surfaced it. blacklist_tags_for already treats an absent row as "nothing to
   # withhold"; this method disagreeing with it was the defect.
   #
-  # `known` is plucked from ALL rows, BEFORE the visibility filter. Taking it
-  # from the filtered set instead would hand a private creator tag back to the
-  # very viewer the filter just took it from, through the fallback -- the tag
-  # would have no VISIBLE row and so would read as unsourced. The privacy gate
-  # is the reason this table exists; the fallback must not open a second door.
+  # A PRIVATE ROW NEVER HIDES A TAG ON THE PUBLIC LIST (operator ruling
+  # 2026-10-19). For everyone but the creator, `rows` and `known` come from
+  # PUBLIC rows only: what they see depends on tag_string and public rows and
+  # on nothing else. So a tag on tag_string whose only row is the creator's
+  # private one reads to them as it does on /posts/:id.json, in tag search and
+  # in the sidebar -- unsourced, with a white lamp. A private row ADDS to the
+  # creator's view and subtracts from nobody's; and a private tag outside
+  # tag_string is never in `current`, so the fallback cannot hand it to anyone.
+  # This replaced taking `known` from every row, private ones included, which
+  # hid the public tag from all but the creator (247 posts on production on
+  # 2026-10-19) and told a stranger, by the tag's absence, that the prompt
+  # held that word.
   #
   # ONLY ROWS FOR TAGS THE POST STILL HAS (2026-09-20). The sidecar is written
   # at post time and by TagMover, and nothing hooks Post's own tag changes --
@@ -503,10 +524,8 @@ class FourierTagSource < ApplicationRecord
   #
   # Intersecting here fixes the page, the tag_sources.json read Technetium
   # uses for provenance, and blacklist_data, all at read time and with no
-  # backfill. The privacy argument above survives it unchanged: `known` is
-  # still taken before the visibility filter, only now from the rows for tags
-  # the post actually carries. Pruning the orphans themselves is a separate,
-  # write-side task and is not attempted here.
+  # backfill. Pruning the orphans themselves is a separate, write-side task
+  # and is not attempted here.
   def self.for_viewer(post, viewer, request: CurrentUser.request)
     buckets, = buckets_and_lamps_for(post, viewer, request: request)
     buckets
@@ -525,12 +544,21 @@ class FourierTagSource < ApplicationRecord
   # private_visible_to? said yes. So the creator gets every private row the
   # post has, in tag_string or not; everyone else gets none of them, and no
   # private row is even read for them.
+  #
+  # A BOTH ROW IS PUBLIC AND READS AS BOTH TO EVERYONE (operator, 2026-10-19:
+  # "Tags that are both public and creator have a special coloration to
+  # indicate that the model agrees with what the creator asked for"). A row
+  # carrying CREATOR | AUTO is written public by record_partition! on
+  # purpose, and every viewer, signed out included, gets its name in :both,
+  # drawn in its own colouring. Only a creator-ONLY row is private, and only
+  # that row is gated here.
   def self.buckets_and_lamps_for(post, viewer, request: CurrentUser.request)
     current = post.tag_string.to_s.split
     scoped = where(post_id: post.id)
-    rows = scoped.where(tag: current)
+    creator = private_visible_to?(post, viewer, request: request)
+    rows = creator ? scoped.where(tag: current) : scoped.where(tag: current).publicly_visible
     known = rows.pluck(:tag)
-    rows = private_visible_to?(post, viewer, request: request) ? rows.or(scoped.where(public: false)) : rows.publicly_visible
+    rows = rows.or(scoped.where(public: false)) if creator
     # A quarantined name the viewer may not be shown (TagQuarantine) -- on a
     # visible post only a creator's private row can carry one, its tag being
     # outside tag_string, so the post is not hidden by it.
@@ -556,15 +584,14 @@ class FourierTagSource < ApplicationRecord
   # slot and produced one render, so this is not a rendering fix; it is half
   # the requests.
   #
-  # TAG_STRING HERE IS THE VIEWER'S, NOT THE POST'S. That is the part worth
-  # being careful about. Danbooru's own /posts/:id.json hands out the
-  # denormalised tag_string, which still contains the private creator tags
-  # this class exists to withhold -- so a client that read it for a write's
-  # old_tag_string was holding them, undisplayed but present. What goes out
-  # here is the union of the buckets this viewer may see, which is exactly
-  # what the booru's own Modulation page sends as old_tag_string, and for the
-  # same reason: Danbooru applies only the DIFFERENCE between the two strings,
-  # so a tag in neither is untouched. Private tags stay put and unmentioned.
+  # TAG_STRING HERE IS THE VIEWER'S, NOT THE POST'S: the union of the buckets
+  # this viewer may see, which is exactly what the booru's own Modulation page
+  # sends as old_tag_string. For everyone but the creator that is the post's
+  # public list (less a quarantined name hidden from them, TagQuarantine):
+  # a tag on the public list shows to everyone even where the creator's
+  # private prompt row names it too (operator ruling 2026-10-19). Danbooru
+  # applies only the DIFFERENCE between the two strings, so a tag in neither
+  # is untouched.
   #
   # For the creator that union includes their private tags, which are not in
   # the post's tag_string. Sent back as old_tag_string they are harmless for
@@ -594,28 +621,26 @@ class FourierTagSource < ApplicationRecord
   #
   # Blacklists are applied CLIENT-side: the rules match against a data-tags
   # attribute on each post element. That makes "which tags may this viewer see"
-  # a question that has to be answered before rendering, in bulk -- and it makes
-  # post.tag_string the wrong answer, because the denormalised tag_string this
-  # table rides alongside still contains the private creator tags this class
-  # exists to withhold. Publishing it would put prompt-derived tags in the page
-  # source of the default view of every gallery.
+  # a question that has to be answered before rendering, in bulk.
   #
-  # The consequence is deliberate: a viewer's blacklist cannot match a tag that
-  # viewer is not allowed to see. That is the correct trade -- you cannot filter
-  # on what you cannot be shown, and the alternative is disclosing it.
-  #
-  # Posts with no rows here are unaffected: nothing about them is private, so
-  # they keep their full tag string and blacklist exactly as they did before.
-  #
-  # Who may see a post's private rows is private_visible_to?'s rule, asked for
-  # the whole page at once (FourierCreatorPrivacy.readable_post_ids) and only
-  # for the posts that have private rows at all.
+  # Everyone but a post's creator gets its tag_string as it is. A tag on the
+  # public list shows to everyone, even where the creator's private prompt
+  # row names it too (operator ruling 2026-10-19), so a private row takes
+  # nothing out of anyone's data-tags. This replaced subtracting every private
+  # tag from tag_string for them, which hid a public tag and told a stranger
+  # which words the prompt held.
   #
   # The creator's own private tags are ADDED for the creator, as
   # buckets_and_lamps_for draws them: they are not in tag_string (see there),
-  # so "the tag string, unfiltered" would withhold them from the one viewer
-  # who may see them. Everyone else gets tag_string less any private tag it
-  # still carries -- the posts from before 37270f5 that have one there.
+  # so the tag string alone would withhold them from the one viewer who may
+  # see them. Who that is is private_visible_to?'s rule, asked for the whole
+  # page at once (FourierCreatorPrivacy.readable_post_ids) and only for the
+  # posts that have private rows at all.
+  #
+  # The consequence is deliberate: a viewer's blacklist cannot match a tag that
+  # viewer is not allowed to see -- a private tag outside tag_string, for
+  # anyone but its creator. That is the correct trade: you cannot filter on
+  # what you cannot be shown, and the alternative is disclosing it.
   def self.blacklist_tags_for(posts, viewer, request: CurrentUser.request)
     posts = Array(posts)
     return {} if posts.empty?
@@ -628,17 +653,17 @@ class FourierTagSource < ApplicationRecord
 
     posts.index_with do |post|
       tags = post.tag_string.to_s.split
-      rows = by_post[post.id]
-      next tags if rows.blank?
-
-      private_tags = rows.map { |(_, tag)| tag }
-      readable.include?(post.id) ? (tags | private_tags) - hidden : tags - private_tags
+      readable.include?(post.id) ? (tags | by_post[post.id].map(&:last)) - hidden : tags
     end
   end
 
   # The PUBLIC-SAFE projection for the Matrix state event / anonymous views.
   # Private tags and unapproved suggestions are omitted -- nothing sensitive
   # ever leaves the gated store.
+  #
+  # A both row (CREATOR | AUTO) is public and travels as :both, as every
+  # viewer sees it on the booru (buckets_and_lamps_for): its colouring says
+  # the model agrees with what the creator asked for (operator, 2026-10-19).
   def self.matrix_projection(post)
     # Same intersection as for_viewer, for the same reason: a row whose tag has
     # left the post is not provenance for anything.

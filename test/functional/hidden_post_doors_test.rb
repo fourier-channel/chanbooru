@@ -436,6 +436,47 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
       end
     end
 
+    # A history search answers as though it ran over the rows the viewer is
+    # shown: version by version, never by dropping the whole post. Dropping
+    # it made the guard itself confirm a guess -- a search for a tag the post
+    # visibly changed and a guessed name lost the post exactly when the guess
+    # was a withheld prompt term -- and hid a person's own later add of it.
+    should "answer a search by the rows it shows, never by dropping the post" do
+      ids = ->(user, **search) { own(json_rows(post_versions_path, user, search: search)).pluck("id").sort }
+      first = @post.versions.order(:id).first
+      [nil, @member, @admin].each do |user|
+        label = user&.name || "anonymous"
+        assert_includes ids.call(user, any_changed_tags: "landscape #{SECRET}"), first.id, label
+        assert_equal ids.call(user, any_changed_tags: "landscape not_a_prompt_term"), ids.call(user, any_changed_tags: "landscape #{SECRET}"), label
+      end
+
+      as(@member) { @post.update!(tag_string: "#{@post.tag_string} #{SECRET}") }
+      readded = @post.versions.order(:id).last
+      [nil, @member, @admin].each do |user|
+        assert_equal [readded.id], ids.call(user, changed_tags: SECRET), user&.name || "anonymous"
+      end
+    end
+
+    # A part of a name finds the name: tag_matches with no "*" is a substring
+    # search, and the per-tag regexes match within a name. Each is judged
+    # against every private name it could match, never as a name of its own.
+    # A pattern over the whole tag string can match ACROSS names, so no
+    # private name can be judged against it, and it is not offered at all.
+    should "not be findable by part of its name" do
+      [nil, @member, @admin].each do |user|
+        label = user&.name || "anonymous"
+        assert_empty own(json_rows(post_versions_path, user, search: { tag_matches: SECRET[0, 4] })), label
+        assert_empty own(json_rows(post_versions_path, user, search: { tag_matches: "*landscape*#{SECRET[0, 3]}*" })), label
+        assert_empty own(json_rows(post_versions_path, user, search: { any_added_tag_matches_regex: "^#{SECRET[0, 4]}" })), label
+        assert_empty own(json_rows(post_versions_path, user, search: { any_removed_tag_matches_regex: "^#{SECRET[0, 4]}" })), label
+        %i[tags_regex tags_not_regex tags_like tags_ilike tags_not_like tags_not_ilike tags_matches tags_not_eq].each do |key|
+          assert_equal 422, status_of(post_versions_path, user, search: { key => "*#{SECRET[0, 4]}*" }), "#{key} #{label}"
+          assert_match(/changed_tags/, response.parsed_body["message"], "#{key} #{label}: the refusal names what to use")
+          assert_not_includes response.body, SECRET, "#{key} #{label}"
+        end
+      end
+    end
+
     should "still be shown to the creator" do
       get post_versions_path, params: { search: { post_id: @post.id }}, as: :json, headers: { "X-Fourier-Identity" => CREATOR }
       assert_response :success

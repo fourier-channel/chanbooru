@@ -123,4 +123,21 @@ class FourierPrivateTagLineageTest < ActiveSupport::TestCase
     assert_not TagAlias.exists?(antecedent_name: "leaked_(cosplay)"), "fixture: TagMover leaves no alias for the cosplay tag"
     assert_equal({ "cosplay" => :bot, "landscape" => :bot, "moved" => :bot, "moved_(cosplay)" => :bot }, lineage_after(versions.last))
   end
+
+  # History redaction (PostVersion.private_names_withheld) judges a private
+  # row's tag under every name it went by before, as its row moved with it:
+  # through any number of moves, of any status, and never forward -- each
+  # earlier name with the time the move from it ran, since an occurrence
+  # begun after that is the name used again, not the row's.
+  should "name every earlier name a tag went by, through more than one move, with when it moved" do
+    first = create(:tag_alias, antecedent_name: "first_name", consequent_name: "second_name", status: "deleted", creator: @admin)
+    second = create(:tag_alias, antecedent_name: "second_name", consequent_name: "third_name", status: "deleted", creator: @admin)
+    create(:tag_alias, antecedent_name: "third_name", consequent_name: "later_name", status: "deleted", creator: @admin)
+    pairs = FourierPrivateTagLineage.linked_moves(["third_name"])
+
+    assert_equal([%w[first_name second_name], %w[second_name third_name], %w[third_name later_name]],
+                 pairs.map { |from, to, _| [from, to] }.select { |pair| pair.none? { |name| name.end_with?(")") } }.sort)
+    assert_equal({ "first_name" => first.reload.updated_at, "second_name" => second.reload.updated_at }, FourierPrivateTagLineage.earlier_names(["third_name"], pairs))
+    assert_equal({ "first_name" => first.updated_at }, FourierPrivateTagLineage.earlier_names(["second_name"], pairs))
+  end
 end

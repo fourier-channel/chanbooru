@@ -140,6 +140,23 @@ class MassUpdateCommandTest < ActiveSupport::TestCase
         assert_equal("approved", @bur.reload.status)
         assert_equal([["done", 1, 0]], @bur.results.map { |line| line.values_at("state", "matched", "skipped") })
       end
+
+      # Fork: operator ruling 2026-10-19 -- a tag on a post's public list shows
+      # to everyone, even when the creator's private prompt row names it.
+      # A bulk update writes tag_string and no sidecar row, so the tag it adds
+      # has only the prompt's private row behind it.
+      should "leave a tag it adds visible to everyone when the creator's prompt also holds it" do
+        @post = create(:post, tag_string: "foo", uploader: create(:user))
+        FourierTagSource.record_partition!(@post, { creator: ["bar"] }, @admin)
+        create_bur!("mass update foo -> bar", @admin)
+
+        assert_equal("bar foo", @post.reload.tag_string)
+        [nil, create(:user), @admin].each do |viewer|
+          label = viewer&.level_string.inspect
+          assert_includes(FourierTagSource.for_viewer(@post, viewer)[:unsourced], "bar", label)
+          assert_includes(FourierTagSource.blacklist_tags_for([@post], viewer)[@post], "bar", label)
+        end
+      end
     end
 
     # Fork: the block runs on pool threads outside a transaction

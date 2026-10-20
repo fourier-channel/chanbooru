@@ -37,6 +37,26 @@ class NukeCommandTest < ActiveSupport::TestCase
         assert_equal(User.system, @post.versions.last.updater)
       end
 
+      # Fork: provenance rows are never deleted on a removal (a removed tag's
+      # row is simply not drawn, FourierTagSource.buckets_and_lamps_for), so
+      # a revert brings the tag back with where it came from. A guard against
+      # a future delete-on-remove hook (BUR review 2026-10-19).
+      should "take a nuked tag off every view and bring its provenance back on revert" do
+        @post = create(:post, tag_string: "foo bar")
+        FourierTagSource.record_partition!(@post, { auto: %w[foo bar] }, @admin)
+        create_bur!("nuke bar", @admin)
+
+        assert_equal("foo", @post.reload.tag_string)
+        [nil, create(:user), @admin].each do |viewer|
+          assert_not_includes(FourierTagSource.for_viewer(@post, viewer).values.flatten, "bar", viewer&.level_string.inspect)
+          assert_not_includes(FourierTagSource.blacklist_tags_for([@post], viewer)[@post], "bar", viewer&.level_string.inspect)
+        end
+
+        @post.revert_to!(@post.versions.order(:version).first)
+        assert_equal("bar foo", @post.reload.tag_string)
+        assert_equal(%w[bar foo], FourierTagSource.for_viewer(@post, nil)[:auto].sort)
+      end
+
       should "remove implications" do
         @ti1 = create(:tag_implication, antecedent_name: "fly", consequent_name: "insect")
         @ti2 = create(:tag_implication, antecedent_name: "insect", consequent_name: "bug")

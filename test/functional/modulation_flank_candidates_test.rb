@@ -158,15 +158,20 @@ class ModulationFlankCandidatesTest < ActionDispatch::IntegrationTest
     end
 
     # A blocklist cannot match a tag the viewer may not see -- the same trade
-    # the centre makes (FourierTagSource.blacklist_tags_for).
+    # the centre makes (FourierTagSource.blacklist_tags_for). A private
+    # creator tag is its row alone, outside tag_string, as the tunnel writes
+    # it (fourier-tunnel 37270f5). A name the prompt holds that is ALSO on the
+    # public list is public to everyone (operator ruling 2026-10-19).
     should "withhold a neighbour's private creator tag from everyone but its creator" do
       neighbour = @posts[4]
       FourierTagSource.create!(post: neighbour, tag: "secret_flank_tag", source: FourierTagSource::CREATOR, status: FourierTagSource::APPROVED, public: false, added_by: @uploader.id)
-      neighbour.update_columns(tag_string: "flankq secret_flank_tag") # rubocop:disable Rails/SkipsModelValidations -- the private tag on the post, as the tunnel writes it
+      FourierTagSource.create!(post: neighbour, tag: "listed_flank_tag", source: FourierTagSource::CREATOR, status: FourierTagSource::APPROVED, public: false, added_by: @uploader.id)
+      neighbour.update_columns(tag_string: "flankq listed_flank_tag") # rubocop:disable Rails/SkipsModelValidations -- the public list; secret_flank_tag stays its row alone
 
       body = payload_json(@centre, @viewer)
       assert_includes candidate_ids(body), neighbour.id, "fixture: it is a candidate"
       assert_not_includes body.dig("candidates", neighbour.id.to_s, "blacklist", "data-tags").split, "secret_flank_tag"
+      assert_includes body.dig("candidates", neighbour.id.to_s, "blacklist", "data-tags").split, "listed_flank_tag"
       assert_not_includes response.body, "secret_flank_tag"
 
       body = payload_json(@centre, @uploader)

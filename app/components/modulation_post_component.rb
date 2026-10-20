@@ -6,9 +6,12 @@
 # properties) so a preset is just a bundle of overrides.
 #
 # Tag provenance comes from FourierTagSource.for_viewer, which is already
-# identity-gated: creator-only (prompt-derived, private) tags are withheld unless
-# the viewer is the creator or a moderator. The component renders whatever it is
-# handed -- the privacy decision lives in the model, not the view.
+# identity-gated: creator-only (prompt-derived, private) tags go to the post's
+# creator alone, no moderator or admin included (FourierCreatorPrivacy), and a
+# tag on the post's public list shows to everyone, even where the creator's
+# private prompt row names it too (operator ruling 2026-10-19). The component
+# renders whatever it is handed -- the privacy decision lives in the model,
+# not the view.
 class ModulationPostComponent < ApplicationComponent
   attr_reader :post, :viewer, :query, :settings
 
@@ -109,8 +112,9 @@ class ModulationPostComponent < ApplicationComponent
 
   # { artist: [...], character: [...], copyright: [...] } -- only keys with
   # tags present. Built from the VIEWER-VISIBLE tags (the buckets), never from
-  # tag_string: the denormalised string still holds private creator tags, and
-  # a category lookup must not become a second door past the privacy gate.
+  # tag_string: the buckets are what this viewer may see -- the public list,
+  # and for the post's creator their private tags too -- and a category
+  # lookup must not become a second door past that gate.
   # Every name here also appears in `buckets`; the client uses that to keep
   # provenance styling and to drop these from the general flow.
   def category_tags
@@ -168,7 +172,8 @@ class ModulationPostComponent < ApplicationComponent
 
   # What the client-side blacklist matches this post against. Same contract as
   # the gallery cards, and the same reason data-tags is not post.tag_string:
-  # the denormalised string still holds the private creator tags.
+  # the post's creator also matches on their private tags, which tag_string
+  # does not carry (FourierTagSource.blacklist_tags_for).
   def blacklist_data
     blacklist_attrs(post, blacklist_tags)
   end

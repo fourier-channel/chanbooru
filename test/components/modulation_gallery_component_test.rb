@@ -82,4 +82,29 @@ class ModulationGalleryComponentTest < ViewComponent::TestCase
       assert_equal(%w[kept_y], JSON.parse(marks).keys)
     end
   end
+
+  # Fork: a "both" row (CREATOR | AUTO) is public on purpose, and its
+  # colouring says the model agrees with what the creator asked for
+  # (operator, 2026-10-19). So every viewer reads it on the card and on the
+  # page pill exactly as the card's creator does: both.
+  context "a both row on a card" do
+    setup do
+      @bot = create(:builder_user, name: "tunnel")
+      # @member uploaded it and no creator is recorded: @member is its creator.
+      @mine = as(@member) { create(:post, uploader: @member, tag_string: "gboth shared_z") }
+      FourierTagSource.record_partition!(@mine, { creator: %w[shared_z], auto: %w[shared_z] }, @bot)
+      assert_equal(:both, FourierTagSource.find_by!(post_id: @mine.id, tag: "shared_z").bucket, "fixture: a public both row")
+    end
+
+    should "say both to every viewer, as to the card's creator, in data-tag-marks and on the pill" do
+      [@member, User.anonymous, create(:user), create(:moderator_user), create(:admin_user)].each do |viewer|
+        draw("gboth -gboth_absent", user: viewer)
+        marks = JSON.parse(page.find(".modgal-card[data-id='#{@mine.id}']", visible: :all)["data-tag-marks"])
+
+        assert_equal(%w[both spectrum], marks["shared_z"], viewer.level_string)
+        assert_css(".mod-unitag [data-tag='shared_z'].mod-pill--both")
+        assert_no_css(".mod-unitag [data-tag='shared_z'].mod-pill--auto", visible: :all)
+      end
+    end
+  end
 end

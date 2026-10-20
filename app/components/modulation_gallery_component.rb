@@ -163,8 +163,8 @@ class ModulationGalleryComponent < ApplicationComponent
   # and the blacklist's selector list knew nothing about them.
   #
   # data-tags comes from FourierTagSource.blacklist_tags_for, NOT post.tag_string:
-  # tag_string still holds the private creator tags, and this is the default view
-  # of the site.
+  # the post's creator also sees their private tags, which tag_string does not
+  # carry, and a quarantined name stays out of the page.
   #
   # data-key is the card's place in the search (PostNeighbors::Seek), which
   # the gallery window pages from; none where the viewer has no window.
@@ -191,6 +191,11 @@ class ModulationGalleryComponent < ApplicationComponent
   # private-tag cleanup write tag_string, never the sidecar -- and such a
   # dormant row is provenance for nothing here; its name was written into
   # the page source all the same (BUR review 2026-10-19).
+  #
+  # Fork: a "both" row (CREATOR | AUTO) is public and says "both" on every
+  # card, to every viewer: its colouring says the model agrees with what the
+  # creator asked for (operator, 2026-10-19). Only a creator-ONLY row is
+  # private, and publicly_visible already leaves it out.
   def card_tag_marks
     @card_tag_marks ||= FourierTagSource.publicly_visible
       .where(post_id: posts.map(&:id))
@@ -390,13 +395,13 @@ class ModulationGalleryComponent < ApplicationComponent
   # post of this page that carries it; a name with none is unsourced. One
   # query for the page: the OR of the source flags says who put the name
   # there anywhere on the page, which is the honest answer for a list that
-  # aggregates the page. Public rows only -- the sidebar's names come from
-  # tag_string, which never holds a private creator tag, so a private row
-  # could only ever add information this viewer may not have.
+  # aggregates the page. Public rows only -- a private row is the creator's
+  # prompt, and the pill's colour must not tell anyone else what it holds.
   #
   # Fork: and only rows whose tag the post still carries (card_tags). A row
   # left behind when its tag left its post coloured every other card's pill
-  # for that name (BUR review 2026-10-19).
+  # for that name (BUR review 2026-10-19). A both row is public and counts
+  # as both for every viewer, as on the card (card_tag_marks).
   #
   # And THE LAMP, from the same OR: which model put the name there
   # anywhere on the page (FourierTagSource.lamp_of) -- the pill's dot, per
