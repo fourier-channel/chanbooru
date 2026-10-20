@@ -55,9 +55,7 @@ class CommentsController < ApplicationController
     @comment.save
 
     respond_with(@comment, notice: "Comment posted") do |format|
-      format.html do
-        redirect_back fallback_location: @comment.post || comments_path
-      end
+      format.html { redirect_back_or_to @comment.post } if @comment.persisted?
     end
   end
 

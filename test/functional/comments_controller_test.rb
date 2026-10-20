@@ -341,6 +341,18 @@ class CommentsControllerTest < ActionDispatch::IntegrationTest
         end
       end
 
+      should "keep the comment text when the comment is invalid" do
+        body = "too many images\n!post ##{@post.id}\n!post ##{@post.id}"
+
+        assert_no_difference("Comment.count") do
+          post_auth comments_path, @user, params: { comment: { post_id: @post.id, body: body }}
+        end
+
+        assert_response :success
+        assert_select "textarea[name='comment[body]']", text: body
+        assert_select "#notice", text: /can't include more than 1 image/
+      end
+
       context "that mentions a user" do
         setup do
           Danbooru.config.stubs(:rate_limits_enabled?).returns(true)
