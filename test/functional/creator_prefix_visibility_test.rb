@@ -144,12 +144,17 @@ class CreatorPrefixVisibilityTest < ActionDispatch::IntegrationTest
       assert showcase.call(@admin).send(:showable?, @hidden), "an admin still sees it in the showcase"
       assert PostPreviewComponent.new(post: @hidden, current_user: @admin).render?
 
-      gallery = CreatorGallery.create!(matrix_id: "@alice:41chan.net", slug: "alice-cv", user: @member)
-      gallery.creator_gallery_posts.create!(post: @hidden, position: 0)
-      gallery.creator_gallery_posts.create!(post: @shown, position: 1)
-      featured = CreatorGalleryComponent.new(gallery: gallery.reload, viewer: @member).featured_posts
-      assert_includes featured, @shown
-      assert_not_includes featured, @hidden
+      # The gallery's draw (CreatorGalleryLayout, 2026-10-23): both posts are
+      # the creator's and fit the band, so only the viewer's gate decides.
+      gallery = CreatorGallery.create!(matrix_id: "@alice:41chan.net", slug: "alice-cv", user: @member, settings: { "hero" => { "tags" => %w[landscape] }})
+      [@hidden, @shown].each_with_index do |post, i|
+        FourierPostCreator.create!(post: post, mxid: gallery.matrix_id, recorded_by: @tunnel.id)
+        gallery.creator_gallery_posts.create!(post: post, band: "hero", position: i)
+      end
+      drawn = ->(user) { CreatorGalleryLayout.new(gallery.reload).draw(user)[:hero][:slides].pluck(:id) }
+      assert_includes drawn.call(@member), @shown.id
+      assert_not_includes drawn.call(@member), @hidden.id
+      assert_includes drawn.call(@admin), @hidden.id, "an admin still sees it in the gallery"
     end
   end
 

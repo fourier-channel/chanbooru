@@ -89,11 +89,14 @@
     <section class="modland-promoted">
       <span class="modland-label">Featured creators</span>
       <div class="modland-promoted-row">
-        <% promoted.each do |gallery| %>
+        <% promoted.each do |gallery, card| %>
           <%= link_to gallery_link(gallery), class: "modland-promoted-card" do %>
-            <% thumb = gallery_thumb(gallery) %>
-            <% if thumb %>
-              <img class="modland-promoted-thumb" src="<%= thumb %>" alt="" loading="lazy">
+            <% if card %>
+              <%# The blacklist's attributes, as the gallery cards carry them; it
+                  hides the picture and keeps its box, never the card. %>
+              <%= tag.span(class: "modland-promoted-pic mod-blacklist-target", data: card.slice(:id, :tags, :rating, :flags, :score, :uploader_id)) do %>
+                <img class="modland-promoted-thumb" src="<%= card[:thumb] || card[:src] %>" alt="" loading="lazy">
+              <% end %>
             <% else %>
               <span class="modland-promoted-thumb modland-promoted-thumb--empty"></span>
             <% end %>

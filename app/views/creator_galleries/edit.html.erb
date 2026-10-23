@@ -1,30 +1,17 @@
+<%# The edit page is the gallery itself with options on everything
+    (CreatorGalleryComponent, editing). The sections below keep their own
+    forms and routes; they descend from the header with the page's other
+    panels, each under its box's title. %>
 <% content_for(:content) do %>
-  <section class="modcreator-edit-page">
-    <header class="modcreator-edit-head">
-      <h1>Edit page - <%= @gallery.slug %></h1>
-      <%= link_to "View page >", creator_gallery_path(@gallery), class: "modcreator-edit-view" %>
-    </header>
-
-    <%# --- who sees the creator's posts: the panel the claim is the key to (CREATOR_VISIBILITY, 2026-10-09) --- %>
+  <%# --- who sees the creator's posts: the panel the claim is the key to (CREATOR_VISIBILITY, 2026-10-09) --- %>
+  <% audience = capture do %>
     <%= render CreatorPanelComponent.new(gallery: @gallery, viewer: CurrentUser.user, refusal: @panel_refusal,
           place: { post_id: params[:post_id], audience_page: params[:audience_page], member_q: params[:member_q], open_group: params[:open_group] }) %>
+  <% end %>
 
-    <%# --- settings --- %>
-    <%= form_with model: @gallery, url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-form" do |f| %>
-      <%# size: nil -- Rails otherwise sets size from maxlength, a 120-character box that scrolled the page sideways at phone width (2026-10-09). %>
-      <label>Title <%= f.text_field :title, maxlength: 120, size: nil %></label>
-      <label>Bio <%= f.text_area :bio, rows: 4, maxlength: 4000 %></label>
-      <label>Gallery style
-        <%= f.select :style, CreatorGallery::STYLES.map { |s| [s.humanize, s] } %>
-      </label>
-      <label>Matrix contact (MXID to message)
-        <%= f.text_field :matrix_contact, placeholder: @gallery.matrix_id %></label>
-      <%= f.submit "Save settings" %>
-    <% end %>
-
-    <%# --- booru account and creator claims (CREATOR_VISIBILITY, 2026-10-07) --- %>
+  <%# --- booru account and creator claims (CREATOR_VISIBILITY, 2026-10-07) --- %>
+  <% claims = capture do %>
     <section id="creator-claims">
-      <h2>Booru account and creator tags</h2>
       <% if @gallery.user %>
         <p>Linked to the booru account <%= link_to_user @gallery.user %>.</p>
         <% if CurrentUser.user.is_admin? %>
@@ -59,84 +46,77 @@
         is taken off. An admin reviews every claim. Your 41chan_ tag needs no claim.
       </p>
     </section>
+  <% end %>
 
-    <%# --- original characters: the creator's own, <name>_(<slug>) (CharacterClaim, 2026-10-11) --- %>
-    <% if @signed_in_owner || CurrentUser.user.is_admin? %>
-      <section id="creator-characters">
-        <h2>Characters</h2>
-        <% if @character_claims.any? %>
-          <ul class="modcreator-character-claims">
-            <% @character_claims.each do |claim| %>
-              <li>
-                <%= link_to claim.tag_name, wiki_page_path(claim.tag_name) %> - <%= claim.status %><%= " (#{claim.note})" if claim.note.present? %>
-                <% if claim.approved? && @signed_in_owner && @gallery.user_id == CurrentUser.user.id %>
-                  <%= form_with url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-inline-form",
-                        data: { confirm: "Release #{claim.tag_name}? Its wiki page opens to everyone's edits again; the tag and the page stay." } do %>
-                    <%= hidden_field_tag :release_character, claim.id %>
-                    <button type="submit" class="button-outline-danger">Release</button>
-                  <% end %>
+  <%# --- original characters: the creator's own, <name>_(<slug>) (CharacterClaim, 2026-10-11) --- %>
+  <% characters = capture do %>
+    <section id="creator-characters">
+      <% if @character_claims.any? %>
+        <ul class="modcreator-character-claims">
+          <% @character_claims.each do |claim| %>
+            <li>
+              <%= link_to claim.tag_name, wiki_page_path(claim.tag_name) %> - <%= claim.status %><%= " (#{claim.note})" if claim.note.present? %>
+              <% if claim.approved? && @signed_in_owner && @gallery.user_id == CurrentUser.user.id %>
+                <%= form_with url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-inline-form",
+                      data: { confirm: "Release #{claim.tag_name}? Its wiki page opens to everyone's edits again; the tag and the page stay." } do %>
+                  <%= hidden_field_tag :release_character, claim.id %>
+                  <button type="submit" class="button-outline-danger">Release</button>
                 <% end %>
-              </li>
-            <% end %>
-          </ul>
-        <% end %>
-
-        <% if @signed_in_owner && @gallery.user_id == CurrentUser.user.id %>
-          <%= form_with url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-inline-form modcreator-character-form" do %>
-            <label for="claim_character">Claim a character</label>
-            <span class="modcreator-character-name">
-              <%= text_field_tag :claim_character, nil, placeholder: "name", required: true, autocomplete: "off", size: nil %><span class="modcreator-character-slug">_(<%= @gallery.slug %>)</span>
-            </span>
-            <button type="submit" class="button-primary">Claim</button>
+              <% end %>
+            </li>
           <% end %>
-          <p class="fineprint">
-            An original character's tag is its name with your name in brackets: maple becomes maple_(<%= @gallery.slug %>).
-            A name nobody has used yet (no posts, no wiki page, no alias) is yours at once; one that has been used waits for an
-            admin. Once it is yours, only you and admins edit its wiki page and only an admin changes its category. Anyone can
-            still tag posts with it, fan art included.
-          </p>
-        <% elsif @signed_in_owner %>
-          <p class="fineprint">Link this page to your booru account (above) to claim your original characters.</p>
-        <% else %>
-          <p class="fineprint">Read-only here: the creator files and releases their claims. Claims that wait are decided in <%= link_to "the claims queue", admin_artist_claims_path(anchor: "character-claims") %>.</p>
+        </ul>
+      <% end %>
+
+      <% if @signed_in_owner && @gallery.user_id == CurrentUser.user.id %>
+        <%= form_with url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-inline-form modcreator-character-form" do %>
+          <label for="claim_character">Claim a character</label>
+          <span class="modcreator-character-name">
+            <%= text_field_tag :claim_character, nil, placeholder: "name", required: true, autocomplete: "off", size: nil %><span class="modcreator-character-slug">_(<%= @gallery.slug %>)</span>
+          </span>
+          <button type="submit" class="button-primary">Claim</button>
         <% end %>
-      </section>
-    <% end %>
-
-    <%# --- curated posts --- %>
-    <h2>Featured posts</h2>
-    <%= form_with url: creator_gallery_add_post_path(@gallery), method: :post, class: "modcreator-inline-form" do %>
-      <input type="number" name="post_id" placeholder="post id" required>
-      <button type="submit">Add post</button>
-    <% end %>
-    <div class="modcreator-edit-grid">
-      <% @gallery.creator_gallery_posts.includes(:post).each do |cgp| %>
-        <div class="modcreator-edit-card">
-          <% if cgp.post %>
-            <%= link_to post_path(cgp.post) do %>
-              <img src="<%= cgp.post.preview_file_url rescue "" %>" alt="" loading="lazy">
-            <% end %>
-          <% end %>
-          <%= button_to "remove", creator_gallery_remove_post_path(@gallery, post_id: cgp.post_id), method: :delete, class: "modcreator-remove" %>
-        </div>
+        <p class="fineprint">
+          An original character's tag is its name with your name in brackets: maple becomes maple_(<%= @gallery.slug %>).
+          A name nobody has used yet (no posts, no wiki page, no alias) is yours at once; one that has been used waits for an
+          admin. Once it is yours, only you and admins edit its wiki page and only an admin changes its category. Anyone can
+          still tag posts with it, fan art included.
+        </p>
+      <% elsif @signed_in_owner %>
+        <p class="fineprint">Link this page to your booru account (above) to claim your original characters.</p>
+      <% else %>
+        <p class="fineprint">Read-only here: the creator files and releases their claims. Claims that wait are decided in <%= link_to "the claims queue", admin_artist_claims_path(anchor: "character-claims") %>.</p>
       <% end %>
-    </div>
+    </section>
+  <% end if @signed_in_owner || CurrentUser.user.is_admin? %>
 
-    <%# --- blog messages --- %>
-    <h2>Blog messages</h2>
-    <%= form_with url: creator_gallery_add_message_path(@gallery), method: :post, class: "modcreator-form", scope: :creator_gallery_message do |f| %>
-      <%= f.text_area :body, rows: 3, placeholder: "Write a message...", required: true %>
-      <%= f.submit "Post message" %>
-    <% end %>
-    <ul class="modcreator-edit-msgs">
-      <% @gallery.creator_gallery_messages.each do |m| %>
-        <li>
-          <time><%= m.created_at.strftime("%Y-%m-%d") %></time>
-          <span><%= truncate(m.body, length: 120) %></span>
-          <%= button_to "delete", creator_gallery_remove_message_path(@gallery, message_id: m.id), method: :delete, class: "modcreator-remove" %>
-        </li>
+  <%# --- blog messages --- %>
+  <% blog = capture do %>
+    <section id="creator-messages">
+      <%= form_with url: creator_gallery_add_message_path(@gallery), method: :post, class: "modcreator-form", scope: :creator_gallery_message do |f| %>
+        <%= f.text_area :body, rows: 3, placeholder: "Write a message...", required: true %>
+        <%= f.submit "Post message" %>
       <% end %>
-    </ul>
-  </section>
+      <ul class="modcreator-edit-msgs">
+        <% @gallery.creator_gallery_messages.each do |m| %>
+          <li>
+            <time><%= m.created_at.strftime("%Y-%m-%d") %></time>
+            <span><%= truncate(m.body, length: 120) %></span>
+            <%= button_to "delete", creator_gallery_remove_message_path(@gallery, message_id: m.id), method: :delete, class: "modcreator-remove" %>
+          </li>
+        <% end %>
+      </ul>
+    </section>
+  <% end %>
+
+  <%= render CreatorGalleryComponent.new(
+        gallery: @gallery,
+        viewer: CurrentUser.user,
+        draw: @draw,
+        avatar: @avatar,
+        can_edit: true,
+        editing: true,
+        palette: @palette,
+        panels: { "Who sees the posts" => audience, "Booru account and creator tags" => claims, "Character claims" => characters, "Blog messages" => blog }.compact) %>
 <% end %>
 <% content_for(:html_header) do %><% page_title "Edit #{@gallery.slug}" %><% end %>

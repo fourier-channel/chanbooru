@@ -260,6 +260,27 @@ class LandingShowcaseTest < ActiveSupport::TestCase
     end
   end
 
+  # The Promoted Creators row grants a signed-out viewer what the gallery's
+  # own page grants them (operator, 2026-10-23): the hero band's posts as the
+  # gallery draws them, so a post gone private or off the band's tags is off
+  # the row too.
+  context "the promoted creators row" do
+    should "draw a promoted gallery's hero band as its own page does" do
+      tunnel = create(:contributor_user)
+      gallery = CreatorGallery.create!(slug: "maple", matrix_id: "@maple:41chan.net", user: create(:user), promoted_at: 1.hour.ago,
+                                       settings: { "hero" => { "tags" => %w[night] }})
+      posts = Array.new(3) { |i| as(tunnel) { create(:post, uploader: tunnel, tag_string: (i == 2) ? "day" : "night", rating: "g") } }
+      posts.each_with_index do |post, i|
+        FourierPostCreator.create!(post: post, mxid: gallery.matrix_id, recorded_by: tunnel.id)
+        gallery.creator_gallery_posts.create!(band: "hero", post: post, position: i)
+      end
+      CreatorPostAudience.set!(posts[0], gallery: gallery, audience: "private", by: gallery.user)
+
+      row = LandingShowcase.new(viewer: User.anonymous).categories.find { it[:key] == "promoted" }
+      assert_equal [posts[1].id], row.to_h[:slides].to_a.pluck(:id)
+    end
+  end
+
   # The carousel draws the creator as their artist pill with its lamp, so the
   # slide names the TAG, not only the words.
   context "a slide's creator" do

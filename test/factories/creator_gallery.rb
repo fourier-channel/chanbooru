@@ -4,6 +4,5 @@ FactoryBot.define do
     matrix_id { "@#{slug}:example.com" }
     title { "Creator #{slug}" }
     bio { "" }
-    style { "grid" }
   end
 end

@@ -1,5 +1,13 @@
-// Creator Gallery -- public presentation page, Modulation theme, with several
-// selectable layout styles for the featured posts.
+@use "../../javascript/src/styles/modulation/pill" as *;
+
+// Creator Gallery -- the creator's page, Modulation theme: a far ground made of
+// the banner, the header, the HERO BAND (the landing page's belt) and the
+// minibands in the creator's layout. Edit mode is the same page with options on
+// everything (creator_gallery_component.js); the editor's controls carry
+// .modcreator-edit-ui, the text they replace .modcreator-static.
+//
+// Formant tokens by name throughout; the only literal colours are black
+// shades, which are light taken away, not a palette.
 
 body:has(.modcreator) {
   #sidebar { display: none; }
@@ -7,55 +15,323 @@ body:has(.modcreator) {
 }
 
 .modcreator {
-  --mod-col: 1080px;
-  --mod-radius: 12px;
-  --mod-surface: #1b1a17;
-  --mod-surface-2: #242320;
-  --mod-ink: #e8e6e0;
-  --mod-ink-dim: #9a968c;
-  --mod-line: #34322c;
-  --mod-accent: #0ce92a;
+  --cg-gutter: clamp(16px, 4vw, 40px);
+  --cg-col: 1240px;
 
-  box-sizing: border-box;
-  max-width: var(--mod-col);
-  margin: 0 auto;
-  padding: 1.5rem 1rem 4rem;
+  position: relative;
+  min-height: 100vh;
   color: var(--mod-ink);
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
+  overflow-x: clip;
 
   *, *::before, *::after { box-sizing: border-box; }
 
-  // --- header ------------------------------------------------------------
-  .modcreator-head {
-    display: flex; align-items: flex-start; justify-content: space-between;
-    gap: 1rem; flex-wrap: wrap;
-    padding-bottom: 1rem; border-bottom: 1px solid var(--mod-line);
+  // The page's own [hidden] wins over every display rule below.
+  [hidden] { display: none !important; }
+
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--mod-active-fg); outline-offset: 2px; }
+  input[type="range"] { accent-color: var(--mod-active-fg); }
+
+  @include modulation-pill;
+
+  // --- the shared pieces of the page and its editor ----------------------
+  .cg-glass {
+    background: color-mix(in srgb, var(--mod-surface) 58%, transparent);
+    backdrop-filter: blur(22px) saturate(1.25);
+    border: 1px solid color-mix(in srgb, var(--mod-ink) 7%, transparent);
+    box-shadow: 0 50px 120px -40px rgb(0 0 0 / 95%), inset 0 1px 0 color-mix(in srgb, var(--mod-ink) 6%, transparent);
   }
-  .modcreator-title { margin: 0; font-size: 1.6rem; font-weight: 650; letter-spacing: -0.01em; }
-  .modcreator-handle { font-family: ui-monospace, Menlo, monospace; font-size: 0.8rem; color: var(--mod-ink-dim); }
-  .modcreator-actions { display: flex; gap: 0.5rem; align-items: center; }
-  .modcreator-msg {
-    padding: 0.45rem 0.9rem; border-radius: 999px;
-    background: color-mix(in srgb, var(--mod-accent) 16%, var(--mod-surface));
-    border: 1px solid color-mix(in srgb, var(--mod-accent) 45%, transparent);
-    color: var(--mod-accent); text-decoration: none; font-size: 0.85rem; font-weight: 550;
-    &:hover { background: color-mix(in srgb, var(--mod-accent) 26%, var(--mod-surface)); }
+
+  .cg-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+    min-height: 44px; padding: 0 1rem; border-radius: var(--mod-radius);
+    border: 1px solid var(--mod-line-strong); background: var(--mod-surface-2); color: var(--mod-ink);
+    font-size: 14px; cursor: pointer; text-decoration: none;
+    transition: background-color 0.15s, border-color 0.15s;
+
+    &:hover { background: var(--mod-surface-3); border-color: var(--mod-ink-dim); color: var(--mod-ink); }
+    &:disabled { opacity: 0.45; cursor: not-allowed; }
+    &[aria-pressed="true"], &[aria-expanded="true"] { background: var(--mod-active-bg); border-color: var(--mod-active-fg); }
   }
-  .modcreator-edit {
-    padding: 0.45rem 0.9rem; border-radius: 999px;
-    background: var(--mod-surface-2); border: 1px solid var(--mod-line);
-    color: var(--mod-ink); text-decoration: none; font-size: 0.85rem;
+
+  .cg-btn--sm { min-height: 36px; padding: 0 0.75rem; font-size: 13px; border-radius: var(--mod-radius-sm); }
+
+  .cg-btn--go {
+    background: var(--mod-accent); border-color: var(--mod-accent); color: var(--mod-surface); font-weight: 700;
+
+    &:hover { background: color-mix(in srgb, var(--mod-accent) 80%, var(--mod-ink)); border-color: var(--mod-accent); color: var(--mod-surface); }
+  }
+
+  .cg-btn--ghost {
+    background: color-mix(in srgb, var(--mod-surface) 45%, transparent);
+    border-color: color-mix(in srgb, var(--mod-ink) 14%, transparent);
+    backdrop-filter: blur(10px);
+  }
+
+  .cg-btn--alarm { background: var(--mod-alarm-bg); border-color: var(--mod-alarm-line); color: var(--mod-alarm-ink); }
+
+  .cg-seg {
+    display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--mod-radius);
+    background: var(--mod-surface); border: 1px solid var(--mod-line);
+
+    button {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 34px; min-width: 34px; padding: 0 0.7rem; border: 0; border-radius: var(--mod-radius-sm);
+      background: transparent; color: var(--mod-ink-dim); font-size: 13px; cursor: pointer;
+
+      &:hover { color: var(--mod-ink); background: var(--mod-surface-3); }
+      &[aria-pressed="true"] { background: var(--mod-active-bg); color: var(--mod-active-fg); box-shadow: inset 0 0 0 1px var(--mod-active-line); }
+    }
+  }
+
+  .cg-label { font-family: var(--mod-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mod-ink-dim); }
+  .cg-note { font-size: 12px; line-height: 1.5; color: var(--mod-ink-dim); }
+  .cg-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--mod-ink-dim); }
+
+  .cg-input, .cg-select {
+    width: 100%; min-height: 40px; padding: 8px 10px; border-radius: var(--mod-radius-sm);
+    border: 1px solid var(--mod-line-strong); background: var(--mod-surface); color: var(--mod-ink);
+
+    &:focus { border-color: var(--mod-active-fg); outline: none; }
+  }
+
+  .cg-select { width: auto; max-width: 100%; min-height: 36px; padding: 0 8px; font-size: 13px; }
+
+  .cg-inline {
+    width: 100%; padding: 2px 8px; border-radius: var(--mod-radius-sm);
+    background: transparent; border: 1px dashed color-mix(in srgb, var(--mod-active-fg) 50%, transparent);
+    text-align: inherit;
+
+    &:focus { outline: none; border-style: solid; border-color: var(--mod-active-fg); background: color-mix(in srgb, var(--mod-surface) 40%, transparent); }
+  }
+
+  // A post to pick: in the hero's picker, a miniband's and the banner's.
+  .cg-thumb {
+    position: relative; overflow: hidden; aspect-ratio: 4 / 5; padding: 0; border: 0;
+    border-radius: var(--mod-radius-sm); background: var(--mod-surface); cursor: pointer;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mod-ink) 8%, transparent);
+
+    img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    &[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--mod-accent), 0 10px 24px -8px rgb(0 0 0 / 80%); }
+    &:disabled { opacity: 0.35; cursor: not-allowed; }
+  }
+
+  .cg-thumb-num {
+    position: absolute; top: 6px; right: 6px; display: grid; place-items: center;
+    min-width: 22px; height: 22px; padding: 0 6px; border-radius: var(--mod-pill-radius);
+    background: var(--mod-accent); color: var(--mod-surface); font-size: 12px; font-weight: 700;
+  }
+
+  .cg-thumb-cap {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 6px 5px;
+    background: linear-gradient(180deg, transparent, rgb(0 0 0 / 70%));
+    font-family: var(--mod-mono); font-size: 10px; line-height: 1.3; color: var(--mod-ink); text-align: left;
+  }
+
+  .cg-thumb-chars { color: var(--mod-ok-fg); }
+
+  // A CHOSEN post the curator's blacklist hides stays on the band's list as
+  // a blank box, its number and caption kept, so it can still be taken off;
+  // a blocked candidate not chosen goes as anywhere else.
+  .cg-thumb.blacklisted-hidden[aria-pressed="true"], .modcreator-strip-item .cg-thumb.blacklisted-hidden { display: block; }
+  .cg-thumb.blacklisted-hidden > img { visibility: hidden; }
+
+  .cg-scroll { scrollbar-width: thin; scrollbar-color: var(--mod-line-strong) transparent; }
+
+  // --- the ground ------------------------------------------------------
+  // Fixed and clipped: the parallax moves the picture inside it and nothing
+  // else. --px/--py (-1..1) are set by the one pointer listener; --cg-par is
+  // the creator's strength, 0..1.
+  .modcreator-ground {
+    position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+    background: var(--mod-surface);
+  }
+
+  .modcreator-ground-art {
+    position: absolute; top: -90px; left: -90px;
+    width: calc(100% + 180px); height: calc(100% + 180px);
+    object-fit: cover; object-position: 50% var(--cg-y);
+    filter: blur(var(--cg-blur)) brightness(calc(1 - var(--cg-dim))) saturate(1.25);
+    transform: translate3d(calc(var(--px, 0) * var(--cg-par) * -40px), calc(var(--py, 0) * var(--cg-par) * -24px), 0) scale(1.18);
+    transition: transform 0.7s ease-out;
+  }
+
+  .modcreator-ground-art--none, .modcreator-banner-art--none {
+    background:
+      radial-gradient(60% 50% at 25% 30%, var(--mod-active-bg), transparent 70%),
+      radial-gradient(50% 45% at 80% 20%, color-mix(in srgb, var(--mod-accent) 12%, transparent), transparent 70%),
+      linear-gradient(160deg, var(--mod-surface-3), var(--mod-surface));
+  }
+
+  // A banner the viewer's blacklist hides keeps its place on the page: only
+  // its picture goes.
+  .modcreator-ground.blacklisted-hidden, .modcreator-banner.blacklisted-hidden { display: block; }
+
+  .blacklisted-hidden > .modcreator-ground-art, .blacklisted-hidden > .modcreator-banner-art { visibility: hidden; }
+
+  .modcreator-ground-vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(75% 72% at 50% 42%, transparent 45%, rgb(0 0 0 / 22%) 70%, rgb(0 0 0 / 45%) 86%, rgb(0 0 0) 100%);
+  }
+
+  .modcreator-bar, .modcreator-head, .modcreator-main, .modcreator-notices { position: relative; z-index: 1; }
+
+  // --- the editor's bar ---------------------------------------------------
+  .modcreator-bar { position: sticky; top: 0; z-index: 60; }
+
+  .modcreator-bar-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    padding: 10px clamp(16px, 3vw, 32px); border-width: 0 0 1px; border-radius: 0;
+  }
+
+  .modcreator-bar-title { display: inline-flex; align-items: center; gap: 8px; margin-right: 6px; font-weight: 600; }
+  .modcreator-bar-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mod-active-fg); }
+  .modcreator-bar-gap { flex: 1 1 0; }
+
+  .modcreator-toast {
+    position: absolute; top: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+
+    // max-content, or it shrinks to the half of the bar right of its left
+    // edge and wraps a sentence into a column on a phone.
+    width: max-content; max-width: calc(100% - 32px); padding: 10px 16px; border-radius: var(--mod-radius);
+    background: var(--mod-active-bg); border: 1px solid var(--mod-active-line);
+    box-shadow: 0 16px 40px rgb(0 0 0 / 60%); font-size: 14px;
+  }
+
+  .modcreator-problems {
+    position: absolute; top: calc(100% + 10px); right: clamp(16px, 3vw, 32px);
+    width: min(420px, calc(100% - 32px)); padding: 16px; border-radius: 12px;
+    background: color-mix(in srgb, var(--mod-surface) 96%, transparent);
+
+    ul { margin: 10px 0 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.5; color: var(--mod-alarm-ink); }
+  }
+
+  // The two sheets drop over the page; nothing under them moves.
+  .modcreator-sheet {
+    position: absolute; top: calc(100% + 10px); left: clamp(16px, 3vw, 32px);
+    width: min(440px, calc(100% - 32px)); max-height: 72vh; overflow: auto; border-radius: 14px;
+    background: color-mix(in srgb, var(--mod-surface) 96%, transparent);
+  }
+
+  .modcreator-sheet-head {
+    position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 14px 16px; border-bottom: 1px solid var(--mod-line); background: var(--mod-surface);
+  }
+
+  .modcreator-sheet-body { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+
+  .modcreator-banners {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px;
+    max-height: 240px; overflow: auto; padding: 2px;
+  }
+
+  .modcreator-banner-none {
+    aspect-ratio: 4 / 5; border-radius: var(--mod-radius-sm); border: 1px dashed var(--mod-line-strong);
+    background: transparent; color: var(--mod-ink-dim); font-size: 12px; cursor: pointer;
+
+    &[aria-pressed="true"] { border: 2px solid var(--mod-accent); color: var(--mod-ink); }
+  }
+
+  .modcreator-layouts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+  .modcreator-layout {
+    display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: var(--mod-radius);
+    border: 1px solid var(--mod-line); background: var(--mod-surface); font-size: 13px; text-align: left; cursor: pointer;
+
     &:hover { border-color: var(--mod-ink-dim); }
+    &[aria-pressed="true"] { border-color: var(--mod-active-fg); background: var(--mod-active-bg); }
   }
+
+  .modcreator-layout-boxes { display: flex; flex-direction: column; gap: 3px; height: 48px; }
+  .modcreator-layout-row { display: flex; flex: 1 1 0; gap: 3px; }
+  .modcreator-layout-box { flex: 1 1 0; border-radius: 3px; background: var(--mod-surface-3); }
+  .modcreator-layout[aria-pressed="true"] .modcreator-layout-box { background: var(--mod-active-line); }
+
+  .modcreator-notices {
+    max-width: var(--cg-col); margin: 16px auto 0; padding: 0 var(--cg-gutter);
+    list-style: none; display: flex; flex-direction: column; gap: 8px;
+
+    li {
+      padding: 10px 14px; border-radius: var(--mod-radius); font-size: 14px; line-height: 1.5;
+      border: 1px solid var(--mod-warn-line); background: var(--mod-warn-bg); color: var(--mod-warn-fg);
+    }
+  }
+
+  // Editing shows the controls in place of the text they set; Hide controls
+  // (is-preview) shows the page as visitors will.
+  &:not(.is-editing) .modcreator-edit-ui, &.is-preview .modcreator-edit-ui { display: none; }
+  &.is-editing:not(.is-preview) .modcreator-static { display: none; }
+
+  // --- the header --------------------------------------------------------
+  .modcreator-banner {
+    position: relative; overflow: hidden; height: clamp(200px, 22vw, 300px);
+    mask-image: linear-gradient(180deg, #000000 55%, transparent);
+  }
+
+  .modcreator-banner-art {
+    position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    object-fit: cover; object-position: 50% var(--cg-y);
+    transform: translate3d(calc(var(--px, 0) * var(--cg-par) * -16px), 0, 0) scale(1.06);
+    transition: transform 0.45s ease-out;
+  }
+
+  .modcreator-id {
+    position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 18px 22px;
+    max-width: var(--cg-col); margin: -72px auto 0; padding: 0 var(--cg-gutter);
+  }
+
+  .modcreator-avatar {
+    flex: none; display: grid; place-items: center; overflow: hidden;
+    width: 112px; height: 112px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--mod-accent) 35%, var(--mod-ink)), var(--mod-accent) 45%, color-mix(in srgb, var(--mod-accent) 45%, var(--mod-surface)));
+    box-shadow: 0 0 0 4px var(--mod-surface), 0 0 0 5px color-mix(in srgb, var(--mod-ink) 12%, transparent), 0 24px 50px -10px rgb(0 0 0 / 90%);
+  }
+
+  .modcreator-avatar-img { width: 100%; height: 100%; object-fit: cover; }
+  .modcreator-avatar-letter { font-size: 46px; font-weight: 700; color: var(--mod-surface); }
+
+  .modcreator-name { flex: 1 1 280px; min-width: 0; padding-bottom: 6px; }
+
+  .modcreator-title {
+    margin: 0; max-width: 100%; font-size: clamp(32px, 4vw, 48px); font-weight: 700; line-height: 1.1;
+    letter-spacing: -0.02em; overflow-wrap: anywhere; text-shadow: 0 4px 24px rgb(0 0 0 / 60%);
+  }
+
+  input.modcreator-title { max-width: 520px; }
+
+  .modcreator-handle { display: block; margin-top: 8px; font-family: var(--mod-mono); font-size: 13px; color: var(--mod-ink-dim); overflow-wrap: anywhere; }
+
+  .modcreator-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-bottom: 6px; }
+  .modcreator-about-btn svg { transition: transform 0.2s; }
+  .modcreator-about-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+
   .modcreator-signin {
-    padding: 0.45rem 0.9rem; border-radius: 999px;
-    background: transparent; border: 1px solid var(--mod-line);
-    color: var(--mod-ink-dim); text-decoration: none; font-size: 0.85rem;
+    display: inline-flex; align-items: center; min-height: 44px; padding: 0 1rem; border-radius: var(--mod-radius);
+    border: 1px solid var(--mod-line); color: var(--mod-ink-dim); text-decoration: none; font-size: 14px;
+
     &:hover { color: var(--mod-ink); border-color: var(--mod-ink-dim); }
   }
-  .modcreator-bio { margin: 0; max-width: 60ch; color: var(--mod-ink); line-height: 1.55; }
+
+  // The panels that descend from the header, each one put away on demand.
+  .modcreator-about { max-width: var(--cg-col); margin: 18px auto 0; padding: 0 var(--cg-gutter); }
+
+  .modcreator-about-hidden {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px;
+    font-size: 13px; color: var(--mod-ink-dim);
+  }
+
+  .modcreator-boxes { display: flex; flex-wrap: wrap; gap: 16px; }
+  .modcreator-box { flex: 1 1 300px; min-width: 0; padding: 18px 22px 22px; border-radius: 14px; }
+  .modcreator-box--wide { flex-basis: 100%; }
+
+  // The edit page's own sections: the box's title names each, so the
+  // audience panel's own heading goes, and no form is wider than its box.
+  .modcreator-box--wide > .modcreator-panel > h2:first-child { display: none; }
+  .modcreator-box--wide :is(textarea, input:not([type="radio"], [type="checkbox"])) { max-width: 100%; }
+  .modcreator-box-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .modcreator-box-title { margin: 0; font-weight: 400; }
+
+  .modcreator-bio { margin: 0; max-width: 70ch; font-size: 15px; line-height: 1.6; white-space: pre-line; }
 
   // --- original characters (CharacterClaim) ------------------------------
   .modcreator-characters {
@@ -63,80 +339,282 @@ body:has(.modcreator) {
     li { display: inline-flex; align-items: baseline; gap: 0.35rem; min-width: 0; overflow-wrap: anywhere; }
     a { color: var(--mod-ink); }
   }
-  .modcreator-characters-title { margin: 0 0 0.4rem; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--mod-ink-dim); }
+
   .modcreator-characters .modcreator-characters-wiki { font-size: 0.78rem; color: var(--mod-ink-dim); }
 
   // --- blog messages -----------------------------------------------------
   .modcreator-blog { display: flex; flex-direction: column; gap: 0.75rem; }
+
   .modcreator-post {
     background: var(--mod-surface); border: 1px solid var(--mod-line);
     border-left: 3px solid color-mix(in srgb, var(--mod-accent) 60%, var(--mod-line));
     border-radius: var(--mod-radius); padding: 0.85rem 1rem;
   }
-  .modcreator-post-time { font-family: ui-monospace, monospace; font-size: 0.7rem; color: var(--mod-ink-dim); }
+
+  .modcreator-post-time { font-family: var(--mod-mono); font-size: 0.7rem; color: var(--mod-ink-dim); }
   .modcreator-post-body { margin: 0.35rem 0 0; line-height: 1.55; white-space: pre-wrap; }
 
-  // --- featured gallery: shared card ------------------------------------
-  .modcreator-card {
-    position: relative; display: block; overflow: hidden;
-    border-radius: var(--mod-radius); background: var(--mod-surface);
-    border: 1px solid var(--mod-line); text-decoration: none;
-    transition: border-color 0.12s ease, transform 0.12s ease;
-    &:hover { border-color: var(--mod-accent); transform: translateY(-2px); }
-  }
-  .modcreator-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .modcreator-thumb--gated {
-    display: grid; place-items: center; color: var(--mod-ink-dim);
-    font-family: ui-monospace, monospace; font-size: 0.72rem; min-height: 120px;
-    background: repeating-linear-gradient(45deg, var(--mod-surface) 0 6px, var(--mod-surface-2) 6px 12px);
-  }
-  .modcreator-empty { color: var(--mod-ink-dim); text-align: center; padding: 2.5rem 0; }
+  // --- the page under the header -----------------------------------------
+  .modcreator-main { max-width: var(--cg-col); margin: 0 auto; padding: 32px var(--cg-gutter) 120px; }
 
-  // Past the browsing tier's page: the notice, then empty cards the size of
-  // the ones above, so the gallery reads as long as it is.
+  // --- the hero band ----------------------------------------------------
+  .modcreator-hero { position: relative; padding: 34px 0 26px; border-radius: 22px; }
+
+  .modcreator-hero-head {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 0 var(--cg-gutter); text-align: center;
+  }
+
+  .modcreator-eyebrow { color: var(--mod-active-fg); }
+
+  .modcreator-headline {
+    margin: 0; max-width: 560px; font-size: clamp(28px, 3.4vw, 40px); font-weight: 700;
+    line-height: 1.15; letter-spacing: -0.02em; overflow-wrap: anywhere;
+  }
+
+  .modcreator-subline { margin: 0; max-width: 560px; font-size: 15px; line-height: 1.5; color: var(--mod-ink-dim); }
+
+  .modcreator-pills { position: relative; margin-top: 20px; padding: 0 var(--cg-gutter); }
+  .modcreator-pills-row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; }
+
+  // A band tag while editing: the pill, its coverage, its remove button.
+  .modcreator-chip { padding-right: 6px; }
+
+  .modcreator-chip-count {
+    padding: 2px 6px; border-radius: var(--mod-pill-radius); font-family: var(--mod-mono); font-size: 11px;
+    background: color-mix(in srgb, var(--mod-ink) 10%, transparent);
+
+    &.is-none { background: var(--mod-alarm-bg); color: var(--mod-alarm-ink); }
+  }
+
+  .modcreator-chip-x {
+    display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0;
+    border: 0; border-radius: 50%; background: color-mix(in srgb, var(--mod-ink) 8%, transparent); cursor: pointer;
+
+    &:hover { background: var(--mod-alarm-fg); color: var(--mod-ink); }
+  }
+
+  .modcreator-add-tag {
+    display: inline-flex; align-items: center; gap: 0.35rem; min-height: 30px; padding: 0 0.8rem;
+    border: 1px dashed var(--mod-ink-dim); border-radius: var(--mod-pill-radius);
+    background: var(--mod-surface-2); font-size: 0.82rem; cursor: pointer;
+
+    &:hover, &[aria-expanded="true"] { border-color: var(--mod-active-fg); color: var(--mod-active-fg); }
+  }
+
+  .modcreator-adder {
+    position: absolute; top: calc(100% + 10px); left: 50%; transform: translateX(-50%); z-index: 70;
+    width: min(440px, calc(100% - 32px)); padding: 12px; border-radius: 14px; text-align: left;
+    background: color-mix(in srgb, var(--mod-surface) 96%, transparent);
+
+    .cg-note { margin: 10px 2px 8px; }
+  }
+
+  .modcreator-adder-rows { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow: auto; }
+
+  .modcreator-adder-row {
+    display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 8px;
+    border: 0; border-radius: var(--mod-radius-sm); background: transparent; text-align: left; cursor: pointer;
+
+    &:hover { background: var(--mod-surface-2); }
+    &:disabled { opacity: 0.5; cursor: not-allowed; }
+    .mod-pill { pointer-events: none; }
+  }
+
+  .modcreator-adder-kind { flex: 1 1 0; font-size: 12px; color: var(--mod-ink-dim); }
+  .modcreator-adder-note { font-family: var(--mod-mono); font-size: 12px; color: var(--mod-ink-dim); }
+  .modcreator-adder-note.is-leaving { color: var(--mod-warn-fg); }
+
+  .modcreator-rule { margin: 12px auto 0; max-width: 640px; padding: 0 16px; text-align: center; font-size: 13px; line-height: 1.5; color: var(--mod-ink-dim); }
+
+  // The belt is the landing page's, in the band's glass: no column, panel or
+  // padding of its own, and the row tabs only when there is a choice.
+  .modcreator-belt { margin-top: 18px; }
+
+  .modland { max-width: none; padding: 0; gap: 0.75rem; }
+  .modland-stage-wrap { background: transparent; border: 0; }
+  .modland-tabs:not(:has(.modland-tab + .modland-tab)) { display: none; }
+
+  .modcreator-hero-empty { margin: 0; padding: 3rem 1rem; text-align: center; font-size: 15px; color: var(--mod-ink-dim); }
+
+  .modcreator-motion {
+    display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 18px;
+    margin: 18px var(--cg-gutter) 0; padding: 12px 14px; border-radius: 12px;
+    background: color-mix(in srgb, var(--mod-surface) 70%, transparent); border: 1px solid var(--mod-line);
+  }
+
+  .modcreator-hold {
+    display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--mod-ink-dim);
+
+    input { width: 110px; }
+  }
+
+  .modcreator-hold-value { min-width: 28px; font-family: var(--mod-mono); color: var(--mod-ink); }
+  .modcreator-arrow-left { transform: rotate(180deg); }
+  .modcreator-arrow-up { transform: rotate(-90deg); }
+  .modcreator-arrow-down { transform: rotate(90deg); }
+
+  // The band's candidates, in flow under the motion bar.
+  .modcreator-picker {
+    margin: 14px var(--cg-gutter) 0; padding: 16px; border-radius: 14px;
+    background: color-mix(in srgb, var(--mod-surface) 75%, transparent); border: 1px solid var(--mod-line);
+  }
+
+  .modcreator-picker-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 14px; }
+  .modcreator-picker-title { flex: 1 1 200px; }
+
+  // The chosen posts in their order: move one along or take it out.
+  .modcreator-picker-strip { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 10px; margin-bottom: 10px; border-bottom: 1px solid var(--mod-line); }
+  .modcreator-strip-item { flex: 0 0 84px; display: flex; flex-direction: column; gap: 4px; }
+  .modcreator-strip-item .cg-thumb { cursor: default; }
+  .modcreator-strip-moves { display: flex; justify-content: space-between; gap: 2px; }
+
+  .modcreator-strip-moves button {
+    flex: 1 1 0; min-height: 28px; padding: 0; border: 1px solid var(--mod-line); border-radius: var(--mod-radius-sm);
+    background: var(--mod-surface-2); font-size: 13px; cursor: pointer;
+
+    &:hover { border-color: var(--mod-ink-dim); }
+    &:disabled { opacity: 0.35; cursor: not-allowed; }
+  }
+
+  .modcreator-picker-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px;
+    max-height: 340px; overflow: auto; padding: 4px;
+  }
+
+  // --- the minibands ------------------------------------------------------
+  .modcreator-minis { margin-top: 56px; }
+  .modcreator-minis-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
+  .modcreator-minis-title { margin: 0; font-size: 24px; font-weight: 700; }
+  .modcreator-minis-row { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px; }
+
+  // One slot: its height and narrowest width come from how many share its row
+  // (--mini-h, --mini-w); wider than the row, it takes the row alone.
+  .modcreator-mini {
+    position: relative; flex: 1 1 var(--mini-w); min-width: 0; height: var(--mini-h);
+    overflow: hidden; border-radius: 16px; background: var(--mod-surface); perspective: 1100px;
+    box-shadow: 0 34px 70px -28px rgb(0 0 0 / 95%), 0 0 0 1px color-mix(in srgb, var(--mod-ink) 7%, transparent);
+    transition: box-shadow 0.25s ease-out;
+
+    // A ring, not a lift: a band that rose from under a pointer resting on
+    // its bottom edge would leave it, fall back under it, and rise again.
+    &:hover { box-shadow: 0 34px 70px -28px rgb(0 0 0 / 95%), 0 0 0 1px color-mix(in srgb, var(--mod-ink) 28%, transparent); }
+  }
+
+  .modcreator-mini-item {
+    position: absolute; inset: 0; display: block; backface-visibility: hidden;
+
+    &:not(:first-child) { opacity: 0; }
+  }
+
+  .modcreator-mini-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .modcreator-mini-empty {
+    position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center;
+    background: repeating-linear-gradient(45deg, var(--mod-surface) 0 8px, var(--mod-surface-2) 8px 16px);
+    color: var(--mod-ink-dim); font-size: 14px;
+  }
+
+  .modcreator-mini-shade {
+    position: absolute; inset: auto 0 0; height: 45%; z-index: 5; pointer-events: none;
+    background: linear-gradient(180deg, transparent, rgb(0 0 0 / 55%));
+  }
+
+  .modcreator-mini-label {
+    position: absolute; left: 14px; right: 14px; bottom: 14px; z-index: 6;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+
+    .mod-pill { backdrop-filter: blur(8px); max-width: 70%; }
+  }
+
+  .modcreator-mini-dots { display: flex; gap: 5px; }
+
+  .modcreator-mini-dot {
+    width: 6px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--mod-ink) 35%, transparent);
+    transition: width 0.3s, background-color 0.3s;
+
+    &.is-on { width: 18px; background: var(--mod-ink); }
+  }
+
+  // Manual steps, for a reader who asked for less motion: then the bands do
+  // not move on their own.
+  .modcreator-mini-arrow {
+    position: absolute; top: 50%; z-index: 7; display: none; place-items: center;
+    width: 36px; height: 36px; margin-top: -18px; padding: 0; border-radius: 50%; cursor: pointer;
+    border: 1px solid color-mix(in srgb, var(--mod-ink) 14%, transparent);
+    background: color-mix(in srgb, var(--mod-surface) 60%, transparent); font-size: 20px; line-height: 1;
+  }
+
+  .modcreator-mini-arrow--prev { left: 10px; }
+  .modcreator-mini-arrow--next { right: 10px; }
+
+  // A miniband's own controls while editing: tag and effect on top,
+  // direction, hold and Posts below, its picker over the whole slot.
+  .modcreator-mini-top, .modcreator-mini-bottom {
+    position: absolute; left: 0; right: 0; z-index: 8;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px;
+  }
+
+  .modcreator-mini-top { top: 0; background: linear-gradient(180deg, rgb(0 0 0 / 72%), transparent); }
+  .modcreator-mini-bottom { bottom: 0; background: linear-gradient(0deg, rgb(0 0 0 / 80%), transparent); }
+
+  .modcreator-mini-num {
+    display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--mod-active-fg); color: var(--mod-surface); font-weight: 700; font-size: 13px;
+  }
+
+  .modcreator-mini-tag { flex: 1 1 120px; }
+
+  .modcreator-mini-hold {
+    display: inline-flex; flex: 1 1 120px; align-items: center; gap: 6px; font-size: 12px; color: var(--mod-ink);
+
+    input { flex: 1 1 60px; min-width: 60px; }
+    span { font-family: var(--mod-mono); }
+  }
+
+  .modcreator-mini-picker {
+    position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; gap: 10px; padding: 12px;
+    background: color-mix(in srgb, var(--mod-surface) 93%, transparent);
+  }
+
+  .modcreator-mini-picker-head { display: flex; align-items: center; gap: 8px; }
+
+  .modcreator-mini-picker-head .cg-label { flex: 1 1 0; }
+
+  .modcreator-banners .cg-note { grid-column: 1 / -1; }
+
+  .modcreator-mini-picker-grid {
+    flex: 1 1 0; min-height: 0; overflow: auto; align-content: start;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px;
+  }
+
+  // --- past the browsing tier's page ---------------------------------------
+  // The notice, then empty cards, so the gallery reads as long as it is.
   .modcreator-more {
-    margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem;
+    margin: 48px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem;
     color: var(--mod-ink); font-weight: 550;
   }
 
   .modcreator-more-count { color: var(--mod-ink-dim); font-weight: 400; font-size: 0.85rem; }
 
-  .modcreator-card--locked {
-    aspect-ratio: 1 / 1; min-height: 120px;
-    background: repeating-linear-gradient(45deg, var(--mod-surface) 0 6px, var(--mod-surface-2) 6px 12px);
-    &:hover { border-color: var(--mod-line); transform: none; }
-  }
-
-  // ============ STYLE VARIANTS ============
-  // grid -- uniform responsive squares
-  &.modcreator--grid .modcreator-gallery {
-    display: grid; gap: 0.6rem;
-    grid-template-columns: repeat(auto-fill, minmax(clamp(120px, 16vw, 180px), 1fr));
-    .modcreator-card { aspect-ratio: 1 / 1; }
-  }
-
-  // masonry -- natural-height columns
-  &.modcreator--masonry .modcreator-gallery {
-    columns: 4 180px; column-gap: 0.6rem;
-    .modcreator-card { margin: 0 0 0.6rem; break-inside: avoid; }
-    .modcreator-thumb { height: auto; }
-  }
-
-  // filmstrip -- one tall scrollable row
-  &.modcreator--filmstrip .modcreator-gallery {
-    display: flex; gap: 0.6rem; overflow-x: auto; padding-bottom: 0.5rem;
-    scroll-snap-type: x mandatory;
-    .modcreator-card { flex: 0 0 auto; width: clamp(180px, 28vw, 300px); aspect-ratio: 3 / 4; scroll-snap-align: start; }
-  }
-
-  // spotlight -- big hero, then a grid
-  &.modcreator--spotlight .modcreator-gallery {
-    display: grid; gap: 0.6rem;
+  .modcreator-gallery--locked {
+    display: grid; gap: 0.6rem; margin-top: 12px;
     grid-template-columns: repeat(auto-fill, minmax(clamp(110px, 14vw, 160px), 1fr));
-    .modcreator-card { aspect-ratio: 1 / 1; }
-    .modcreator-card.is-spotlight {
-      grid-column: 1 / -1; aspect-ratio: 21 / 9;
-      .modcreator-thumb { object-position: center 30%; }
-    }
+  }
+
+  .modcreator-card--locked {
+    aspect-ratio: 1 / 1; min-height: 110px; border-radius: var(--mod-radius); border: 1px solid var(--mod-line);
+    background: repeating-linear-gradient(45deg, var(--mod-surface) 0 6px, var(--mod-surface-2) 6px 12px);
+  }
+
+  @media (width <= 640px) {
+    .modcreator-mini { height: min(var(--mini-h), 72vw); }
+    .modcreator-id { margin-top: -48px; }
+    .modcreator-avatar { width: 88px; height: 88px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .modcreator-ground-art, .modcreator-banner-art, .modcreator-mini, .modcreator-mini-item, .modcreator-mini-dot { transition: none; }
+    .modcreator-mini-arrow { display: grid; }
   }
 }

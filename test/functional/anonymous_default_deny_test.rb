@@ -439,20 +439,62 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
     end
 
     # The ask carries no safe mode, so both modes' shown sets count: the
-    # hourly buckets of each, the newest page of each, and the promoted
-    # galleries' curated sets.
-    should "count a post shown in either safe mode, or curated by a promoted gallery, in the md5 ask" do
-      safe_shown, all_shown, curated = Array.new(3) { create(:post, md5: SecureRandom.hex(16)) }
-      Array.new(21) { create(:post) } # all three are off the newest page now
+    # hourly buckets of each and the newest page of each. A promoted
+    # creator's posts count once their page DREW them for a signed-out viewer
+    # (Creator Gallery rebuild, 2026-10-23): a curated post the page did not
+    # draw -- no longer fitting its band, made private since -- is never
+    # granted, where the old curated-set grant opened it for good.
+    should "count a post shown in either safe mode, or drawn on a promoted creator's page, in the md5 ask" do
+      gallery = create(:creator_gallery, promoted_at: Time.current, settings: { "hero" => { "tags" => %w[drawn_band] }})
+      safe_shown, all_shown = Array.new(2) { create(:post, md5: SecureRandom.hex(16)) }
+      drawn = create(:post, md5: SecureRandom.hex(16), tag_string: "drawn_band")
+      undrawn = create(:post, md5: SecureRandom.hex(16), tag_string: "other_band")
+      [drawn, undrawn].each_with_index do |post, i|
+        FourierPostCreator.create!(post: post, mxid: gallery.matrix_id, recorded_by: post.uploader_id)
+        CreatorGalleryPost.create!(creator_gallery: gallery, post: post, position: i)
+      end
+      create_list(:post, 21) # rubocop:disable FactoryBot/ExcessiveCreateList -- all four are off the newest page now
       MembersOnly.remember_shown_to_anonymous([safe_shown.id], safe_mode: true)
       MembersOnly.remember_shown_to_anonymous([all_shown.id], safe_mode: false)
-      gallery = create(:creator_gallery, promoted_at: Time.current)
-      CreatorGalleryPost.create!(creator_gallery: gallery, post: curated)
+      ask = lambda do
+        md5s = [@old, safe_shown, all_shown, drawn, undrawn].map(&:md5)
+        get "/posts.json", params: { tags: "md5:#{md5s.join(",")}", only: "md5,is_deleted,source", limit: 5 }
+        assert_response 200
+        response.parsed_body.pluck("md5").sort
+      end
 
-      md5s = [@old, safe_shown, all_shown, curated].map(&:md5)
-      get "/posts.json", params: { tags: "md5:#{md5s.join(",")}", only: "md5,is_deleted,source", limit: 4 }
+      assert_equal([safe_shown, all_shown].map(&:md5).sort, ask.call)
+      assert_admitted creator_gallery_path(gallery)
+      assert_equal([safe_shown, all_shown, drawn].map(&:md5).sort, ask.call)
+      assert_admitted post_path(drawn)
+      assert_refused post_path(undrawn), why: :narrowed
+    end
+
+    # The Promoted Creators card's picture is the gallery's hero band as its
+    # own page draws it, and the front page grants it as it grants a slide:
+    # with the carousel's galleries row off, the card is the only way in. A
+    # first row the page would not draw -- private, or not fitting the band --
+    # is never the picture.
+    should "grant a signed-out visitor the promoted card's picture, the hero band's first drawn post" do
+      LandingCategory.create!(LandingCategory::DEFAULTS.find { it[:kind] == "galleries" }.merge(enabled: false))
+      gallery = create(:creator_gallery, promoted_at: Time.current, settings: { "hero" => { "tags" => %w[drawn_band] }})
+      veiled, stray, drawn = %w[drawn_band other_band drawn_band].map { |tags| create(:post, md5: SecureRandom.hex(16), tag_string: tags) }
+      [veiled, stray, drawn].each_with_index do |post, i|
+        FourierPostCreator.create!(post: post, mxid: gallery.matrix_id, recorded_by: post.uploader_id)
+        CreatorGalleryPost.create!(creator_gallery: gallery, post: post, position: i)
+      end
+      CreatorPostAudience.set!(veiled, gallery: gallery, audience: "private", by: create(:admin_user))
+      create_list(:post, 21) # rubocop:disable FactoryBot/ExcessiveCreateList -- all three are off the newest page now
+
+      get root_path
       assert_response 200
-      assert_equal([safe_shown, all_shown, curated].map(&:md5).sort, response.parsed_body.pluck("md5").sort)
+      assert_select ".modland-promoted-card .mod-blacklist-target[data-id=?]", drawn.id.to_s, 1
+      assert_select ".modland-promoted-card .mod-blacklist-target", 1
+      shown = MembersOnly.anonymous_recent_shown_ids(false) | MembersOnly.anonymous_recent_shown_ids(true)
+      assert_includes(shown, drawn.id)
+      assert_not_includes(shown, veiled.id)
+      assert_not_includes(shown, stray.id)
+      assert_admitted post_path(drawn)
     end
 
     # Each mode's newest page is that mode's, whatever mode the asking

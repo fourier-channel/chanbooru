@@ -280,8 +280,8 @@ module MembersOnly
   # reader's own booru session, so a signed-in reader is unaffected.
   #
   # fourier-auth's ask carries no safe mode, so both modes' shown sets count.
-  # One batch (up to 20 rows) costs four cache reads, two cached newest pages
-  # and one promoted pluck, whatever the batch holds; the rows kept are then
+  # One batch (up to 20 rows) costs four cache reads and two cached newest
+  # pages, whatever the batch holds; the rows kept are then
   # read back by primary key, so the answer renders as any other search does.
   def anonymous_md5_rows(posts)
     shown = anonymous_shown_ids_in_either_mode
@@ -289,7 +289,7 @@ module MembersOnly
   end
 
   def anonymous_shown_ids_in_either_mode
-    [true, false].flat_map { |safe_mode| [*anonymous_recent_shown_ids(safe_mode), *anonymous_newest_ids(safe_mode)] }.to_set | promoted_gallery_post_ids
+    [true, false].flat_map { |safe_mode| [*anonymous_recent_shown_ids(safe_mode), *anonymous_newest_ids(safe_mode)] }.to_set
   end
 
   # Every tag on an enabled landing row's list: today the Featured
@@ -321,9 +321,9 @@ module MembersOnly
   end
 
   # A post's page for a post the site has shown a signed-out viewer: on a
-  # gallery page or a front-page draw served to one within the last hour or
-  # two, on the gallery's first page now, or in a promoted creator's curated
-  # set. Walking /posts/1, /posts/2...
+  # gallery page, a front-page draw or a promoted creator's page served to
+  # one within the last hour or two, or on the gallery's first page now.
+  # Walking /posts/1, /posts/2...
   # was the same enumeration by another door (every id answered 200 on
   # 2026-10-07); a page reached from what the site showed still opens.
   def anonymous_shown_post(controller)
@@ -333,25 +333,23 @@ module MembersOnly
 
   def anonymous_shown_post?(id, safe_mode:)
     anonymous_recent_shown_ids(safe_mode).include?(id) ||
-      anonymous_newest_ids(safe_mode).include?(id) ||
-      promoted_gallery_post_ids.include?(id)
+      anonymous_newest_ids(safe_mode).include?(id)
   end
 
   # A creator's page while the front page promotes it, and no other: the
-  # promoted section links there. Its posts are its curated set, a bounded
-  # pick the creator made to be shown.
+  # promoted section links there. Its posts are the ones its page draws,
+  # fresh (CreatorGalleryLayout#draw): a post the creator later made private,
+  # or left undrawn past the browsing cut, opens nothing (Creator Gallery
+  # rebuild, 2026-10-23).
   def anonymous_promoted_gallery(controller)
     CreatorGallery.landing_promoted.where(slug: controller.params[:slug].to_s).exists?
   end
 
-  def promoted_gallery_post_ids
-    CreatorGalleryPost.where(creator_gallery_id: CreatorGallery.landing_promoted.select(:id)).pluck(:post_id).to_set
-  end
-
   # WHAT WAS SHOWN, ONE RECORD. Every page that shows a signed-out viewer
   # posts writes the ids it rendered here, into an hourly bucket: the
-  # gallery (its first page, or a featured creator's page -- PostsController)
-  # and the front page's draw (anonymous_landing, for / and /landing/slides).
+  # gallery (its first page, or a featured creator's page -- PostsController),
+  # the front page's draw (anonymous_landing, for / and /landing/slides) and a
+  # promoted creator's page (CreatorGalleriesController#show, the same call).
   # A post page reads this hour's and the last, so a thumbnail or a slide
   # clicked minutes later still opens after the page moved on. Nothing here
   # can be reached that one of those pages did not render.

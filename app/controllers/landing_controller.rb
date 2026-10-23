@@ -24,7 +24,7 @@ class LandingController < ApplicationController
     end
 
     @categories = served_categories
-    @promoted = CreatorGallery.landing_promoted.to_a
+    @promoted = served_promoted
     @preference = cookies[PREFERENCE_COOKIE].to_s
   end
 
@@ -63,9 +63,22 @@ class LandingController < ApplicationController
   # lead somewhere open to them (MembersOnly.anonymous_landing).
   def served_categories
     categories = showcase.categories
-    return categories unless MembersOnly.default_deny? && MembersOnly.signed_out?(CurrentUser.user, request)
+    return categories unless anonymous_draw?
 
     MembersOnly.anonymous_landing(categories, safe_mode: CurrentUser.safe_mode?)
+  end
+
+  # The Promoted Creators cards (LandingShowcase#promoted_cards). For a
+  # signed-out viewer each card's picture is recorded as shown, as a slide
+  # is, or it would not load for them.
+  def served_promoted
+    cards = showcase.promoted_cards
+    MembersOnly.remember_shown_to_anonymous(cards.values.compact.pluck(:id), safe_mode: CurrentUser.safe_mode?) if anonymous_draw?
+    cards
+  end
+
+  def anonymous_draw?
+    MembersOnly.default_deny? && MembersOnly.signed_out?(CurrentUser.user, request)
   end
 
   def showcase

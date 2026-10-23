@@ -17,6 +17,9 @@
 class ModulationLandingComponent < ApplicationComponent
   attr_reader :categories, :promoted, :preference, :viewer
 
+  # `promoted`: each promoted gallery with its card's picture as a slide, or
+  # nil (LandingShowcase#promoted_cards).
+  #
   # `settings` is the viewer's Modulation view state (ModulationSetting.for_viewer);
   # the landing page reads one key of it, hero_band, and renders the band
   # already maximised so a remembered choice does not flash into place.
@@ -118,16 +121,6 @@ class ModulationLandingComponent < ApplicationComponent
 
   def gallery_title(gallery)
     gallery.title.presence || gallery.slug
-  end
-
-  # A creator's own curated pick, so the promoted row shows their work rather
-  # than a placeholder. Nil when they have not curated anything the viewer may
-  # see -- the row copes.
-  def gallery_thumb(gallery)
-    post = gallery.creator_gallery_posts.includes(post: :media_asset).lazy.filter_map(&:post).find { |p| p.visible?(viewer) && !p.hidden_from?(viewer) }
-    post&.preview_file_url
-  rescue StandardError
-    nil
   end
 
   private

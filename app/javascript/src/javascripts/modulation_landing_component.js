@@ -27,7 +27,6 @@ import CreatorLamps from "./creator_lamps";
 
 function initLanding(root) {
   if (root.dataset.modlandBooted) { return; }
-  root.dataset.modlandBooted = "1";
 
   const cfg = JSON.parse(root.dataset.config || "{}");
   const region = (name) => root.querySelector(`[data-region="${name}"]`);
@@ -36,6 +35,22 @@ function initLanding(root) {
 
   const cats = cfg.categories || [];
   if (!cats.length) { return; }
+  // Booted only once there is a belt to build: the gallery's editor draws a
+  // band with no posts yet and boots it when the first arrives.
+  root.dataset.modlandBooted = "1";
+
+  // THE CREATOR GALLERY'S HERO BAND rides this same belt, and its config says
+  // what the landing page never does: which way it travels (direction), how
+  // many cards it shows (cells), its effect (a class on the root), that it
+  // stays on the row the viewer chose (holdAxis), that its keys are its own
+  // (scopedKeys), and that it holds while the pointer is over it (hoverPause).
+  // None of them set, the landing page is what it was.
+  const forward = cfg.direction || 1;
+  if (cfg.effect) { root.classList.add(`is-fx-${cfg.effect}`); }
+  // What the instance hangs on the window and the document, so destroy() can
+  // take it down when the gallery's editor redraws the band in place.
+  const life = new AbortController();
+  let dead = false;
 
   let axis = 0;
   let pos = 0;
@@ -167,7 +182,7 @@ function initLanding(root) {
   }
   function ranksFor(a) {
     const cat = cats[a];
-    const want = cat && cat.visible;
+    const want = cfg.cells || (cat && cat.visible);
     if (!want) { return RANKS; }
     // NOT capped by how many slides the row holds. `at()` wraps each axis at
     // its own length, so a belt wider than the row simply repeats -- and
@@ -941,7 +956,13 @@ function initLanding(root) {
       // Chromium will not run such a transform on the compositor -- every
       // frame of a held run was a 40-50ms main-thread restyle (2026-10-04).
       const centre = `translate(${-to.w / 2}px, ${-to.h / 2}px) translateX(${to.x}px)`;
-      run(cell, [{ transform: `${centre} scale(${from.w / to.w}, ${from.h / to.h})` }, { transform: `${centre} scale(1, 1)` }], SIZE_EASE);
+      // Under the depth effect a card turns about its own centre, so its
+      // transform-origin is there (the stylesheet) and the same move is
+      // written scale-first: the scale about that centre, the centring after.
+      const frames = cfg.effect === "depth"
+        ? [`scale(${from.w / to.w}, ${from.h / to.h})`, "scale(1, 1)"].map((s) => ({ transform: `${s} translate(${to.x - (to.w / 2)}px, ${-to.h / 2}px)` }))
+        : [{ transform: `${centre} scale(${from.w / to.w}, ${from.h / to.h})` }, { transform: `${centre} scale(1, 1)` }];
+      run(cell, frames, SIZE_EASE);
     }
 
     // Size, in screen pixels at eased progress e: the box, and the clip 2px in.
@@ -1128,7 +1149,7 @@ function initLanding(root) {
 
   function render() {
     const belt = region("belt");
-    if (!belt || !started) { return; }
+    if (!belt || !started || dead) { return; }
     // A move still pending: draw once it has started (see pendingClock()).
     // A cancelled one rejects its ready, which draws too.
     const waiting = pendingClock();
@@ -1234,6 +1255,11 @@ function initLanding(root) {
       const blogWords = cell.querySelector(".mod-blog-words");
       if (blogWords) { blogWords.style.setProperty("--blog-text", `${rest.blogF}px`); }
       cell.dataset.d = String(d);
+      // Depth turns a card away by its side and sinks it by its rank.
+      if (cfg.effect === "depth") {
+        cell.style.setProperty("--cside", String(Math.sign(d)));
+        cell.style.setProperty("--crank", String(Math.min(k, ranks + 1)));
+      }
 
       // Sized BEFORE it joins the belt, not after. An error card picks its
       // layout from the element's measured width, and a cell appended without
@@ -1434,9 +1460,11 @@ function initLanding(root) {
     }
   }
 
+  // FLOAT's bob on each card, while it runs (see step).
+  const bobs = new WeakMap();
   function step(delta) {
     const list = slidesOf(axis);
-    if (list.length < 2) { return; }
+    if (list.length < 2 || dead) { return; }
 
     pos += delta;
     burst += 1;
@@ -1467,6 +1495,18 @@ function initLanding(root) {
     moveMs = ms;
 
     render();
+
+    // FLOAT: each card on show bobs once as the run moves. One finite
+    // animation per card at a time, added onto the clock's translate rather
+    // than replacing it; never a running one (an infinite animation costs a
+    // core at idle). A card still bobbing is left to finish: added bobs
+    // would stack, and a burst of steps would lift the cards out of place.
+    if (cfg.effect === "float" && !lessMotion.matches) {
+      region("belt").querySelectorAll(".mod-cell:not(.is-offstage)").forEach((cell, i) => {
+        if (bobs.get(cell)?.playState === "running") { return; }
+        bobs.set(cell, cell.animate([{ translate: "0 0" }, { translate: "0 -6px" }, { translate: "0 0" }], { duration: 1100, delay: i * 40, easing: "ease-in-out", composite: "add" }));
+      });
+    }
 
     // The run has stopped only when nothing else has arrived. Every step pushes
     // this out, so a held arrow never lurches mid-travel -- it lurches once, at
@@ -1522,15 +1562,16 @@ function initLanding(root) {
   // view or the tab is hidden, and carries on from the same slide when it is
   // seen again. The timer keeps ticking; it simply finds nothing to do.
   let onScreen = true;
-  if ("IntersectionObserver" in window) {
-    new IntersectionObserver((entries) => { onScreen = entries.some((e) => e.isIntersecting); }).observe(ride);
-  }
+  const seen = "IntersectionObserver" in window ? new IntersectionObserver((entries) => { onScreen = entries.some((e) => e.isIntersecting); }) : null;
+  if (seen) { seen.observe(ride); }
+  // hoverPause: the same holds while the pointer is over the band.
+  let hovered = false;
 
   function autoAdvance() {
-    if (!onScreen || document.hidden) { return; }
-    if (runLeft > 0) {
+    if (!onScreen || document.hidden || hovered) { return; }
+    if (runLeft > 0 || cfg.holdAxis) {
       runLeft -= 1;
-      step(1);
+      step(forward);
     } else {
       // A full run of this category is done; hand over to the next one.
       const next = nextUsable(axis, 1);
@@ -1544,6 +1585,7 @@ function initLanding(root) {
 
   function startTimer() {
     stopTimer();
+    if (dead) { return; }
     advanceTimer = setInterval(autoAdvance, cfg.advanceMs || 6000);
   }
 
@@ -1580,7 +1622,7 @@ function initLanding(root) {
     setTimeout(() => {
       ride.classList.remove("is-lurching");
       resetRun();
-      step(1);
+      step(forward);
       startTimer();
     }, 260);
   }
@@ -1678,9 +1720,7 @@ function initLanding(root) {
     }
   }
 
-  if (cfg.slidesUrl && cfg.refreshMs) {
-    setInterval(pullFreshSet, cfg.refreshMs);
-  }
+  const refresh = cfg.slidesUrl && cfg.refreshMs ? setInterval(pullFreshSet, cfg.refreshMs) : null;
 
   // --- interaction --------------------------------------------------------
 
@@ -1709,14 +1749,26 @@ function initLanding(root) {
       selectAxis(Array.from(root.querySelectorAll("[data-act='axis']")).indexOf(act));
     }
     pause();
-  });
+  }, { signal: life.signal });
 
   // Same keys and the same guard as the post view: left/right along the axis,
   // up/down between axes. A key pressed while typing belongs to the field.
+  // scopedKeys: only while the pointer or the focus is inside this band, so a
+  // page with other things that take arrows keeps them.
   window.addEventListener("keydown", (e) => {
     if (e.target.closest("input, textarea, select, [contenteditable]")) { return; }
+    if (cfg.scopedKeys && !root.matches(":hover") && !root.contains(document.activeElement)) { return; }
     if (e.key === "ArrowLeft") { step(-1); pause(); } else if (e.key === "ArrowRight") { step(1); pause(); } else if (e.key === "ArrowUp") { e.preventDefault(); shiftAxis(-1); pause(); } else if (e.key === "ArrowDown") { e.preventDefault(); shiftAxis(1); pause(); }
-  });
+  }, { signal: life.signal });
+
+  if (cfg.hoverPause) {
+    // Rebuilt under the pointer (the editor's redraw), it starts held. A
+    // mouse only: a tap is a pointerenter with no leave until the next tap
+    // elsewhere, and would hold the band that long.
+    hovered = window.matchMedia("(hover: hover)").matches && root.matches(":hover");
+    root.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") { hovered = true; } }, { signal: life.signal });
+    root.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") { hovered = false; } }, { signal: life.signal });
+  }
 
   // The wheel steps the belt, one notch one slide, by Technetium's rule
   // (fourier_wheel_step.js), and counts as browsing like any key. Over the
@@ -1730,10 +1782,10 @@ function initLanding(root) {
       const r = wheelStep(wheelState, { dx: e.deltaX, dy: e.deltaY, mode: e.deltaMode, t: e.timeStamp });
       wheelState = r.state;
       if (r.step) { step(r.step); pause(); }
-    }, { passive: false });
+    }, { passive: false, signal: life.signal });
   }
 
-  window.addEventListener("resize", () => { beltStale = true; positionThumb(); if (root.classList.contains("is-hero-max")) { scheduleRender(); } });
+  window.addEventListener("resize", () => { beltStale = true; positionThumb(); if (root.classList.contains("is-hero-max")) { scheduleRender(); } }, { signal: life.signal });
 
   // THE BLACKLIST FIRST. A slide is skipped when its pool element carries
   // the blacklist's mark, and those marks are made by the page's Blacklist
@@ -1758,7 +1810,33 @@ function initLanding(root) {
     if (!started) { start(); return; }
     if (!usable(axis)) { const a = nextUsable(axis, 1); if (a >= 0) { axis = a; resetRun(); } }
     scheduleRender();
-  });
+  }, { signal: life.signal });
+
+  // Everything above that outlives the root's own elements: timers, the
+  // window's and the document's listeners, the observers, the lamps' poll --
+  // and what it put into the root: the cards, their names, the warm holder,
+  // the effect's class. Once down, a timer already queued (a resume, a change
+  // of row) finds the belt dead and does nothing, and the root is as the
+  // server drew it, to be built again.
+  root.modlandTeardown = () => {
+    dead = true;
+    life.abort();
+    stopTimer();
+    hideResume();
+    clearTimeout(settleTimer);
+    clearTimeout(promoteSoon);
+    clearInterval(refresh);
+    if (seen) { seen.disconnect(); }
+    if (beltWatch) { beltWatch.disconnect(); }
+    lamps.stop();
+    cells.forEach(land);
+    region("belt").replaceChildren();
+    if (holder) { holder.remove(); }
+    if (cfg.effect) { root.classList.remove(`is-fx-${cfg.effect}`); }
+    delete root.dataset.modlandBooted;
+    delete root.modlandTeardown;
+  };
+
   const blacklistBox = document.querySelector("#blacklist-box");
   if (!blacklistBox) {
     console.error("landing carousel: this page has no blocklist engine (#blacklist-box), so the carousel is not drawn -- render BlocklistComponent in the page's header (ModulationNavbarComponent)");
@@ -1771,6 +1849,11 @@ function initAll() {
   document.querySelectorAll("[data-modland]").forEach(initLanding);
 }
 
+// Take one belt down (see modlandTeardown), so the same root can be built again.
+function destroy(root) {
+  if (root.modlandTeardown) { root.modlandTeardown(); }
+}
+
 $(document).ready(initAll);
 
-export default { initAll };
+export default { initAll, init: initLanding, destroy };

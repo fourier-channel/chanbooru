@@ -10,8 +10,7 @@ class CreatorGalleryTest < ActiveSupport::TestCase
       assert_equal "alice", g.to_param
     end
 
-    should "reject a bad style and a bad slug" do
-      assert_not CreatorGallery.new(slug: "x", matrix_id: "@x:d", style: "nope").valid?
+    should "reject a bad slug" do
       assert_not CreatorGallery.new(slug: "Bad Slug!", matrix_id: "@x:d").valid?
     end
 

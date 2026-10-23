@@ -636,7 +636,6 @@ CREATE TABLE public.creator_galleries (
     user_id bigint,
     title character varying DEFAULT ''::character varying NOT NULL,
     bio text DEFAULT ''::text NOT NULL,
-    style character varying DEFAULT 'grid'::character varying NOT NULL,
     matrix_contact character varying DEFAULT ''::character varying NOT NULL,
     settings jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
@@ -708,7 +707,8 @@ CREATE TABLE public.creator_gallery_posts (
     creator_gallery_id bigint NOT NULL,
     post_id bigint NOT NULL,
     "position" integer DEFAULT 0 NOT NULL,
-    created_at timestamp(6) without time zone NOT NULL
+    created_at timestamp(6) without time zone NOT NULL,
+    band character varying DEFAULT 'hero'::character varying NOT NULL
 );
 
 
@@ -5540,10 +5540,10 @@ CREATE INDEX index_creator_gallery_posts_on_creator_gallery_id ON public.creator
 
 
 --
--- Name: index_creator_gallery_posts_on_creator_gallery_id_and_post_id; Type: INDEX; Schema: public; Owner: -
+-- Name: index_creator_gallery_posts_on_gallery_band_post; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX index_creator_gallery_posts_on_creator_gallery_id_and_post_id ON public.creator_gallery_posts USING btree (creator_gallery_id, post_id);
+CREATE UNIQUE INDEX index_creator_gallery_posts_on_gallery_band_post ON public.creator_gallery_posts USING btree (creator_gallery_id, band, post_id);
 
 
 --
@@ -9177,6 +9177,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261023120000'),
 ('20261019132157'),
 ('20261019122025'),
 ('20261018000000'),

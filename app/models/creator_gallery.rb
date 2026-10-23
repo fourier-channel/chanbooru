@@ -5,8 +5,6 @@
 # identity (MXID); write access is gated to that identity or an admin (see
 # CreatorGalleriesController + FourierIdentity).
 class CreatorGallery < ApplicationRecord
-  STYLES = %w[grid masonry filmstrip spotlight].freeze
-
   belongs_to :user, optional: true
   has_many :creator_gallery_posts, -> { order(:position, :id) }, dependent: :destroy, inverse_of: :creator_gallery
   has_many :posts, through: :creator_gallery_posts
@@ -40,7 +38,6 @@ class CreatorGallery < ApplicationRecord
 
   validates :slug, presence: true, uniqueness: true, format: { with: SLUG }
   validates :matrix_id, presence: true, uniqueness: true
-  validates :style, inclusion: { in: STYLES }
   validates :title, length: { maximum: 120 }
   validates :bio, length: { maximum: 4000 }
   validates :default_audience, inclusion: { in: AUDIENCES }, unless: -> { default_audience.nil? && !default_audience_changed? }

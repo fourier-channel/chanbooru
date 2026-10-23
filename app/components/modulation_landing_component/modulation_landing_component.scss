@@ -29,6 +29,36 @@
 
 @property --blog-text { syntax: "*"; inherits: false; }
 
+// The depth effect's two (the creator gallery's hero band): which side of the
+// focus a card is on, and how far down the run.
+@property --cside { syntax: "*"; inherits: false; }
+
+@property --crank { syntax: "*"; inherits: false; }
+
+// THE DEPTH EFFECT, a creator gallery's hero band only (its config's effect):
+// the run is a curved wall, each card turned away by its side and sunk by its
+// rank. Individual rotate and scale, so the clock's transform -- and fly()'s
+// moves on it -- are untouched; the origin is the card's own centre, where its
+// transform puts it, so it turns in place. The turn is a finite transition, and
+// none on a card past the run: the stage wrap clips every card (overflow:
+// clip), and one at opacity 0 does not ease at all.
+.modland.is-fx-depth {
+  .mod-belt { perspective: 1400px; }
+
+  .mod-cell {
+    transform-origin: var(--cx, 0) 0;
+    rotate: y calc(var(--cside, 0) * -30deg);
+    scale: calc(1 - var(--crank, 0) * 0.05);
+    transition: rotate 850ms cubic-bezier(0.22, 0.8, 0.2, 1), scale 850ms cubic-bezier(0.22, 0.8, 0.2, 1);
+
+    &.is-offstage { transition: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mod-cell { transition: none; }
+  }
+}
+
 .modland {
   --modland-col: 1120px;
 
@@ -289,6 +319,27 @@
     pointer-events: none;
   }
 
+  // On a phone the sentence wraps, and the 2.2rem kept under the ride holds
+  // one line: the second sat on the focus cell. There the slot holds three
+  // lines on every slide, and the sentence is clamped to them. A slot that
+  // followed the sentence would move everything below the band, and the
+  // arrows, each time the ride stepped.
+  @media (width <= 640px) {
+    .modland-ride { padding-bottom: calc(3 * 1.7 * 0.82rem + 1rem); }
+
+    // Spaced by `bottom`, not padding: the clamp clips at the padding box,
+    // so a fourth line would show in bottom padding.
+    .modland-credit:not([hidden]) {
+      display: -webkit-box;
+      bottom: 0.5rem;
+      overflow: hidden;
+      padding: 0 0.5rem;
+      line-height: 1.7;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+    }
+  }
+
   .modland-credit-creator { color: var(--artist-tag-color); font-weight: 600; }
 
   // THE CREATOR PILL, under a card and in the credit line: the site's own
@@ -443,9 +494,16 @@
     background: var(--mod-surface);
   }
 
-  .modland-promoted-thumb--empty {
+  .modland-promoted-thumb--empty, .modland-promoted-pic {
     background: repeating-linear-gradient(45deg, var(--mod-surface) 0 6px, var(--mod-surface-2) 6px 12px);
   }
+
+  // A blocked picture is hidden and its box kept, so the card keeps its name
+  // and the row its shape: display: none (.blacklisted-hidden, 0,2,0) on the
+  // wrapper would collapse the card.
+  .modland-promoted-pic { display: block; border-radius: var(--mod-radius-sm); }
+  .modland-promoted-pic.blacklisted-hidden { display: block; }
+  .modland-promoted-pic.blacklisted-hidden > .modland-promoted-thumb { visibility: hidden; }
 
   .modland-promoted-name {
     font-size: 0.82rem;

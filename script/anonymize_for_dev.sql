@@ -121,8 +121,9 @@ bans: reason=fill
 bulk_update_requests: script=map status=keep tags=derive results=blank reason=fill
 character_claims: tag_name=map status=keep note=fill creator_slug=map
 comments: body=fill
-creator_galleries: slug=map matrix_id=map title=fill bio=fill style=keep matrix_contact=map settings=blank default_audience=keep
+creator_galleries: slug=map matrix_id=map title=fill bio=fill matrix_contact=map settings=blank default_audience=keep
 creator_gallery_messages: body=fill
+creator_gallery_posts: band=keep
 creator_group_memberships: source=keep
 creator_groups: name=derive
 creator_join_requests: status=keep note=fill

@@ -1046,6 +1046,24 @@ module Danbooru
       "http://fourier-auth:8010"
     end
 
+    # The public origin Matrix media and profiles are read through (the
+    # homeserver's client API behind fourier-auth), e.g.
+    # "https://matrix.example.net". The creator gallery reads its creator's
+    # Matrix avatar and name from here (CreatorGalleryLayout#avatar). nil: not
+    # set, and the gallery draws a monogram and tells its owner to set it.
+    def fourier_media_origin
+      nil
+    end
+
+    # An access token of an account on that homeserver, used only to read
+    # Matrix profiles: the homeserver answers them to signed-in accounts alone
+    # (require_auth_for_profile_requests). A secret: set
+    # DANBOORU_FOURIER_MATRIX_PROFILE_TOKEN in the gitignored .env.local, never
+    # here. nil: the gallery draws a monogram and tells its owner to set it.
+    def fourier_matrix_profile_token
+      nil
+    end
+
     # Whether to enable comments.
     def comments_enabled?
       true

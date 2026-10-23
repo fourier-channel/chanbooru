@@ -28,8 +28,13 @@ class LandingShowcase
 
   attr_reader :viewer
 
-  def initialize(viewer:)
+  # `posts`: the posts the caller will ask #slide_for about, when they are
+  # not this showcase's own categories (CreatorGalleryLayout draws a creator's
+  # bands through the same slides). The artist and blacklist projections are
+  # gathered over them in one query each, as over the categories' posts.
+  def initialize(viewer:, posts: nil)
     @viewer = viewer
+    @all_posts = posts
   end
 
   # @return [Array<Hash>] one entry per category: { key:, label:, slides: [...] }.
@@ -98,6 +103,68 @@ class LandingShowcase
     return false if post.hidden_from?(viewer)
 
     post.visible?(viewer)
+  end
+
+  # One post as a belt slide. Public because a creator gallery's bands are
+  # drawn as these same slides (CreatorGalleryLayout), not a second copy.
+  def slide_for(post)
+    {
+      id: post.id,
+      url: Rails.application.routes.url_helpers.post_path(post),
+      src: media_url(post),
+      # The small variant, for every cell that is not the focused one.
+      #
+      # `src` is large_file_url -- an 850px sample for anything wider than
+      # that. A belt cell off the focus renders at a fraction of its width and
+      # shrinks further toward the edges, so fetching the sample for all of
+      # them was tens of times the bytes needed to draw them, and it showed as
+      # thumbnails arriving late. The focused cell still gets the sample.
+      thumb: thumb_url(post),
+      w: post.image_width,
+      h: post.image_height,
+      # Videos are real posts and belong in the showcase, but they are not
+      # <img> content -- rendering one as an image is a guaranteed broken frame
+      # regardless of whether the viewer may load it.
+      kind: media_kind(post),
+      creator: creator_for(post),
+      platform: platform_for(post),
+      # Same contract as the gallery cards; see FourierTagSource.blacklist_tags_for
+      # for why the tags are the gated projection and not the tag string.
+      tags: blacklist_tags[post].to_a.join(" "),
+      rating: post.rating,
+      flags: post.status_flags,
+      score: post.score,
+      uploader_id: post.uploader_id,
+    }
+  end
+
+  # Each promoted gallery (CreatorGallery.landing_promoted, in its order)
+  # with its hero band as the gallery's own page draws it for this viewer
+  # (operator, 2026-10-23): the row and the cards grant a signed-out viewer
+  # exactly what the gallery does -- those posts, eligible and fitting the
+  # band's tags. A gallery that fails to draw is logged and has none.
+  #
+  # @return [Hash{CreatorGallery => Array<Post>}]
+  def promoted_heroes
+    @promoted_heroes ||= CreatorGallery.landing_promoted.to_h do |gallery|
+      [gallery, CreatorGalleryLayout.new(gallery).hero_posts(viewer)]
+    rescue StandardError => e
+      DanbooruLogger.log(e, category: "promoted", gallery: gallery.id)
+      [gallery, []]
+    end
+  end
+
+  # The Promoted Creators cards: each promoted gallery with its picture, the
+  # first post of its hero band as drawn (#promoted_heroes) as a slide -- the
+  # blacklist's attributes with it -- or nil when the band draws nothing.
+  #
+  # @return [Hash{CreatorGallery => Hash, nil}]
+  def promoted_cards
+    @promoted_cards ||= begin
+      firsts = promoted_heroes.transform_values(&:first)
+      slides = LandingShowcase.new(viewer: viewer, posts: firsts.values.compact)
+      firsts.transform_values { |post| post && slides.slide_for(post) }
+    end
   end
 
   private
@@ -214,7 +281,7 @@ class LandingShowcase
     []
   end
 
-  # The work PROMOTED creators chose to put forward, in their own curated order.
+  # The work PROMOTED creators chose to put forward: their hero band, in their own order.
   #
   # THE FLAG IS promoted_at, not featured_at. They are different columns for
   # different things and the names point the wrong way round: promoted_at is
@@ -224,15 +291,7 @@ class LandingShowcase
     # ONE rule, on the model. This said `promoted.limit(6)` while the
     # controller excluded the current feature before limiting, so the two rows
     # could show different galleries. See CreatorGallery.landing_promoted.
-    groups = CreatorGallery.landing_promoted.map do |gallery|
-      gallery.creator_gallery_posts.includes(post: [:media_asset, :uploader]).filter_map do |cgp|
-        cgp.post if cgp.post && showable?(cgp.post)
-      end.first(3)
-    end
-    interleave(groups)
-  rescue StandardError => e
-    DanbooruLogger.log(e, category: "promoted")
-    []
+    interleave(promoted_heroes.values.map { |posts| posts.first(3) })
   end
 
   # ROUND-ROBIN, not concatenate.
@@ -259,37 +318,6 @@ class LandingShowcase
   # The gate for this showcase's viewer; see LandingShowcase.showable?.
   def showable?(post)
     self.class.showable?(post, viewer)
-  end
-
-  def slide_for(post)
-    {
-      id: post.id,
-      url: Rails.application.routes.url_helpers.post_path(post),
-      src: media_url(post),
-      # The small variant, for every cell that is not the focused one.
-      #
-      # `src` is large_file_url -- an 850px sample for anything wider than
-      # that. A belt cell off the focus renders at a fraction of its width and
-      # shrinks further toward the edges, so fetching the sample for all of
-      # them was tens of times the bytes needed to draw them, and it showed as
-      # thumbnails arriving late. The focused cell still gets the sample.
-      thumb: thumb_url(post),
-      w: post.image_width,
-      h: post.image_height,
-      # Videos are real posts and belong in the showcase, but they are not
-      # <img> content -- rendering one as an image is a guaranteed broken frame
-      # regardless of whether the viewer may load it.
-      kind: media_kind(post),
-      creator: creator_for(post),
-      platform: platform_for(post),
-      # Same contract as the gallery cards; see FourierTagSource.blacklist_tags_for
-      # for why the tags are the gated projection and not the tag string.
-      tags: blacklist_tags[post].to_a.join(" "),
-      rating: post.rating,
-      flags: post.status_flags,
-      score: post.score,
-      uploader_id: post.uploader_id,
-    }
   end
 
   # A blog post as a slide. A DIFFERENT SHAPE from #slide_for, on purpose and

@@ -56,8 +56,16 @@ export default class CreatorLamps {
 
   start() {
     this.paintAll();
-    setInterval(() => this.refresh(), Math.max(15000, Math.round((this.windowSeconds * 1000) / 5)));
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) { this.refresh(); } });
+    this.poll = setInterval(() => this.refresh(), Math.max(15000, Math.round((this.windowSeconds * 1000) / 5)));
+    this.onVisible = () => { if (!document.hidden) { this.refresh(); } };
+    document.addEventListener("visibilitychange", this.onVisible);
     return this;
+  }
+
+  // For a surface that is rebuilt in place (the creator gallery's editor
+  // redraws its hero band): the old watcher's poll and listener go with it.
+  stop() {
+    clearInterval(this.poll);
+    document.removeEventListener("visibilitychange", this.onVisible);
   }
 }

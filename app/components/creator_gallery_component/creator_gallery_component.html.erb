@@ -1,83 +1,407 @@
-<section class="modcreator modcreator--<%= style %>">
-  <header class="modcreator-head">
-    <div class="modcreator-id">
-      <h1 class="modcreator-title"><%= gallery.title.presence || gallery.slug %></h1>
-      <span class="modcreator-handle"><%= gallery.matrix_id %></span>
+<%# The gallery is one page drawn two ways: as visitors see it, and -- editing --
+    the same page with options on everything (creator_gallery_component.js).
+    Everything an editor control changes is drawn here first, so the edit page
+    opens on what visitors see. %>
+<div class="modcreator<%= " is-editing" if editing %>" data-creator-gallery
+     <% if editing %>data-editor="<%= editor_data.to_json %>"<% end %>>
+
+  <%# --- the ground: the banner's picture, pushed far back ------------------
+      Fixed and clipped, so the parallax never moves anything but itself. The
+      banner is a post like any other: the blacklist sees it here too. %>
+  <% banner = draw[:banner] %>
+  <%= tag.div(class: ["modcreator-ground", ("mod-blacklist-target" if banner)], style: depth_style, aria: { hidden: true }, data: { cg_depth: "", **(banner ? marks(banner) : {}) }) do %>
+    <% if banner %>
+      <img class="modcreator-ground-art" src="<%= picture(banner) %>" alt="">
+    <% else %>
+      <span class="modcreator-ground-art modcreator-ground-art--none"></span>
+    <% end %>
+    <span class="modcreator-ground-vignette"></span>
+  <% end %>
+
+  <% if editing %>
+    <%# --- the editor's bar: what Save waits on, Save, Discard ------------ %>
+    <div class="modcreator-bar">
+      <div class="modcreator-bar-row cg-glass">
+        <span class="modcreator-bar-title"><span class="modcreator-bar-dot" aria-hidden="true"></span>Editing gallery</span>
+        <div class="cg-seg modcreator-edit-ui" role="group" aria-label="Panels">
+          <button type="button" data-cg-act="sheet" data-v="page" aria-pressed="false">Page</button>
+          <button type="button" data-cg-act="sheet" data-v="layout" aria-pressed="false">Layout</button>
+        </div>
+        <button type="button" class="cg-btn cg-btn--sm" data-cg-act="preview" aria-pressed="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          <span data-cg-region="preview-label">Hide controls</span>
+        </button>
+        <span class="modcreator-bar-gap"></span>
+        <button type="button" class="cg-btn cg-btn--sm cg-btn--alarm" data-cg-act="problems" data-cg-region="problems-btn" aria-expanded="false" hidden></button>
+        <span class="cg-label" data-cg-region="dirty">saved</span>
+        <button type="button" class="cg-btn cg-btn--sm" data-cg-act="discard" disabled>Discard</button>
+        <button type="button" class="cg-btn cg-btn--sm cg-btn--go" data-cg-act="save" disabled>Save</button>
+        <%= link_to "Done", helpers.creator_gallery_path(gallery), class: "cg-btn cg-btn--sm" %>
+      </div>
+
+      <div class="modcreator-toast" role="status" data-cg-region="toast" hidden></div>
+
+      <div class="modcreator-problems cg-glass" data-cg-region="problems" hidden>
+        <div class="cg-label modcreator-problems-title">Save waits on these</div>
+        <div data-cg-region="problems-list"></div>
+      </div>
+
+      <%# The two sheets drop over the page from the bar; nothing below moves. %>
+      <div class="modcreator-sheet cg-glass" data-cg-sheet="page" hidden>
+        <div class="modcreator-sheet-head">
+          <span class="cg-label">Page</span>
+          <button type="button" class="cg-btn cg-btn--sm" data-cg-act="sheet" data-v="page" aria-label="Hide panel">Hide</button>
+        </div>
+        <div class="modcreator-sheet-body">
+          <div class="cg-field">
+            <span>Avatar</span>
+            <span class="cg-note">Your avatar comes from Matrix. Change it in Technetium and it changes here.</span>
+          </div>
+          <label class="cg-field">About you
+            <textarea class="cg-input" rows="4" maxlength="4000" data-cg-field="bio" autocomplete="off"><%= gallery.bio %></textarea>
+          </label>
+          <label class="cg-field">Matrix contact (who a "Message on Matrix" reaches)
+            <input class="cg-input" maxlength="255" data-cg-field="matrix_contact" autocomplete="off" value="<%= gallery.matrix_contact %>" placeholder="<%= gallery.matrix_id %>">
+          </label>
+          <div class="cg-field">
+            <span>Banner</span>
+            <span class="cg-note">Any of your posts. The background behind the gallery is the same picture, pushed back.</span>
+            <div class="modcreator-banners" data-cg-region="banners"></div>
+          </div>
+          <label class="cg-field">Banner focus <span class="cg-note"><span data-cg-region="banner-y"><%= look["banner"]["y"] %></span>% from the top</span>
+            <input type="range" min="0" max="100" data-cg-field="banner.y" autocomplete="off" value="<%= look["banner"]["y"] %>">
+          </label>
+          <div class="cg-label">Depth</div>
+          <label class="cg-field">Background blur <span class="cg-note"><span data-cg-region="depth-blur"><%= look["depth"]["blur"] %></span> px</span>
+            <input type="range" min="0" max="48" data-cg-field="depth.blur" autocomplete="off" value="<%= look["depth"]["blur"] %>">
+          </label>
+          <label class="cg-field">Background dim <span class="cg-note"><span data-cg-region="depth-dim"><%= look["depth"]["dim"] %></span>%</span>
+            <input type="range" min="0" max="85" data-cg-field="depth.dim" autocomplete="off" value="<%= look["depth"]["dim"] %>">
+          </label>
+          <label class="cg-field">Parallax <span class="cg-note"><span data-cg-region="depth-parallax"><%= look["depth"]["parallax"] %></span>%</span>
+            <input type="range" min="0" max="100" data-cg-field="depth.parallax" autocomplete="off" value="<%= look["depth"]["parallax"] %>">
+          </label>
+        </div>
+      </div>
+
+      <div class="modcreator-sheet cg-glass" data-cg-sheet="layout" hidden>
+        <div class="modcreator-sheet-head">
+          <span class="cg-label">Layout</span>
+          <button type="button" class="cg-btn cg-btn--sm" data-cg-act="sheet" data-v="layout" aria-label="Hide panel">Hide</button>
+        </div>
+        <div class="modcreator-sheet-body">
+          <p class="cg-note">Minibands sit under the hero band. Each one shows a single tag and cycles up to six posts. Set its tag, posts and motion on the miniband itself.</p>
+          <div class="modcreator-layouts">
+            <% CreatorGalleryLayout::LAYOUTS.each do |key, counts| %>
+              <button type="button" class="modcreator-layout" data-cg-act="layout" data-v="<%= key %>" aria-pressed="<%= key == look["layout"] %>">
+                <span class="modcreator-layout-boxes" aria-hidden="true">
+                  <% counts.each do |n| %>
+                    <span class="modcreator-layout-row"><% n.times do %><span class="modcreator-layout-box"></span><% end %></span>
+                  <% end %>
+                </span>
+                <span data-cg-layout-label="<%= key %>"></span>
+              </button>
+            <% end %>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="modcreator-actions">
-      <a class="modcreator-msg" href="<%= matrix_url %>" target="_blank" rel="noopener noreferrer">Message on Matrix</a>
-      <% if can_edit %>
-        <%= link_to "Edit page", edit_creator_gallery_path(gallery), class: "modcreator-edit" %>
+
+    <% notices = [*draw[:owner_notices], *avatar[:problem]] %>
+    <% if notices.any? %>
+      <ul class="modcreator-notices">
+        <% notices.each do |notice| %>
+          <li><%= notice %></li>
+        <% end %>
+      </ul>
+    <% end %>
+  <% end %>
+
+  <%# --- the header: banner, avatar, name, and the panels that descend ---- %>
+  <header class="modcreator-head">
+    <%= tag.div(class: ["modcreator-banner", ("mod-blacklist-target" if banner)], style: depth_style, aria: { hidden: true }, data: { cg_depth: "", **(banner ? marks(banner) : {}) }) do %>
+      <% if banner %>
+        <img class="modcreator-banner-art" src="<%= picture(banner) %>" alt="">
       <% else %>
-        <%# The Creator Gallery write gate keys on the verified Matrix identity
-            (fourier_session). Signing in through the same-origin /fourier gate
-            lands that cookie on the booru origin; the owner then sees "Edit page". %>
-        <a class="modcreator-signin" href="/fourier/login" rel="nofollow">Sign in with Matrix</a>
+        <span class="modcreator-banner-art modcreator-banner-art--none"></span>
       <% end %>
+    <% end %>
+
+    <div class="modcreator-id">
+      <div class="modcreator-avatar" title="From Matrix">
+        <% if avatar[:url] %>
+          <img class="modcreator-avatar-img" src="<%= avatar[:url] %>" alt="" width="112" height="112">
+        <% else %>
+          <span class="modcreator-avatar-letter" aria-hidden="true"><%= monogram %></span>
+        <% end %>
+      </div>
+      <div class="modcreator-name">
+        <h1 class="modcreator-title modcreator-static" data-cg-static="title"><%= title %></h1>
+        <% if editing %>
+          <input class="cg-inline modcreator-title modcreator-edit-ui" aria-label="Gallery name" maxlength="120" data-cg-field="title" autocomplete="off" value="<%= gallery.title %>" placeholder="<%= gallery.slug %>">
+        <% end %>
+        <span class="modcreator-handle"><%= gallery.matrix_id %></span>
+      </div>
+      <div class="modcreator-actions">
+        <a class="cg-btn cg-btn--ghost" href="<%= matrix_url %>" target="_blank" rel="noopener noreferrer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>
+          Message on Matrix
+        </a>
+        <button type="button" class="cg-btn modcreator-about-btn" data-cg-act="about" aria-expanded="false" aria-controls="modcreator-about">
+          About
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+        </button>
+        <% if editing %>
+          <%# The edit page's own way back is the bar's Done. %>
+        <% elsif can_edit %>
+          <%= link_to helpers.edit_creator_gallery_path(gallery), class: "cg-btn cg-btn--go" do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"></path></svg>
+            Edit Gallery
+          <% end %>
+        <% else %>
+          <%# The Creator Gallery write gate keys on the verified Matrix identity
+              (fourier_session). Signing in through the same-origin /fourier gate
+              lands that cookie on the booru origin; the owner then sees "Edit Gallery". %>
+          <a class="modcreator-signin" href="/fourier/login" rel="nofollow">Sign in with Matrix</a>
+        <% end %>
+      </div>
+    </div>
+
+    <%# The panels descend from the header on About, and each one can be put
+        away; the ones put away are listed, to bring back. %>
+    <div class="modcreator-about" id="modcreator-about" hidden>
+      <div class="modcreator-about-hidden" data-cg-region="hidden-panels" hidden></div>
+      <div class="modcreator-boxes">
+        <section class="modcreator-box cg-glass" data-cg-panel="bio" data-cg-title="About">
+          <div class="modcreator-box-head"><h2 class="cg-label modcreator-box-title">About</h2><button type="button" class="cg-btn cg-btn--sm" data-cg-act="hide-panel">Hide</button></div>
+          <p class="modcreator-bio" data-cg-static="bio"><%= gallery.bio.presence || "Nothing here yet." %></p>
+        </section>
+
+        <% if characters.any? %>
+          <section class="modcreator-box cg-glass" data-cg-panel="characters" data-cg-title="Characters">
+            <div class="modcreator-box-head"><h2 class="cg-label modcreator-box-title">Characters</h2><button type="button" class="cg-btn cg-btn--sm" data-cg-act="hide-panel">Hide</button></div>
+            <div class="modcreator-characters">
+              <ul>
+                <% characters.each do |tag| %>
+                  <li>
+                    <% if member? %>
+                      <%= link_to tag.tr("_", " "), helpers.posts_path(tags: tag) %>
+                      <%= link_to "wiki", helpers.wiki_page_path(tag), class: "modcreator-characters-wiki" %>
+                    <% else %>
+                      <%= tag.tr("_", " ") %>
+                    <% end %>
+                  </li>
+                <% end %>
+              </ul>
+            </div>
+          </section>
+        <% end %>
+
+        <% if messages.any? %>
+          <section class="modcreator-box cg-glass" data-cg-panel="blog" data-cg-title="News">
+            <div class="modcreator-box-head"><h2 class="cg-label modcreator-box-title">News</h2><button type="button" class="cg-btn cg-btn--sm" data-cg-act="hide-panel">Hide</button></div>
+            <div class="modcreator-blog">
+              <% messages.each do |m| %>
+                <article class="modcreator-post">
+                  <time class="modcreator-post-time"><%= m.created_at.strftime("%Y-%m-%d") %></time>
+                  <p class="modcreator-post-body"><%= m.body %></p>
+                </article>
+              <% end %>
+            </div>
+          </section>
+        <% end %>
+
+        <%# The edit page's own sections, with their own forms and routes. %>
+        <% panels.to_h.each_with_index do |(name, html), i| %>
+          <section class="modcreator-box modcreator-box--wide cg-glass" data-cg-panel="panel-<%= i %>" data-cg-title="<%= name %>">
+            <div class="modcreator-box-head"><h2 class="cg-label modcreator-box-title"><%= name %></h2><button type="button" class="cg-btn cg-btn--sm" data-cg-act="hide-panel">Hide</button></div>
+            <%= html %>
+          </section>
+        <% end %>
+      </div>
     </div>
   </header>
 
-  <% if gallery.bio.present? %>
-    <p class="modcreator-bio"><%= gallery.bio %></p>
-  <% end %>
-
-  <% if characters.any? %>
-    <div class="modcreator-characters">
-      <h2 class="modcreator-characters-title">Characters</h2>
-      <ul>
-        <% characters.each do |tag| %>
-          <li>
-            <% if member? %>
-              <%= link_to tag.tr("_", " "), helpers.posts_path(tags: tag) %>
-              <%= link_to "wiki", helpers.wiki_page_path(tag), class: "modcreator-characters-wiki" %>
-            <% else %>
-              <%= tag.tr("_", " ") %>
-            <% end %>
-          </li>
+  <main class="modcreator-main">
+    <%# --- THE HERO BAND: the landing page's own belt, on the posts the
+        creator chose under the band's tags. Its axis tabs are the character
+        filter: All, then each of the band's characters. --- %>
+    <section class="modcreator-hero cg-glass" aria-label="Hero band">
+      <div class="modcreator-hero-head">
+        <span class="cg-label modcreator-eyebrow">
+          <% if editing %>Your hero band<% elsif generals.any? %><%= safe_join(generals.pluck(:name).map { |name| name.tr("_", " ") }, " / ") %><% else %>Gallery<% end %>
+        </span>
+        <h2 class="modcreator-headline modcreator-static" data-cg-static="headline"><%= look["headline"] %></h2>
+        <p class="modcreator-subline modcreator-static" data-cg-static="subline"><%= look["subline"] %></p>
+        <% if editing %>
+          <input class="cg-inline modcreator-headline modcreator-edit-ui" aria-label="Band headline" maxlength="120" placeholder="A headline for the band" data-cg-field="headline" autocomplete="off" value="<%= look["headline"] %>">
+          <input class="cg-inline modcreator-subline modcreator-edit-ui" aria-label="Band line" maxlength="200" placeholder="A line under it" data-cg-field="subline" autocomplete="off" value="<%= look["subline"] %>">
         <% end %>
-      </ul>
-    </div>
-  <% end %>
+      </div>
 
-  <% if messages.any? %>
-    <div class="modcreator-blog">
-      <% messages.each do |m| %>
-        <article class="modcreator-post">
-          <time class="modcreator-post-time"><%= m.created_at.strftime("%Y-%m-%d") %></time>
-          <p class="modcreator-post-body"><%= m.body %></p>
-        </article>
-      <% end %>
-    </div>
-  <% end %>
-
-  <% posts = shown_posts %>
-  <% if posts.any? %>
-    <div class="modcreator-gallery">
-      <% posts.each_with_index do |post, i| %>
-        <a class="modcreator-card<%= " is-spotlight" if style == "spotlight" && i.zero? %>" href="<%= post_link(post) %>" title="post #<%= post.id %>">
-          <% t = thumb(post) %>
-          <% if t %>
-            <img class="modcreator-thumb" src="<%= t %>" alt="" loading="lazy">
-          <% else %>
-            <span class="modcreator-thumb modcreator-thumb--gated">gated</span>
+      <div class="modcreator-pills">
+        <div class="modcreator-pills-row modcreator-static">
+          <% draw[:hero][:tags].each do |pill| %>
+            <% if member? %>
+              <%= link_to helpers.posts_path(tags: pill[:name]), class: pill_class(pill[:category]) do %><span class="mod-pill-dot"></span><span class="mod-pill-label"><%= pill[:name].tr("_", " ") %></span><% end %>
+            <% else %>
+              <span class="<%= pill_class(pill[:category]) %>"><span class="mod-pill-dot"></span><span class="mod-pill-label"><%= pill[:name].tr("_", " ") %></span></span>
+            <% end %>
           <% end %>
-        </a>
+        </div>
+        <% if editing %>
+          <div class="modcreator-pills-row modcreator-edit-ui" data-cg-region="chips"></div>
+          <div class="modcreator-adder cg-glass" data-cg-region="adder" hidden>
+            <input class="cg-input" aria-label="Find a tag" placeholder="Find a tag" data-cg-field="tag-query" autocomplete="off">
+            <p class="cg-note">A general tag must be on every post in the band. Characters are any-of: each post needs at least one, up to five characters.</p>
+            <div class="modcreator-adder-rows" data-cg-region="adder-rows"></div>
+          </div>
+        <% end %>
+      </div>
+
+      <% if editing %>
+        <p class="modcreator-rule modcreator-edit-ui" data-cg-region="rule"></p>
       <% end %>
-    </div>
-    <% if locked_count > 0 %>
+
+      <% config = belt_config %>
+      <div class="modcreator-belt">
+        <div class="modland" data-modland data-config="<%= config.to_json %>" <%= "hidden" if config[:categories].empty? %>>
+          <section class="modland-showcase">
+            <div class="modland-tabs" role="tablist" aria-label="Characters">
+              <span class="modland-tabs-thumb" data-region="thumb" aria-hidden="true"></span>
+              <% config[:categories].each_with_index do |category, i| %>
+                <button type="button" role="tab"
+                        class="modland-tab<%= " is-active" if i.zero? %>"
+                        data-act="axis" data-cat="<%= category[:key] %>"
+                        aria-selected="<%= i.zero? %>"><%= category[:label] %></button>
+              <% end %>
+            </div>
+
+            <div class="modland-stage-wrap">
+              <button type="button" class="modland-arrow modland-arrow--prev" data-act="prev" aria-label="Previous">&#8249;</button>
+              <button type="button" class="modland-arrow modland-arrow--next" data-act="next" aria-label="Next">&#8250;</button>
+              <article class="modland-ride" data-region="ride">
+                <section class="mod-stage">
+                  <div class="mod-belt" data-region="belt"></div>
+                </section>
+              </article>
+              <p class="modland-credit" data-region="credit"></p>
+              <div class="modland-resume" data-region="resume" hidden>
+                <button type="button" class="modland-resume-btn" data-act="resume" title="Resume now">
+                  <span class="modland-resume-fill" data-region="fill" aria-hidden="true"></span>
+                  <span class="modland-resume-label">The ride never ends.</span>
+                  <span class="modland-resume-left" data-region="left"></span>
+                </button>
+              </div>
+              <%# The blacklist marks elements; every post on the belt has one
+                  here (landing/_pool_item, as on the landing page). %>
+              <div class="modland-pool" hidden aria-hidden="true">
+                <%= render partial: "landing/pool_item", collection: hero_slides.map { |slide| slide.merge(category: "all") }, as: :slide %>
+              </div>
+            </div>
+          </section>
+        </div>
+        <p class="modcreator-hero-empty" data-cg-region="hero-empty" <%= "hidden" if config[:categories].any? %>>
+          <% if !editing %>
+            No posts in this band for you yet.
+          <% elsif draw[:hero][:tags].any? %>
+            No posts in the band yet. Open Posts below and pick from the candidates.
+          <% else %>
+            Start with the tags. Add them above and the band's candidates appear.
+          <% end %>
+        </p>
+      </div>
+
+      <% if editing %>
+        <div class="modcreator-motion modcreator-edit-ui">
+          <span class="cg-label">Motion</span>
+          <div class="cg-seg" role="group" aria-label="Effect">
+            <% CreatorGalleryLayout::HERO_EFFECTS.each do |effect| %>
+              <button type="button" data-cg-act="hero-effect" data-v="<%= effect %>" aria-pressed="<%= effect == look["hero"]["effect"] %>"><%= effect.capitalize %></button>
+            <% end %>
+          </div>
+          <div class="cg-seg" role="group" aria-label="Direction">
+            <% CreatorGalleryLayout::HERO_DIRS.each do |dir| %>
+              <button type="button" data-cg-act="hero-dir" data-v="<%= dir %>" aria-pressed="<%= dir == look["hero"]["dir"] %>" aria-label="Travel <%= dir %>">
+                <svg class="modcreator-arrow-<%= dir %>" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+              </button>
+            <% end %>
+          </div>
+          <label class="modcreator-hold">Hold
+            <input type="range" min="<%= CreatorGalleryLayout::HOLD.min %>" max="<%= CreatorGalleryLayout::HOLD.max %>" data-cg-field="hero.hold" autocomplete="off" value="<%= look["hero"]["hold"] %>">
+            <span class="modcreator-hold-value"><span data-cg-region="hero-hold"><%= look["hero"]["hold"] %></span>s</span>
+          </label>
+          <div class="cg-seg" role="group" aria-label="Cards on screen">
+            <% CreatorGalleryLayout::CELLS.each do |cells| %>
+              <button type="button" data-cg-act="hero-cells" data-v="<%= cells %>" aria-pressed="<%= cells == look["hero"]["cells"] %>"><%= cells %></button>
+            <% end %>
+          </div>
+          <button type="button" class="cg-btn cg-btn--sm" data-cg-act="hero-picker" data-cg-region="hero-posts" aria-expanded="false">Posts</button>
+        </div>
+        <div class="modcreator-picker modcreator-edit-ui" data-cg-region="hero-picker" hidden></div>
+      <% end %>
+    </section>
+
+    <%# --- THE MINIBANDS: one tag each, in the creator's layout ---------- %>
+    <section class="modcreator-minis">
+      <div class="modcreator-minis-head">
+        <h2 class="modcreator-minis-title"><%= editing ? "Minibands" : "More from #{title}" %></h2>
+        <span class="cg-label" data-cg-region="layout-name"></span>
+        <% if editing %>
+          <button type="button" class="cg-btn cg-btn--sm modcreator-edit-ui" data-cg-act="sheet" data-v="layout">Change layout</button>
+        <% end %>
+      </div>
+      <div data-cg-region="minis">
+        <% mini_rows.each do |row| %>
+          <div class="modcreator-minis-row">
+            <% row.each do |slot| %>
+              <% slides = slot[:mini][:slides] %>
+              <% pill = slot[:mini][:tag] %>
+              <div class="modcreator-mini" data-cg-mini="<%= slot[:i] %>" data-effect="<%= slot[:look]["effect"] %>" data-dir="<%= slot[:look]["dir"] %>" data-hold="<%= slot[:look]["hold"] %>"
+                   style="--mini-h: <%= ROW_H[slot[:n]] %>px; --mini-w: <%= MIN_W[slot[:n]] %>px">
+                <% slides.each do |slide| %>
+                  <%= tag.a(class: "modcreator-mini-item modcreator-card mod-blacklist-target", href: slide[:url], title: "post ##{slide[:id]}", data: marks(slide)) do %>
+                    <img class="modcreator-mini-img" src="<%= picture(slide) %>" alt="" loading="lazy" draggable="false">
+                  <% end %>
+                <% end %>
+                <% if slides.empty? %>
+                  <div class="modcreator-mini-empty"><%= pill ? "No posts here for you yet" : "Nothing here yet" %></div>
+                <% else %>
+                  <div class="modcreator-mini-shade" aria-hidden="true"></div>
+                  <button type="button" class="modcreator-mini-arrow modcreator-mini-arrow--prev" data-cg-act="mini-step" data-v="-1" aria-label="Previous post">&#8249;</button>
+                  <button type="button" class="modcreator-mini-arrow modcreator-mini-arrow--next" data-cg-act="mini-step" data-v="1" aria-label="Next post">&#8250;</button>
+                <% end %>
+                <% if pill && slides.any? %>
+                  <div class="modcreator-mini-label modcreator-static">
+                    <% if member? %>
+                      <%= link_to helpers.posts_path(tags: pill[:name]), class: pill_class(pill[:category]) do %><span class="mod-pill-dot"></span><span class="mod-pill-label"><%= pill[:name].tr("_", " ") %></span><% end %>
+                    <% else %>
+                      <span class="<%= pill_class(pill[:category]) %>"><span class="mod-pill-dot"></span><span class="mod-pill-label"><%= pill[:name].tr("_", " ") %></span></span>
+                    <% end %>
+                    <span class="modcreator-mini-dots" aria-hidden="true">
+                      <% slides.size.times do |j| %><span class="modcreator-mini-dot<%= " is-on" if j.zero? %>"></span><% end %>
+                    </span>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </section>
+
+    <% if draw[:locked_count] > 0 %>
       <%# Past the browsing tier's page: the notice, then one empty card a post.
           Nothing in these cards is the post's -- no id, URL, tag or link. %>
       <p class="modcreator-more">
         <%= member? ? "A full account sees the rest." : "Sign in to see more!" %>
-        <span class="modcreator-more-count"><%= pluralize(locked_count, "more post") %> in this gallery</span>
+        <span class="modcreator-more-count"><%= pluralize(draw[:locked_count], "more post") %> in this gallery</span>
       </p>
       <div class="modcreator-gallery modcreator-gallery--locked" aria-hidden="true">
-        <% locked_count.times do %>
+        <% draw[:locked_count].times do %>
           <div class="modcreator-card modcreator-card--locked"></div>
         <% end %>
       </div>
     <% end %>
-  <% else %>
-    <p class="modcreator-empty">No featured posts yet.</p>
-  <% end %>
-</section>
+  </main>
+</div>

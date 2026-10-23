@@ -94,7 +94,8 @@ class BrowsingTierSurfacesTest < ActionDispatch::IntegrationTest
     tag_wiki_embeds: { path: -> { ["/posts", { tags: "tierfix_tag", preset: "historical" }] }, formats: %i[html], count: :embeds, kind: :whole },
     dtext_preview_requests: { verb: :post, path: -> { ["/dtext_preview", { body: @aliases.map { |a| "[ta:#{a.id}]" }.join("\n\n") }] }, formats: %i[html], count: -> { (wiki_links & @aliases.map(&:antecedent_name)).size }, kind: :whole },
     dtext_preview: { verb: :post, path: -> { ["/dtext_preview", { body: @posts.map { |p| "!post ##{p.id}" }.join("\n\n"), media_embeds: "1" }] }, formats: %i[html], count: :embeds, kind: :whole },
-    creator_gallery: { path: -> { ["/creators/#{@gallery.slug}", {}] }, formats: %i[html], count: -> { @doc.css("a.modcreator-card[href]").count { |a| @posts.map { |p| "/posts/#{p.id}" }.include?(a["href"]) } }, kind: :whole },
+    # The hero band's posts are the belt's pool items (landing/_pool_item), the minibands' are cards; a post on both counts once.
+    creator_gallery: { path: -> { ["/creators/#{@gallery.slug}", {}] }, formats: %i[html], count: -> { (@doc.css(".modcreator .modland-poolitem[data-id]").map { |item| item["data-id"].to_i } + @doc.css("a.modcreator-card[href]").map { |a| a["href"][%r{\A/posts/(\d+)\z}, 1].to_i }).uniq.count { |id| @posts.map(&:id).include?(id) } }, kind: :whole },
     show_seq: { path: -> { ["/posts/#{@posts[2].id}/show_seq", { seq: "next", q: "tierfix_tag" }] }, formats: %i[html], kind: :walk, expect: 410, walked: -> { response.redirect? }},
     historical_navbar: { path: -> { ["/posts/#{@posts[2].id}", { preset: "historical", q: "pool:#{@pools.first.id}" }] }, formats: %i[html], kind: :walk, expect: :drawn, walked: -> { response.successful? && @doc.css(".search-navbar a, .pool-navbar a[rel~=next], .pool-navbar a[rel~=prev]").any? }},
     # The order editor draws the group's posts: the creator's own, so only a
@@ -676,8 +677,14 @@ class BrowsingTierSurfacesTest < ActionDispatch::IntegrationTest
     @name_changes = Array.new(N) { create(:user_name_change_request) }
     @dmails = Array.new(N) { create(:dmail, owner: @restricted, to: @restricted) } + Array.new(N) { create(:dmail, owner: @member, to: @member) }
     @saved_searches = Array.new(N) { |i| create(:saved_search, user: @restricted, query: "tierfix_ss#{i}") } + Array.new(N) { |i| create(:saved_search, user: @member, query: "tierfix_ssm#{i}") }
-    @gallery = create(:creator_gallery, slug: "tierfix-creator")
-    @posts.each_with_index { |p, i| CreatorGalleryPost.create!(creator_gallery: @gallery, post: p, position: i) }
+    # The creator's own posts on their hero band, which wants tierfix_tag
+    # (Creator Gallery rebuild, 2026-10-23: a band draws only posts the
+    # creator controls and its tags fit).
+    @gallery = create(:creator_gallery, slug: "tierfix-creator", settings: { "hero" => { "tags" => %w[tierfix_tag] }})
+    @posts.each_with_index do |p, i|
+      FourierPostCreator.create!(post: p, mxid: @gallery.matrix_id, recorded_by: p.uploader_id)
+      CreatorGalleryPost.create!(creator_gallery: @gallery, post: p, band: "hero", position: i)
+    end
     @galleries = [@gallery] + Array.new(N - 1) { |i| create(:creator_gallery, slug: "tierfix-c#{i}") }
 
     mock_iqdb_matches(@posts.map { |p| { post_id: p.id, score: 95.0 } })

@@ -56,7 +56,7 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
         assert_select "h1", "Oh No!"
         assert_select "p", text: /This page can only be edited by its owner, the Matrix account @alice:41chan\.net, or by an admin\./
         # The remedy names WHERE the sign-in button is (browser recheck, 2026-10-09).
-        assert_select "p", text: %r{open http://\S+/creators/#{@gallery.slug}, use "Sign in with Matrix" there as @alice:41chan\.net, then open Edit page again}
+        assert_select "p", text: %r{open http://\S+/creators/#{@gallery.slug}, use "Sign in with Matrix" there as @alice:41chan\.net, then use Edit Gallery again}
         assert_select "p", text: /You do not have permission to visit this page/, count: 0
       end
     end
@@ -65,13 +65,157 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
     # scroll sideways at phone width (stage-4 browser check, 2026-10-09).
     should "not size the title box from its maxlength" do
       get edit_creator_gallery_path(@gallery), headers: { "X-Fourier-Identity" => "@alice:41chan.net" }
-      assert_select "input[name='creator_gallery[title]'][maxlength='120']"
-      assert_select "input[name='creator_gallery[title]'][size]", 0
+      assert_select "input[data-cg-field='title'][maxlength='120']"
+      assert_select "input[data-cg-field='title'][size]", 0
 
       get new_creator_gallery_path, headers: { "X-Fourier-Identity" => "@bob:41chan.net" }
       assert_response :success
       assert_select "input[name='creator_gallery[title]'][maxlength='120']"
       assert_select "input[name='creator_gallery[title]'][size]", 0
+    end
+  end
+
+  # THE LAYOUT (Creator Gallery rebuild, 2026-10-23): the editor's candidate
+  # list, its save, the API's one-post door, and what a signed-out viewer of
+  # a promoted page is granted. Answers are read as JSON and recorded state.
+  context "The gallery layout" do
+    setup do
+      @tunnel = create(:contributor_user)
+      @gallery = CreatorGallery.create!(slug: "alice", matrix_id: "@alice:41chan.net", title: "Alice")
+      @alice = { "X-Fourier-Identity" => "@alice:41chan.net" }
+      @posts = Array.new(6) do |i|
+        post = as(@tunnel) { create(:post, uploader: @tunnel, tag_string: "night neon #{i.even? ? "rain" : "snow"}", rating: "g") }
+        FourierPostCreator.create!(post: post, mxid: @gallery.matrix_id, recorded_by: @tunnel.id)
+        post
+      end
+      @look = {
+        headline: "After Hours", subline: "", banner: { post_id: @posts[0].id, y: 50 }, depth: { blur: 18, dim: 45, parallax: 40 },
+        hero: { tags: %w[night], effect: "glide", dir: "left", hold: 5, cells: 5, posts: @posts.map(&:id) },
+        layout: "4",
+        minis: [{ tag: "rain", effect: "slide", dir: "left", hold: 4, posts: [@posts[0].id] },
+                { tag: "snow", effect: "fade", dir: "up", hold: 4, posts: [@posts[1].id] },
+                { tag: "neon", effect: "drift", dir: "down", hold: 4, posts: [@posts[2].id] },
+                { tag: "night", effect: "flip", dir: "right", hold: 4, posts: [@posts[3].id] }],
+      }
+    end
+
+    should "answer the editor's candidate list for a band's tags, newest first" do
+      get edit_creator_gallery_path(@gallery, format: :json), params: { tags: "night rain" }, headers: @alice
+
+      assert_response :success
+      assert_equal([@posts[4], @posts[2], @posts[0]].map(&:id), response.parsed_body["slides"].pluck("id"))
+      assert_equal(3, response.parsed_body["total"])
+      assert_equal(300, response.parsed_body["cap"])
+    end
+
+    should "keep the candidate list behind the owner gate" do
+      get edit_creator_gallery_path(@gallery, format: :json), params: { tags: "night" }, headers: { "X-Fourier-Identity" => "@mallory:41chan.net" }
+      assert_response 403
+    end
+
+    should "save the whole layout and the page fields at once" do
+      patch creator_gallery_path(@gallery), params: { creator_gallery: { title: "Alice After Hours", bio: "", matrix_contact: "" }, layout: @look },
+                                            headers: @alice, as: :json
+
+      assert_response :success
+      assert_equal({ "ok" => true }, response.parsed_body)
+      @gallery.reload
+      assert_equal("Alice After Hours", @gallery.title)
+      assert_equal("4", @gallery.settings["layout"])
+      assert_equal(@posts.map(&:id), @gallery.creator_gallery_posts.where(band: "hero").order(:position).pluck(:post_id))
+      assert_equal([@posts[3].id], @gallery.creator_gallery_posts.where(band: "mini4").pluck(:post_id))
+    end
+
+    should "refuse a layout with problems, naming each, and write nothing" do
+      patch creator_gallery_path(@gallery), params: { creator_gallery: { title: "x" * 121 }, layout: @look.merge(hero: @look[:hero].merge(posts: @posts.first(2).map(&:id))) },
+                                            headers: @alice, as: :json
+
+      assert_response 422
+      assert_equal({ "ok" => false, "problems" => ["The hero band holds 2 of the 5 posts it needs. Open Posts on the band and pick more.",
+                                                   "Title is too long (maximum is 120 characters)"] }, response.parsed_body)
+      assert_equal({}, @gallery.reload.settings)
+      assert_equal("Alice", @gallery.title)
+      assert_equal(0, @gallery.creator_gallery_posts.count)
+    end
+
+    # The page fields alone, without a layout (an API client): a refusal
+    # names its problems, and never renders the editor half-built.
+    should "refuse page fields with problems, naming them" do
+      patch creator_gallery_path(@gallery), params: { creator_gallery: { title: "x" * 121 }}, headers: @alice
+      assert_redirected_to edit_creator_gallery_path(@gallery)
+      assert_equal("Title is too long (maximum is 120 characters)", flash[:notice])
+
+      patch creator_gallery_path(@gallery), params: { creator_gallery: { title: "x" * 121 }}, headers: @alice, as: :json
+      assert_response 422
+      assert_equal({ "ok" => false, "problems" => ["Title is too long (maximum is 120 characters)"] }, response.parsed_body)
+      assert_equal("Alice", @gallery.reload.title)
+    end
+
+    should "take a post off the one band named, and off every band when none is" do
+      %w[hero mini1 mini2].each_with_index { |band, i| @gallery.creator_gallery_posts.create!(band: band, post: @posts[0], position: i) }
+
+      delete creator_gallery_remove_post_path(@gallery, @posts[0].id), params: { band: "mini1", format: :json }, headers: @alice
+      assert_response :success
+      assert_equal(%w[hero mini2], @gallery.creator_gallery_posts.where(post_id: @posts[0].id).order(:band).pluck(:band))
+
+      delete creator_gallery_remove_post_path(@gallery, @posts[0].id), params: { format: :json }, headers: @alice
+      assert_equal(0, @gallery.creator_gallery_posts.count)
+    end
+
+    should "refuse a layout save to anyone but the owner or an admin" do
+      patch creator_gallery_path(@gallery), params: { layout: @look }, headers: { "X-Fourier-Identity" => "@mallory:41chan.net" }, as: :json
+
+      assert_response 403
+      assert_equal({}, @gallery.reload.settings)
+    end
+
+    should "add one post to a band through the API door, and refuse one that does not fit or is not eligible" do
+      @gallery.update!(settings: { "hero" => { "tags" => %w[night] }, "layout" => "4", "minis" => [{ "tag" => "rain" }] })
+      private_post = @posts[2]
+      admin = create(:admin_user)
+      CreatorPostAudience.set!(private_post, gallery: @gallery, audience: "private", by: admin)
+
+      post creator_gallery_add_post_path(@gallery), params: { post_id: @posts[0].id, band: "mini1", format: :json }, headers: @alice
+      assert_response :success
+      post creator_gallery_add_post_path(@gallery), params: { post_id: @posts[1].id, band: "mini1", format: :json }, headers: @alice
+      assert_response 422
+      assert_equal(["Post ##{@posts[1].id} does not carry rain. Take it off miniband 1 or change its tag."], response.parsed_body["problems"])
+      # As an admin: the curator's Matrix-only request is answered not found
+      # for this post (Post.find_visible!) before eligibility is asked.
+      post_auth creator_gallery_add_post_path(@gallery), admin, params: { post_id: private_post.id, format: :json }
+      assert_response 422
+      assert_equal(["Post ##{private_post.id} cannot be chosen: its audience is private. Make it public on Who sees your posts, or take it off."],
+                   response.parsed_body["problems"])
+
+      assert_equal([["mini1", @posts[0].id]], @gallery.creator_gallery_posts.pluck(:band, :post_id))
+    end
+
+    # The ruling's second half: a signed-out viewer of a promoted page may
+    # open exactly what the page drew for them -- the hero, the minibands and
+    # the banner -- while it is fresh: not a chosen post the page no longer
+    # draws, not one made private since, and nothing once the grant lapses.
+    should "grant a signed-out viewer of a promoted page the posts it drew, and nothing else, while fresh" do
+      Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+      Danbooru.config.stubs(:anonymous_default_deny?).returns(true)
+      banner = as(@tunnel) { create(:post, uploader: @tunnel, tag_string: "dawn", rating: "g") }
+      FourierPostCreator.create!(post: banner, mxid: @gallery.matrix_id, recorded_by: @tunnel.id)
+      @gallery.update!(promoted_at: Time.current, settings: { "hero" => { "tags" => %w[rain] }, "banner" => { "post_id" => banner.id }, "layout" => "1-2", "minis" => [{ "tag" => "snow" }] })
+      @posts.each_with_index { |post, i| @gallery.creator_gallery_posts.create!(band: "hero", post: post, position: i) }
+      @gallery.creator_gallery_posts.create!(band: "mini1", post: @posts[1], position: 0)
+      CreatorPostAudience.set!(@posts[0], gallery: @gallery, audience: "private", by: create(:admin_user))
+      create_list(:post, 21) # rubocop:disable FactoryBot/ExcessiveCreateList -- off the gallery's first page, so only the draw can grant them
+
+      get creator_gallery_path(@gallery)
+
+      assert_response :success
+      # Rain on the even posts, snow on the odd; the first is private now.
+      drawn = [banner, @posts[1], @posts[2], @posts[4]]
+      shown = ->(post) { MembersOnly.anonymous_shown_post?(post.id, safe_mode: false) }
+      drawn.each { |post| assert(shown.call(post), "drawn post ##{post.id} was not granted") }
+      [@posts[0], @posts[3], @posts[5]].each { |post| assert_not(shown.call(post), "undrawn post ##{post.id} was granted") }
+      travel_to(3.hours.from_now) do
+        drawn.each { |post| assert_not(shown.call(post), "post ##{post.id} was still granted three hours on") }
+      end
     end
   end
 

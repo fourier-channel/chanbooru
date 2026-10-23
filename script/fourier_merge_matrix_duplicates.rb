@@ -209,7 +209,7 @@ pairs.each_with_index do |(where, retired_id, survivor_id), index|
         CreatorVisibility.forget!
 
         # 3. THE CREATOR'S PER-POST ROWS: allows and blocks, audience overrides
-        #    and their groups, the gallery's curated set -- before anything
+        #    and their groups, the gallery's band rows -- before anything
         #    below asks who may see the survivor (a favorite group's owner
         #    the creator let in). A row the survivor already has for the
         #    same key stays the survivor's.
@@ -217,7 +217,7 @@ pairs.each_with_index do |(where, retired_id, survivor_id), index|
           CreatorUserRule => %i[creator_gallery_id user_id],
           CreatorPostAudience => %i[creator_gallery_id],
           CreatorAudienceGroup => %i[creator_group_id],
-          CreatorGalleryPost => %i[creator_gallery_id],
+          CreatorGalleryPost => %i[creator_gallery_id band],
         }.each do |model, key|
           moved = kept = 0
           model.where(post_id: retired.id).order(:id).each do |row|

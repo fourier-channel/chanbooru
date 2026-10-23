@@ -112,9 +112,16 @@ class CreatorGalleriesController < ApplicationController
   # with something of their own in it -- a current membership, a request
   # still waiting (which they may withdraw), or a refusal still standing --
   # so closing a group never hides a viewer's own request from them.
+  #
+  # The page itself is the creator's layout as this viewer may see it
+  # (CreatorGalleryLayout#draw), drawn before any of that.
   def show
     skip_authorization
     viewer = CurrentUser.user
+    @layout = CreatorGalleryLayout.new(@gallery)
+    @draw = @layout.draw(viewer)
+    @avatar = @layout.avatar(viewer)
+    grant_anonymous_draw if MembersOnly.default_deny? && MembersOnly.signed_out?(viewer, request)
     return if viewer.is_anonymous? || viewer.is_banned? || viewer.id == @gallery.user_id
     return if CreatorUserRule.exists?(creator_gallery: @gallery, user: viewer, post_id: nil, rule: CreatorUserRule::BLOCK)
 
@@ -131,8 +138,17 @@ class CreatorGalleriesController < ApplicationController
     @gallery = CreatorGallery.new
   end
 
+  # The page in edit mode: the same layout, drawn as the curator sees it, with
+  # the tags the bands may use. As json (edit.json?tags=a+b, the same route),
+  # the posts a band with those tags may choose from.
   def edit
     skip_authorization
+    @layout = CreatorGalleryLayout.new(@gallery)
+    return render(json: @layout.candidates(params[:tags].to_s.split, CurrentUser.user)) if request.format.json?
+
+    @draw = @layout.draw(CurrentUser.user)
+    @palette = @layout.palette(CurrentUser.user)
+    @avatar = @layout.avatar(CurrentUser.user)
     @panel_refusal = panel_refusal
     @claims = @gallery.artist_claims.order(created_at: :desc, id: :desc)
     @character_claims = @gallery.character_claims.order(created_at: :desc, id: :desc)
@@ -190,27 +206,39 @@ class CreatorGalleriesController < ApplicationController
     return file_character_claim(params[:claim_character]) if params.key?(:claim_character)
     return release_character_claim(params[:release_character]) if params[:release_character].present?
     return panel_write if params[:panel].present?
+    return save_layout if params[:layout].present?
 
-    if @gallery.update(gallery_params)
-      redirect_to creator_gallery_path(@gallery)
-    else
-      render :edit, status: 422
+    return redirect_to(creator_gallery_path(@gallery)) if @gallery.update(gallery_params)
+
+    # The page fields alone (an API client; the editor saves them with the
+    # layout): the problems, each naming itself, on the edit page or as JSON.
+    respond_to do |format|
+      format.html { redirect_to edit_creator_gallery_path(@gallery), notice: @gallery.errors.full_messages.join("; ") }
+      format.json { render json: { ok: false, problems: @gallery.errors.full_messages }, status: 422 }
     end
   end
 
-  # --- curated posts ---
+  # --- the bands' posts, one at a time (the API's door; the editor saves the
+  # whole layout through update) ---
   def add_post
     skip_authorization
     # A post hidden from the curator is "not found" (Post.find_visible!).
     post = Post.find_visible!(params.expect(:post_id))
-    next_pos = (@gallery.creator_gallery_posts.maximum(:position) || 0) + 1
-    @gallery.creator_gallery_posts.create_or_find_by(post_id: post.id) { |cgp| cgp.position = next_pos }
-    respond_change
+    problem = CreatorGalleryLayout.new(@gallery).add(post, params[:band].presence || "hero", CurrentUser.user)
+    return respond_change if problem.nil?
+
+    respond_to do |format|
+      format.html { redirect_to edit_creator_gallery_path(@gallery), notice: problem }
+      format.json { render json: { ok: false, problems: [problem] }, status: 422 }
+    end
   end
 
+  # Off the band named (band=hero, mini1, ...), or off every band when none is.
   def remove_post
     skip_authorization
-    @gallery.creator_gallery_posts.where(post_id: params[:post_id]).destroy_all
+    rows = @gallery.creator_gallery_posts.where(post_id: params[:post_id])
+    rows = rows.where(band: params[:band]) if params[:band].present?
+    rows.destroy_all
     respond_change
   end
 
@@ -332,6 +360,33 @@ class CreatorGalleriesController < ApplicationController
   end
 
   def characters_path = edit_creator_gallery_path(@gallery, anchor: "creator-characters")
+
+  # THE EDITOR'S SAVE (PATCH creators/:slug, JSON carrying `layout`): the
+  # look, every band's posts and the Page fields at once, or nothing and
+  # every problem, each naming its remedy (CreatorGalleryLayout#save).
+  def save_layout
+    look = params.expect(layout: [:headline, :subline, :layout, { banner: %i[post_id y], depth: %i[blur dim parallax],
+                                                                  hero: [:effect, :dir, :hold, :cells, { tags: [], posts: [] }],
+                                                                  minis: [[:tag, :effect, :dir, :hold, { posts: [] }]] }])
+    problems = CreatorGalleryLayout.new(@gallery).save(page: gallery_params.to_h, look: look.to_h, viewer: CurrentUser.user)
+    if problems.empty?
+      render json: { ok: true }
+    else
+      render json: { ok: false, problems: problems }, status: 422
+    end
+  end
+
+  # THE ANONYMOUS GRANT (Creator Gallery rebuild, 2026-10-23). A signed-out
+  # viewer reaches a creator's page only while the front page promotes it
+  # (anonymous_promoted_gallery), and may then open exactly the posts this
+  # page drew for them: recorded as the front page records its own draw, for
+  # an hour or two, with the same creator links kept or dropped. A post past
+  # the browsing cut, made private since, or chosen but no longer fitting is
+  # not drawn, so it is not granted.
+  def grant_anonymous_draw
+    hero, *minis, banner = MembersOnly.anonymous_landing([@draw[:hero], *@draw[:minis], { slides: [@draw[:banner]].compact }], safe_mode: CurrentUser.safe_mode?)
+    @draw = @draw.merge(hero: hero, minis: minis, banner: banner[:slides].first)
+  end
 
   # --- join requests: the visitor's acts (reached through update) ---
 
@@ -612,7 +667,7 @@ class CreatorGalleriesController < ApplicationController
     return if CurrentUser.user.is_admin?
 
     raise User::PrivilegeError, "This page can only be edited by its owner, the Matrix account #{@gallery.matrix_id}, or by an admin. " \
-                                "If it is yours, open #{creator_gallery_url(@gallery)}, use \"Sign in with Matrix\" there as #{@gallery.matrix_id}, then open Edit page again."
+                                "If it is yours, open #{creator_gallery_url(@gallery)}, use \"Sign in with Matrix\" there as #{@gallery.matrix_id}, then use Edit Gallery again."
   end
 
   # The request's verified identity is this page's, on a request the booru's
@@ -642,7 +697,7 @@ class CreatorGalleriesController < ApplicationController
   # here (config/application.rb), which turned the admin's own "Matrix ID"
   # field on the new-page form into a 403.
   def gallery_params
-    params.fetch(:creator_gallery, {}).except(:matrix_id).permit(:title, :bio, :style, :matrix_contact)
+    params.fetch(:creator_gallery, {}).except(:matrix_id).permit(:title, :bio, :matrix_contact)
   end
 
   def slug_from(mxid)
