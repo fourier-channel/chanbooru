@@ -245,6 +245,90 @@ class PasswordRevealTest < ActiveSupport::TestCase
     end
   end
 
+  # bin/chanbooru-reset-password --matrix: the Matrix password rides in the
+  # same link. It is made and set in MAS by the host; here it is only sealed.
+  context "a second secret" do
+    setup do
+      @matrix = { label: "matrix", account: "@lockedout:41chan.net", password: "Matrix2345abcdefghij" }
+    end
+
+    should "be sealed beside the booru password and shown with it, with its account" do
+      issued = @reveal.reset!(@user, also: [@matrix])
+      secrets = @reveal.reveal(issued.token)["secrets"]
+
+      assert_equal(%w[booru matrix], secrets.pluck("label"))
+      assert_equal({ "label" => "matrix", "account" => "@lockedout:41chan.net", "password" => "Matrix2345abcdefghij" }, secrets.last)
+      assert(@user.reload.authenticate_password(secrets.first["password"]))
+      assert_not_includes(@store.get(key_for(issued.token)).to_s, "Matrix2345abcdefghij")
+    end
+
+    should "refuse a password not made from the reset's own alphabet and length, changing nothing" do
+      ["Matrix2345abcdefgh", "Matrix2345abcdefghi0", "Matrix2345abcdefghijk", "", nil].each do |password|
+        error = assert_raises(PasswordReveal::Error) { @reveal.reset!(@user, also: [@matrix.merge(password: password)]) }
+        assert_match(/Fix:/, error.message)
+        assert_not_includes(error.message, "Matrix2345")
+      end
+      assert_empty(@store.keys("*"))
+      assert(@user.reload.authenticate_password("old_password"))
+    end
+
+    should "refuse a label that is booru, blank or repeated, changing nothing" do
+      [[@matrix.merge(label: "booru")], [@matrix.merge(label: "")], [@matrix, @matrix]].each do |also|
+        error = assert_raises(PasswordReveal::Error) { @reveal.reset!(@user, also: also) }
+        assert_match(/label/, error.message)
+      end
+      assert_empty(@store.keys("*"))
+      assert(@user.reload.authenticate_password("old_password"))
+    end
+  end
+
+  context "drop!" do
+    setup do
+      @matrix = { label: "matrix", account: "@lockedout:41chan.net", password: "Matrix2345abcdefghij" }
+    end
+
+    should "take the secret out and leave the booru password, the link and its expiry as they were" do
+      freeze_time
+      issued = @reveal.reset!(@user, also: [@matrix])
+      travel(1.hour)
+
+      assert(@reveal.drop!(issued.token, "matrix"))
+      assert_equal(Danbooru.config.password_reveal_ttl.to_i - 1.hour.to_i, @store.ttl(key_for(issued.token)))
+      assert_equal(@user, @reveal.peek(issued.token))
+      assert(@user.reload.authenticate_password(password_of(issued)))
+    end
+
+    should "answer false for a link without that secret, already shown, or never issued, creating nothing" do
+      plain = @reveal.reset!(@user)
+      assert_not(@reveal.drop!(plain.token, "matrix"))
+
+      shown = @reveal.reset!(@user, also: [@matrix])
+      @reveal.reveal(shown.token)
+      assert_not(@reveal.drop!(shown.token, "matrix"))
+      assert_not(@reveal.drop!(SecureRandom.urlsafe_base64(32), "matrix"))
+      assert_not(@reveal.drop!("not a token", "matrix"))
+      assert_equal([key_for(plain.token)], @store.keys("*"))
+    end
+
+    should "not bring back a link shown between its read and its write" do
+      issued = @reveal.reset!(@user, also: [@matrix])
+      sealed = @store.get(key_for(issued.token))
+      @store.del(key_for(issued.token))
+      @store.stubs(:get).returns(sealed)
+
+      assert_not(@reveal.drop!(issued.token, "matrix"))
+      assert_empty(@store.keys("*"))
+    end
+
+    should "never drop the booru password" do
+      issued = @reveal.reset!(@user)
+
+      error = assert_raises(PasswordReveal::Error) { @reveal.drop!(issued.token, "booru") }
+      assert_match(/Fix:/, error.message)
+      assert_not_nil(@reveal.reveal(issued.token))
+    end
+  end
+
   context "without Redis" do
     should "raise an error naming its fix when Redis cannot be reached, and change nothing" do
       reveal = PasswordReveal.new(store: Redis.new(url: "redis://127.0.0.1:1", reconnect_attempts: 0, connect_timeout: 1))

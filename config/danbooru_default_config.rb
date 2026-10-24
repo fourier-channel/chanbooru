@@ -999,6 +999,13 @@ module Danbooru
       "41chan.net"
     end
 
+    # Where a person changes their Matrix password: MAS's own account page.
+    # The page a password reset shows (password_resets/revealed) links it
+    # beside a Matrix password set from bin/chanbooru-reset-password --matrix.
+    def fourier_matrix_account_url
+      "https://auth.41chan.net/account/"
+    end
+
     # Where the owner's Sample nav pill goes: fourier-sampling's curation
     # surface, on its own host (operator ruling 2026-10-09: it moves from
     # booru.41chan.net/sample to sample.41chan.net, and the old links are

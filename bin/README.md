@@ -13,7 +13,7 @@ These scripts are specific to this project.
 | `build-watch` | Filter a Docker build log down to step starts, finishes, cache hits and errors. |
 | `chanbooru-deploy` | Fork: bring a host up to a commit -- check the image directory, rebuild the image only when a runtime file changed, install and activate the release, recreate the containers, verify the running revision and the front page. `--rollback` goes back one release. |
 | `chanbooru-release` | Fork: install, activate, list and prune releases (one commit's app tree, compiled assets and bootsnap cache) under `/srv/danbooru`. |
-| `chanbooru-reset-password` | Fork: reset one account's booru password from the server; prints a one-time link that shows the new password once on the site, never the password itself (`PasswordReveal`). |
+| `chanbooru-reset-password` | Fork: reset one account's booru password from the server -- and, with `--matrix <user>`, that person's Matrix (MAS) password too; prints one one-time link that shows the new passwords once on the site, never a password itself (`PasswordReveal`). |
 | `chanbooru-storage` | Fork: install (once) and check (every deploy) the host image directory on the storage drive. |
 | `danbooru-dev-entrypoint` | Entrypoint for containers started with `bin/dev` / `docker-compose.dev.yaml`. |
 | `dev` | Shortcut for `docker compose -f docker-compose.dev.yaml`. |

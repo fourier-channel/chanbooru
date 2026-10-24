@@ -22,9 +22,11 @@
 # encrypted with a key derived from secret_key_base AND the token, set NX with
 # an expiry of Danbooru.config.password_reveal_ttl. Redis holds neither the
 # token nor anything readable, and a copy of Redis and secret_key_base
-# together opens nothing without the link. `secrets` is a list so a second
-# labelled secret (the Matrix password, when MAS resets are added) is one
-# more entry, not a new format.
+# together opens nothing without the link. `secrets` is a list, and a second
+# labelled secret rides in the same link: the Matrix password, which
+# bin/chanbooru-reset-password generates and sets in MAS (mas-cli lives on
+# the host, not in this container), seals here with `also:`, and takes back
+# out with #drop! when MAS refuses it.
 #
 # THE STORE is the booru's Redis, a fresh client per instance and never one
 # memoized on the class: a client built under a test's stubbed URL must not
@@ -46,6 +48,10 @@ class PasswordReveal
   ALPHABET = ("a".."z").to_a + ("A".."Z").to_a + ("2".."9").to_a - %w[o O l I]
   # 20 of 56 characters: about 116 bits.
   PASSWORD_LENGTH = 20
+  # A password made the way #reset! makes one. A secret handed in through
+  # `also:` must match it, so a generator elsewhere that drifted from this
+  # alphabet stops the reset instead of sealing something else.
+  PASSWORD_FORMAT = /\A[#{ALPHABET.join}]{#{PASSWORD_LENGTH}}\z/
   # SecureRandom.urlsafe_base64(32) is 43 characters of this; nothing else is
   # ever looked up.
   TOKEN_FORMAT = /\A[A-Za-z0-9_-]{43}\z/
@@ -70,21 +76,29 @@ class PasswordReveal
   # end the account's login sessions.
   #
   # @param user [User] the account to reset.
+  # @param also [Array<Hash>] more secrets for the same link, each
+  #   {label:, account:, password:} -- the Matrix password and its MXID. They
+  #   are sealed, never set: setting them is the caller's.
   # @return [Issued]
-  # @raise [Error] for a deleted account, a ttl that is not seconds, or a
-  #   token already in use.
+  # @raise [Error] for a deleted account, a ttl that is not seconds, a token
+  #   already in use, or a secret in `also` that is not one of ours.
   # @raise [Unavailable] if Redis does not answer or refuses; nothing was
   #   changed.
-  def reset!(user)
+  def reset!(user, also: [])
     raise Error, "#{user.name} (##{user.id}) is a deleted account, which cannot sign in, so its password was not reset. Fix: undelete the account first, then run this again." if user.is_deleted?
 
     ttl = Integer(Danbooru.config.password_reveal_ttl.to_s, 10, exception: false)
     raise Error, "Danbooru.config.password_reveal_ttl is #{Danbooru.config.password_reveal_ttl.to_s.inspect}, not a whole number of seconds above zero, so nothing was changed. Fix: set DANBOORU_PASSWORD_REVEAL_TTL to seconds (86400 is a day), or unset it for the default." unless ttl&.positive?
 
+    also = also.map { |secret| secret.to_h.transform_keys(&:to_s).slice("label", "account", "password") }
+    labels = also.pluck("label")
+    raise Error, "Each extra secret needs a label of its own other than booru (got #{labels.inspect}), so nothing was changed. Fix: label it after the account it is for, e.g. matrix." if labels.any? { |label| label.blank? || label == "booru" } || labels.uniq.size != labels.size
+    raise Error, "The #{labels.join(", ")} password handed in is not #{PASSWORD_LENGTH} characters of the reset's own alphabet, so nothing was changed. Fix: generate it as bin/chanbooru-reset-password does, from #{ALPHABET.join}." unless also.all? { |secret| secret["password"].to_s.match?(PASSWORD_FORMAT) }
+
     password = Array.new(PASSWORD_LENGTH) { ALPHABET[SecureRandom.random_number(ALPHABET.size)] }.join
     token = SecureRandom.urlsafe_base64(32)
     key = key_for(token)
-    payload = { user_id: user.id, secrets: [{ label: "booru", password: password }], created_at: Time.now.utc.iso8601 }
+    payload = { user_id: user.id, secrets: [{ label: "booru", password: password }, *also], created_at: Time.now.utc.iso8601 }
 
     stored = command { store.set(key, encryptor(token).encrypt_and_sign(payload.to_json), nx: true, ex: ttl) }
     raise Error, "A one-time link with this token already exists, so nothing was changed. Fix: run this again; a new token is drawn each time." unless stored
@@ -133,6 +147,32 @@ class PasswordReveal
     return nil unless token.to_s.match?(TOKEN_FORMAT)
 
     account_for(unseal(command { store.get(key_for(token)) }, token))
+  end
+
+  # Take one extra secret back out of a link, leaving the rest and the expiry
+  # as they were: bin/chanbooru-reset-password does this when MAS refuses the
+  # Matrix password, so the link never shows a password that was not set.
+  # The booru password is never dropped -- it is what the link stands for.
+  #
+  # @param token [String] the token from the link.
+  # @param label [String] the secret to drop, e.g. "matrix".
+  # @return [Boolean] true if it was there and is gone; false when the link
+  #   is missing, expired, already shown or unreadable, or holds no such
+  #   secret.
+  # @raise [Error] for the booru secret.
+  # @raise [Unavailable] if Redis does not answer or refuses.
+  def drop!(token, label)
+    raise Error, "The booru password is what a link stands for and is never dropped from one. Fix: run the reset again; a new link replaces this one." if label.to_s == "booru"
+    return false unless token.to_s.match?(TOKEN_FORMAT)
+
+    key = key_for(token)
+    payload = unseal(command { store.get(key) }, token)
+    return false unless payload&.dig("secrets")&.any? { |secret| secret["label"] == label.to_s }
+
+    payload["secrets"].reject! { |secret| secret["label"] == label.to_s }
+    # XX: a link shown (GETDEL) between the read and this write stays gone.
+    # KEEPTTL (Redis 6.0 and up): the link still expires when it said it would.
+    command { store.set(key, encryptor(token).encrypt_and_sign(payload.to_json), xx: true, keepttl: true) } ? true : false
   end
 
   private

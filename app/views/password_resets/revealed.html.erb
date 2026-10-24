@@ -11,8 +11,8 @@
       <p class="w-full">For the account <strong><%= @user.pretty_name %></strong>:</p>
 
       <% @reveal["secrets"].each do |secret| %>
-        <div class="w-full flex flex-col gap-2 items-center">
-          <span><%= secret["label"].humanize %> password</span>
+        <div class="password-reveal-secret w-full flex flex-col gap-2 items-center" data-label="<%= secret["label"] %>">
+          <span><%= secret["label"].humanize %> password<% if secret["account"].present? %>, for <strong><%= secret["account"] %></strong><% end %></span>
           <%# It wraps, at a line height of its own (the body's fixed one makes wrapped lines collide): on a narrow phone it is wider than the card, and an unwrapped line is centred off the left edge, out of reach. %>
           <pre class="block !text-xxl leading-normal text-center whitespace-pre-wrap break-all max-w-full"><%= secret["password"] %></pre>
           <%= tag.button class: "button-outline-primary", onclick: "Danbooru.Utility.copyToClipboard('#{j secret["password"]}')" do %>
@@ -21,9 +21,14 @@
         </div>
       <% end %>
 
-      <p class="w-full">This is the only time it will be shown. Copy it now, before you leave this page.</p>
+      <% matrix = @reveal["secrets"].find { |secret| secret["label"] == "matrix" } %>
+      <p class="w-full">This is the only time <%= matrix ? "they" : "it" %> will be shown. Copy <%= matrix ? "them" : "it" %> now, before you leave this page.</p>
 
-      <p class="w-full"><%= link_to "Sign in", login_path %> with it, then choose a password of your own on the <%= link_to "change password", edit_password_path %> page.</p>
+      <p class="w-full"><%= link_to "Sign in", login_path %> <%= matrix ? "to the booru with the booru password" : "with it" %>, then choose a password of your own on the <%= link_to "change password", edit_password_path %> page.</p>
+
+      <% if matrix %>
+        <p class="w-full">Sign in to Technetium as <strong><%= matrix["account"] %></strong> with the Matrix password, then choose a password of your own on your <%= link_to "Matrix account", Danbooru.config.fourier_matrix_account_url %> page.</p>
+      <% end %>
     </div>
   </div>
 </div>

@@ -102,6 +102,29 @@ class PasswordRevealPagesTest < ActionDispatch::IntegrationTest
       assert_equal(@user.id, session[:user_id])
     end
 
+    should "show a Matrix password set in the same reset beside the booru one, naming its account and where to change it" do
+      token = PasswordReveal.new.reset!(@user, also: [{ label: "matrix", account: "@lockedout:41chan.net", password: "Matrix2345abcdefghij" }]).token
+
+      put password_reset_path, params: { reveal: token }
+
+      assert_response :success
+      booru = css_select("#a-revealed .password-reveal-secret[data-label=booru] pre").text.strip
+      assert(@user.reload.authenticate_password(booru))
+      assert_select "#a-revealed .password-reveal-secret[data-label=matrix]" do
+        assert_select "pre", text: "Matrix2345abcdefghij"
+        assert_select "strong", text: "@lockedout:41chan.net"
+      end
+      assert_includes(css_select("#a-revealed").text.squish, "Sign in to Technetium as @lockedout:41chan.net with the Matrix password")
+      assert_select "a[href='#{Danbooru.config.fourier_matrix_account_url}']", text: "Matrix account"
+    end
+
+    should "say nothing of Matrix when the reset set only the booru password" do
+      put password_reset_path, params: { reveal: @token }
+
+      assert_select "#a-revealed .password-reveal-secret", count: 1
+      assert_not_includes(response.body, "Technetium")
+    end
+
     should "check the button's CSRF token, refusing without using the link up" do
       ActionController::Base.allow_forgery_protection = true
       get edit_password_reset_path(reveal: @token)
