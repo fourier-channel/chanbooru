@@ -39,6 +39,11 @@ ARG NODE_VERSION="24.19.0"
 ARG UBUNTU_VERSION="resolute-20261006@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944"
 # Remember to update the UBUNTU_SNAPSHOT ARG below when UBUNTU_VERSION is updated
 ARG UBUNTU_SNAPSHOT="20261020T000000Z"
+# Fork: rclone's own static build, not Ubuntu's package. Ubuntu's rclone 1.60 is
+# built with go1.26.0 and carried 1 critical and 25 highs with a fix (scan of
+# 2026-10-24); no newer one is packaged. Only the binary is copied.
+# docker: rclone/rclone
+ARG RCLONE_IMAGE="rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5"
 
 
 # The base layer for everything.
@@ -77,7 +82,7 @@ EOF
 
   rm -rf /var/lib/apt/lists/*
   apt-get install --update -y --no-install-recommends \
-    postgresql-client mkvtoolnix rclone openssl perl perl-modules-5.40 libpq5 libpcre2-8-0 libsodium23 \
+    postgresql-client mkvtoolnix openssl perl perl-modules-5.40 libpq5 libpcre2-8-0 libsodium23 \
     libgmpxx4ldbl zlib1g libfftw3-bin libwebp7 libwebpmux3 libwebpdemux2 liborc-0.4-0t64 liblcms2-2 libpng16-16t64 libexpat1 \
     libglib2.0-0t64 libgif7 libexif12 libheif1 libheif-plugin-dav1d libheif-plugin-libde265 libx264-165 libx265-215 libsvtav1enc2 \
     libvpx12 libdav1d7 libseccomp-dev libjemalloc2 libarchive13t64 libyaml-0-2 libffi8 \
@@ -126,6 +131,18 @@ RUN <<EOS
 
   ruby --version
 EOS
+
+# Fork: Ruby as the image ships it. Ruby's default json (2.18.0) carries a high
+# with a fix; the bundle's json (Gemfile.lock) is what loads, so the default
+# copy is only scanner surface. It is removed here, not in danbooru-base: a
+# deletion there, on top of COPY --link layers, breaks the development stage
+# ("failed to delete during apply", BuildKit 0.32). build-gems keeps the full
+# build-ruby. The production layer checks what `require "json"` loads.
+FROM build-ruby AS ruby
+ARG RUBY_MAJOR_VERSION
+RUN rm -rf /usr/local/lib/ruby/gems/$RUBY_MAJOR_VERSION.0/specifications/default/json-*.gemspec \
+  /usr/local/lib/ruby/$RUBY_MAJOR_VERSION.0/json /usr/local/lib/ruby/$RUBY_MAJOR_VERSION.0/json.rb \
+  /usr/local/lib/ruby/$RUBY_MAJOR_VERSION.0/*-linux/json
 
 
 
@@ -362,6 +379,8 @@ EOS
 FROM scratch AS packs
 COPY --link --from=build-assets /danbooru/public/packs /
 
+FROM $RCLONE_IMAGE AS rclone
+
 FROM base AS danbooru-base
 WORKDIR /danbooru
 
@@ -369,9 +388,10 @@ COPY --link --from=build-ffmpeg /usr/local /usr/local
 COPY --link --from=build-exiftool /usr/local /usr/local
 COPY --link --from=build-openresty /usr/local /usr/local
 COPY --link --from=build-vips /usr/local /usr/local
-COPY --link --from=build-ruby /usr/local /usr/local
+COPY --link --from=ruby /usr/local /usr/local
 COPY --link --from=build-gems $GEM_HOME $GEM_HOME
 COPY --link --from=build-assets /danbooru/public/packs /danbooru/public/packs
+COPY --link --from=rclone /usr/local/bin/rclone /usr/bin/rclone
 
 # http://jemalloc.net/jemalloc.3.html#tuning
 ENV LD_PRELOAD=libjemalloc.so.2
@@ -422,6 +442,8 @@ RUN <<EOS
   ffprobe -version
   exiftool -ver
   openresty -version
+  rclone version
+  ruby -e 'require "json"; puts "json #{JSON::VERSION}"; exit Gem::Version.new(JSON::VERSION) >= Gem::Version.new("2.19.2")'
   bin/good_job --help > /dev/null
   bin/rails runner -e production 'puts "#{Danbooru.config.app_name}/#{Rails.application.config.x.git_hash}"'
 EOS
