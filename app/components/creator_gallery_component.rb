@@ -15,20 +15,24 @@
 # page): the editor in creator_gallery_component.js works on a draft of the
 # look and the band's posts and saves it in one PATCH; `panels` are the edit
 # page's own sections, which keep their own forms and routes.
+#
+# `closed` is a private page this viewer is not let in to
+# (CreatorGallery#page_open_to?): its banner and avatar alone.
 class CreatorGalleryComponent < ApplicationComponent
   # A miniband slot's height and narrowest width by how many share its row:
   # the prototype's ROW_H and MIN_W, as creator_gallery_model.js has them.
   ROW_H = { 1 => 340, 2 => 300, 3 => 250, 4 => 230 }.freeze
   MIN_W = { 1 => 560, 2 => 360, 3 => 250, 4 => 220 }.freeze
 
-  attr_reader :gallery, :viewer, :draw, :avatar, :can_edit, :editing, :palette, :panels
+  attr_reader :gallery, :viewer, :draw, :avatar, :can_edit, :editing, :palette, :panels, :closed
 
   # @param draw [Hash] CreatorGalleryLayout#draw(viewer)
   # @param avatar [Hash] CreatorGalleryLayout#avatar(viewer): { name:, mxc:, url:, problem: }
   # @param palette [Array<Hash>] CreatorGalleryLayout#palette, in edit mode
   # @param panels [Hash{String => String}] the edit page's sections, title => HTML, in edit mode
-  def initialize(gallery:, viewer:, draw:, avatar:, can_edit:, editing: false, palette: nil, panels: nil) # rubocop:disable Metrics/ParameterLists
+  def initialize(gallery:, viewer:, draw:, avatar:, can_edit:, editing: false, palette: nil, panels: nil, closed: false) # rubocop:disable Metrics/ParameterLists
     super
+    @closed = closed
     @gallery = gallery
     @viewer = viewer
     @draw = draw
@@ -52,9 +56,9 @@ class CreatorGalleryComponent < ApplicationComponent
   end
 
   # The disc's letter when there is no avatar to show: the Matrix name's, else
-  # the page's.
+  # the page's. A closed page names no one, so its letter is its address's.
   def monogram
-    (avatar[:name].presence || title).delete_prefix("@")[0].to_s.upcase
+    (closed ? gallery.slug : (avatar[:name].presence || title)).delete_prefix("@")[0].to_s.upcase
   end
 
   def hero_slides
@@ -145,6 +149,8 @@ class CreatorGalleryComponent < ApplicationComponent
         title: gallery.title.to_s,
         bio: gallery.bio.to_s,
         matrix_contact: gallery.matrix_contact.to_s,
+        page_private: gallery.page_private,
+        show_contact: gallery.show_contact,
         headline: look["headline"],
         subline: look["subline"],
         banner: look["banner"],
@@ -170,8 +176,8 @@ class CreatorGalleryComponent < ApplicationComponent
 
   # The creator's original characters: their standing claims (CharacterClaim),
   # one query. A member gets links to each one's posts and wiki page; a
-  # signed-out visitor, who reaches only a promoted gallery, gets the names,
-  # because both links lead to members-only pages. Never a name hidden from
+  # signed-out visitor gets the names, because both links lead to
+  # members-only pages. Never a name hidden from
   # the viewer (a quarantined name, TagQuarantine).
   def characters
     @characters ||= CharacterClaim.where(creator_gallery_id: gallery.id).standing.map(&:tag_name).reject { |name| TagQuarantine.hidden_name?(name, viewer) }.sort

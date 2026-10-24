@@ -643,6 +643,8 @@ CREATE TABLE public.creator_galleries (
     promoted_at timestamp(6) without time zone,
     featured_at timestamp(6) without time zone,
     default_audience character varying,
+    page_private boolean DEFAULT false NOT NULL,
+    show_contact boolean DEFAULT false NOT NULL,
     CONSTRAINT creator_galleries_default_audience_known CHECK (((default_audience)::text = ANY (ARRAY[('public'::character varying)::text, ('groups'::character varying)::text, ('private'::character varying)::text])))
 );
 
@@ -9177,6 +9179,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261024120000'),
 ('20261023120000'),
 ('20261019132157'),
 ('20261019122025'),

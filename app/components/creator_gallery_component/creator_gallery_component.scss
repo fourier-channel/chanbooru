@@ -88,6 +88,13 @@ body:has(.modcreator) {
   .cg-note { font-size: 12px; line-height: 1.5; color: var(--mod-ink-dim); }
   .cg-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--mod-ink-dim); }
 
+  .cg-check {
+    display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--mod-ink);
+
+    input { flex: none; margin-top: 2px; accent-color: var(--mod-accent); }
+    .cg-note { display: block; }
+  }
+
   .cg-input, .cg-select {
     width: 100%; min-height: 40px; padding: 8px 10px; border-radius: var(--mod-radius-sm);
     border: 1px solid var(--mod-line-strong); background: var(--mod-surface); color: var(--mod-ink);
@@ -300,6 +307,12 @@ body:has(.modcreator) {
   input.modcreator-title { max-width: 520px; }
 
   .modcreator-handle { display: block; margin-top: 8px; font-family: var(--mod-mono); font-size: 13px; color: var(--mod-ink-dim); overflow-wrap: anywhere; }
+
+  // The contact switched off, in the editor's preview: the classes above set
+  // a display, which would beat the bare attribute.
+  [data-cg-contact][hidden] { display: none; }
+
+  .modcreator-private { flex: 1 1 280px; margin: 0; padding-bottom: 6px; font-size: 18px; color: var(--mod-ink-dim); }
 
   .modcreator-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-bottom: 6px; }
   .modcreator-about-btn svg { transition: transform 0.2s; }

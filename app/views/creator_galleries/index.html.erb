@@ -2,9 +2,12 @@
   <section class="modcreator-index">
     <h1>Creator galleries</h1>
     <ul class="modcreator-index-list">
+      <%# A private page this viewer is not let in to is its address alone; the
+          Matrix name shows where its creator turned the contact on. %>
       <% @galleries.each do |g| %>
-        <li><%= link_to (g.title.presence || g.slug), creator_gallery_path(g) %>
-          <span class="modcreator-index-handle"><%= g.matrix_id %></span></li>
+        <% open = g.page_open_to?(CurrentUser.user, request) %>
+        <li><%= link_to (open ? (g.title.presence || g.slug) : g.slug), creator_gallery_path(g) %>
+          <% if open && g.show_contact %><span class="modcreator-index-handle"><%= g.matrix_id %></span><% end %></li>
       <% end %>
     </ul>
   </section>

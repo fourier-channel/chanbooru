@@ -45,7 +45,7 @@ class CreatorJoinRequestTest < ActiveSupport::TestCase
       {
         [@open, User.anonymous] => "Sign in to the booru to ask to join a creator's group.",
         [@open, @maple] => "This is your own group: you see all your posts already. Add people from your panel.",
-        [unlinked_group, @asker] => "This creator has not linked a booru account yet, so nobody can answer. Ask them on Matrix.",
+        [unlinked_group, @asker] => "This creator has not linked a booru account yet, so nobody can answer. Ask again once they have.",
         [@closed, @asker] => "That group is not taking requests. The creator decides which groups people can ask to join.",
         [@open, blocked] => "This creator is not taking requests from your account.",
         [@open, member] => "You are already in 41chan_maple_tier_1.",

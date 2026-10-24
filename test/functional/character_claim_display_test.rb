@@ -35,7 +35,7 @@ class CharacterClaimDisplayTest < ActionDispatch::IntegrationTest
     should "name the creator of a claimed character pill, and only that one" do
       owners = payload(@post, @member)[:oc_owners]
 
-      assert_equal({ "maple_(saber)" => { name: "Saber Studio", href: "/creators/saber" }}, owners)
+      assert_equal({ "maple_(saber)" => { name: "Saber Studio", href: "/creators/saber", contact: false }}, owners)
     end
 
     should "ask nothing with no character tags, and one query with them" do
@@ -49,7 +49,7 @@ class CharacterClaimDisplayTest < ActionDispatch::IntegrationTest
     end
 
     should "give a signed-out visitor the @slug, linked to the gallery, promoted or not" do
-      assert_equal({ "maple_(saber)" => { name: "@saber", href: "/creators/saber" }}, payload(@post, User.anonymous)[:oc_owners])
+      assert_equal({ "maple_(saber)" => { name: "@saber", href: "/creators/saber", contact: false }}, payload(@post, User.anonymous)[:oc_owners])
     end
 
     should "drop the mark once the claim is released" do
@@ -62,7 +62,7 @@ class CharacterClaimDisplayTest < ActionDispatch::IntegrationTest
       get_auth post_modulation_path(@post), @member
 
       assert_response :success
-      assert_equal({ "name" => "Saber Studio", "href" => "/creators/saber" }, response.parsed_body.dig("oc_owners", "maple_(saber)"))
+      assert_equal({ "name" => "Saber Studio", "href" => "/creators/saber", "contact" => false }, response.parsed_body.dig("oc_owners", "maple_(saber)"))
     end
   end
 

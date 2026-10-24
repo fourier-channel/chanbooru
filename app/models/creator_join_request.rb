@@ -139,9 +139,12 @@ class CreatorJoinRequest < ApplicationRecord
     gallery = creator_group&.creator_gallery
     return "Sign in to the booru to ask to join a creator's group." if user.nil? || user.is_anonymous?
     return "A banned account cannot ask to join a creator's group." if user.is_banned?
-    return "That group is not taking requests. The creator decides which groups people can ask to join." if gallery.nil? || !creator_group.open_to_requests
+    # A private page takes requests only from those it lets in: the rest are
+    # never shown its groups (CreatorGallery#page_open_to?).
+    closed = gallery.nil? || !creator_group.open_to_requests || !gallery.page_open_to?(user, nil)
+    return "That group is not taking requests. The creator decides which groups people can ask to join." if closed
     return "This is your own group: you see all your posts already. Add people from your panel." if gallery.user_id == user.id
-    return "This creator has not linked a booru account yet, so nobody can answer. Ask them on Matrix." if gallery.user_id.nil?
+    return "This creator has not linked a booru account yet, so nobody can answer. #{gallery.show_contact ? "Ask them on Matrix." : "Ask again once they have."}" if gallery.user_id.nil?
     return "This creator is not taking requests from your account." if CreatorUserRule.exists?(creator_gallery: gallery, user: user, post_id: nil, rule: CreatorUserRule::BLOCK)
     return "You are already in #{creator_group.name}." if CreatorGroupMembership.active.exists?(creator_group: creator_group, user: user)
 
@@ -157,9 +160,13 @@ class CreatorJoinRequest < ApplicationRecord
   # never does. So an approval promises no access: a block set after filing
   # beats the membership (Q8), and words that changed with it would announce
   # it (second repair, 2026-10-09).
+  #
+  # A private page that does not let the requester in names its creator by
+  # the address alone, and takes no requests from them (operator, 2026-10-24).
   def tell_the_requester
     gallery = creator_group.creator_gallery
-    creator = gallery.title.presence || gallery.slug
+    open = gallery.page_open_to?(user, nil)
+    creator = open ? gallery.title.presence || gallery.slug : "@#{gallery.slug}"
     page = Routes.creator_gallery_url(gallery)
     if status == APPROVED && @kept
       title = "You are in #{creator_group.name}"
@@ -170,7 +177,8 @@ class CreatorJoinRequest < ApplicationRecord
       body = "#{creator} let you into #{creator_group.name}#{", until #{membership.expires_at.to_date}" if membership&.expires_at}. #{creator}'s page: #{page}"
     else
       title = "Request to join #{creator_group.name} refused"
-      body = "#{creator} refused your request#{": #{note}" if note.present?}. You can ask again after #{ask_again_on} from #{page}"
+      again = open ? "You can ask again after #{ask_again_on} from #{page}" : "#{creator}'s page is private now and takes no requests from you"
+      body = "#{creator} refused your request#{": #{note}" if note.present?}. #{again}"
     end
     dmail = Dmail.create_automated(to: user, title: title, body: body)
     Rails.logger.error("[creator_join_request] the decision dmail to user ##{user_id} was not sent: #{dmail.errors.full_messages.join("; ")}") if dmail.errors.any?

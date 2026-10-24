@@ -74,8 +74,16 @@ class CharacterClaim < ApplicationRecord
   RESERVED_QUALIFIERS = %w[cosplay meme style].freeze
 
   # One approved claim as its readers need it: the claim, its tag, and the
-  # gallery behind it.
-  Standing = Data.define(:id, :tag_name, :gallery_id, :slug, :title, :user_id)
+  # gallery behind it -- whether its page is private, and whether it shows a
+  # way to message its creator.
+  Standing = Data.define(:id, :tag_name, :gallery_id, :slug, :title, :user_id, :page_private, :show_contact) do
+    # Whether `viewer` sees the gallery's whole page (CreatorGallery#page_open_to?);
+    # a query only for a private one.
+    def page_open_to?(viewer) = !page_private || CreatorGallery.find(gallery_id).page_open_to?(viewer)
+
+    # Whether the page shows `viewer` a way to message its creator.
+    def contact_for?(viewer) = show_contact && page_open_to?(viewer)
+  end
 
   # Absent only while HELD for creator_slug (or withdrawn while held): the
   # database's check constraint says so too.
@@ -179,7 +187,8 @@ class CharacterClaim < ApplicationRecord
   def self.standing(entries = CreatorPrefixes.visibility_config[:entries])
     aliased = TagAlias.active.where("tag_aliases.antecedent_name = character_claims.tag_name")
     approved.joins(:creator_gallery).where.not(aliased.arel.exists)
-            .pluck(:id, :tag_name, "creator_galleries.id", "creator_galleries.slug", "creator_galleries.title", "creator_galleries.user_id")
+            .pluck(:id, :tag_name, "creator_galleries.id", "creator_galleries.slug", "creator_galleries.title", "creator_galleries.user_id",
+                   "creator_galleries.page_private", "creator_galleries.show_contact")
             .map { |row| Standing.new(*row) }
             .select { |claim| name_refusal(claim.tag_name, claim.slug, entries).nil? }
   end
@@ -195,13 +204,18 @@ class CharacterClaim < ApplicationRecord
   def self.claimed?(names) = standing_on(names).any?
 
   # Whose these character tags are, as `viewer` may be told: tag => { name:,
-  # href: }, the href the gallery's page, which every visitor may open
-  # (operator, 2026-10-23). A member gets the gallery's title (or @slug); a
-  # signed-out visitor the @slug, already in the tag's name. One query.
+  # href:, contact: }, the href the gallery's page, which every visitor may
+  # open (operator, 2026-10-23), and contact whether that page shows this
+  # viewer a way to message its creator. A member gets the gallery's title (or
+  # @slug); a signed-out visitor, or anyone a private page does not let in
+  # (CreatorGallery#page_open_to?), the @slug, already in the tag's name. One
+  # query, and one more per private page.
   def self.owners(names, viewer)
     member = MembersOnly.member?(viewer)
     standing_on(names).to_h do |claim|
-      [claim.tag_name, { name: member ? claim.title.presence || "@#{claim.slug}" : "@#{claim.slug}", href: Routes.creator_gallery_path(claim.slug) }]
+      open = claim.page_open_to?(viewer)
+      [claim.tag_name, { name: (member && open) ? claim.title.presence || "@#{claim.slug}" : "@#{claim.slug}", href: Routes.creator_gallery_path(claim.slug),
+                         contact: claim.show_contact && open }]
     end
   end
 

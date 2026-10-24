@@ -4,7 +4,7 @@
   <p id="wiki-page-original-character" class="fineprint">
     Original character of <%= owner[:href] ? link_to(owner[:name], owner[:href]) : owner[:name] %>.
     <% if local_assigns[:wiki_page] && !policy(wiki_page).update? %>
-      Its wiki page is kept by its creator: only they or an admin edit it. To suggest a change, message them from their creator page.
+      Its wiki page is kept by its creator: only they or an admin edit it. To suggest a change, <%= owner[:contact] ? "message them from their creator page" : "ask an admin" %>.
     <% end %>
   </p>
 <% end %>

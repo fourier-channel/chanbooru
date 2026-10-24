@@ -337,11 +337,16 @@ module MembersOnly
   # WHAT WAS SHOWN, ONE RECORD. Every page that shows a signed-out viewer
   # posts writes the ids it rendered here, into an hourly bucket: the
   # gallery (its first page, or a featured creator's page -- PostsController),
-  # the front page's draw (anonymous_landing, for / and /landing/slides) and a
-  # creator's page (CreatorGalleriesController#show, the same call).
+  # the front page's draw (anonymous_landing, for / and /landing/slides), its
+  # Promoted Creators cards (LandingController, on / only), a creator's page
+  # (CreatorGalleriesController#show, through anonymous_landing too) and an
+  # error page's picture (ErrorPagePicture).
   # A post page reads this hour's and the last, so a thumbnail or a slide
   # clicked minutes later still opens after the page moved on. Nothing here
   # can be reached that one of those pages did not render.
+  #
+  # The cap keeps the most recently SHOWN ids: an id shown again moves to the
+  # end, so a post every front page carries is never the first one dropped.
   #
   # A read-then-write, so two renders in the same instant can drop one
   # another's ids. Harmless here: every page that writes it serves the same
@@ -359,7 +364,7 @@ module MembersOnly
     return if ids.empty?
 
     key = recent_shown_key(safe_mode, now)
-    Rails.cache.write(key, (Rails.cache.read(key).to_a | ids.to_a).last(RECENT_SHOWN_CAP), expires_in: RECENT_SHOWN_TTL)
+    Rails.cache.write(key, ((Rails.cache.read(key).to_a - ids.to_a) + ids.to_a.uniq).last(RECENT_SHOWN_CAP), expires_in: RECENT_SHOWN_TTL)
   end
 
   def anonymous_recent_shown_ids(safe_mode, now: Time.now)

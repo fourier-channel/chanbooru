@@ -41,6 +41,7 @@ class CreatorGallery < ApplicationRecord
   validates :title, length: { maximum: 120 }
   validates :bio, length: { maximum: 4000 }
   validates :default_audience, inclusion: { in: AUDIENCES }, unless: -> { default_audience.nil? && !default_audience_changed? }
+  validates :page_private, :show_contact, inclusion: { in: [true, false], message: "must be on or off" }
 
   # Landing-page promotion. Timestamps, not flags: promoted wants an order, and
   # "creator of the month" wants history -- setting this month's feature must
@@ -67,8 +68,10 @@ class CreatorGallery < ApplicationRecord
   # either, so the exclusion has never once removed a gallery in production.
   LANDING_LIMIT = 6
 
+  # A private page is never one of them: the front page shows its name, its
+  # banner and its posts to anyone (operator, 2026-10-24).
   def self.landing_promoted(limit = LANDING_LIMIT)
-    promoted.limit(limit)
+    promoted.where(page_private: false).limit(limit)
   end
 
   # The current feature is simply the most recently featured one. No cron job,
@@ -114,6 +117,23 @@ class CreatorGallery < ApplicationRecord
     return false if user.nil? || user.is_anonymous? || user.is_banned?
 
     user.is_admin? || (user_id.present? && user.id == user_id)
+  end
+
+  # Whether this viewer sees the whole page (operator, 2026-10-24). A public
+  # page is open to all. A private one opens to its creator -- the linked
+  # account, or the page's verified Matrix identity on the booru's own
+  # session (never an API key: CreatorGalleriesController#owner_identity?) --
+  # an admin, and the people the creator lets in creator-wide: an allow with
+  # no post, which a creator-wide block beats. An allow on one post opens
+  # that post, not the page. Everyone else sees its banner and avatar alone.
+  def page_open_to?(user, request = CurrentUser.request)
+    return true unless page_private?
+    return true if managed_by?(user)
+    return true if request && !SessionLoader.new(request).has_api_authentication? && FourierIdentity.matches?(request, matrix_id)
+    return false if user.nil? || user.is_anonymous? || user.is_banned?
+
+    rules = CreatorUserRule.where(creator_gallery_id: id, user_id: user.id, post_id: nil).pluck(:rule)
+    rules.include?(CreatorUserRule::ALLOW) && rules.exclude?(CreatorUserRule::BLOCK)
   end
 
   # An audience in the creator panel's words (2026-10-09): what the panel,

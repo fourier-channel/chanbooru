@@ -185,7 +185,8 @@ class CreatorGalleryLayout
     top.map { |name, count| { name: name, category: kinds[name] || "general", count: count } }
   end
 
-  # Save the look and the Page fields (title, bio, matrix_contact) at once,
+  # Save the look and the Page fields (title, bio, matrix_contact and the two
+  # switches, page_private and show_contact) at once,
   # under the gallery's lock, or nothing at all.
   #
   # @param page [Hash] the gallery's own fields, checked by its validations
@@ -194,7 +195,7 @@ class CreatorGalleryLayout
   # @return [Array<String>] [] when saved, else every problem, each naming its remedy
   def save(page:, look:, viewer:)
     look = look.to_h.deep_stringify_keys
-    page = page.to_h.stringify_keys.slice("title", "bio", "matrix_contact")
+    page = page.to_h.stringify_keys.slice("title", "bio", "matrix_contact", "page_private", "show_contact")
     banner = look["banner"].to_h
     depth = look["depth"].to_h
     hero = look["hero"].to_h

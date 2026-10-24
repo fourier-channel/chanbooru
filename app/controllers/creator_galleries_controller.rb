@@ -115,13 +115,20 @@ class CreatorGalleriesController < ApplicationController
   #
   # The page itself is the creator's layout as this viewer may see it
   # (CreatorGalleryLayout#draw), drawn before any of that.
+  #
+  # A private page this viewer is not let in to (CreatorGallery#page_open_to?)
+  # is its banner and avatar and nothing else, cut here before anything
+  # renders or is granted: no band, no News, no join section.
   def show
     skip_authorization
     viewer = CurrentUser.user
     @layout = CreatorGalleryLayout.new(@gallery)
     @draw = @layout.draw(viewer)
     @avatar = @layout.avatar(viewer)
+    @closed = !@gallery.page_open_to?(viewer, request)
+    @draw = { banner: @draw[:banner], hero: { tags: [], slides: [] }, minis: [], locked_count: 0, owner_notices: [] } if @closed
     grant_anonymous_draw if MembersOnly.default_deny? && MembersOnly.signed_out?(viewer, request)
+    return if @closed
     return if viewer.is_anonymous? || viewer.is_banned? || viewer.id == @gallery.user_id
     return if CreatorUserRule.exists?(creator_gallery: @gallery, user: viewer, post_id: nil, rule: CreatorUserRule::BLOCK)
 
@@ -665,8 +672,11 @@ class CreatorGalleriesController < ApplicationController
     return if owner_identity?
     return if CurrentUser.user.is_admin?
 
-    raise User::PrivilegeError, "This page can only be edited by its owner, the Matrix account #{@gallery.matrix_id}, or by an admin. " \
-                                "If it is yours, open #{creator_gallery_url(@gallery)}, use \"Sign in with Matrix\" there as #{@gallery.matrix_id}, then use Edit Gallery again."
+    # Names no Matrix account: a page that keeps its contact or itself private
+    # must not hand the handle to whoever asks for its editor.
+    raise User::PrivilegeError, "This page can only be edited by its owner, or by an admin. " \
+                                "If it is yours, open #{creator_gallery_url(@gallery)}, use \"Sign in with Matrix\" there as the Matrix account it belongs to, " \
+                                "then use Edit Gallery again."
   end
 
   # The request's verified identity is this page's, on a request the booru's
@@ -696,7 +706,7 @@ class CreatorGalleriesController < ApplicationController
   # here (config/application.rb), which turned the admin's own "Matrix ID"
   # field on the new-page form into a 403.
   def gallery_params
-    params.fetch(:creator_gallery, {}).except(:matrix_id).permit(:title, :bio, :matrix_contact)
+    params.fetch(:creator_gallery, {}).except(:matrix_id).permit(:title, :bio, :matrix_contact, :page_private, :show_contact)
   end
 
   def slug_from(mxid)

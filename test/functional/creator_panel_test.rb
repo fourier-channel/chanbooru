@@ -164,7 +164,7 @@ class CreatorPanelTest < ActionDispatch::IntegrationTest
       put_auth creator_gallery_path(@gallery, format: :json), @moderator, params: { panel: "default_audience", audience: "private" }
 
       assert_response(403)
-      assert_match(/\AThis page can only be edited by its owner, the Matrix account @maple:41chan\.net, or by an admin\./, response.parsed_body["message"])
+      assert_match(/\AThis page can only be edited by its owner, or by an admin\./, response.parsed_body["message"])
     end
   end
 

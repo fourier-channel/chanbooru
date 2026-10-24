@@ -541,7 +541,9 @@ function editor(root, data, bindMinis) {
     const sent = payload(draft);
     const hero = { ...draft.hero, tags: draft.hero.tags.map((t) => t.name) };
     const body = {
-      creator_gallery: { title: draft.title, bio: draft.bio, matrix_contact: draft.matrix_contact },
+      creator_gallery: {
+        title: draft.title, bio: draft.bio, matrix_contact: draft.matrix_contact, page_private: draft.page_private, show_contact: draft.show_contact,
+      },
       layout: {
         headline: draft.headline, subline: draft.subline, banner: draft.banner, depth: draft.depth,
         hero, layout: draft.layout, minis: draft.minis.slice(0, slotCount(draft.layout)),
@@ -685,6 +687,11 @@ function editor(root, data, bindMinis) {
     const i = Number(e.target.dataset.i);
     if (field === "hero.hold") {
       rebuildBelt();
+    } else if (field === "page_private" || field === "show_contact") {
+      draft[field] = e.target.checked;
+      // The contact previews here; a private page is still the whole page to its creator.
+      if (field === "show_contact") { root.querySelectorAll("[data-cg-contact]").forEach((shown) => { shown.hidden = !e.target.checked; }); }
+      changed();
     } else if (field === "mini-effect") {
       draft.minis[i].effect = e.target.value;
       renderMinis();
@@ -789,7 +796,8 @@ function initGallery(root) {
   // The sections' ids are plain words: the hash is read as written, and a
   // malformed escape in a link names no section rather than stopping the page.
   const anchor = window.location.hash.length > 1 ? document.getElementById(window.location.hash.slice(1)) : null;
-  if (anchor && about.contains(anchor)) {
+  // A private page closed to this viewer has no About panel.
+  if (anchor && about?.contains(anchor)) {
     about.hidden = false;
     root.querySelector("[data-cg-act='about']").setAttribute("aria-expanded", "true");
     anchor.scrollIntoView();

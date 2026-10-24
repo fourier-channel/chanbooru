@@ -60,6 +60,14 @@
           <label class="cg-field">About you
             <textarea class="cg-input" rows="4" maxlength="4000" data-cg-field="bio" autocomplete="off"><%= gallery.bio %></textarea>
           </label>
+          <label class="cg-check">
+            <input type="checkbox" data-cg-field="page_private" autocomplete="off" <%= "checked" if gallery.page_private %>>
+            <span>Private page <span class="cg-note">Visitors see only your banner and your avatar. You, admins and the people you allow on the whole page see all of it.</span></span>
+          </label>
+          <label class="cg-check">
+            <input type="checkbox" data-cg-field="show_contact" autocomplete="off" <%= "checked" if gallery.show_contact %>>
+            <span>Show "Message on Matrix" <span class="cg-note">The link and your Matrix name, under your page's name.</span></span>
+          </label>
           <label class="cg-field">Matrix contact (who a "Message on Matrix" reaches)
             <input class="cg-input" maxlength="255" data-cg-field="matrix_contact" autocomplete="off" value="<%= gallery.matrix_contact %>" placeholder="<%= gallery.matrix_id %>">
           </label>
@@ -135,22 +143,36 @@
           <span class="modcreator-avatar-letter" aria-hidden="true"><%= monogram %></span>
         <% end %>
       </div>
-      <div class="modcreator-name">
-        <h1 class="modcreator-title modcreator-static" data-cg-static="title"><%= title %></h1>
-        <% if editing %>
-          <input class="cg-inline modcreator-title modcreator-edit-ui" aria-label="Gallery name" maxlength="120" data-cg-field="title" autocomplete="off" value="<%= gallery.title %>" placeholder="<%= gallery.slug %>">
-        <% end %>
-        <span class="modcreator-handle"><%= gallery.matrix_id %></span>
-      </div>
+      <%# A private page closed to this viewer: the banner and the avatar, and
+          nothing that names the creator (CreatorGallery#page_open_to?). %>
+      <% if closed %>
+        <p class="modcreator-private">This gallery is private.</p>
+      <% else %>
+        <div class="modcreator-name">
+          <h1 class="modcreator-title modcreator-static" data-cg-static="title"><%= title %></h1>
+          <% if editing %>
+            <input class="cg-inline modcreator-title modcreator-edit-ui" aria-label="Gallery name" maxlength="120" data-cg-field="title" autocomplete="off" value="<%= gallery.title %>" placeholder="<%= gallery.slug %>">
+          <% end %>
+          <%# The handle and the link show once the creator turns them on; the
+              editor draws them hidden, to preview the switch. %>
+          <% if gallery.show_contact || editing %>
+            <span class="modcreator-handle" data-cg-contact <%= "hidden" unless gallery.show_contact %>><%= gallery.matrix_id %></span>
+          <% end %>
+        </div>
+      <% end %>
       <div class="modcreator-actions">
-        <a class="cg-btn cg-btn--ghost" href="<%= matrix_url %>" target="_blank" rel="noopener noreferrer">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>
-          Message on Matrix
-        </a>
-        <button type="button" class="cg-btn modcreator-about-btn" data-cg-act="about" aria-expanded="false" aria-controls="modcreator-about">
-          About
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
-        </button>
+        <% if !closed && (gallery.show_contact || editing) %>
+          <a class="cg-btn cg-btn--ghost" href="<%= matrix_url %>" target="_blank" rel="noopener noreferrer" data-cg-contact <%= "hidden" unless gallery.show_contact %>>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>
+            Message on Matrix
+          </a>
+        <% end %>
+        <% unless closed %>
+          <button type="button" class="cg-btn modcreator-about-btn" data-cg-act="about" aria-expanded="false" aria-controls="modcreator-about">
+            About
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+          </button>
+        <% end %>
         <% if editing %>
           <%# The edit page's own way back is the bar's Done. %>
         <% elsif can_edit %>
@@ -169,6 +191,7 @@
 
     <%# The panels descend from the header on About, and each one can be put
         away; the ones put away are listed, to bring back. %>
+    <% unless closed %>
     <div class="modcreator-about" id="modcreator-about" hidden>
       <div class="modcreator-about-hidden" data-cg-region="hidden-panels" hidden></div>
       <div class="modcreator-boxes">
@@ -220,8 +243,10 @@
         <% end %>
       </div>
     </div>
+    <% end %>
   </header>
 
+  <% unless closed %>
   <main class="modcreator-main">
     <%# --- THE HERO BAND: the landing page's own belt, on the posts the
         creator chose under the band's tags. Its axis tabs are the character
@@ -404,4 +429,5 @@
       </div>
     <% end %>
   </main>
+  <% end %>
 </div>

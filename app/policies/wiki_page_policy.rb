@@ -40,8 +40,8 @@ class WikiPagePolicy < ApplicationPolicy
       "Only an admin moves a page onto or off a claimed character's title (#{claim.tag_name}): keep the title " \
         "#{record.title_was}, or ask an admin to move it."
     else
-      "#{claim.tag_name}'s wiki belongs to its creator, @#{claim.slug}. Only they or an admin can edit it. " \
-        "To suggest a change, message them from their creator page, #{Routes.creator_gallery_path(claim.slug)}."
+      remedy = claim.contact_for?(user) ? "message them from their creator page, #{Routes.creator_gallery_path(claim.slug)}" : "ask an admin"
+      "#{claim.tag_name}'s wiki belongs to its creator, @#{claim.slug}. Only they or an admin can edit it. To suggest a change, #{remedy}."
     end
   end
 

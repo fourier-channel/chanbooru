@@ -9,7 +9,7 @@
   <section id="creator-join" class="modcreator-join">
     <h2>Join <%= creator %>'s groups</h2>
     <% if @gallery.user_id.nil? %>
-      <p>This creator has not linked a booru account yet, so nobody can answer a request. Ask them on Matrix.</p>
+      <p>This creator has not linked a booru account yet, so nobody can answer a request. <%= @gallery.show_contact ? "Ask them on Matrix." : "Ask again once they have." %></p>
     <% end %>
     <ul>
       <% @join_groups.each do |group| %>

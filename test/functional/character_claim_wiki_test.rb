@@ -102,12 +102,19 @@ class CharacterClaimWikiTest < ActionDispatch::IntegrationTest
       assert_not_includes(CGI.unescapeHTML(response.body), DENIAL)
     end
 
-    should "put the refusal's reason above the flowchart, once, naming the creator page" do
+    should "put the refusal's reason above the flowchart, once, naming the creator page only where it shows a contact" do
+      edit_as(@member)
+
+      assert_response 403
+      assert_select ".oh-no-title + .oh-no-reason", text: /#{Regexp.escape(DENIAL)} To suggest a change, ask an admin\./
+      assert_select ".oh-no-reason", text: /#{Regexp.escape(creator_gallery_path(@gallery))}/, count: 0
+      assert_select ".oh-no-details", text: /belongs to its creator/, count: 0
+
+      @gallery.update!(show_contact: true)
       edit_as(@member)
 
       assert_response 403
       assert_select ".oh-no-title + .oh-no-reason", text: /#{Regexp.escape(DENIAL)}.*#{Regexp.escape(creator_gallery_path(@gallery))}/
-      assert_select ".oh-no-details", text: /belongs to its creator/, count: 0
     end
 
     should "refuse another page renamed onto it" do
