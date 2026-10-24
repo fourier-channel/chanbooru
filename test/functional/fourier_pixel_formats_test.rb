@@ -20,6 +20,16 @@ require "test_helper"
 # decoded. What separates them is the painted frame: real decodes land at 5-50
 # distinct colours, the corrupt ones at 1080 and 5000.
 #
+# The 12-bit formats were measured the same way on 2026-10-24, in the same
+# engines (Firefox 128.0, Chromium 128.0.6613.18), after a real 12-bit 4:2:0
+# VP9 webm from /b/ was refused "File type is not supported" and so could
+# never be posted. yuv420p12le, yuv422p12le and yuv444p12le each decoded and
+# painted in both: 10-36 distinct colours, and a mean error against the known
+# source equal to the 8- and 10-bit controls of the same subsampling (103 for
+# 4:2:0, 89 for 4:2:2, 1-7 for 4:4:4). Two corrupt controls (the noise
+# bitstream filter over valid 8- and 12-bit files) raised a decode error in
+# both engines.
+#
 # Danbooru.config.extra_video_pix_fmts is EMPTY under Rails.env.test?, so
 # upstream's media_file_webm_test keeps asserting is_supported? == false for
 # this very file. That makes this the only place the fork's rule is proven, and
@@ -27,10 +37,12 @@ require "test_helper"
 # that an UNMEASURED one stays refused.
 class FourierPixelFormatsTest < ActiveSupport::TestCase
   TEN_BIT_VP9 = "test/files/webm/test-yuv420p10le-vp9.webm"
+  # The 2026-10-24 measurement's own 4:2:0 source: 192x128, 1px stripes, 2s.
+  TWELVE_BIT_VP9 = "test/files/webm/test-yuv420p12le-vp9.webm"
 
   # The production list, as measured. Kept here so a change to the config has to
   # be a deliberate change to this test too.
-  MEASURED = %w[yuv420p10le yuv444p yuv444p10le yuv422p yuv422p10le].freeze
+  MEASURED = %w[yuv420p10le yuv444p yuv444p10le yuv422p yuv422p10le yuv420p12le yuv422p12le yuv444p12le].freeze
 
   context "a 10-bit VP9 webm" do
     should "be refused with upstream's allowlist" do
@@ -46,7 +58,25 @@ class FourierPixelFormatsTest < ActiveSupport::TestCase
     end
   end
 
-  context "every format measured on 2026-09-07" do
+  context "a 12-bit VP9 webm" do
+    should "be refused with upstream's allowlist" do
+      Danbooru.config.stubs(:extra_video_pix_fmts).returns([])
+      assert_equal(false, MediaFile.open(TWELVE_BIT_VP9).is_supported?)
+    end
+
+    should "be accepted once the format is allowed, and give a preview" do
+      # Accepting a file the thumbnailer cannot decode would trade a refused
+      # upload for a post with no thumbnail, so the preview is part of the claim.
+      Danbooru.config.stubs(:extra_video_pix_fmts).returns(MEASURED)
+      file = MediaFile.open(TWELVE_BIT_VP9)
+      assert_equal("yuv420p12le", file.pix_fmt)
+      assert_equal(true, file.is_supported?)
+      preview = file.preview!(150, 150)
+      assert_equal([150, 100], preview.dimensions)
+    end
+  end
+
+  context "every measured format" do
     should "be accepted, and refused again with upstream's allowlist" do
       MEASURED.each do |fmt|
         Danbooru.config.stubs(:extra_video_pix_fmts).returns(MEASURED)

@@ -313,9 +313,10 @@ module Danbooru
       Rails.env.test? ? User::Levels::ANONYMOUS : User::Levels::ADMIN
     end
 
-    # Video pixel formats accepted beyond upstream's allowlist, each measured.
+    # Video pixel formats accepted beyond upstream's allowlist, each measured
+    # (test/functional/fourier_pixel_formats_test.rb says how and when).
     def extra_video_pix_fmts
-      Rails.env.test? ? [] : %w[yuv420p10le yuv444p yuv444p10le yuv422p yuv422p10le]
+      Rails.env.test? ? [] : %w[yuv420p10le yuv444p yuv444p10le yuv422p yuv422p10le yuv420p12le yuv422p12le yuv444p12le]
     end
 
     # The tag the troll jail applies; gated, and it drives a notice on the post.
