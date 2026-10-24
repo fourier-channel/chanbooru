@@ -77,7 +77,7 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
 
   # THE LAYOUT (Creator Gallery rebuild, 2026-10-23): the editor's candidate
   # list, its save, the API's one-post door, and what a signed-out viewer of
-  # a promoted page is granted. Answers are read as JSON and recorded state.
+  # the page is granted. Answers are read as JSON and recorded state.
   context "The gallery layout" do
     setup do
       @tunnel = create(:contributor_user)
@@ -190,16 +190,17 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
       assert_equal([["mini1", @posts[0].id]], @gallery.creator_gallery_posts.pluck(:band, :post_id))
     end
 
-    # The ruling's second half: a signed-out viewer of a promoted page may
-    # open exactly what the page drew for them -- the hero, the minibands and
-    # the banner -- while it is fresh: not a chosen post the page no longer
-    # draws, not one made private since, and nothing once the grant lapses.
-    should "grant a signed-out viewer of a promoted page the posts it drew, and nothing else, while fresh" do
+    # The ruling's second half: a signed-out viewer of a creator's page,
+    # promoted or not, may open exactly what the page drew for them -- the
+    # hero, the minibands and the banner -- while it is fresh: not a chosen
+    # post the page no longer draws, not one made private since, and nothing
+    # once the grant lapses.
+    should "grant a signed-out viewer of an unpromoted page the posts it drew, and nothing else, while fresh" do
       Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
       Danbooru.config.stubs(:anonymous_default_deny?).returns(true)
       banner = as(@tunnel) { create(:post, uploader: @tunnel, tag_string: "dawn", rating: "g") }
       FourierPostCreator.create!(post: banner, mxid: @gallery.matrix_id, recorded_by: @tunnel.id)
-      @gallery.update!(promoted_at: Time.current, settings: { "hero" => { "tags" => %w[rain] }, "banner" => { "post_id" => banner.id }, "layout" => "1-2", "minis" => [{ "tag" => "snow" }] })
+      @gallery.update!(settings: { "hero" => { "tags" => %w[rain] }, "banner" => { "post_id" => banner.id }, "layout" => "1-2", "minis" => [{ "tag" => "snow" }] })
       @posts.each_with_index { |post, i| @gallery.creator_gallery_posts.create!(band: "hero", post: post, position: i) }
       @gallery.creator_gallery_posts.create!(band: "mini1", post: @posts[1], position: 0)
       CreatorPostAudience.set!(@posts[0], gallery: @gallery, audience: "private", by: create(:admin_user))

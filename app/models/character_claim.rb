@@ -195,19 +195,13 @@ class CharacterClaim < ApplicationRecord
   def self.claimed?(names) = standing_on(names).any?
 
   # Whose these character tags are, as `viewer` may be told: tag => { name:,
-  # href: }. A member gets the gallery's title (or @slug) and its page. A
-  # signed-out visitor gets the @slug, already in the tag's name, linked only
-  # to a gallery the front page promotes -- the one gallery they can open
-  # (MembersOnly :anonymous_promoted_gallery). One query, and one more for a
-  # signed-out visitor when a claim was found.
+  # href: }, the href the gallery's page, which every visitor may open
+  # (operator, 2026-10-23). A member gets the gallery's title (or @slug); a
+  # signed-out visitor the @slug, already in the tag's name. One query.
   def self.owners(names, viewer)
-    claims = standing_on(names)
-    return {} if claims.empty?
-
-    open = MembersOnly.member?(viewer) ? nil : CreatorGallery.landing_promoted.where(id: claims.map(&:gallery_id)).pluck(:id)
-    claims.to_h do |claim|
-      href = Routes.creator_gallery_path(claim.slug) if open.nil? || open.include?(claim.gallery_id)
-      [claim.tag_name, { name: open.nil? ? claim.title.presence || "@#{claim.slug}" : "@#{claim.slug}", href: href }]
+    member = MembersOnly.member?(viewer)
+    standing_on(names).to_h do |claim|
+      [claim.tag_name, { name: member ? claim.title.presence || "@#{claim.slug}" : "@#{claim.slug}", href: Routes.creator_gallery_path(claim.slug) }]
     end
   end
 

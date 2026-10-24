@@ -543,11 +543,14 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
       assert_refused post_path(@old), why: :narrowed
     end
 
-    should "open a creator's page only while the front page promotes it" do
+    # Every creator's page, promoted or not (operator, 2026-10-23): the page
+    # grants only the posts it drew, fresh, so opening it opens nothing else.
+    # The list of pages stays shut, and with it the walk from one to the next.
+    should "open every creator's page, and not the list of them" do
       gallery = create(:creator_gallery)
-      assert_refused creator_gallery_path(gallery), why: :narrowed
-      gallery.update!(promoted_at: Time.current)
       assert_admitted creator_gallery_path(gallery)
+      assert_refused creator_galleries_path, why: :off_the_list
+      assert_refused creator_gallery_path(gallery, format: :json), why: :wrong_format
     end
 
     should "not offer a signed-out visitor nav pills that would answer not found" do
@@ -574,11 +577,13 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
       as(create(:user)) { create(:artist_commentary, post: @post) }
     end
 
+    # Less /creators/anyone: every creator's page opened on 2026-10-23, and
+    # a slug no gallery has answers the missing record's 404, not the gate's.
     should "refuse the inventory of 2026-10-07" do
       ["/artist_commentaries/1", "/artist_commentary_versions/1", "/post_approvals/1", "/post_flags/1",
        "/post_appeals/1", "/post_disapprovals/1", "/post_replacements/1", "/reactions/1", "/user_actions/1",
        "/pool_versions/1/diff", "/post_votes/1", "/mod_actions/1", "/artists/1", "/artists", "/wiki_pages/1",
-       "/creators/anyone", "/creators", "/tags", "/tags.json", "/counts/posts?tags=rating:e", "/related_tag?query=1girl",
+       "/creators", "/tags", "/tags.json", "/counts/posts?tags=rating:e", "/related_tag?query=1girl",
        "/autocomplete.json?search[query]=a&search[type]=tag_query", "/reports/posts", "/users/1", "/users",
        "/posts/#{@post.id}.json", "/posts/#{@post.id}/tag_sources.json", "/posts/#{@post.id}/artist_commentary.json",
        "/post/index.json", "/tag/index.json", "/static/site_map", "/source.json", "/good_job/jobs"].each do |path|

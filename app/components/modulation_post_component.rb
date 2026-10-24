@@ -130,9 +130,8 @@ class ModulationPostComponent < ApplicationComponent
 
   # Whose each claimed original character is (CharacterClaim): tag =>
   # { name:, href: }, for the character pills only, which hold only tags this
-  # viewer can see. No query without a character tag; one with, and one more
-  # for a signed-out viewer when a claim was found (their name is the @slug
-  # already in the tag, linked only to a promoted gallery).
+  # viewer can see. No query without a character tag; one with (a signed-out
+  # viewer's name is the @slug already in the tag).
   def oc_owners
     @oc_owners ||= CharacterClaim.owners(category_tags[:character].to_a, viewer)
   end

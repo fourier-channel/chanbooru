@@ -5,9 +5,9 @@ require "test_helper"
 # Where a claimed original character shows whose it is (OC ownership, ruled
 # 2026-10-11): "by <creator>" beside the character pill on the post page, a
 # line on the wiki page and the search excerpt, and a Characters list on the
-# creator's gallery. A signed-out visitor reaches nothing new: they see the
-# creator's @slug, which is already in the tag's name, linked only to a
-# gallery the front page promotes, the one gallery they can open.
+# creator's gallery. A signed-out visitor is told nothing new: they see the
+# creator's @slug, which is already in the tag's name, linked to the
+# creator's page, which every visitor may open (operator, 2026-10-23).
 class CharacterClaimDisplayTest < ActionDispatch::IntegrationTest
   def sql_during(&)
     statements = []
@@ -48,10 +48,7 @@ class CharacterClaimDisplayTest < ActionDispatch::IntegrationTest
       assert_equal(1, sql_during { component.oc_owners }.size)
     end
 
-    should "give a signed-out visitor the @slug, linked only while the gallery is promoted" do
-      assert_equal({ "maple_(saber)" => { name: "@saber", href: nil }}, payload(@post, User.anonymous)[:oc_owners])
-
-      @gallery.update!(promoted_at: Time.zone.now)
+    should "give a signed-out visitor the @slug, linked to the gallery, promoted or not" do
       assert_equal({ "maple_(saber)" => { name: "@saber", href: "/creators/saber" }}, payload(@post, User.anonymous)[:oc_owners])
     end
 
@@ -79,8 +76,8 @@ class CharacterClaimDisplayTest < ActionDispatch::IntegrationTest
       assert_select ".modcreator-characters a[href='#{wiki_page_path("maple_(saber)")}']"
     end
 
-    should "list plain names to a signed-out visitor on a promoted gallery" do
-      @gallery.update!(promoted_at: Time.zone.now)
+    should "list plain names to a signed-out visitor" do
+      Danbooru.config.stubs(:anonymous_default_deny?).returns(true)
       get creator_gallery_path(@gallery)
 
       assert_response :success

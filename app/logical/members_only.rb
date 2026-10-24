@@ -100,15 +100,13 @@ module MembersOnly
   # opening the post page did not also open /posts/1.json, and opening the
   # gallery did not open /posts.atom.
   #
-  # NARROWED DOORS. Three pages a signed-out viewer needs would enumerate the
+  # NARROWED DOORS. Two pages a signed-out viewer needs would enumerate the
   # booru if they were simply open; each names the rule that narrows it:
   #
   #   :anonymous_post_listing  /posts is the newest posts, or one featured
   #                            creator's page 1, and nothing else.
   #   :anonymous_shown_post    a post's page only for a post the site has
   #                            shown a signed-out viewer (anonymous_shown_post?).
-  #   :anonymous_promoted_gallery  a creator's page only while the landing page
-  #                            promotes it.
   #
   # The list, top to bottom. "Who calls it" is the reason the door exists.
   ANONYMOUS_DOORS = {
@@ -116,7 +114,7 @@ module MembersOnly
     "landing#show" => { formats: %i[html], why: "the front page, and the Open Graph tags a link unfurler (Discordbot) reads; its carousel is the live anonymous draw, on purpose (operator, 2026-10-08)" },
     "landing#slides" => { formats: %i[json], why: "the front page's 5-minute fresh draw. Operator, 2026-10-08: \"The landing carousel was the Anonymous draw, purposely. It let me choose creators to show off without opening the whole booru.\" Its scope is the rows the operator configured" },
     "landing#preference" => { formats: %i[html], why: "the front page's 'Skip this next time' form; sets a cookie on this browser and redirects, names nothing" },
-    "creator_galleries#show" => { formats: %i[html], narrow: :anonymous_promoted_gallery, why: "the front page's Promoted Creators section links each promoted creator's page" },
+    "creator_galleries#show" => { formats: %i[html], why: "a creator's page, promoted or not (operator, 2026-10-23): the front page's Promoted Creators links there, and a claimed character's pill. It grants only the posts it drew, fresh (CreatorGalleriesController#grant_anonymous_draw); the list of pages stays shut" },
     "modulation#creator_activity" => { formats: %i[json], why: "creator_lamps.js re-reads the activity lamps on the front page's creator pills; booleans for names the caller sent" },
 
     # --- browsing: the newest posts, and the posts the site showed -----------
@@ -321,7 +319,7 @@ module MembersOnly
   end
 
   # A post's page for a post the site has shown a signed-out viewer: on a
-  # gallery page, a front-page draw or a promoted creator's page served to
+  # gallery page, a front-page draw or a creator's page served to
   # one within the last hour or two, or on the gallery's first page now.
   # Walking /posts/1, /posts/2...
   # was the same enumeration by another door (every id answered 200 on
@@ -336,20 +334,11 @@ module MembersOnly
       anonymous_newest_ids(safe_mode).include?(id)
   end
 
-  # A creator's page while the front page promotes it, and no other: the
-  # promoted section links there. Its posts are the ones its page draws,
-  # fresh (CreatorGalleryLayout#draw): a post the creator later made private,
-  # or left undrawn past the browsing cut, opens nothing (Creator Gallery
-  # rebuild, 2026-10-23).
-  def anonymous_promoted_gallery(controller)
-    CreatorGallery.landing_promoted.where(slug: controller.params[:slug].to_s).exists?
-  end
-
   # WHAT WAS SHOWN, ONE RECORD. Every page that shows a signed-out viewer
   # posts writes the ids it rendered here, into an hourly bucket: the
   # gallery (its first page, or a featured creator's page -- PostsController),
   # the front page's draw (anonymous_landing, for / and /landing/slides) and a
-  # promoted creator's page (CreatorGalleriesController#show, the same call).
+  # creator's page (CreatorGalleriesController#show, the same call).
   # A post page reads this hour's and the last, so a thumbnail or a slide
   # clicked minutes later still opens after the page moved on. Nothing here
   # can be reached that one of those pages did not render.

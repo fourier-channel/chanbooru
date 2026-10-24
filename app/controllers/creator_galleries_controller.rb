@@ -377,9 +377,8 @@ class CreatorGalleriesController < ApplicationController
   end
 
   # THE ANONYMOUS GRANT (Creator Gallery rebuild, 2026-10-23). A signed-out
-  # viewer reaches a creator's page only while the front page promotes it
-  # (anonymous_promoted_gallery), and may then open exactly the posts this
-  # page drew for them: recorded as the front page records its own draw, for
+  # viewer may open any creator's page, promoted or not (operator,
+  # 2026-10-23), and from it exactly the posts this page drew for them: recorded as the front page records its own draw, for
   # an hour or two, with the same creator links kept or dropped. A post past
   # the browsing cut, made private since, or chosen but no longer fitting is
   # not drawn, so it is not granted.
