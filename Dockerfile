@@ -31,11 +31,14 @@ ARG FFMPEG_VERSION="9.0.1"
 # github: exiftool/exiftool
 ARG EXIFTOOL_VERSION="13.55"
 # github: openresty/openresty
-ARG OPENRESTY_VERSION="1.29.2.3"
+ARG OPENRESTY_VERSION="1.29.2.5"
+# Fork: sha256 of openresty-$OPENRESTY_VERSION.tar.gz, checked before it is built
+# (signature by the OpenResty release key checked when pinned). Update with the version.
+ARG OPENRESTY_SHA256="3195e665c97023419051dc51d195e9f774a3d00ed6e7cd8a3751c4722ea0a8c1"
 ARG NODE_VERSION="24.19.0"
-ARG UBUNTU_VERSION="resolute-20260724.1@sha256:678c6550cc43645e08669028bc177f50be4e7c5b8cca677067b1914d4afc7a03"
+ARG UBUNTU_VERSION="resolute-20261006@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944"
 # Remember to update the UBUNTU_SNAPSHOT ARG below when UBUNTU_VERSION is updated
-ARG UBUNTU_SNAPSHOT="20260801T000000Z"
+ARG UBUNTU_SNAPSHOT="20261020T000000Z"
 
 
 # The base layer for everything.
@@ -83,6 +86,9 @@ EOF
   apt-get purge -y --allow-remove-essential pkg-config e2fsprogs mount procps python3 tzdata
   apt-get autoremove -y
   rm -rf /etc/gnutls/config /var/{lib,cache,log} /usr/share/{doc,info}/* /usr/local/*
+  # Fork: the ubuntu image ships pebble, an unpackaged Go service manager nothing
+  # here runs, and its Go runtime carries a critical the scanner reports.
+  rm -f /usr/bin/pebble
   mkdir -p /var/{lib,cache,log}/apt /var/lib/dpkg
   ln -sf /dev/null /var/log/alternatives.log
 
@@ -235,6 +241,7 @@ EOS
 FROM build-base AS build-openresty
 ARG JOBS
 ARG OPENRESTY_VERSION
+ARG OPENRESTY_SHA256
 ARG OPENRESTY_BUILD_DEPS="libssl-dev libpcre2-dev zlib1g-dev"
 ARG OPENRESTY_BUILD_OPTIONS="\
  --with-threads --with-compat --with-pcre-jit --with-file-aio \
@@ -245,7 +252,10 @@ ARG OPENRESTY_BUILD_OPTIONS="\
 
 RUN <<EOS
   apt-get install -y --no-install-recommends $OPENRESTY_BUILD_DEPS
-  curl -L "https://openresty.org/download/openresty-${OPENRESTY_VERSION}.tar.gz" | tar --strip-components=1 -xzvf -
+  curl -fL -o /tmp/openresty.tar.gz "https://openresty.org/download/openresty-${OPENRESTY_VERSION}.tar.gz"
+  echo "$OPENRESTY_SHA256  /tmp/openresty.tar.gz" | sha256sum -c -
+  tar --strip-components=1 -xzvf /tmp/openresty.tar.gz
+  rm /tmp/openresty.tar.gz
 
   ./configure -j$JOBS --prefix=/usr/local $OPENRESTY_BUILD_OPTIONS
   make -j$JOBS install
