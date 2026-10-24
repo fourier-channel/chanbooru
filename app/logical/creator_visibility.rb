@@ -164,7 +164,8 @@ module CreatorVisibility
   end
 
   # Every post on the site hidden from `viewer` -- the id list query-level
-  # enforcement wants, as CreatorPrefixes.hidden_post_ids_for gives.
+  # enforcement carries (PostQuery#hidden_post_metatags) beside the prefix
+  # rule's tag names (PostQuery#hidden_tags_condition).
   #
   # Decided by RULE in SQL, never post by post (2026-10-08; review: deciding
   # every post with an override one by one grew with the overrides on the
@@ -413,7 +414,7 @@ module CreatorVisibility
 
   # One value per request per viewer -- the sets above, and the prefix rule's
   # own per-viewer reads (CreatorPrefixes.hidden_context and
-  # hidden_post_ids_for), which every thumbnail would otherwise query again.
+  # hidden_tag_names_for), which every thumbnail would otherwise query again.
   # Keyed on everything a decision reads from the viewer, so a viewer object
   # changed mid-request (a ban, a level) is never answered from its old self.
   # Never older than MEMO_TTL: outside a request (a console, a runner script)

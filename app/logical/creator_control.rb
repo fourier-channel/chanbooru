@@ -108,7 +108,8 @@ module CreatorControl
   end
 
   # Every post `user` controls, asked from the user's end -- the form
-  # query-level enforcement wants (an id list, as CreatorPrefixes gives).
+  # query-level enforcement wants (an id list, as PostQuery#hidden_post_metatags
+  # carries).
   #
   # @return [Array<Integer>] sorted post ids
   def controlled_post_ids(user)

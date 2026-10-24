@@ -225,7 +225,6 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
   context "The creator panel" do
     setup do
       CreatorPrefixes.reset!
-      CreatorTagRelease.reset_cache!
       @maple_header = { "X-Fourier-Identity" => "@maple:41chan.net" }
       @tunnel = create(:builder_user, name: "tunnel")
       @admin = create(:admin_user)

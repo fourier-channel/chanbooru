@@ -89,7 +89,6 @@ class CreatorVisibilityTest < ActiveSupport::TestCase
 
   setup do
     CreatorPrefixes.reset!
-    CreatorTagRelease.reset_cache!
     @tunnel = create(:builder_user, name: "tunnel")
     @admin = create(:admin_user)
     @maple = create(:user)

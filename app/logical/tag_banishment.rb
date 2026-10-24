@@ -25,7 +25,7 @@
 # tag "is supposed to immediately disappear from the booru view surface". A
 # post carrying post_tags is withheld from every viewer but the pipeline,
 # through every door a deleted post is withheld by (Post#hidden_as_banished?,
-# which hidden_as_deleted? consults, and PostQuery#banished_metatags) --
+# which hidden_as_deleted? consults, and PostQuery#hidden_tags_condition) --
 # deleted or not: a post RELEASED from the jail keeps its banished tag, and a
 # jailing whose delete was refused leaves troll_jail on a live post.
 module TagBanishment

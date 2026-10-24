@@ -257,6 +257,9 @@ module Searchable
       # Fork: a long id list (the hidden-post term PostQuery adds per viewer,
       # 2026-10-08) as ONE array literal: Arel quoting each of 28,000 values
       # cost 50-85 ms per query to render, measured on a 400,000-post dev DB.
+      # That list was the creator-prefix posts; since 2026-10-24 those are a
+      # row filter (PostQuery#hidden_tags_condition) and the term carries
+      # only the creator-panel and quarantine ids, long only when they are.
       # As `IN (SELECT unnest(array))`, which Postgres answers with one hash
       # of the list; `= ANY(array)` as a row filter compared each row with
       # every element -- 1 s for 29,000 rows against 27,752 ids (measured,

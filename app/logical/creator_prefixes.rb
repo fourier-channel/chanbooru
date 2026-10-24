@@ -49,8 +49,6 @@ module CreatorPrefixes
   @mutex = Mutex.new
   @cache = nil
   @last_good = nil
-  @names_mutex = Mutex.new
-  @names = nil
 
   module_function
 
@@ -191,45 +189,31 @@ module CreatorPrefixes
     ctx[:prefixes].any? { |e| name.start_with?(e.prefix) && name.length > e.prefix.length }
   end
 
-  # Every existing tag name under a prefix hidden from `user` -- what
-  # Post.hidden_from and the tag index filter on. A new creator's tag is a new
-  # tag row, so the cache is keyed on the newest tag id as well as the
-  # prefixes: exact, never a timer. Once per request per viewer
-  # (CreatorVisibility.memoized; review 2026-10-08): Post.hidden_from, the tag
-  # index, the archive pulse and every post search each asked, and each paid
-  # the Tag.maximum read again.
+  # Every existing tag name under a prefix hidden from `user` -- what every
+  # post search (PostQuery#hidden_tags_condition), Post.hidden_from and the
+  # tag index filter on. Read each request, so exact by construction: an
+  # Index Only Scan on index_tags_on_name_pattern, 0.122 ms for 208 names in
+  # 4 buffers on the dev DB (2026-10-24). Until then it was cached per
+  # process on the newest tag id, which missed a tag committed under an id
+  # below it -- ids are handed out at INSERT, not at commit -- and left its
+  # posts in every search for as long as the process lived. Once per request
+  # per viewer (CreatorVisibility.memoized; review 2026-10-08): Post.hidden_from,
+  # the tag index, the archive pulse and every post search each ask. The
+  # pattern's `_` is any one character, so the bare prefix -- never a creator
+  # tag to hidden_for? -- is not a name here either.
   def hidden_tag_names_for(user)
     ctx = hidden_context(user)
     prefixes = ctx[:prefixes].map(&:prefix).sort
     return [] if prefixes.empty?
 
     CreatorVisibility.memoized(:prefix_names, user) do
-      key = [prefixes, Tag.maximum(:id)]
-      names = @names_mutex.synchronize { @names[:value] if @names && @names[:key] == key }
-      unless names
-        names = prefixes.flat_map { |p| Tag.where("name LIKE ?", "#{Tag.sanitize_sql_like(p)}%").pluck(:name) }.freeze
-        @names_mutex.synchronize { @names = { key: key, value: names } }
-      end
-      names.reject { |n| ctx[:released].include?(n) || ctx[:owned].include?(n) }
-    end
-  end
-
-  # The ids of every post carrying such a tag -- what post searches exclude.
-  # Once per request per viewer: a page runs several searches (the results,
-  # the count, the neighbours), each of which used to scan for these again.
-  def hidden_post_ids_for(user)
-    names = hidden_tag_names_for(user)
-    return [] if names.empty?
-
-    CreatorVisibility.memoized(:prefix_post_ids, user) do
-      Post.where_array_includes_any("string_to_array(posts.tag_string, ' ')", names).order(:id).pluck(:id)
+      prefixes.flat_map { |p| Tag.where("name LIKE ?", "#{Tag.sanitize_sql_like(p)}_%").pluck(:name) }.reject { |n| ctx[:released].include?(n) || ctx[:owned].include?(n) }
     end
   end
 
   # Forget the cached list (tests), and this request's memo of what it decided.
   def reset!
     @mutex.synchronize { @cache = nil }
-    @names_mutex.synchronize { @names = nil }
     @last_good = nil
     CreatorVisibility.forget!
   end

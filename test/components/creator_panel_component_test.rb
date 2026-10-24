@@ -20,12 +20,9 @@ class CreatorPanelComponentTest < ViewComponent::TestCase
     post
   end
 
-  # Each render starts from the same caches: the release cache lives for the
-  # process, so whether an earlier test had filled it depended on the seed,
-  # and moved a query count by one.
+  # Each render starts from an empty request memo, as a request does.
   def render_panel(refusal: nil, viewer: @maple, **place)
     CreatorVisibility.forget!
-    CreatorTagRelease.reset_cache!
     with_request_url "/creators/maple/edit" do
       render_inline(CreatorPanelComponent.new(gallery: @gallery, viewer: viewer, refusal: refusal, place: place))
     end

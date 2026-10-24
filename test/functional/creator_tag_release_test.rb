@@ -31,7 +31,6 @@ class CreatorTagReleaseTest < ActionDispatch::IntegrationTest
     ENV["FOURIER_CREATOR_PREFIXES"] = @path
     File.write(@path, LIST)
     CreatorPrefixes.reset!
-    CreatorTagRelease.reset_cache!
 
     @tunnel = create(:builder_user, name: "tunnel")
     @member = create(:user)
@@ -53,7 +52,6 @@ class CreatorTagReleaseTest < ActionDispatch::IntegrationTest
   teardown do
     ENV["FOURIER_CREATOR_PREFIXES"] = @was
     CreatorPrefixes.reset!
-    CreatorTagRelease.reset_cache!
     FileUtils.rm_rf(@dir)
   end
 
@@ -63,6 +61,22 @@ class CreatorTagReleaseTest < ActionDispatch::IntegrationTest
     assert_equal 200, status_for(@alices, @member)
     assert_equal 200, status_for(@alices, nil)
     assert_equal 404, status_for(@bobs, @member), "releasing one creator released no one else"
+  end
+
+  # The released names were cached on [newest updated_at, row count] until
+  # 2026-10-24. updated_at is stamped from the app's clock at save, not at
+  # commit, so an un-release that committed after a later-stamped change
+  # moved neither, and the creator stayed public until the next change.
+  should "hide a creator again once un-released, whatever its row's updated_at" do
+    CreatorTagRelease.set!("aichan_alice", released: true, by: @admin)
+    CreatorTagRelease.set!("aichan_bob", released: true, by: @admin).update_columns(updated_at: 1.minute.from_now) # rubocop:disable Rails/SkipsModelValidations
+    assert_includes CreatorTagRelease.released_names, "aichan_alice", "fixture: released"
+
+    CreatorTagRelease.find_by!(tag_name: "aichan_alice").update_columns(released: false, updated_at: 1.hour.ago) # rubocop:disable Rails/SkipsModelValidations
+    CreatorVisibility.forget!
+
+    assert_not_includes CreatorTagRelease.released_names, "aichan_alice"
+    assert_equal 404, status_for(@alices, @member)
   end
 
   should "let the creator see their own hidden posts, and release them" do

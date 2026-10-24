@@ -13,9 +13,13 @@ require "test_helper"
 # 273 statement timeouts), and the page lost its count.
 #
 # Two lines hold. A count never confirms ONE hidden post: a search the
-# estimates do not cover (id:, md5:, several tags) is still counted exactly
-# over what the viewer may see. And a tag name hidden from the viewer
-# (Tag.hidden_names_for) counts 0, as a name never used does.
+# estimates do not cover (id:, md5:, several tags) is counted exactly with
+# the viewer's terms and hidden-tags row filter, as every search has them,
+# and cached under that filter's digest (PostQuery#count_cache_key), so one
+# viewer's count is never served to another. Its one gap: a post that newly
+# gained a name already hidden can sit in a cached count for its 5 minutes.
+# And a tag name hidden from the viewer (Tag.hidden_names_for) counts 0, as
+# a name never used does.
 class PostCountEstimateTest < ActiveSupport::TestCase
   def count(search, user, safe_mode: false)
     PostQuery.normalize(search, current_user: user, safe_mode: safe_mode).with_implicit_metatags.fast_count
@@ -110,5 +114,38 @@ class PostCountEstimateTest < ActiveSupport::TestCase
   should "count a tag name hidden from the viewer as 0, as a name never used" do
     assert_equal 0, count("gatedname", @member)
     assert_equal 1, count("gatedname", @gold)
+  end
+
+  # The exact count is cached for 5 minutes on its search. The hidden tags
+  # are a row filter, not terms of the search (PostQuery#hidden_tags_condition,
+  # 2026-10-24), so the key carries a digest of that filter: a viewer is
+  # never handed the count of a viewer whose hidden set differs, and viewers
+  # whose sets match share one entry.
+  context "The exact count's cache" do
+    setup do
+      Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+      @admin = create(:admin_user)
+      as(create(:builder_user, name: "tunnel")) { create(:post, tag_string: "aichan_alice landscape") }
+      CreatorVisibility.forget!
+    end
+
+    key = ->(search, user) { PostQuery.normalize(search, current_user: user).with_implicit_metatags.send(:count_cache_key) }
+
+    should "not hand a viewer the count of one who sees other posts, asked in either order" do
+      assert_equal 3, count("landscape id:>0", @admin)
+      assert_equal 1, count("landscape id:>0", User.anonymous)
+
+      Rails.cache.clear
+      assert_equal 1, count("landscape id:>0", User.anonymous)
+      assert_equal 3, count("landscape id:>0", @admin)
+      assert_equal 2, count("landscape id:>0", @gold)
+    end
+
+    should "key apart viewers whose hidden sets differ, and together those whose sets match" do
+      assert_not_equal key.call("landscape id:>0", @admin), key.call("landscape id:>0", User.anonymous)
+      assert_not_equal key.call("landscape id:>0", @gold), key.call("landscape id:>0", User.anonymous)
+      assert_equal key.call("landscape id:>0", User.anonymous), key.call("landscape id:>0", User.anonymous)
+      assert_equal key.call("landscape id:>0", @member), key.call("landscape id:>0", create(:restricted_user))
+    end
   end
 end

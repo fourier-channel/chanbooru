@@ -47,8 +47,7 @@ module PostSets
       @current_user = user
       @tag_string = tags
       @format = format.to_s
-      # Fork: fourier-auth's md5 ask excludes the viewer's hidden tags as one row filter (#md5_ask?).
-      @post_query = PostQuery.normalize(tags, current_user: user, tag_limit: user.tag_query_limit, safe_mode: CurrentUser.safe_mode?, row_filter: md5_ask?)
+      @post_query = PostQuery.normalize(tags, current_user: user, tag_limit: user.tag_query_limit, safe_mode: CurrentUser.safe_mode?)
       @normalized_query = post_query.with_implicit_metatags
       @page = page
       @per_page = per_page
@@ -175,10 +174,10 @@ module PostSets
     # compiled them into a ~530 KB literal and ran an exact COUNT keyed on its
     # batch, so never cached -- 0.5-1.1 s around a 15 ms SELECT -- and 78 asks
     # passed fourier-auth's 4 s budget and were refused. Built instead with
-    # the hidden tags as one row filter (PostQuery row_filter:, as the post
-    # view's neighbours are) and no count: the same posts either way
-    # (md5_ask_test's parity table), and its rows, 20 at most, come off the
-    # md5 index, so the filter runs on those rows alone. Signed out, the
+    # no count. Its hidden tags are the row filter every implicit search
+    # carries since 2026-10-24 (PostQuery#hidden_tags_condition), and its
+    # rows, 20 at most, come off the md5 index, so the filter runs on those
+    # rows alone (md5_ask_test's parity table). Signed out, the
     # answer still passes MembersOnly.anonymous_md5_rows (PostsController).
     def md5_ask?
       format.in?(%w[json xml]) && tag_string.to_s.strip.match?(MembersOnly::ANONYMOUS_MD5_QUERY)
@@ -403,7 +402,16 @@ module PostSets
       end
 
       # @return [Array<Tag>] the list of tags most related to the current search.
+      #
+      # Fork: none for a viewer whose search carries the hidden-tags row
+      # filter, so the sidebar draws on the page's own posts. The calculator
+      # samples the search as typed and caches it across viewers by that
+      # string, so it would list what a jailed or hidden post carries -- the
+      # leak RelatedTagQuery closed (2026-10-01). Until 2026-10-24 no such
+      # viewer reached here: every one had a negated term the shape checks
+      # saw (-troll_jail even for an admin), and the row filter is no term.
       def similar_tags(categories = TagCategory.category_ids)
+        return [] if normalized_query.hidden_tags_condition
         RelatedTagCalculator.new(post_query).cached_similar_tags_for_search(MAX_SIDEBAR_TAGS, categories: categories)
       end
 

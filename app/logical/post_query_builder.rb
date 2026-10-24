@@ -140,8 +140,8 @@ class PostQueryBuilder
     relation = build_relation(post_query, relation)
     # Fork: gate 3 for posts (PostQuery#matrix_rooms_condition).
     relation = relation.where(post_query.matrix_rooms_condition) if matrix_rooms && post_query.matrix_rooms_condition
-    # Fork: the hidden tags as one row filter, for a query built with
-    # row_filter: (PostQuery#hidden_tags_condition).
+    # Fork: the hidden tags as one row filter, on every implicit query
+    # (PostQuery#hidden_tags_condition).
     relation = relation.where(post_query.hidden_tags_condition) if post_query.hidden_tags_condition
 
     case (order = effective_order(post_query))

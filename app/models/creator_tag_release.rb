@@ -21,25 +21,15 @@ class CreatorTagRelease < ApplicationRecord
 
   normalizes :note, with: ->(note) { note.to_s.strip.truncate(500) }
 
-  @mutex = Mutex.new
-  @released = nil
-
-  # The released tag names, as a Set. Cached on the table's own stamp (the
-  # newest change and the row count), never a timer: a release is live on the
-  # next request.
-  def self.released_names
-    stamp = [maximum(:updated_at), count]
-    @mutex.synchronize do
-      return @released[:value] if @released && @released[:stamp] == stamp
-    end
-    value = where(released: true).pluck(:tag_name).to_set.freeze
-    @mutex.synchronize { @released = { stamp: stamp, value: value } }
-    value
-  end
-
-  def self.reset_cache!
-    @mutex.synchronize { @released = nil }
-  end
+  # The released tag names, as a Set. One plain query per call, never cached
+  # past it (CreatorPrefixes.hidden_context memoizes it per viewer per
+  # request; the creator panel and CreatorVisibility's snapshot ask it
+  # directly): a release, and an un-release, is live on the next request.
+  # Until 2026-10-24 it was cached per process on [newest updated_at, row
+  # count], and updated_at is the app's clock at save, not at commit: an
+  # un-release that committed after a later-stamped change moved neither, and
+  # the creator stayed public until the next change.
+  def self.released_names = where(released: true).pluck(:tag_name).to_set.freeze
 
   # The creator themselves: an approved claim on this tag, on a gallery that is
   # theirs, still standing (ArtistClaim.standing). Keyed on the claim's

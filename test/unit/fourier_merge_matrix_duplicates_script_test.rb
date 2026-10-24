@@ -87,7 +87,6 @@ class FourierMergeMatrixDuplicatesScriptTest < ActiveSupport::TestCase
 
   setup do
     CreatorPrefixes.reset!
-    CreatorTagRelease.reset_cache!
     @admin = create(:admin_user, name: "boss")
     @tunnel = create(:approver_user, name: "tunnel")
     @sample = create(:approver_user, name: "sample")

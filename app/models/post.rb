@@ -1897,12 +1897,9 @@ class Post < ApplicationRecord
       # @param tag_limit [Integer] the maximum number of tags allowed per search.
       #   An exception will be raised if the search has too many tags.
       # @param safe_mode [Boolean] if true, automatically add rating:s to the search
-      # @param row_filter [Boolean] exclude the viewer's hidden tags as one row
-      #   filter (PostQuery#hidden_tags_condition): the post view's neighbours
-      #   and random's rolls, never a count or a gallery
       # @return [ActiveRecord::Relation<Post>] the set of resulting posts
-      def user_tag_match(query, user = CurrentUser.user, tag_limit: user.tag_query_limit, safe_mode: CurrentUser.safe_mode?, row_filter: false)
-        post_query = PostQuery.normalize(query, current_user: user, tag_limit: tag_limit, safe_mode: safe_mode, row_filter: row_filter)
+      def user_tag_match(query, user = CurrentUser.user, tag_limit: user.tag_query_limit, safe_mode: CurrentUser.safe_mode?)
+        post_query = PostQuery.normalize(query, current_user: user, tag_limit: tag_limit, safe_mode: safe_mode)
         post_query.validate_tag_limit!
         posts = post_query.with_implicit_metatags.posts
         and_relation(posts)

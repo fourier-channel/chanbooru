@@ -150,7 +150,6 @@ class ModulationFlankCandidatesTest < ActionDispatch::IntegrationTest
     setup do
       Danbooru.config.stubs(:banished_posts_withheld?).returns(true)
       CreatorPrefixes.reset!
-      CreatorTagRelease.reset_cache!
     end
 
     teardown do

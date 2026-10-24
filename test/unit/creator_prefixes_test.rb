@@ -168,4 +168,46 @@ class CreatorPrefixesTest < ActiveSupport::TestCase
       assert_equal("aichan_selph long_hair", @post.reload.tag_string)
     end
   end
+
+  # The names a search hides by (PostQuery#hidden_tags_condition), read per
+  # request since 2026-10-24. They were cached on the newest tag id, which
+  # missed a tag that committed after a higher id had: ids are handed out at
+  # INSERT, not at commit, so two creators' first posts in flight together
+  # could leave the lower one's tag out of every search until the next tag.
+  context "The hidden tag names" do
+    setup do
+      write_list(LIST.sub("target: AIChan, scope: Channels joined by the tunnel}", "target: AIChan, scope: Channels joined by the tunnel, visible_to: admins}"))
+      @post = as(create(:user, name: "tunnel")) { create(:post, tag_string: "long_hair") }
+    end
+
+    should "include a tag that committed under an id below the newest" do
+      placeholder = create(:tag)
+      low = placeholder.id
+      Tag.where(id: low).delete_all
+      create(:tag, name: "aichan_b")
+      CreatorVisibility.forget!
+      assert_equal(["aichan_b"], CreatorPrefixes.hidden_tag_names_for(User.anonymous).grep(/\Aaichan_/), "fixture: primed")
+      newest = Tag.maximum(:id)
+
+      create(:tag, id: low, name: "aichan_a")
+      @post.update_columns(tag_string: "aichan_a long_hair") # rubocop:disable Rails/SkipsModelValidations
+      CreatorVisibility.forget!
+
+      assert_equal(newest, Tag.maximum(:id), "fixture: the newest tag id did not move")
+      assert_includes(CreatorPrefixes.hidden_tag_names_for(User.anonymous), "aichan_a")
+      assert_not_includes(Post.user_tag_match("", User.anonymous).pluck(:id), @post.id)
+    end
+
+    # hidden_for? never takes a bare prefix for a creator tag (lookup's
+    # length check); the names a search hides by must not either.
+    should "not hide a post tagged with the bare prefix" do
+      build(:tag, name: "aichan_").save(validate: false)
+      @post.update_columns(tag_string: "aichan_ long_hair") # rubocop:disable Rails/SkipsModelValidations
+      CreatorVisibility.forget!
+
+      assert_not(CreatorPrefixes.hidden_for?("aichan_", User.anonymous))
+      assert_not_includes(CreatorPrefixes.hidden_tag_names_for(User.anonymous), "aichan_")
+      assert_includes(Post.user_tag_match("", User.anonymous).pluck(:id), @post.id)
+    end
+  end
 end

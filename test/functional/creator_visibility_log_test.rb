@@ -12,7 +12,6 @@ require "test_helper"
 class CreatorVisibilityLogTest < ActionDispatch::IntegrationTest
   setup do
     CreatorPrefixes.reset!
-    CreatorTagRelease.reset_cache!
     @tunnel = create(:builder_user, name: "tunnel")
     @admin = create(:admin_user)
     @maple = create(:user)
@@ -50,10 +49,6 @@ class CreatorVisibilityLogTest < ActionDispatch::IntegrationTest
     # Q2's view log, through its real door: an admin opening the page of a
     # post its creator made private (stage 3, 2026-10-08).
     get_auth post_path(@post), @admin
-  end
-
-  teardown do
-    CreatorTagRelease.reset_cache!
   end
 
   should "write every admin-only category" do

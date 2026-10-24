@@ -763,7 +763,7 @@ class ModulationPostComponent < ApplicationComponent
   # viewer is walking, and deferring it made every forward step along random
   # wait on a second build after the landing (review, 2026-10-18).
   def random_neighbours
-    roll = ->(taken) { Post.user_tag_match(base_tags.to_s, viewer, row_filter: true).where.not(id: taken + [post.id]).random(1).pick(:id) }
+    roll = ->(taken) { Post.user_tag_match(base_tags.to_s, viewer).where.not(id: taken + [post.id]).random(1).pick(:id) }
     trail = random_trail
     if trail && @read == :prefetch && !trail.holds?(post)
       { prev_ids: [], next_ids: [], prev_more: true, next_more: true, history: trail.size, deferred: true }

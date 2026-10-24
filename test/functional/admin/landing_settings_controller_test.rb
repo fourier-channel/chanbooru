@@ -167,7 +167,6 @@ class Admin::LandingSettingsControllerTest < ActionDispatch::IntegrationTest
   context "the error page's pictures" do
     setup do
       CreatorPrefixes.reset!
-      CreatorTagRelease.reset_cache!
       @admin = create(:admin_user)
       @uploader = create(:builder_user) # no upload limit: these tests post many
       @ok = as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape") }

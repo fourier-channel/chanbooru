@@ -126,7 +126,6 @@ class ErrorPageTest < ActionDispatch::IntegrationTest
     # line is the one place the error page says anything specific.
     setup do
       CreatorPrefixes.reset!
-      CreatorTagRelease.reset_cache!
     end
 
     teardown do
@@ -197,7 +196,6 @@ class ErrorPageTest < ActionDispatch::IntegrationTest
   context "The error page's pictures" do
     setup do
       CreatorPrefixes.reset!
-      CreatorTagRelease.reset_cache!
       @uploader = create(:builder_user) # no upload limit: these tests post many
       @ok = as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape") }
     end

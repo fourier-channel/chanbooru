@@ -182,21 +182,39 @@ class PostNeighborsTest < ActiveSupport::TestCase
   end
 
   # The ids a search finds for `viewer`, with this request's memo cleared.
-  def ids(search, viewer, **options)
+  def ids(search, viewer)
     CreatorVisibility.forget!
-    Post.user_tag_match(search, viewer, **options).pluck(:id)
+    Post.user_tag_match(search, viewer).pluck(:id)
   end
 
-  # THE HIDDEN-TAG ROW FILTER (PostQuery row_filter:). The neighbours' keyset
-  # reads and random's rolls carried the viewer's creator-prefix exclusion as
-  # an id list -- for a Member on production 60,758 ids, plucked by a 290-380
-  # ms statement on every payload, compiled into each of 5-8 searches at
-  # 85-133 ms of Ruby apiece, and sent as a 460 KB literal in every statement
-  # (1.38 MB in a roll) -- plus each gated and banished tag as its own negated
-  # term, which split tag_string once per term per row. The same exclusion is
-  # one row filter over the names (PostQuery#hidden_tags_condition). It must
-  # not change the answer: "a surface must not change the answer"
-  # (PostQuery#deleted_metatags).
+  # The creator-prefix id list a search carried until 2026-10-24: the pluck
+  # of every post under a hidden prefix, or the one literal it was sent as
+  # past Searchable::LONG_IN_LIST. Not a plain NOT IN: random's rolls send
+  # the posts already drawn as one.
+  HIDDEN_IDS = /\ASELECT "posts"\."id" FROM "posts" WHERE string_to_array\(posts\.tag_string, ' '\) && ARRAY\[|unnest\('\{/
+
+  # Every statement `block` sends, but the schema reads.
+  def statements
+    sqls = []
+    sub = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| sqls << payload[:sql] unless payload[:name] == "SCHEMA" }
+    yield
+    sqls
+  ensure
+    ActiveSupport::Notifications.unsubscribe(sub)
+  end
+
+  # THE HIDDEN-TAG ROW FILTER (PostQuery#hidden_tags_condition). The
+  # neighbours' keyset reads and random's rolls carried the viewer's
+  # creator-prefix exclusion as an id list -- for a Member on production
+  # 60,758 ids, plucked by a 290-380 ms statement on every payload, compiled
+  # into each of 5-8 searches at 85-133 ms of Ruby apiece, and sent as a 460
+  # KB literal in every statement (1.38 MB in a roll) -- plus each gated and
+  # banished tag as its own negated term, which split tag_string once per
+  # term per row. The same exclusion is one row filter over the names, on
+  # every implicit search since 2026-10-24. It must not change the answer:
+  # "a surface must not change the answer" (PostQuery#deleted_metatags), so
+  # each search is held to what the posts themselves say (Post#hidden_from?)
+  # over every post its query matches (Post.bulk_tag_match).
   context "the hidden-tag row filter" do
     setup do
       @dir = Dir.mktmpdir("rowfilter-prefixes")
@@ -211,7 +229,6 @@ class PostNeighborsTest < ActiveSupport::TestCase
       ENV["FOURIER_CREATOR_PREFIXES"] = @path
       Danbooru.config.stubs(:banished_posts_withheld?).returns(true)
       CreatorPrefixes.reset!
-      CreatorTagRelease.reset_cache!
 
       @admin = create(:admin_user)
       @member = create(:user)
@@ -228,7 +245,6 @@ class PostNeighborsTest < ActiveSupport::TestCase
       @own_gated = as(@allowed) { create(:post, uploader: @allowed, tag_string: "rfq #{gated}") }
       banish_tags!("rf_banished_tag")
       CreatorTagRelease.set!("rfadm_bob", released: true, by: @admin)
-      CreatorTagRelease.reset_cache!
       CreatorVisibility.forget!
       @viewers = { anonymous: User.anonymous, member: @member, gold: @gold, admin: @admin, allowed: @allowed }
     end
@@ -236,7 +252,6 @@ class PostNeighborsTest < ActiveSupport::TestCase
     teardown do
       ENV["FOURIER_CREATOR_PREFIXES"] = @was
       CreatorPrefixes.reset!
-      CreatorTagRelease.reset_cache!
       FileUtils.rm_rf(@dir)
     end
 
@@ -248,7 +263,7 @@ class PostNeighborsTest < ActiveSupport::TestCase
     # evaluates it on every matching row. Measured against the old id list too
     # (0.19 us a row once its literal is parsed); see hidden_tags_condition.
     should "probe each of a row's tags against the names by hash, not compare every pair" do
-      condition = PostQuery.new("rfq", current_user: @member, row_filter: true).with_implicit_metatags.hidden_tags_condition
+      condition = PostQuery.new("rfq", current_user: @member).with_implicit_metatags.hidden_tags_condition
       assert_match(/\ANOT EXISTS \(SELECT 1 FROM unnest\(string_to_array\(posts\.tag_string, ' '\)\) AS hidden\(name\) WHERE hidden\.name = ANY\(ARRAY\[/, condition)
       assert_no_match(/&&/, condition)
     end
@@ -267,43 +282,44 @@ class PostNeighborsTest < ActiveSupport::TestCase
       assert_not_includes allowed, @gated.id
     end
 
-    should "find the same posts, in the same order, as the id path for every viewer and search" do
+    should "find the posts each viewer may see, in the search's order, for every viewer and search" do
       ["rfq order:id_desc", "rfq order:id_asc", "rfq plain_a", "rfadm_alice", "rfq -plain_a", "order:score"].each do |search|
         @viewers.each do |who, viewer|
-          assert_equal ids(search, viewer), ids(search, viewer, row_filter: true), "#{who}: #{search}"
+          seen = Post.bulk_tag_match(search, viewer).reject { |post| post.is_deleted? || post.hidden_from?(viewer) }.map(&:id)
+          assert_equal seen, ids(search, viewer), "#{who}: #{search}"
         end
       end
     end
 
     # The viewers who may walk: below full browsing the walk is refused
     # (browsing_tier_test.rb), whatever the filter.
-    should "give the neighbours the runs of the id path's ordering, with no hidden-id list" do
+    should "give the neighbours the runs of the search's ordering, with no hidden-id list" do
       walkers = @viewers.select { |_who, viewer| viewer.can_browse_freely? }
       assert_equal(@viewers.size - 1, walkers.size, "fixture: only the anonymous viewer is below full browsing")
       orderings = walkers.transform_values { |viewer| ids("rfq order:id_desc", viewer) }
-      CreatorPrefixes.expects(:hidden_post_ids_for).never
-      walkers.each do |who, viewer|
-        ordered = orderings[who]
-        ordered.each_with_index do |id, i|
-          CreatorVisibility.forget!
-          nav = PostNeighbors.new(post: Post.find(id), tags: "rfq order:id_desc", user: viewer)
-          assert_equal ordered[(i + 1)..].first(PostNeighbors::DEPTH), nav.run(:next)[:ids], "#{who}: next of ##{id}"
-          assert_equal ordered[0...i].reverse.first(PostNeighbors::DEPTH), nav.run(:prev)[:ids], "#{who}: prev of ##{id}"
+      sqls = statements do
+        walkers.each do |who, viewer|
+          ordered = orderings[who]
+          ordered.each_with_index do |id, i|
+            CreatorVisibility.forget!
+            nav = PostNeighbors.new(post: Post.find(id), tags: "rfq order:id_desc", user: viewer)
+            assert_equal ordered[(i + 1)..].first(PostNeighbors::DEPTH), nav.run(:next)[:ids], "#{who}: next of ##{id}"
+            assert_equal ordered[0...i].reverse.first(PostNeighbors::DEPTH), nav.run(:prev)[:ids], "#{who}: prev of ##{id}"
+          end
         end
       end
+      assert_empty sqls.grep(HIDDEN_IDS)
     end
 
     should "build a payload without the hidden-id pluck or any statement over 20 KB" do
-      sqls = []
-      CreatorPrefixes.expects(:hidden_post_ids_for).never
-      sub = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| sqls << payload[:sql] unless payload[:name] == "SCHEMA" }
       CreatorVisibility.forget!
-      payload = as(@member) { ModulationPostComponent.new(post: @plain, viewer: @member, query: "rfq").payload }
-      ActiveSupport::Notifications.unsubscribe(sub)
+      payload = nil
+      sqls = statements { payload = as(@member) { ModulationPostComponent.new(post: @plain, viewer: @member, query: "rfq").payload } }
 
       listed = payload[:presets].flat_map { (it[:prev_candidates] + it[:next_candidates]).pluck(:id) }
       assert_includes listed, @plain_b.id, "fixture: the flanks were built"
       [@hidden, @gated, @banished].each { assert_not_includes listed, it.id }
+      assert_empty sqls.grep(HIDDEN_IDS)
       assert_operator sqls.map(&:bytesize).max, :<, 20_000
     end
   end

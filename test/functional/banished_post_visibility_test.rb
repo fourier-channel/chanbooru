@@ -191,6 +191,27 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
         assert_equal 0, PostSets::Post.new("gore", 1, 20, user: @admin).post_count
       end
 
+      # The sidebar's similar tags sample the search as typed (upstream
+      # RelatedTagCalculator, cached across viewers by the query string), so
+      # it would list what a withheld post carries. Until 2026-10-24 an
+      # admin's one-tag search never reached it: -troll_jail was a term on
+      # every search, so it was never a simple tag. The banished names are
+      # now the row filter, which no shape check sees (PostSets::Post#similar_tags).
+      should "not be shown in the sidebar what a withheld post carries" do
+        released = as(@uploader) { create(:post, tag_string: "landscape gore mountain_lake", source: BOARD, uploader: @uploader, md5: SecureRandom.hex(16)) }
+        as(@uploader) do
+          released.update!(is_deleted: false)
+          released.update!(tag_string: "landscape gore mountain_lake")
+        end
+        assert_not released.reload.is_deleted?, "fixture: live, still banished-tagged"
+
+        names = PostSets::Post.new("landscape", 1, 20, user: @admin).sidebar_tags.map(&:name)
+
+        assert_includes names, "landscape"
+        assert_not_includes names, "mountain_lake"
+        assert_not_includes names, JAIL
+      end
+
       should "not find them searching status:deleted, while ordinary deletions still show" do
         ids = search_ids(@admin, "status:deleted")
 

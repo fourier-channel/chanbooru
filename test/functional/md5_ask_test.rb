@@ -11,9 +11,10 @@ require "test_helper"
 # and every non-admin the ask ran the whole gallery path: the pluck of every
 # aichan_ post id (~69,600, 0.4 s), a ~530 KB id literal compiled into the
 # statement, and an exact COUNT keyed on the md5 batch, so never cached --
-# 0.52-1.08 s an ask around a 15 ms SELECT. The ask is now built with the
-# row filter the post view's neighbours use (PostQuery row_filter:) and
-# counts nothing, as a gallery window chunk does (PostSets::Post#md5_ask?).
+# 0.52-1.08 s an ask around a 15 ms SELECT. The ask now counts nothing, as
+# a gallery window chunk does (PostSets::Post#md5_ask?), and carries the
+# hidden tags as one row filter, as every search does since 2026-10-24
+# (PostQuery#hidden_tags_condition); the id list is gone.
 #
 # The parity guard below is the half that matters: a mistake there serves
 # aichan_ or jailed media to non-admins. Its table was asserted against the
@@ -112,9 +113,13 @@ class Md5AskTest < ActionDispatch::IntegrationTest
   end
 
   # The post counts among `sqls`: the exact COUNT the old path ran, keyed on
-  # the md5 batch and so never cached. Not CreatorTagRelease.released_names's
-  # stamp, a COUNT of that small table which either path reads.
+  # the md5 batch and so never cached.
   def post_counts(sqls) = sqls.grep(/SELECT COUNT\(.*\) FROM "posts"/i)
+
+  # The pluck of every post under a hidden creator prefix that a search ran
+  # until 2026-10-24, before it carried the row filter: 220 ms warm, 2.6 s
+  # cold on the dev DB, a request.
+  def prefix_plucks(sqls) = sqls.grep(/\ASELECT "posts"\."id" FROM "posts" WHERE string_to_array\(posts\.tag_string, ' '\) && ARRAY\[/)
 
   # A failed ask's body names what raised (an unexpected call to a method
   # the test forbade answers 500).
@@ -171,13 +176,11 @@ class Md5AskTest < ActionDispatch::IntegrationTest
     @was = ENV.fetch("FOURIER_CREATOR_PREFIXES", nil)
     ENV["FOURIER_CREATOR_PREFIXES"] = @path
     CreatorPrefixes.reset!
-    CreatorTagRelease.reset_cache!
   end
 
   teardown do
     ENV["FOURIER_CREATOR_PREFIXES"] = @was
     CreatorPrefixes.reset!
-    CreatorTagRelease.reset_cache!
     FileUtils.rm_rf(@dir)
   end
 
@@ -206,9 +209,9 @@ class Md5AskTest < ActionDispatch::IntegrationTest
         should "not pluck the hidden creator-prefix post ids, asked by #{who}" do
           user = name && instance_variable_get("@#{name}")
           login_as(user)
-          CreatorPrefixes.expects(:hidden_post_ids_for).never
-          ask(user, [@a, @b], format: format)
+          sqls = statements { ask(user, [@a, @b], format: format) }
           assert_answered(who)
+          assert_empty prefix_plucks(sqls)
         end
       end
 
@@ -242,10 +245,10 @@ class Md5AskTest < ActionDispatch::IntegrationTest
       end
 
       should "not pluck the hidden ids, count, or inline a list, building the newest page" do
-        CreatorPrefixes.expects(:hidden_post_ids_for).never
         sqls = statements { ask(nil, [@a, @b]) }
         assert_answered("anonymous")
         assert_equal [@b.md5, @a.md5], response.parsed_body.pluck("md5")
+        assert_empty prefix_plucks(sqls)
         assert_empty post_counts(sqls)
         assert_empty sqls.select { |sql| sql.include?("unnest('{") }
       end
@@ -271,12 +274,62 @@ class Md5AskTest < ActionDispatch::IntegrationTest
         end
 
         should "not pluck the hidden ids, count, or inline a list" do
-          CreatorPrefixes.expects(:hidden_post_ids_for).never
           sqls = statements { ask(nil, [@a, @b]) }
           assert_answered("anonymous")
           assert_equal [@b.md5, @a.md5], response.parsed_body.pluck("md5")
+          assert_empty prefix_plucks(sqls)
           assert_empty post_counts(sqls)
           assert_empty sqls.select { |sql| sql.include?("unnest('{") }
+        end
+      end
+    end
+
+    # EVERY OTHER IMPLICIT SEARCH paid what the md5 ask paid until 2026-10-24:
+    # the pluck, on every request (220 ms warm, 2.6 s cold on the dev DB's
+    # 1.21M posts), then the literal in each statement -- production's
+    # signed-out /posts.json?limit=1 took 0.70-1.21 s warm, mostly those two.
+    # Each now carries the hidden tags as one row filter
+    # (PostQuery#hidden_tags_condition). A search that counts is asked one
+    # the estimates do not cover, so the exact count runs.
+    context "every other implicit search" do
+      setup do
+        as(@tunnel) { create(:post, uploader: @tunnel, md5: real_md5, tag_string: "artist:md5cost_artist landscape") }
+        @artist = as(@tunnel) { create(:artist, name: "md5cost_artist") }
+        @wiki = as(@tunnel) { create(:wiki_page, title: "landscape") }
+        ModulationSetting.record!(@member, nil, { "gallery_sort" => "score" })
+        CreatorVisibility.forget!
+      end
+
+      count_tags = "landscape -4chan_bob"
+      {
+        "the gallery, signed out" => lambda {
+          reset!
+          get posts_path
+        },
+        "the API's limit=1, signed out" => lambda {
+          reset!
+          get posts_path(format: :json), params: { limit: 1 }
+        },
+        "the gallery, as a member" => -> { get_auth posts_path, @member },
+        "the API's limit=1, as a member" => -> { get_auth posts_path(format: :json), @member, params: { limit: 1 } },
+        "a member's tag page under a remembered sort" => -> { get_auth posts_path, @member, params: { preset: "modulation", tags: "landscape" } },
+        "a window chunk" => -> { get_auth posts_path, @member, params: { preset: "modulation", variant: "window", tags: "landscape order:score" } },
+        "the front page's pulse" => -> { [User.anonymous, @member].each { |viewer| ArchivePulse.new(viewer: viewer).then { [it.newest_at, it.cadence] } } },
+        "an artist's post strip" => -> { get_auth artist_path(@artist), @member },
+        "a wiki page's post strip" => -> { get_auth wiki_page_path(@wiki), @member },
+        "/counts/posts" => -> { get_auth posts_counts_path(format: :json), @member, params: { tags: count_tags } },
+        "the Discord count" => -> { DiscordSlashCommand::CountCommand.new(data: { data: { options: [{ name: "tags", value: count_tags }] }}).call },
+      }.each do |surface, run|
+        should "carry no hidden-post pluck or id list, and no statement over 20 KB: #{surface}" do
+          sqls = statements { instance_exec(&run) }
+          assert_response :success unless surface.in?(["the front page's pulse", "the Discord count"])
+          assert_not_empty sqls.grep(/FROM "posts"/), "fixture: #{surface} searched the posts"
+          assert_empty prefix_plucks(sqls).map { |sql| sql[0, 160] }, "plucked the hidden posts"
+          # A long post-id list: the one-literal form past
+          # Searchable::LONG_IN_LIST, or a plain NOT IN of over 1,000 ids. The
+          # small per-viewer lists (a creator's panel, the quarantine) stay ids.
+          assert_empty sqls.select { |sql| sql.include?("unnest('{") || sql[/"posts"\."id" NOT IN \(([^)]*)\)/, 1].to_s.count(",") >= 1_000 }.map { |sql| sql[0, 160] }, "inlined an id list"
+          assert_empty sqls.select { |sql| sql.include?('FROM "posts"') && sql.bytesize >= 20_000 }.map { |sql| "#{sql.bytesize} B: #{sql[0, 120]}" }
         end
       end
     end
@@ -367,7 +420,6 @@ class Md5AskTest < ActionDispatch::IntegrationTest
       # answer below is the search, not the shown set.
       MembersOnly.remember_shown_to_anonymous(@posts.except(:old).values.map(&:id), safe_mode: false)
       @posts.each_value(&:reload)
-      CreatorTagRelease.reset_cache!
       CreatorVisibility.forget!
 
       assert @posts[:jailed].is_deleted? && @posts[:jailed].has_tag?(JAIL), "fixture: jailed"
@@ -403,10 +455,47 @@ class Md5AskTest < ActionDispatch::IntegrationTest
       end
     end
 
+    # Every search carries the hidden tags as the ask's own row filter since
+    # 2026-10-24, where it carried the id list: the gallery's searches, held
+    # to the same table. Signed out is unguarded here: the guarded door
+    # answers a listing nothing (post_listings_members_only?). A random draw
+    # is held only to what it may not show. The fillers are deleted: a page
+    # below Gold is capped short of 200 rows, and they are the newest.
+    should "hold every search to the table, for every viewer" do
+      Post.where(id: @fillers.map(&:id)).update_all(is_deleted: true) # rubocop:disable Rails/SkipsModelValidations
+      name_of = @posts.to_h { |name, post| [post.id, name] }
+      searches = ["landscape", "", "landscape order:score", "landscape order:id", "id:#{name_of.keys.join(",")}", "landscape order:random"]
+      wrong = (VIEWERS - [:anonymous]).product(searches).to_h do |viewer, tags|
+        Rails.cache.clear
+        CreatorVisibility.forget!
+        params = { tags: tags, only: "id", limit: 200 }
+        case viewer
+        when :anonymous_unguarded
+          reset!
+          get posts_path(format: :json), params: params
+        when :member_in_room then get_auth posts_path(format: :json), @member, params: params, headers: in_room
+        else get_auth posts_path(format: :json), instance_variable_get("@#{viewer}"), params: params
+        end
+        assert_answered(viewer)
+        got = response.parsed_body.pluck("id").filter_map { |id| name_of[id] }
+        want = EXPECTED.select { |_name, viewers| viewers.include?(viewer) }.keys
+        [[viewer, tags], { leaked: got - want, missing: tags.include?("random") ? [] : want - got }]
+      end
+      assert_empty wrong.reject { |_key, diff| diff.values.all?(&:empty?) }, "these searches answered these viewers wrongly"
+    end
+
+    # A bulk retag is not a viewer (Post.bulk_tag_match): it reaches the
+    # posts every search hides, the row filter included.
+    should "leave a bulk retag every post its query matches" do
+      [User.anonymous, @member, @admin].each do |user|
+        assert_empty @posts.values.map(&:id) - Post.bulk_tag_match("landscape", user).pluck(:id), user.name
+      end
+    end
+
     # The newest page a signed-out md5 ask is held to
-    # (MembersOnly.anonymous_newest_ids) is built with the row filter; the
-    # gallery's first page, which it stands for, is still built with the id
-    # list. The same posts, in both modes, with every class among the newest:
+    # (MembersOnly.anonymous_newest_ids) stands for the gallery's first page,
+    # but is built apart from it, uncounted. The same posts, in both safe
+    # modes, with every class among the newest:
     # the fillers deleted, and every class but :imageboard rated g so safe
     # mode has its own page to build.
     should "build the signed-out newest page as the gallery's first page shows it" do
