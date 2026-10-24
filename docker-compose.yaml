@@ -237,8 +237,11 @@ services:
   redis:
     image: redis:6.2.24
 
+  # Fork: stock postgres, not upstream's ghcr.io/danbooru/postgres:16.1 (stock 16.1
+  # plus pgbackrest, which nothing here uses; backups are pg_dump). 16.15 opened
+  # production's 16.1 data directory unchanged in a rehearsal on its dump.
   postgres:
-    image: ghcr.io/danbooru/postgres:16.1
+    image: postgres:16.15-bookworm@sha256:d81f7b51697014367236d07ec58b54153fc28f828b72bf247fe5c7487520bcb0
     shm_size: 1gb
     environment:
       POSTGRES_USER: danbooru

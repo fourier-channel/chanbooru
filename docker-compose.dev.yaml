@@ -175,7 +175,7 @@ services:
     image: redis:6.2.24
 
   postgres:
-    image: ghcr.io/danbooru/postgres:16.1
+    image: postgres:16.15-bookworm@sha256:d81f7b51697014367236d07ec58b54153fc28f828b72bf247fe5c7487520bcb0
     shm_size: 1gb
     environment:
       POSTGRES_USER: danbooru
