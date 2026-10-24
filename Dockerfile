@@ -255,17 +255,41 @@ EOS
 
 
 # Build OpenResty. Output is in /usr/local.
+#
+# Fork: its bundled nginx 1.29.2 is patched with the nginx security fixes no
+# OpenResty release carries. Its newest tarballs, 1.29.2.5 and 1.31.1.1 (nginx
+# 1.31.1), have none of what nginx shipped in 1.30.3 to 1.30.6; 1.31.7.1 and
+# later exist only on its master branch, with no tarball. One upstream commit
+# per file in config/openresty-patches, applied in name order before
+# ./configure; each file is headed with its commit, its URL and any backport
+# note. nginx/: CVE-2026-42055, -48142, -42533 (five parts and a follow-up),
+# -93479, -60005, -56434, -15176, -97629, -97205. ngx_devel_kit/: the NDK side
+# of -42533, which emits the new complex-value end code so an NDK set-var after
+# a value with variables gets a valid stack entry. Not patched because the code
+# is not built (no --with-http_v3_module below): CVE-2026-95101 and
+# CVE-2026-90439, both HTTP/3. CVE-2026-42530 is 1.31.0-1.31.1 only. The
+# scanner matches nginx by the version string, so it still reports 1.29.2 for
+# every one of these. Fixes with no CVE are not carried; of 1.30.4-1.30.6's
+# security-relevant ones, the chunked-parser overflow is in code newer than
+# 1.29.2, the complex-value bounds check reads only this image's own config,
+# and the HTTP/2 proxying one needs an HTTP/2 listener, which nginx.conf has
+# none of. The patch directory is in RUNTIME_FILES, so changing it rebuilds.
+# A failed hunk, or a patch already present, fails the build. When an OpenResty
+# release bundling nginx >= 1.30.6 (or >= 1.31.7) is past the cooldown, bump
+# OPENRESTY_VERSION and its sha256, and delete config/openresty-patches, the
+# COPY below, the patch loops and "patch" from the build deps.
 FROM build-base AS build-openresty
 ARG JOBS
 ARG OPENRESTY_VERSION
 ARG OPENRESTY_SHA256
-ARG OPENRESTY_BUILD_DEPS="libssl-dev libpcre2-dev zlib1g-dev"
+ARG OPENRESTY_BUILD_DEPS="patch libssl-dev libpcre2-dev zlib1g-dev"
 ARG OPENRESTY_BUILD_OPTIONS="\
  --with-threads --with-compat --with-pcre-jit --with-file-aio \
  --with-http_gunzip_module --with-http_gzip_static_module \
  --with-http_realip_module --with-http_ssl_module \
  --with-http_stub_status_module --with-http_v2_module \
 "
+COPY --link config/openresty-patches/ /tmp/openresty-patches/
 
 RUN <<EOS
   apt-get install -y --no-install-recommends $OPENRESTY_BUILD_DEPS
@@ -273,6 +297,13 @@ RUN <<EOS
   echo "$OPENRESTY_SHA256  /tmp/openresty.tar.gz" | sha256sum -c -
   tar --strip-components=1 -xzvf /tmp/openresty.tar.gz
   rm /tmp/openresty.tar.gz
+
+  for patch in /tmp/openresty-patches/nginx/*.patch; do
+    patch -d bundle/nginx-${OPENRESTY_VERSION%.*} -p1 --forward --batch --fuzz=0 --no-backup-if-mismatch < "$patch"
+  done
+  for patch in /tmp/openresty-patches/ngx_devel_kit/*.patch; do
+    patch -d bundle/ngx_devel_kit-* -p1 --forward --batch --fuzz=0 --no-backup-if-mismatch < "$patch"
+  done
 
   ./configure -j$JOBS --prefix=/usr/local $OPENRESTY_BUILD_OPTIONS
   make -j$JOBS install

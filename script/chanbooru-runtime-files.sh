@@ -7,4 +7,4 @@
 # Kept to what changes the image's CONTENTS: the build script and the builder's
 # config change how it is built, not what it holds.
 # shellcheck disable=SC2034
-RUNTIME_FILES=(Dockerfile Gemfile Gemfile.lock lib/dtext_rb .ruby-version)
+RUNTIME_FILES=(Dockerfile Gemfile Gemfile.lock lib/dtext_rb .ruby-version config/openresty-patches)
