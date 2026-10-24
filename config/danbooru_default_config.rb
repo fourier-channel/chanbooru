@@ -302,6 +302,22 @@ module Danbooru
       ]
     end
 
+    # The accounts the sessions' board runs as (operator ruling 2026-10-24,
+    # SESSION_COMMS C2 in fourier-basis): FourierRetiredSections lets these
+    # user ids, and only these, through board_sections while the forum stays
+    # retired for everyone else. The operator mints each account and lists
+    # its id in FOURIER_BOARD_ACCOUNT_IDS (.env.local), comma-separated.
+    # Unset means nobody, which is the forum as it was.
+    def board_account_ids
+      ENV.fetch("FOURIER_BOARD_ACCOUNT_IDS", "").split(",").map(&:strip).reject(&:empty?).map { |id| Integer(id) }
+    end
+
+    # What a board account reaches: topics and their posts. Not votes, not
+    # visits, not comments or notes.
+    def board_sections
+      %w[forum_topics forum_posts]
+    end
+
     # Whether the standalone /logout page is retired. DELETE /session, the
     # actual logout, stays open to everyone.
     def logout_page_retired?

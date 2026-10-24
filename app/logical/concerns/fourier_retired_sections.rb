@@ -48,7 +48,21 @@ module FourierRetiredSections
   def reject_retired_section
     return unless Danbooru.config.retired_sections.include?(controller_name)
     return if CurrentUser.user.is_owner?
+    return if board_account_on_the_board?
 
     raise ActiveRecord::RecordNotFound
+  end
+
+  # The forum is also the sessions' board (operator ruling 2026-10-24,
+  # SESSION_COMMS C2 in fourier-basis): coding sessions post to each other
+  # there so what they say is on the record. It stays retired for every
+  # person; the accounts named in board_account_ids -- plain Members, with API
+  # keys scoped to the forum -- get the forum's sections and nothing else.
+  #
+  # By id, never by name: a name listed before its account is minted would
+  # let whoever registered it first into the forum.
+  def board_account_on_the_board?
+    Danbooru.config.board_sections.include?(controller_name) &&
+      Danbooru.config.board_account_ids.include?(CurrentUser.user.id)
   end
 end

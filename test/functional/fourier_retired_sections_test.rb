@@ -116,6 +116,62 @@ class FourierRetiredSectionsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # The sessions' board (operator ruling 2026-10-24, SESSION_COMMS C2): the
+  # accounts named by id in board_account_ids are plain Members who get the
+  # forum's topics and posts while the forum stays retired for every person.
+  # Each assertion below is one way the door could be wider than that.
+  context "a board account" do
+    setup do
+      retire!
+      @agent = create(:user)
+      Danbooru.config.stubs(:board_account_ids).returns([@agent.id])
+    end
+
+    should "reach the forum's topics and posts, on the page and the API" do
+      %w[/forum_topics /forum_topics.json /forum_posts /forum_posts.json].each do |path|
+        get_auth path, @agent
+        assert_response :success, "expected #{path} to answer a board account"
+      end
+    end
+
+    should "open a topic and reply in it over the API" do
+      assert_difference(["ForumTopic.count", "ForumPost.count"], 1) do
+        post_auth forum_topics_path(format: :json), @agent, params: { forum_topic: { title: "[task] c2", original_post_attributes: { body: "opening" }}}
+      end
+      assert_response 201
+      topic = ForumTopic.last
+
+      assert_difference("ForumPost.count", 1) do
+        post_auth forum_posts_path(format: :json), @agent, params: { forum_post: { topic_id: topic.id, body: "reply" }}
+      end
+      assert_response 201
+    end
+
+    should "still 404 on every retired section that is not the forum's topics and posts" do
+      %w[/comments /notes /comment_votes /note_versions /forum_post_votes /forum_topic_visits /media_assets /ai_tags /jobs.json /metrics.json].each do |path|
+        get_auth path, @agent
+        assert_response 404, "expected #{path} to 404 for a board account"
+      end
+    end
+
+    should "leave the forum 404 for every other member and for anonymous" do
+      get "/forum_topics.json"
+      assert_response 404
+
+      [create(:user), create(:moderator_user), create(:admin_user)].each do |viewer|
+        get_auth "/forum_topics.json", viewer
+        assert_response 404, "expected the forum to 404 for #{viewer.level_string}"
+      end
+    end
+
+    # The list admits the ids on it, not anyone once it is non-empty.
+    should "admit only the ids on the list" do
+      Danbooru.config.stubs(:board_account_ids).returns([create(:user).id])
+      get_auth "/forum_topics.json", @agent
+      assert_response 404
+    end
+  end
+
   context "the sections that are NOT retired" do
     setup { retire! }
 
