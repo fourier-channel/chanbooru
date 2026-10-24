@@ -321,7 +321,7 @@ services:
     # Fork: upstream's image rebuilt with its fixes (docker/archives), made on
     # the workstation and loaded here by bin/chanbooru-image; never pulled, so a
     # box that was not sent it refuses the deploy.
-    image: chanbooru-archives:5335bdcc8ec5
+    image: chanbooru-archives:8d3f531b9900
     pull_policy: never
     environment:
       <<: *sqs-env

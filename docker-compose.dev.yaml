@@ -249,7 +249,7 @@ services:
         condition: service_healthy
     # Fork: the image production runs (docker/archives); never pulled. Make it
     # with bin/chanbooru-image archives build.
-    image: chanbooru-archives:5335bdcc8ec5
+    image: chanbooru-archives:8d3f531b9900
     pull_policy: never
     environment:
       <<: *sqs-env
