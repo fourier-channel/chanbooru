@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# The images chanbooru derives from upstream ones: built on the workstation from
+# docker/<name>/ at a commit, scanned, smoke-run, and promoted to the serving
+# box. The serving box never builds these and never pulls them.
+#
+# Usage, from the chanbooru checkout:
+#   bin/chanbooru-image <name> build            build, scan and smoke-run
+#   bin/chanbooru-image <name> promote <ssh>    the same, then load it on <ssh>
+#   bin/chanbooru-image check                   every one compose names is here
+# The first two on the workstation, then deploy as usual: compose already names
+# the image. bin/chanbooru-deploy runs the check before it builds anything.
+#
+# WHY. Upstream's archives and elasticmq images went unrebuilt for months and
+# carried fixable criticals (vulnerability scan of 2026-10-24). Fixing them
+# means building on top of them, and building on the serving box would give it
+# new egress (snapshot.debian.org, rubygems.org, the Alpine mirror) and make a
+# production box a build machine. D-246054: the box runs promoted artifacts.
+#
+# THE TAG IS THE DIRECTORY. An image is tagged with the git tree hash of
+# docker/<name> at HEAD, and docker-compose.yaml names exactly that tag, with
+# pull_policy: never (test/unit/chanbooru_promoted_images_test.rb). So a commit
+# that changes the directory and not the compose file is refused here, and a box
+# that was never sent the image refuses the deploy instead of starting whatever
+# else answers to the name.
+set -uo pipefail
+
+GRYPE="anchore/grype:v0.120.1"
+
+fail() { echo "FAIL: $1" >&2; echo "fix:  $2" >&2; exit 1; }
+step() { echo; echo "== $*"; }
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || fail "not in a git checkout" "run this from the chanbooru checkout"
+cd "$ROOT" || fail "cannot enter $ROOT" "check the checkout's permissions"
+
+# The image docker/$1 at HEAD makes, refused unless compose at HEAD names it.
+image_of() {
+  local tag named
+  tag="$(git rev-parse "HEAD:docker/$1" | cut -c1-12)"
+  named="$(git show HEAD:docker-compose.yaml | sed -n "s/^ *image: chanbooru-$1:\([^ ]*\) *$/\1/p" | sort -u)"
+  [[ "$named" == "$tag" ]] || fail "docker-compose.yaml at HEAD names chanbooru-$1:${named:-<nothing>}, but docker/$1 at HEAD is $tag" "set the service's image to chanbooru-$1:$tag in docker-compose.yaml and commit it with docker/$1"
+  echo "chanbooru-$1:$tag"
+}
+
+if [[ "${1:-}" == check ]]; then
+  for name in $(git ls-tree -d --name-only HEAD docker/ | sed 's|^docker/||'); do
+    image="$(image_of "$name")" || exit 1
+    docker image inspect "$image" >/dev/null 2>&1 \
+      || fail "$image is not on this box. Compose names it with pull_policy: never; it is built on the workstation, never here" "on the workstation, at this commit: bin/chanbooru-image $name promote <this box>"
+    echo "   $image present"
+  done
+  exit 0
+fi
+
+NAME="${1:-}"; ACTION="${2:-}"; DEST="${3:-}"
+DIR="docker/$NAME"
+[[ -n "$NAME" ]] && git cat-file -e "HEAD:$DIR/Dockerfile" 2>/dev/null \
+  || fail "no image named '${NAME}': HEAD has no $DIR/Dockerfile" "name one of: $(git ls-tree -d --name-only HEAD docker/ | sed 's|^docker/||' | tr '\n' ' ')"
+case "$ACTION" in
+  build) ;;
+  promote) [[ -n "$DEST" ]] || fail "promote needs the serving box as an ssh destination" "bin/chanbooru-image $NAME promote <ssh destination>" ;;
+  *) fail "unknown action '${ACTION}'" "bin/chanbooru-image $NAME build, or bin/chanbooru-image $NAME promote <ssh destination>" ;;
+esac
+
+# What is built is the commit, so the directory must be exactly the commit's.
+[[ -z "$(git status --porcelain -- "$DIR")" ]] || fail "$DIR differs from HEAD; the image is built from the commit, so these changes would not be in it" "commit $DIR first"
+IMAGE="$(image_of "$NAME")" || exit 1
+
+step "building $IMAGE from $DIR at $(git rev-parse --short=12 HEAD)"
+git archive HEAD:"$DIR" | docker build --quiet --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" -t "$IMAGE" - \
+  || fail "the build of $IMAGE failed (see above)" "fix $DIR/Dockerfile; nothing was promoted"
+
+# No critical with a fix may ship. The vulnerability database is cached in a
+# volume and refreshed by grype itself when it is stale.
+step "scanning $IMAGE with $GRYPE"
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro -v chanbooru-grype-db:/db -e GRYPE_DB_CACHE_DIR=/db \
+  "$GRYPE" "docker:$IMAGE" --only-fixed --fail-on critical -q -o table \
+  || fail "$IMAGE carries a critical that has a fix (table above), or the scan did not run" "move the base or the pins in $DIR so the fix is in; nothing was promoted"
+
+step "smoke-running $IMAGE"
+bash "$DIR/smoke.sh" "$IMAGE" || fail "$IMAGE failed its smoke run (see above)" "fix $DIR; nothing was promoted"
+
+[[ "$ACTION" == promote ]] || { echo; echo "built $IMAGE -- not promoted"; exit 0; }
+
+# The two boxes may store images differently (the classic store's ID is the
+# config digest, containerd's the manifest's), so the proof that the box has
+# THIS image is its layers, which both stores report alike.
+LAYERS='{{range .RootFS.Layers}}{{println .}}{{end}}'
+step "promoting $IMAGE to $DEST"
+docker save "$IMAGE" | ssh "$DEST" sudo -n docker load \
+  || fail "loading $IMAGE on $DEST failed (see above)" "check ssh and sudo to $DEST, then run this again"
+THERE="$(ssh "$DEST" sudo -n docker image inspect "$IMAGE" --format "'$LAYERS'" </dev/null)"
+[[ -n "$THERE" && "$THERE" == "$(docker image inspect "$IMAGE" --format "$LAYERS")" ]] \
+  || fail "$DEST has no $IMAGE with the layers built here" "run this again; if it persists, remove $IMAGE on $DEST and promote again"
+echo
+echo "promoted $IMAGE to $DEST -- deploy to start it"

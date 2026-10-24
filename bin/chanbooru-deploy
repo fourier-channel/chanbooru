@@ -211,6 +211,15 @@ step "checking image storage"
 [[ -x bin/chanbooru-storage ]] || die "bin/chanbooru-storage is missing from this checkout, so the image directory cannot be checked."
 bin/chanbooru-storage check || die "the image directory is not the installed one (see FAIL and fix above). Nothing was built or restarted."
 
+# --- 1c. promoted images ------------------------------------------------
+# The chanbooru-* images compose names (archives, elasticmq) are built on the
+# workstation from docker/<name> and loaded here by bin/chanbooru-image; compose
+# never pulls them. Checked before the build, so a box that was never sent the
+# commit's image refuses in seconds, and before anything is restarted.
+step "checking promoted images"
+[[ -x bin/chanbooru-image ]] || die "bin/chanbooru-image is missing from this checkout, so the promoted images cannot be checked."
+bin/chanbooru-image check || die "an image this commit names is not on this box (see FAIL and fix above). Nothing was built or restarted."
+
 TARGET="$(git rev-parse HEAD)"
 [[ -x bin/chanbooru-release ]] || die "bin/chanbooru-release is missing from this checkout, so no release can be installed."
 
