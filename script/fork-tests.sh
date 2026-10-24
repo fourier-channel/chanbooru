@@ -16,8 +16,11 @@
 # is relative to the merge base, so upstream advancing does not change it, and
 # it picks up upstream tests we MODIFIED as well as ones we added.
 #
-# The full suite still matters before a deploy or an upstream merge. It is just
-# not the commit gate.
+# THE DEPLOY GATE (operator ruling 2026-10-24). By then this was 3,173 tests
+# and 38 minutes, too long to run before every commit, so a commit runs
+# script/change-tests.sh -- what the change touches -- and this runs before a
+# deploy (`coherence gate --deploy`). The full upstream suite still matters
+# before an upstream merge.
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -62,34 +65,7 @@ echo
 # --list: the derivation, without the run.
 [ "${1:-}" = "--list" ] && exit 0
 
-# THE DEV IMAGE MUST HAVE HEAD'S RUNTIME. The tests run in the dev image while
-# production runs an image built from HEAD's Dockerfile and gems, so a dev
-# image built from another runtime tests code against the wrong Ruby, vips or
-# gems -- on 2026-10-04 vesper's was four weeks old. Said loudly here, with the
-# rebuild, rather than discovered after a deploy.
-# shellcheck source=script/chanbooru-runtime-files.sh
-source script/chanbooru-runtime-files.sh
-DEV_IMAGE="${DANBOORU_DEV_IMAGE:-$(sed -n 's/^DANBOORU_DEV_IMAGE=//p' .env)}"
-DEV_REV="$(docker image inspect "$DEV_IMAGE" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | sed -n 's/^DOCKER_IMAGE_REVISION=//p')"
-if [[ -z "$DEV_REV" ]] || ! git cat-file -e "$DEV_REV^{commit}" 2>/dev/null; then
-  echo "WARNING: the dev image $DEV_IMAGE names no revision this checkout knows, so its runtime cannot be compared with HEAD's."
-  echo "fix:     TARGETS=development bin/build-docker-image danbooru, then bin/dev up -d"
-  echo
-elif STALE="$(git diff --name-only "$DEV_REV" HEAD -- "${RUNTIME_FILES[@]}")" && [[ -n "$STALE" ]]; then
-  echo "WARNING: the dev image $DEV_IMAGE was built from ${DEV_REV:0:12}; HEAD has changed its runtime since:"
-  sed 's/^/           /' <<< "$STALE"
-  echo "         These tests run against the old runtime, not the one production will run."
-  echo "fix:     TARGETS=development bin/build-docker-image danbooru, then bin/dev up -d"
-  echo
-fi
-
-# WORKERS=2 for a light run. vesper is the operator's workstation, and a run
-# at every core made it unusable (2026-10-04). `nice` on this script does not
-# reach the tests -- they run inside the container -- so the light run lowers
-# their priority there too.
-WORKERS="${WORKERS:-$(nproc --ignore=1)}"
-LIGHT=()
-[ -n "${LIGHT_RUN:-}" ] && LIGHT=(nice -n 19)
-exec docker compose -f docker-compose.dev.yaml exec -T \
-  -e RAILS_ENV=test -e PARALLEL_WORKERS="$WORKERS" \
-  danbooru "${LIGHT[@]}" bin/rails test "${EXISTING[@]}"
+# The run, its dev-image check and its timing are script/run-tests.sh's,
+# shared with the commit gate. Every full run writes each test class's time,
+# so the next budget is set from a measurement.
+TEST_TIMING="${TEST_TIMING:-${XDG_STATE_HOME:-$HOME/.local/state}/chanbooru/fork-test-timing.tsv}" exec bash script/run-tests.sh "${EXISTING[@]}"

@@ -11,26 +11,45 @@
 #           rule 6), quoted back in a derived-facts denial.
 #   exclude paths held out of the confusable check: vendored or upstream
 #           content that is not ours to normalize.
+#   timeout the class B budget in seconds (default 1800). A run past it is
+#           stopped and FAILS; each run prints its time against it.
+#   deploy_gate     optional: the whole suite, where `gate` is narrowed to
+#                   what a change touches. `coherence gate --deploy` runs it in
+#                   place of `gate`, before a deploy.
+#   deploy_timeout  its budget in seconds (default 1800).
 
 # The toolchain is not on the host and never was: Ruby 4.0.6 and Rails 8.1.3.1
 # live in the devbooru stack (`docker-compose.dev.yaml`, project name devbooru,
 # `bin/dev` is the shortcut).
 #
-# SCOPED TO THE TESTS THIS FORK OWNS. The full suite is 6,368 tests and 32
-# minutes and CANNOT be green here: measured 2026-08-30 it returned 115
-# failures, 20 errors and 475 skips, of which 127 were upstream source-extractor
-# tests fetching live third-party sites. Zero were in fork-owned tests. A gate
-# that is always red gets ignored, which costs the same as no gate plus half an
-# hour of the machine.
+# TWO TIERS (operator ruling 2026-10-24). The tests this fork owns had grown
+# to 3,173 and 38m04s on vesper (measured 2026-10-24, one failure, since
+# fixed) -- too long to run before every commit. So:
 #
-# script/fork-tests.sh DERIVES the list from upstream/master...HEAD rather than
-# maintaining one, refuses to report a pass on an empty list, and leaves a core
-# free. 284 tests, 0 failures, 2m36s.
+#   gate         script/change-tests.sh: the tests the change touches, mapped
+#                from the files that differ from origin/chanbooru, plus a
+#                three-file smoke set. Minutes. A change to what every test
+#                stands on (runtime, schema, test helpers, base classes) is
+#                not narrowed: it runs the fork set.
+#   deploy_gate  script/fork-tests.sh: every test file the fork owns, derived
+#                from upstream/master...HEAD. Before a deploy,
+#                `coherence gate --deploy`. Each run writes per-file times to
+#                ~/.local/state/chanbooru/fork-test-timing.tsv.
 #
-# The full suite still matters before a deploy or an upstream merge. It is not
-# the commit gate.
-gate: bash script/fork-tests.sh
+# The accepted cost, in the operator's terms: the branch can go red between
+# deploys, and the deploy gate catches it before production does.
+#
+# Not the full upstream suite (6,368 tests): it cannot be green here --
+# measured 2026-08-30, 127 of its failures were upstream source-extractor
+# tests fetching live third-party sites, and none were in fork-owned tests.
+# It still matters before an upstream merge.
+gate: bash script/change-tests.sh
+deploy_gate: bash script/fork-tests.sh
 suite: bash script/fork-tests.sh
+# Both 60 minutes: the fork set took 38m04s, and a commit gate that cannot
+# be narrowed runs the fork set too.
+timeout: 3600
+deploy_timeout: 3600
 
 # Upstream Danbooru content: Japanese and Chinese test fixtures, a ZWJ inside
 # a flag emoji in a test asserting emoji normalization, and typographic

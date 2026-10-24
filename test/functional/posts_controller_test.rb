@@ -55,16 +55,19 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
           assert_select "a.paginator-next", count: 0
         end
 
-        should "work with page=b100000" do
-          get_auth posts_path(page: "b100000"), @user
+        # Fork: a cursor past the newest post, not upstream's fixed 100000.
+        # The per-worker test databases keep their id sequences between runs,
+        # and by 2026-10-24 two had passed 100000, so "a100000" found posts.
+        should "work with page=b<past the newest post>" do
+          get_auth posts_path(page: "b#{Post.maximum(:id) + 1}"), @user
           assert_response :success
           assert_select ".post-preview", count: 3
           assert_select "a.paginator-prev", count: 1
           assert_select "a.paginator-next", count: 0
         end
 
-        should "work with page=a100000" do
-          get_auth posts_path(page: "a100000"), @user
+        should "work with page=a<past the newest post>" do
+          get_auth posts_path(page: "a#{Post.maximum(:id) + 1}"), @user
           assert_response :success
           assert_select ".post-preview", count: 0
           assert_select "a.paginator-prev", count: 0
