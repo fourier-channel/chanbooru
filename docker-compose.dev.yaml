@@ -226,7 +226,10 @@ services:
     command: ["bin/shakapacker-dev-server"]
 
   sqs:
-    image: softwaremill/elasticmq-native
+    # Fork: the image production runs (docker/elasticmq); never pulled. Make it
+    # with bin/chanbooru-image elasticmq build.
+    image: chanbooru-elasticmq:fb66ab4ae00f
+    pull_policy: never
     expose:
     - 9324
     volumes:
@@ -237,8 +240,11 @@ services:
 
   archives-service:
     depends_on:
+      # restart: the queue lives in elasticmq's memory and this service creates
+      # it on start, so a recreated sqs needs this restarted after it.
       sqs:
         condition: service_started
+        restart: true
       postgres:
         condition: service_healthy
     # Fork: the image production runs (docker/archives); never pulled. Make it

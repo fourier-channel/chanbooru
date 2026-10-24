@@ -296,7 +296,11 @@ services:
   #   image: ghcr.io/danbooru/autotagger:latest
 
   sqs:
-    image: softwaremill/elasticmq-native
+    # Fork: upstream's elasticmq-native with the Alpine fixes it has not shipped
+    # (docker/elasticmq), made on the workstation and loaded here by
+    # bin/chanbooru-image; never pulled.
+    image: chanbooru-elasticmq:fb66ab4ae00f
+    pull_policy: never
     expose:
     - 9324
     volumes:
@@ -307,8 +311,11 @@ services:
 
   archives-service:
     depends_on:
+      # restart: the queue lives in elasticmq's memory and this service creates
+      # it on start, so a recreated sqs needs this restarted after it.
       sqs:
         condition: service_started
+        restart: true
       postgres:
         condition: service_healthy
     # Fork: upstream's image rebuilt with its fixes (docker/archives), made on
