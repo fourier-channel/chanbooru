@@ -16,6 +16,9 @@ class FourierExpungeMergedDuplicateScriptTest < ActiveSupport::TestCase
   # The storage manager's surface the script uses, over a set of present keys.
   class FakeStorage
     attr_reader :present, :deleted
+    # [stderr, exit status] lsjson answers for a key not present, instead of
+    # 1.60's empty "directory".
+    attr_accessor :lsjson_failure
 
     def initialize = (@present = Set.new) && (@deleted = [])
     def remote = "r2"
@@ -53,6 +56,9 @@ class FourierExpungeMergedDuplicateScriptTest < ActiveSupport::TestCase
         # key with no object behind it SUCCEEDS as an empty "directory".
         if storage.present.include?(target)
           ["{\"Path\":\"x\",\"Size\":7310,\"IsDir\":false}", "", Struct.new(:success?, :exitstatus).new(true, 0)]
+        elsif storage.lsjson_failure
+          err, code = storage.lsjson_failure
+          ["", err, Struct.new(:success?, :exitstatus).new(false, code)]
         else
           ["{\"Path\":\"\",\"Size\":-1,\"IsDir\":true}", "", Struct.new(:success?, :exitstatus).new(true, 0)]
         end
@@ -117,6 +123,28 @@ class FourierExpungeMergedDuplicateScriptTest < ActiveSupport::TestCase
     assert_match(/done: post ##{@retired.id} expunged, #{@before.size} object\(s\) deleted/, out)
     assert ModAction.where(category: "post_permanent_delete").last.description.include?("merged into post ##{@survivor.id}")
     assert Post.find(@survivor.id).present?
+  end
+
+  # Without a config file rclone opens EVERY answer with this notice, so the
+  # words "not found" on stderr say nothing about the object.
+  CONFIG_NOTICE = "NOTICE: Config file \"/home/danbooru/.config/rclone/rclone.conf\" not found - using defaults\n"
+
+  should "count a key as absent when rclone answers not found, as 1.75 does" do
+    @storage.lsjson_failure = ["#{CONFIG_NOTICE}NOTICE: Failed to lsjson: directory not found\n", 3]
+    status, out, = run_script(SCRIPT, "--", "--post", @retired.id.to_s, "--as", "boss")
+
+    assert_nil(status, out)
+    assert_match(%r{keyed/original/.*: absent}, out)
+    assert_match(%r{superseded/local_content/ab/cd/EFGHijklMNOP: present -- would delete}, out)
+  end
+
+  should "stop, naming rclone's reason, when it cannot say whether a key is there" do
+    @storage.lsjson_failure = ["#{CONFIG_NOTICE}ERROR : Attempt 1/3 failed with 1 errors and: AccessDenied: Access Denied\nNOTICE: Failed to lsjson: AccessDenied: Access Denied\n", 1]
+    error = assert_raises(RuntimeError) { run_script(SCRIPT, "--", "--post", @retired.id.to_s, "--as", "boss", "--apply") }
+
+    assert_match(/lsjson --stat .* failed: .*AccessDenied/m, error.message)
+    assert_no_match(/Config file/, error.message)
+    assert Post.exists?(@retired.id), "the record stays until every key has been answered"
   end
 
   should "refuse anything but a retired merge child, naming the fix" do

@@ -107,6 +107,11 @@ targets << [raw_key, ":#{sm.remote}:#{sm.bucket}/#{raw_key}"]
 # key with no object behind it, answering {"IsDir": true, "Size": -1} (it reads
 # the key as an empty directory; seen on production 2026-10-16 for
 # media/<raw md5>.png), so present means an OBJECT: IsDir false, a size.
+# Absent otherwise only by rclone's own exit codes, 3 directory not found and
+# 4 file not found (https://rclone.org/docs/#exit-code), never by stderr text:
+# without a config file rclone opens EVERY answer with 'Config file ... not
+# found - using defaults', and from 1.75 its "Failed to ..." line is a NOTICE.
+reason = ->(err) { err.lines.grep_v(/\ANOTICE: Config file .* not found/).join.strip }
 present = lambda do |target|
   out, err, status = Open3.capture3(sm.rclone_path, *sm.rclone_options, "lsjson", "--stat", target)
   if status.success?
@@ -119,9 +124,9 @@ present = lambda do |target|
 
     return entry["IsDir"] == false && entry["Size"].to_i >= 0
   end
-  return false if err.include?("not found")
+  return false if [3, 4].include?(status.exitstatus)
 
-  raise "rclone lsjson --stat #{target} failed: #{err.lines.grep_v(/NOTICE/).join.strip.presence || "exit #{status.exitstatus}"}"
+  raise "rclone lsjson --stat #{target} failed: #{reason.call(err).presence || "exit #{status.exitstatus}"}"
 end
 
 survivor = Post.find(post.parent_id)
@@ -133,7 +138,7 @@ targets.each_with_index do |(label, target), i|
   next unless here && apply
 
   _out, err, status = Open3.capture3(sm.rclone_path, *sm.rclone_options, "deletefile", target)
-  raise "rclone deletefile #{target} failed: #{err.lines.grep_v(/NOTICE/).join.strip}" unless status.success?
+  raise "rclone deletefile #{target} failed: #{reason.call(err).presence || "exit #{status.exitstatus}"}" unless status.success?
 
   deleted << label
   puts "      deleted #{label}"
