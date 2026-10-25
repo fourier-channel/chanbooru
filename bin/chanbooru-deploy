@@ -10,6 +10,9 @@
 #   --rebuild-image  rebuild the image even if no runtime file changed
 #   --rollback       go back to the previous release; no pull, no build
 #
+# A commit deploys only once `coherence gate --repo chanbooru --deploy` has
+# passed on it and pushed the tag deploy-gate/<commit> (section 1a).
+#
 # THE IMAGE IS THE RUNTIME, A RELEASE IS THE CODE (fourier-basis
 # docs/design/CHANBOORU_RELEASES.md, operator-approved 2026-10-04). The
 # containers mount the live release at /danbooru (bin/chanbooru-release), so a
@@ -191,6 +194,38 @@ Push it somewhere first -- a branch or a tag -- then run this again."
       *) echo "   (running from $SELF, outside the tree -- no reload needed)" ;;
     esac
   fi
+fi
+
+# --- 1a. the deploy gate ------------------------------------------------
+# A commit is deployed only if the DEPLOY gate passed on exactly it (operator
+# 2026-10-25: "make it so the chanbooru deploy must go through the gate"). The
+# record is the tag deploy-gate/<commit>, made and pushed by
+# `coherence gate --repo chanbooru --deploy` on a PASS, and only when the tree
+# it tested was this commit, pushed (fourier-coherence coherence/gate.py,
+# stamp_deploy). Checked HERE because every deploy passes through this script;
+# a Claude Code hook would stop only Claude sessions on one machine. A rollback
+# is exempt: it returns to a release this script already installed.
+if (( ! ROLLBACK )); then
+  HEAD_SHA="$(git rev-parse HEAD)"
+  STAMP="deploy-gate/$HEAD_SHA"
+  step "checking the deploy gate for $(git rev-parse --short=12 HEAD)"
+  NO_STAMP="fix:  on vesper, from ~/fourier-coherence:
+        .venv/bin/python -m coherence.cli gate -c coherence.vesper.yaml --repo chanbooru --deploy
+      It runs the full fork set (~40 min) and pushes $STAMP on a PASS. Then run this again."
+  git fetch --quiet --no-tags origin "+refs/tags/$STAMP:refs/tags/$STAMP" 2>/dev/null \
+    || die "$(git rev-parse --short=12 HEAD) never passed the deploy gate: origin has no $STAMP.
+$NO_STAMP"
+  [[ "$(git cat-file -t "refs/tags/$STAMP")" == "tag" \
+     && "$(git rev-parse "refs/tags/$STAMP^{commit}")" == "$HEAD_SHA" ]] \
+    || die "$STAMP is not an annotated tag on $HEAD_SHA, so it is not the gate's record.
+$NO_STAMP"
+  RECORD="$(git for-each-ref --format='%(contents)' "refs/tags/$STAMP")"
+  [[ "$(sed -n 1p <<< "$RECORD")" == "deploy gate PASS" \
+     && "$(sed -n 2p <<< "$RECORD")" == "commit: $HEAD_SHA" ]] \
+    || die "$STAMP does not open with the gate's PASS record for $HEAD_SHA:
+$(sed 's/^/   /' <<< "$RECORD")
+$NO_STAMP"
+  sed '/^$/d; s/^/   /' <<< "$RECORD"
 fi
 
 # --- 1b. image storage --------------------------------------------------

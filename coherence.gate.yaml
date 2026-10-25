@@ -17,6 +17,12 @@
 #                   what a change touches. `coherence gate --deploy` runs it in
 #                   place of `gate`, before a deploy.
 #   deploy_timeout  its budget in seconds (default 1800).
+#   deploy_stamp    optional, true or false: a `--deploy` PASS pushes the tag
+#                   deploy-gate/<commit>, the record a serving box may require.
+#                   Withheld (PARTIAL) unless the tree was HEAD, unchanged
+#                   through the run, and HEAD was origin's tip.
+#   deploy_stamp_ignore  path prefixes no deploy reads, which may differ from
+#                   HEAD without withholding the stamp (e.g. .vscode/).
 
 # The toolchain is not on the host and never was: Ruby 4.0.6 and Rails 8.1.3.1
 # live in the devbooru stack (`docker-compose.dev.yaml`, project name devbooru,
@@ -50,6 +56,15 @@ suite: bash script/fork-tests.sh
 # be narrowed runs the fork set too.
 timeout: 3600
 deploy_timeout: 3600
+
+# THE DEPLOY REQUIRES THE STAMP (operator 2026-10-25: "make it so the
+# chanbooru deploy must go through the gate"). bin/chanbooru-deploy refuses
+# any commit without deploy-gate/<commit> on origin, so a deploy-tier PASS is
+# the only way onto production. .vscode/ is editor state on vesper's checkout;
+# no deploy reads it.
+deploy_stamp: true
+deploy_stamp_ignore:
+  - .vscode/
 
 # Upstream Danbooru content: Japanese and Chinese test fixtures, a ZWJ inside
 # a flag emoji in a test asserting emoji normalization, and typographic
