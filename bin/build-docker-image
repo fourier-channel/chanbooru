@@ -81,6 +81,14 @@ DOCKER_IMAGE_BUILD_DATE="$(TZ=UTC git show --no-patch --date=format-local:"%Y-%m
 
 docker buildx create --use --name nonparallel-builder --config buildkitd.toml 2> /dev/null || true;
 
+# The builder is a buildkit container nothing but a build uses. Left running
+# between builds it is a live image the nightly vulnerability scan counts (13
+# High in buildkit's Go modules, 2026-10-25, unfixed in the current release),
+# serving nothing. Stopped, its cache stays in its state volume and the next
+# `buildx build` starts it again. A build still running elsewhere keeps it up:
+# stopping it would kill that build.
+trap 'pgrep -f "buildx build" >/dev/null || docker buildx stop nonparallel-builder >/dev/null 2>&1 || true' EXIT
+
 if [[ $PLATFORM != $CURRENT_PLATFORM && $PLATFORM != *,* ]]; then
   # If we're building for a different platform, and it's not a multi-platform image, then name the image after the platform so it doesn't conflict with images for the native platform.
   TARGET_ARCH="${PLATFORM#*/}" # linux/arm64 -> arm64
