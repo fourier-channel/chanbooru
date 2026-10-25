@@ -24,9 +24,11 @@
 #      test helpers and factories, the application base classes -- cannot be
 #      narrowed, so it runs the fork set instead;
 #   5. a fixed smoke set always runs, and a smoke file that is gone FAILS:
-#      a smoke set that quietly shrinks is the confident green this prevents.
-# A code file nothing maps to is printed by name. It is not tested here; the
-# deploy gate tests it.
+#      a smoke set that quietly shrinks is the confident green this prevents;
+#   6. the JS suite (test/javascript, node --test) runs whole in both tiers
+#      (script/run-tests.sh), so a JS test, or a module one imports, is covered.
+# A code file nothing maps to is printed by name. No test was chosen for it:
+# the deploy gate runs every fork test, but none is known to reach it.
 #
 #   bash script/change-tests.sh          derive and run
 #   bash script/change-tests.sh --list   the derivation, without the run
@@ -109,6 +111,7 @@ add_naming() {
 for f in "${CHANGED[@]}"; do
   case "$f" in
     test/*_test.rb) [ -f "$f" ] && TESTS+=("$f"); continue ;;
+    test/javascript/*) continue ;;
     *.md|docs/*|LICENSE*|.vscode/*) continue ;;
   esac
   before=${#TESTS[@]}
@@ -131,6 +134,10 @@ for f in "${CHANGED[@]}"; do
     mapfile -t words < <(git diff "$BASE" -- "$f" | grep -oP '^[+-]\s*def \K\w+' | sort -u)
     add_naming "$f" "${words[@]}"
   fi
+  # A module the JS suite imports is covered by it; the suite always runs.
+  if [[ "$f" == app/javascript/* ]] && git grep -qF -- "$f" -- test/javascript; then
+    continue
+  fi
   if [ "${#TESTS[@]}" -eq "$before" ]; then
     UNMAPPED+=("$f")
   fi
@@ -146,14 +153,14 @@ if [ "${#RUN[@]}" -eq 0 ]; then
 fi
 
 echo "the change: ${#CHANGED[@]} file(s) differ from $BASE"
-echo "running ${#RUN[@]} test file(s): ${#FOR_CHANGE[@]} for the change, and the ${#SMOKE[@]} of the smoke set"
+echo "running ${#RUN[@]} test file(s): ${#FOR_CHANGE[@]} for the change, and the ${#SMOKE[@]} of the smoke set; and the whole JS suite"
 printf '  %s\n' "${RUN[@]}"
 if [ "${#WIDE[@]}" -gt 0 ]; then
   echo "too widely named to choose tests by (over $TOO_WIDE files each):"
   printf '  %s\n' "${WIDE[@]}"
 fi
 if [ "${#UNMAPPED[@]}" -gt 0 ]; then
-  echo "changed, and no test maps to them -- the deploy gate (coherence gate --deploy) tests these:"
+  echo "changed, and no test maps to them -- none was chosen; the deploy gate runs every fork test, but none is known to reach these:"
   printf '  %s\n' "${UNMAPPED[@]}"
 fi
 echo

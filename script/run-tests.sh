@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# Run the named test files in the devbooru stack. The one runner both gates
-# share: script/change-tests.sh (the commit gate) and script/fork-tests.sh
-# (the deploy gate) each DERIVE a list and hand it here.
+# Run the named test files in the devbooru stack, and the whole JS suite. The
+# one runner both gates share: script/change-tests.sh (the commit gate) and
+# script/fork-tests.sh (the deploy gate) each DERIVE a list and hand it here.
 #
 #   bash script/run-tests.sh <test file>...
 #
@@ -50,10 +50,31 @@ LIGHT=()
 RUN=(docker compose -f docker-compose.dev.yaml exec -T
      -e RAILS_ENV=test -e PARALLEL_WORKERS="$WORKERS"
      danbooru "${LIGHT[@]}" bin/rails test)
-[ -z "${TEST_TIMING:-}" ] && exec "${RUN[@]}" "$@"
+
+# THE JS SUITE RUNS WHOLE, IN BOTH TIERS. test/javascript is `node --test`
+# over pure modules and takes seconds, so choosing among it would save
+# nothing. It sat in no gate from 2026-10-17, when it was added, to
+# 2026-10-25: both tiers chose *_test.rb files only. It runs on the host, so
+# a missing node is a FAIL, never a skip.
+if ! command -v node >/dev/null; then
+  echo "FAIL: node is not on PATH, so the JS suite (npm run test-js) cannot run."
+  echo "fix:  put node on the gate's PATH (vesper: nvm use 24), then rerun the gate"
+  exit 2
+fi
+JS_OUT="$(npm run -s test-js </dev/null 2>&1)"
+js_rc=$?
+if [ "$js_rc" -eq 0 ]; then
+  echo "JS suite (npm run test-js): $(grep -oE '(tests|pass|fail) [0-9]+$' <<< "$JS_OUT" | paste -sd, -)"
+else
+  echo "$JS_OUT"
+  echo "FAIL: the JS suite (npm run test-js) exited $js_rc; the Rails tests run anyway, so both reds show at once."
+fi
+echo
 
 "${RUN[@]}" "$@"
 rc=$?
+[ "$rc" -eq 0 ] && rc=$js_rc
+[ -z "${TEST_TIMING:-}" ] && exit "$rc"
 # The JUnit reporter has already timed every class, one report per class, in
 # the container's tmp; its <testsuite> line carries the name, count and time.
 mkdir -p "$(dirname "$TEST_TIMING")"
