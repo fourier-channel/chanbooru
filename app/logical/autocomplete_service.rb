@@ -450,10 +450,7 @@ class AutocompleteService
     normalized_emoji = emoji.downcase.chomp(":")
     emojis = Danbooru.config.dtext_emojis.keys
 
-    # Escaped: what is typed here is a name to look for, never a pattern. An
-    # unescaped query compiled user input into a Regexp, which is both a 500 on
-    # "(" and the one route from a request to CVE-2026-97229 in Ruby.
-    results = emojis.grep(/#{Regexp.escape(normalized_emoji)}/i).sort_by do |match|
+    results = emojis.select { |emoji| emoji.downcase.include?(normalized_emoji) }.sort_by do |match|
       exact = match.casecmp?(normalized_emoji) ? 1 : 0
       prefix = match.downcase.starts_with?(normalized_emoji) ? 1 : 0
 
