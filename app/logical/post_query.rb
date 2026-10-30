@@ -90,12 +90,12 @@ class PostQuery
   # -- for the counts alone, which stay as they are (operator, 2026-10-15).
   def posts(matrix_rooms: true)
     validate_metatags!
-    builder.posts(to_cnf, matrix_rooms: matrix_rooms)
+    builder.posts(to_nnf, matrix_rooms: matrix_rooms)
   end
 
   def paginated_posts(...)
     validate_metatags!
-    builder.paginated_posts(to_cnf, ...)
+    builder.paginated_posts(to_nnf, ...)
   end
 
   # The order this search is listed by (PostQueryBuilder#effective_order).
@@ -356,9 +356,9 @@ class PostQuery
     build(ast.sort)
   end
 
-  # Return a new PostQuery converted to conjunctive normal form.
-  def to_cnf
-    build(ast.to_cnf)
+  # Return a new PostQuery converted to negation normal form.
+  def to_nnf
+    build(ast.to_nnf)
   end
 
   # Return a hash mapping aliased tag names to real tag names.
@@ -463,10 +463,9 @@ class PostQuery
   # #hidden_tags_condition, as a signed-out visitor's are, so the two share
   # a count cache entry by its digest. A viewer with gated posts of their own
   # or a creator's allow (Post.gated_allowed_ids) gets (-loli -shota ...) OR
-  # id:<theirs>, which to_cnf turns into one clause per tag: "not this tag,
-  # or one of my ids" -- row filters on the rows the search visits, never a
-  # NOT IN over every gated post. The id list is in the query, so in their
-  # count cache key.
+  # id:<theirs>: "none of these tags, or one of my ids" -- row filters on
+  # the rows the search visits, never a NOT IN over every gated post. The id
+  # list is in the query, so in their count cache key.
   def gated_metatags
     return [] if Danbooru.config.restricted_tags.blank? || current_user&.is_gold?
     return [] if gated_by_name?
@@ -633,5 +632,5 @@ class PostQuery
     end
   end
 
-  memoize :tags, :replace_aliases, :with_implicit_metatags, :to_cnf, :aliases, :implicit_metatags, :safe_mode_metatags, :gated_metatags, :deleted_metatags, :hidden_post_metatags, :term_count, :matrix_rooms_condition
+  memoize :tags, :replace_aliases, :with_implicit_metatags, :to_nnf, :aliases, :implicit_metatags, :safe_mode_metatags, :gated_metatags, :deleted_metatags, :hidden_post_metatags, :term_count, :matrix_rooms_condition
 end

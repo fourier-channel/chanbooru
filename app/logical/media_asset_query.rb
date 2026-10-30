@@ -24,7 +24,7 @@ class MediaAssetQuery
   end
 
   def normalized_ast
-    @normalized_ast ||= ast.to_cnf.rewrite_opts.trim
+    @normalized_ast ||= ast.to_nnf.rewrite_opts.trim
   end
 
   # viewer: the searcher, when a person asked (search[ai_tags_match]): a tag
