@@ -43,8 +43,8 @@ class StaticController < ApplicationController
     # Fork: each file the index lists is one page of its id range, and a page
     # is the viewer's (User#listing_per_page_limit), so a range is no wider: a
     # range of 10,000 served its first page and left the rest unreachable.
-    page = CurrentUser.user.listing_per_page_limit
-    @limit = params.fetch(:limit, page).to_i.clamp(1, page)
+    # No `limit` param: limit=1 listed one file per id (upstream 652b8f392).
+    @limit = CurrentUser.user.listing_per_page_limit
 
     case @sitemap
     when "artists"
