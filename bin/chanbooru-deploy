@@ -400,6 +400,12 @@ step "starting containers"
 # resolved when a container starts, and their compose config does not change
 # from one release to the next, so `up -d` alone would leave them on the old
 # code. Then everything else to its config, as before.
+#
+# Either up recreates redis when its config changed (an image bump), and a
+# recreated redis starts from its last dump: so it dumps now.
+if [[ -n "$(docker compose ps -q redis)" ]]; then
+  [[ "$(docker compose exec -T redis redis-cli SAVE < /dev/null | tr -d '\r')" == OK ]] || die "redis-cli SAVE did not answer OK, and compose may recreate redis from an older dump. Nothing was restarted. docker compose exec redis redis-cli SAVE, then rerun the deploy."
+fi
 docker compose --progress quiet up -d --force-recreate danbooru cron jobs nginx || die "compose up failed for the app services"
 docker compose --progress quiet up -d || die "compose up failed"
 docker compose ps --format '{{.Service}}\t{{.State}}' | sort | sed 's/^/   /' 

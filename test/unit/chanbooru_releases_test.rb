@@ -87,7 +87,7 @@ class ChanbooruReleasesTest < ActiveSupport::TestCase
       assert_equal 1, st
       assert_match(/FAIL: .*not an installed release/, err)
       assert_match(/fix: .*install/, err)
-      refute File.exist?(File.join(@root, "current"))
+      assert_not File.exist?(File.join(@root, "current"))
     end
 
     should "refuse to replace a current that is not its own link" do
@@ -156,7 +156,17 @@ class ChanbooruReleasesTest < ActiveSupport::TestCase
     should "verify the release's revision, not the image's" do
       deploy = File.read(DEPLOY)
       assert_includes deploy, "cat /danbooru/REVISION"
-      refute_includes deploy, "printenv DOCKER_IMAGE_REVISION"
+      assert_not_includes deploy, "printenv DOCKER_IMAGE_REVISION"
+    end
+
+    # compose recreates redis whenever its config changes (an image bump), and
+    # a recreated redis starts from its last dump.
+    should "save redis, and stop if it cannot, before any compose up" do
+      deploy = File.read(DEPLOY)
+      save = deploy.index("redis-cli SAVE")
+      assert save, "the deploy must run redis-cli SAVE"
+      assert_match(/redis-cli SAVE[^\n]*\|\| die/, deploy, "a failed SAVE must stop the deploy")
+      assert_operator save, :<, deploy.index("docker compose --progress quiet up -d"), "SAVE before the first compose up"
     end
   end
 end

@@ -79,16 +79,35 @@ DOCKER_IMAGE_BUILD_DATE="$(TZ=UTC git show --no-patch --date=format-local:"%Y-%m
 # consumed only in the final stages, and remains the commit date that
 # ServerStatus reports.
 
-# FORK CHANGE: the builder's buildkit is pinned. buildx otherwise starts
-# moby/buildkit:buildx-stable-1, which still pointed at v0.33.1 (a brotli KEV,
-# scan of 2026-10-31) a week and a half after v0.34.1 shipped. `buildx create`
-# leaves an existing builder as it is, so one running another buildkit is
-# removed first, its cache kept -- unless a build elsewhere is using it.
+# FORK CHANGE: the builder's buildkit is pinned, so what builds the image is a
+# chosen release rather than whatever moby/buildkit:buildx-stable-1 names that
+# day: on 2026-10-31 that was still v0.33.1, eleven days after v0.34.1, with Go
+# stdlib criticals v0.34.1 does not carry. Every released buildkit still ships
+# Alpine's brotli-libs 1.2.0 (KEV CVE-2026-111497, scan of 2026-10-31); the
+# trap below keeps the builder stopped between builds, and the scan's accepted
+# list carries that row until a release with the fix is past the cooldown.
+#
+# `buildx create` leaves an existing builder as it is, so a builder on another
+# image is replaced here, its cache kept. A running builder is a build in
+# progress (the trap stops it after every build) and replacing it would kill
+# that build, so then this refuses rather than build on an unpinned buildkit.
 BUILDKIT_IMAGE="moby/buildkit:v0.34.1@sha256:99368f3e46177c6405b9740e4461d91cee004128daeecca78d4ceac50ec1da5c"
-if [[ "$(docker inspect -f '{{.Config.Image}}' buildx_buildkit_nonparallel-builder0 2> /dev/null)" != "$BUILDKIT_IMAGE" ]] && ! pgrep -f "buildx build" > /dev/null; then
-  docker buildx rm --keep-state nonparallel-builder > /dev/null 2>&1 || true
+BUILDKIT_NODE=buildx_buildkit_nonparallel-builder0
+if [[ "$(docker inspect -f '{{.Config.Image}}' $BUILDKIT_NODE 2> /dev/null)" != "$BUILDKIT_IMAGE" ]]; then
+  if [[ "$(docker inspect -f '{{.State.Running}}' $BUILDKIT_NODE 2> /dev/null)" == true ]]; then
+    echo "FAIL: nonparallel-builder runs $(docker inspect -f '{{.Config.Image}}' $BUILDKIT_NODE), not $BUILDKIT_IMAGE, and is running, so a build may be using it" >&2
+    echo "fix:  rerun once that build has finished (it stops the builder on exit); if no build is running: docker buildx stop nonparallel-builder" >&2
+    exit 1
+  fi
+  docker buildx rm --keep-state nonparallel-builder > /dev/null 2>&1 || true # absent is fine; a failure here fails the create below
+  docker buildx create --use --name nonparallel-builder --driver docker-container --driver-opt "image=$BUILDKIT_IMAGE" --config buildkitd.toml
+  docker buildx inspect --bootstrap nonparallel-builder > /dev/null
 fi
-docker buildx create --use --name nonparallel-builder --driver-opt "image=$BUILDKIT_IMAGE" --config buildkitd.toml 2> /dev/null || true;
+[[ "$(docker inspect -f '{{.Config.Image}}' $BUILDKIT_NODE 2> /dev/null)" == "$BUILDKIT_IMAGE" ]] || {
+  echo "FAIL: nonparallel-builder does not run $BUILDKIT_IMAGE after being created from it" >&2
+  echo "fix:  docker buildx rm --keep-state nonparallel-builder, then rerun" >&2
+  exit 1
+}
 
 # The builder is a buildkit container nothing but a build uses. Left running
 # between builds it is a live image the nightly vulnerability scan counts (13
@@ -108,5 +127,5 @@ fi
 
 for target in $TARGETS; do
   name=$PROD_NAME; [[ $target == development ]] && name=$DEV_NAME
-  git archive HEAD | docker buildx build - --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg JOBS=$JOBS --target $target --file Dockerfile --output type=docker,name=$name
+  git archive HEAD | docker buildx build - --builder nonparallel-builder --platform $PLATFORM --build-arg DOCKER_IMAGE_REVISION=$DOCKER_IMAGE_REVISION --build-arg DOCKER_IMAGE_BUILD_DATE=$DOCKER_IMAGE_BUILD_DATE --build-arg JOBS=$JOBS --target $target --file Dockerfile --output type=docker,name=$name
 done
