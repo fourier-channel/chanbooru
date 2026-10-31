@@ -79,7 +79,16 @@ DOCKER_IMAGE_BUILD_DATE="$(TZ=UTC git show --no-patch --date=format-local:"%Y-%m
 # consumed only in the final stages, and remains the commit date that
 # ServerStatus reports.
 
-docker buildx create --use --name nonparallel-builder --config buildkitd.toml 2> /dev/null || true;
+# FORK CHANGE: the builder's buildkit is pinned. buildx otherwise starts
+# moby/buildkit:buildx-stable-1, which still pointed at v0.33.1 (a brotli KEV,
+# scan of 2026-10-31) a week and a half after v0.34.1 shipped. `buildx create`
+# leaves an existing builder as it is, so one running another buildkit is
+# removed first, its cache kept -- unless a build elsewhere is using it.
+BUILDKIT_IMAGE="moby/buildkit:v0.34.1@sha256:99368f3e46177c6405b9740e4461d91cee004128daeecca78d4ceac50ec1da5c"
+if [[ "$(docker inspect -f '{{.Config.Image}}' buildx_buildkit_nonparallel-builder0 2> /dev/null)" != "$BUILDKIT_IMAGE" ]] && ! pgrep -f "buildx build" > /dev/null; then
+  docker buildx rm --keep-state nonparallel-builder > /dev/null 2>&1 || true
+fi
+docker buildx create --use --name nonparallel-builder --driver-opt "image=$BUILDKIT_IMAGE" --config buildkitd.toml 2> /dev/null || true;
 
 # The builder is a buildkit container nothing but a build uses. Left running
 # between builds it is a live image the nightly vulnerability scan counts (13
