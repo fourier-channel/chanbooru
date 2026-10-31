@@ -248,7 +248,7 @@ test("pin keeps a post in its slot and fills around it, collapsing at the head",
 test("fuzz: 20,000 random moves, blocks and lifts keep every invariant", () => {
   const random = rng(20261017);
   const win = make(300, { anchorId: "100" });
-  let blocked = new Set();
+  const blocked = new Set();
   const pick = (n) => Math.floor(random() * n);
   for (let op = 0; op < 20000; op++) {
     const roll = random();
@@ -296,7 +296,6 @@ test("fuzz: 20,000 random moves, blocks and lifts keep every invariant", () => {
     assert.equal(new Set(win.run.map((e) => e.id)).size, win.run.length, `op ${op}: no post twice`);
     assert.ok(L.shown.every((i) => win.run[i].blocked === false), `op ${op}: no hidden post shown`);
   }
-  blocked = null;
 });
 
 // One search of `total` results from the head, of which `pass` renders,

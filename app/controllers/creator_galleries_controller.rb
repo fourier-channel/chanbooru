@@ -123,10 +123,10 @@ class CreatorGalleriesController < ApplicationController
     skip_authorization
     viewer = CurrentUser.user
     @layout = CreatorGalleryLayout.new(@gallery)
-    @draw = @layout.draw(viewer)
+    @draw = @layout.draw(viewer, manager: owner_identity? || viewer.is_admin?)
     @avatar = @layout.avatar(viewer)
     @closed = !@gallery.page_open_to?(viewer, request)
-    @draw = { banner: @draw[:banner], hero: { tags: [], slides: [] }, minis: [], locked_count: 0, owner_notices: [] } if @closed
+    @draw = { banner: @draw[:banner], hero: { tags: [], slides: [] }, minis: [], locked_count: 0, owner_notices: [], tuner: CreatorGalleryLayout::DEFAULTS["tuner"], harmonics: [] } if @closed
     grant_anonymous_draw if MembersOnly.default_deny? && MembersOnly.signed_out?(viewer, request)
     return if @closed
     return if viewer.is_anonymous? || viewer.is_banned? || viewer.id == @gallery.user_id
@@ -153,7 +153,7 @@ class CreatorGalleriesController < ApplicationController
     @layout = CreatorGalleryLayout.new(@gallery)
     return render(json: @layout.candidates(params[:tags].to_s.split, CurrentUser.user)) if request.format.json?
 
-    @draw = @layout.draw(CurrentUser.user)
+    @draw = @layout.draw(CurrentUser.user, manager: true)
     @palette = @layout.palette(CurrentUser.user)
     @avatar = @layout.avatar(CurrentUser.user)
     @panel_refusal = panel_refusal
@@ -209,6 +209,8 @@ class CreatorGalleriesController < ApplicationController
     return file_join_request if join_request?
     return link_account if params[:link_account].present?
     return unlink_account if params[:unlink_account].present?
+    return hide_harmonic(params[:harmonic_hide], hide: true) if params[:harmonic_hide].present?
+    return hide_harmonic(params[:harmonic_unhide], hide: false) if params[:harmonic_unhide].present?
     return file_claim(params[:claim_tag]) if params[:claim_tag].present?
     return file_character_claim(params[:claim_character]) if params.key?(:claim_character)
     return release_character_claim(params[:release_character]) if params[:release_character].present?
@@ -304,6 +306,53 @@ class CreatorGalleriesController < ApplicationController
     redirect_to edit_creator_gallery_path(@gallery), notice: notice
   end
 
+  # Hide one of this page's harmonics, or show it again: an admin's act
+  # (CREATOR_TUNER.md sec 4.3, 4.5), under the gallery's lock and logged
+  # inside it, as the unlink is. A hide puts the link on the removals list,
+  # so no page may carry it, and the unhide takes it off -- unless another
+  # page's copy is still hidden, which the removal then names. Both lock the
+  # removal row, so two pages' hide and unhide cannot both miss the other's.
+  # The owner's Save
+  # never writes either (CreatorGalleryLayout#plan_harmonics). The log names
+  # the page, not the harmonic: /mod_actions links every subject, and a
+  # harmonic has no page of its own.
+  def hide_harmonic(id, hide:)
+    raise User::PrivilegeError, "Only an admin can hide or show a harmonic." unless CurrentUser.user.is_admin?
+
+    notice = @gallery.with_lock do
+      harmonic = @gallery.creator_gallery_harmonics.find_by(id: id)
+      reason = params[:reason].to_s.strip
+      if harmonic.nil?
+        "This page has no harmonic #{id}. Reload the page and pick it again."
+      elsif hide == harmonic.staff_hidden?
+        hide ? "That harmonic is already hidden." : "That harmonic is not hidden."
+      elsif hide
+        harmonic.update!(staff_hidden_at: Time.zone.now, staff_hidden_by: CurrentUser.user, staff_hidden_reason: reason.presence)
+        # Two pages hiding one link at once both find no row to lock; the
+        # insert that loses the race takes the row that won.
+        CreatorHarmonicRemoval.create_or_find_by!(url: harmonic.url.downcase) do |removal|
+          removal.assign_attributes(removed_by: CurrentUser.user, reason: reason, source_harmonic_id: harmonic.id)
+        end.lock!
+        ModAction.log("hid the harmonic #{harmonic.url} on the creator page #{@gallery.matrix_id}#{": #{reason}" if reason.present?}",
+                      :creator_harmonic_hide, subject: @gallery, user: CurrentUser.user)
+        "Hidden. #{harmonic.url} is on the removals list: no page can carry it until it is shown again."
+      else
+        harmonic.update!(staff_hidden_at: nil, staff_hidden_by: nil, staff_hidden_reason: nil)
+        removal = CreatorHarmonicRemoval.lock.find_by(url: harmonic.url.downcase)
+        still = CreatorGalleryHarmonic.where.not(staff_hidden_at: nil).where("lower(url) = ?", harmonic.url.downcase).order(:staff_hidden_at).first
+        ModAction.log("showed the harmonic #{harmonic.url} on the creator page #{@gallery.matrix_id} again", :creator_harmonic_unhide, subject: @gallery, user: CurrentUser.user)
+        if still
+          removal&.update!(source_harmonic_id: still.id)
+          "Shown again. #{harmonic.url} stays on the removals list: another page's copy of it is still hidden."
+        else
+          removal&.destroy!
+          "Shown again. #{harmonic.url} is off the removals list."
+        end
+      end
+    end
+    redirect_to edit_creator_gallery_path(@gallery), notice: notice
+  end
+
   # File a claim on a creator tag for this page's linked account, making the
   # Artist entry when the tag has none, as /artists would, in the same save:
   # a refused claim leaves no entry behind. ArtistClaim.prepare decides, the
@@ -374,10 +423,12 @@ class CreatorGalleriesController < ApplicationController
   def save_layout
     look = params.expect(layout: [:headline, :subline, :layout, { banner: %i[post_id y], depth: %i[blur dim parallax],
                                                                   hero: [:effect, :dir, :hold, :cells, { tags: [], posts: [] }],
-                                                                  minis: [[:tag, :effect, :dir, :hold, { posts: [] }]] }])
+                                                                  minis: [[:tag, :effect, :dir, :hold, { posts: [] }]], tuner: %i[enabled placement],
+                                                                  harmonics: [[:id, :shown, :url, :title, :subtitle, :cta, :background_post_id, :background_gradient,
+                                                                               :focus_x, :focus_y, :zoom, :shade, { places: CreatorGalleryHarmonic::ELEMENTS.map(&:to_sym) }]] }])
     problems = CreatorGalleryLayout.new(@gallery).save(page: gallery_params.to_h, look: look.to_h, viewer: CurrentUser.user)
     if problems.empty?
-      render json: { ok: true }
+      render json: { ok: true, harmonic_ids: @gallery.creator_gallery_harmonics.reload.ids }
     else
       render json: { ok: false, problems: problems }, status: 422
     end
@@ -389,8 +440,15 @@ class CreatorGalleriesController < ApplicationController
   # an hour or two, with the same creator links kept or dropped. A post past
   # the browsing cut, made private since, or chosen but no longer fitting is
   # not drawn, so it is not granted.
+  #
+  # The Tuner's pictures are granted as the banner is, their own category of
+  # slides by integer post id (CREATOR_TUNER.md sec 6.2), with nothing to
+  # merge back: a picture carries no creator link.
   def grant_anonymous_draw
-    hero, *minis, banner = MembersOnly.anonymous_landing([@draw[:hero], *@draw[:minis], { slides: [@draw[:banner]].compact }], safe_mode: CurrentUser.safe_mode?)
+    hero, *minis, banner, _pictures = MembersOnly.anonymous_landing(
+      [@draw[:hero], *@draw[:minis], { slides: [@draw[:banner]].compact }, { slides: @draw[:harmonics].filter_map { |card| card[:picture] }}],
+      safe_mode: CurrentUser.safe_mode?,
+    )
     @draw = @draw.merge(hero: hero, minis: minis, banner: banner[:slides].first)
   end
 

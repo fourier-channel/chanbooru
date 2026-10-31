@@ -89,5 +89,59 @@ class Admin::UsersControllerTest < ActionDispatch::IntegrationTest
         end
       end
     end
+
+    # Perks (CREATOR_TUNER.md sec 4.4): granted and revoked on this page by
+    # an admin alone, each logged; a moderator who may promote sees no form.
+    context "perks" do
+      should "be shown with a form to an admin, and not to a moderator" do
+        get_auth edit_admin_user_path(@user), @admin
+        assert_select "#user-perks form", count: 1
+        assert_select "#user-perks", text: /Creator Tuner harmonics\s+5/
+
+        get_auth edit_admin_user_path(@user), @mod
+        assert_select "#user-perks", count: 0
+      end
+
+      should "be granted and revoked by an admin, each logged" do
+        put_auth admin_user_path(@user), @admin, params: { perk: { key: "creator_harmonic_cap", value: "9", expires_at: "2030-01-31" }}
+
+        assert_redirected_to(edit_admin_user_path(@user))
+        assert_equal("Granted: Creator Tuner harmonics 9 until 2030-01-31.", flash[:notice])
+        assert_equal([9, Time.zone.parse("2030-01-31")], @user.user_perks.active.pick(:value, :expires_at))
+        assert_equal("user_perk_grant", ModAction.last.category)
+
+        put_auth admin_user_path(@user), @admin, params: { perk: { key: "creator_harmonic_cap", revoke: "1" }}
+
+        assert_equal("Revoked: Creator Tuner harmonics is 5 again.", flash[:notice])
+        assert_equal(5, @user.reload.perk_value(:creator_harmonic_cap))
+        assert_equal("user_perk_revoke", ModAction.last.category)
+      end
+
+      should "refuse a value or date it cannot take, saying what it takes" do
+        put_auth admin_user_path(@user), @admin, params: { perk: { key: "creator_harmonic_cap", value: "40" }}
+        assert_equal("Not granted: Value must be a whole number from 6 to 25: 5 is everyone's already.", flash[:notice])
+
+        put_auth admin_user_path(@user), @admin, params: { perk: { key: "creator_harmonic_cap", value: "9", expires_at: "soon" }}
+        assert_equal("Not granted: the end date \"soon\" is not a date. Pick one with the date picker, or leave it empty for no end.", flash[:notice])
+        assert_equal(0, UserPerk.count)
+      end
+
+      should "refuse a moderator" do
+        put_auth admin_user_path(@user), @mod, params: { perk: { key: "creator_harmonic_cap", value: "9" }}
+
+        assert_response(403)
+        assert_equal(0, UserPerk.count)
+      end
+
+      should "refuse a perk it does not know, naming the ones it does -- and a moderator first" do
+        put_auth admin_user_path(@user), @mod, params: { perk: { key: "nope", value: "9" }}
+        assert_response(403)
+
+        put_auth admin_user_path(@user), @admin, params: { perk: { key: "nope", value: "9" }}
+        assert_redirected_to(edit_admin_user_path(@user))
+        assert_equal("Not granted: there is no perk \"nope\". The perks are: creator_harmonic_cap.", flash[:notice])
+        assert_equal(0, UserPerk.count)
+      end
+    end
   end
 end

@@ -24,6 +24,8 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
               { tag: nil, slides: [] }],
       locked_count: 0,
       owner_notices: [],
+      tuner: { "enabled" => false, "placement" => "A" },
+      harmonics: [],
     }.merge(changes)
   end
 
@@ -31,7 +33,7 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
 
   def render_gallery(viewer: @maple, **options)
     with_request_url "/creators/maple" do
-      render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: viewer, avatar: avatar, can_edit: false, draw: draw, **options))
+      render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: viewer, avatar: avatar, can_edit: false, scan: nil, draw: draw, **options))
     end
   end
 
@@ -73,7 +75,7 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
 
   should "put no belt on a band with no posts" do
     with_request_url "/creators/maple" do
-      render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: @maple, avatar: avatar, can_edit: false, draw: draw(hero: { tags: [], slides: [] })))
+      render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: @maple, avatar: avatar, can_edit: false, scan: nil, draw: draw(hero: { tags: [], slides: [] })))
     end
 
     assert_css("[data-modland][hidden]", visible: :all)
@@ -82,7 +84,7 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
 
   should "mark the banner for the blacklist on both layers, and paint the token ground without one" do
     with_request_url "/creators/maple" do
-      render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: @maple, avatar: avatar, can_edit: false, draw: draw(banner: slide(9, "sky"))))
+      render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: @maple, avatar: avatar, can_edit: false, scan: nil, draw: draw(banner: slide(9, "sky"))))
     end
     assert_css(".modcreator-ground.mod-blacklist-target[data-id='9'][data-tags='sky'] img.modcreator-ground-art", visible: :all)
     assert_css(".modcreator-banner.mod-blacklist-target[data-id='9'] img.modcreator-banner-art", visible: :all)
@@ -94,7 +96,7 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
 
   should "draw the locked cards empty, with nothing of the post" do
     with_request_url "/creators/maple" do
-      render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: @maple, avatar: avatar, can_edit: false, draw: draw(locked_count: 3)))
+      render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: @maple, avatar: avatar, can_edit: false, scan: nil, draw: draw(locked_count: 3)))
     end
 
     assert_css(".modcreator-more-count", text: "3 more posts in this gallery")
@@ -111,6 +113,41 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
     assert_link("Sign in with Matrix")
   end
 
+  context "with the Tuner" do
+    setup do
+      @card = { id: 11, number: 1, shown: true, counts: true, url: "https://bsky.app/profile/maple.bsky.social", host: "bsky.app",
+                domain: "bsky.app", site: "bluesky", name: "Bluesky", logo: nil, support: false, adult: false, title: "Daily sketches",
+                subtitle: "", cta: nil, cta_label: nil, places: { "mark" => "tl", "title" => "bl", "subtitle" => "bl", "button" => "br", "host" => "tr" },
+                gradient: 1, picture: nil }
+    end
+
+    should "draw A in the id row across from the name, with the leaving notice" do
+      render_gallery(draw: draw(tuner: { "enabled" => true, "placement" => "A" }, harmonics: [@card]))
+
+      assert_css("header.modcreator-head.modcreator-head--dial .modcreator-id.modcreator-id--tuned > section.cg-tuner--a a.cg-hm")
+      assert_no_css(".cg-tuner--b")
+      assert_css("dialog.cg-leave[data-cg-leave]", visible: :all)
+      assert_css("dialog.cg-leave button[value='stay'][autofocus]", visible: :all)
+    end
+
+    should "draw B in the banner's place, the banner grown to hold it" do
+      render_gallery(draw: draw(tuner: { "enabled" => true, "placement" => "B" }, harmonics: [@card]))
+
+      assert_css("header.modcreator-head--sky > section.cg-tuner--b a.cg-hm")
+      assert_no_css(".modcreator-id--tuned, .cg-tuner--a")
+    end
+
+    should "draw no Tuner, card or notice while it is off, with no card to draw, or on a page closed to the viewer" do
+      [draw(harmonics: [@card]), draw(tuner: { "enabled" => true, "placement" => "A" }, harmonics: [])].each do |drawn|
+        render_gallery(draw: drawn)
+        assert_no_css(".cg-tuner, .cg-hm, dialog.cg-leave, .modcreator-head--dial, .modcreator-head--sky", visible: :all)
+      end
+
+      render_gallery(closed: true, draw: draw(tuner: { "enabled" => true, "placement" => "B" }, harmonics: [@card]))
+      assert_no_css(".cg-tuner, .cg-hm, dialog.cg-leave", visible: :all)
+    end
+  end
+
   context "editing" do
     setup do
       palette = [{ name: "landscape", category: "general", count: 12 }, { name: "sky", category: "general", count: 4 }]
@@ -124,7 +161,7 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
         @gallery.creator_gallery_posts.create!(band: band, post: post, position: i)
       end
       with_request_url "/creators/maple" do
-        render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: @maple, avatar: avatar, can_edit: true, editing: true,
+        render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: @maple, avatar: avatar, can_edit: true, editing: true, scan: nil,
                                                   draw: draw(banner: slide(9, "sky")), palette: palette, panels: panels))
       end
     end

@@ -51,6 +51,9 @@ class CreatorGalleryLayout
     "depth" => { "blur" => 18, "dim" => 45, "parallax" => 40 }.freeze,
     "hero" => { "tags" => [].freeze, "effect" => "glide", "dir" => "left", "hold" => 5, "cells" => 5 }.freeze,
     "layout" => "2-3",
+    # The Creator Tuner's switch and where it sits (CREATOR_TUNER.md sec 4.1):
+    # off until the creator turns it on, like show_contact.
+    "tuner" => { "enabled" => false, "placement" => "A" }.freeze,
   }.freeze
   MINI_DEFAULT = { "tag" => "", "effect" => "slide", "dir" => "left", "hold" => 4 }.freeze
 
@@ -114,12 +117,27 @@ class CreatorGalleryLayout
   # owner_notices say what the owner should fix (a chosen post no longer
   # eligible or fitting, no hero tags yet); the page shows them to the owner
   # alone.
-  def draw(viewer)
+  #
+  # `manager` is whoever may edit the page -- its Matrix identity, the linked
+  # account or an admin; the controller knows the request, the layout does
+  # not. To them the Tuner draws every harmonic, a card that does not count
+  # (sec 4.6) with why, and draws it while the Tuner is off; to everyone else
+  # the counting ones, and none while it is off.
+  def draw(viewer, manager: gallery.managed_by?(viewer))
     banner = Post.includes(:media_asset, :uploader).find_by(id: config["banner"]["post_id"])
-    judged, refused = judge(viewer, [*banner&.id])
+    stored = (config["tuner"]["enabled"] || manager) ? gallery.creator_gallery_harmonics.to_a : []
+    removed = CreatorHarmonicRemoval.covering(stored.map(&:url))
+    harmonics = manager ? stored : stored.select { |harmonic| harmonic.counts?(removed) }
+    backgrounds = Post.includes(:media_asset, :uploader).where(id: harmonics.filter_map(&:background_post_id)).index_by(&:id)
+    judged, refused = judge(viewer, [*banner&.id, *backgrounds.keys])
     kept = judged.map { |pairs| pairs.filter_map { |post, problem| post if problem.nil? && LandingShowcase.showable?(post, viewer) } }
     distinct = kept.flatten.uniq(&:id)
-    allowed = viewer.can_browse_freely? ? distinct : distinct.first(viewer.listing_per_page_limit)
+    # A harmonic's picture is one of the posts the page shows, so it joins
+    # the cut after the bands (sec 6.3): past it, the card draws on Ground.
+    pictures = harmonics.filter_map { |harmonic| backgrounds[harmonic.background_post_id] }
+                        .select { |post| !refused.key?(post.id) && LandingShowcase.showable?(post, viewer) }
+    listed = [*distinct, *pictures].uniq(&:id)
+    allowed = viewer.can_browse_freely? ? listed : listed.first(viewer.listing_per_page_limit)
     allowed_ids = allowed.to_set(&:id)
     drawn = kept.map { |posts| posts.select { |post| allowed_ids.include?(post.id) } }
     banner = nil unless banner && !refused.key?(banner.id) && LandingShowcase.showable?(banner, viewer)
@@ -132,8 +150,16 @@ class CreatorGalleryLayout
       minis: config["minis"].zip(drawn.drop(1)).map do |mini, posts|
         { tag: pills([mini["tag"]] & shown).first, slides: posts.map { |post| showcase.slide_for(post) }}
       end,
-      locked_count: distinct.size - allowed.size,
+      locked_count: distinct.count { |post| allowed_ids.exclude?(post.id) },
       owner_notices: [*(LEGACY_NOTICE if config["hero"]["tags"].empty?), *judged.flatten(1).filter_map(&:last), *refused[banner_id]].uniq,
+      tuner: config["tuner"],
+      harmonics: harmonics.each_with_index.map do |harmonic, i|
+        post = backgrounds[harmonic.background_post_id]
+        drawn_post = post if post && allowed_ids.include?(post.id)
+        stale = harmonic.background_post_id && (post.nil? || refused.key?(post.id))
+        notice = harmonic.owner_notice(removed, i + 1) || (CreatorGalleryHarmonic.sentence(:background_stale, n: i + 1) if stale)
+        card(harmonic, i + 1, removed, drawn_post, showcase).merge(notice: (notice if manager), stale: manager && stale.present?)
+      end,
     }
   end
 
@@ -212,8 +238,12 @@ class CreatorGalleryLayout
     tag_refusals = refused_tags([*hero_tags, *mini_tags].compact_blank.uniq, viewer)
     hero_rule = rule(hero_tags - tag_refusals.keys)
     hero_ids = bands.first.last
+    tuner = look["tuner"]&.to_h
+    # Absent leaves the harmonics as they are; an empty list removes the owner's.
+    harmonics = look["harmonics"]&.map(&:to_h)
 
     problems = [
+      (CreatorGalleryHarmonic.sentence(:placement, value: "\"#{tuner["placement"]}\"", allowed: CreatorGalleryHarmonic::PLACEMENTS.join(", ")) if tuner && CreatorGalleryHarmonic::PLACEMENTS.exclude?(tuner["placement"])),
       ("The headline is #{look["headline"].to_s.length} characters; #{HEADLINE_MAX} is the most. Shorten it." if look["headline"].to_s.length > HEADLINE_MAX),
       ("The subline is #{look["subline"].to_s.length} characters; #{SUBLINE_MAX} is the most. Shorten it." if look["subline"].to_s.length > SUBLINE_MAX),
       ("The banner's position must be a whole number from #{BANNER_Y.min} to #{BANNER_Y.max}." unless BANNER_Y.cover?(whole(banner["y"]))),
@@ -254,6 +284,10 @@ class CreatorGalleryLayout
       # with_lock reloads the gallery, so the Page fields are assigned inside it.
       gallery.assign_attributes(page)
       problems += gallery.errors.full_messages unless gallery.valid?
+      # Checked under the lock, against the rows as they stand: an admin's
+      # hide may have landed since the editor loaded.
+      planned, refused_harmonics = harmonics ? plan_harmonics(harmonics, viewer) : [nil, []]
+      problems += refused_harmonics
       if problems.any?
         gallery.restore_attributes
         next
@@ -267,7 +301,15 @@ class CreatorGalleryLayout
         "hero" => { "tags" => hero_tags, "effect" => hero["effect"], "dir" => hero["dir"], "hold" => whole(hero["hold"]), "cells" => whole(hero["cells"]) },
         "layout" => layout,
         "minis" => minis.zip(mini_tags).map { |mini, tag| { "tag" => tag, "effect" => mini["effect"], "dir" => mini["dir"], "hold" => whole(mini["hold"]) } },
+        **({ "tuner" => { "enabled" => tuner["enabled"].to_s.truthy?, "placement" => tuner["placement"] }} if tuner),
       ))
+      if planned
+        # Upserted by id with what plan_harmonics allows, never rewritten
+        # whole: a staff hide lives in the row's own columns (sec 4.2).
+        planned.each_with_index { |(harmonic, attributes), position| harmonic.update!(**attributes, position: position) }
+        gallery.creator_gallery_harmonics.where.not(id: planned.map { |harmonic, _| harmonic.id }).where(staff_hidden_at: nil).delete_all
+        gallery.creator_gallery_harmonics.reset
+      end
       CreatorGalleryPost.where(creator_gallery_id: gallery.id).delete_all
       rows = bands.flat_map { |band, ids| ids.each_with_index.map { |id, position| { creator_gallery_id: gallery.id, band: band, post_id: id, position: position } } }
       CreatorGalleryPost.insert_all!(rows) if rows.any? # rubocop:disable Rails/SkipsModelValidations -- every row was checked above, under the lock
@@ -361,6 +403,137 @@ class CreatorGalleryLayout
 
   def banner_id
     config["banner"]["post_id"]
+  end
+
+  # A harmonic as the page draws it (sec 2). `post` is its background when
+  # this viewer is drawn it; else nil, and nothing in the card names the post
+  # (sec 2.6: omitted on the server, not hidden in CSS) -- it draws on Ground,
+  # or its gradient, link intact.
+  def card(harmonic, number, removed, post, showcase)
+    site = harmonic.site_entry
+    host = harmonic.host
+    {
+      id: harmonic.id,
+      number: number,
+      shown: harmonic.shown,
+      counts: harmonic.counts?(removed),
+      url: harmonic.url,
+      host: host,
+      domain: CreatorGalleryHarmonic.domain(host),
+      site: harmonic.site,
+      name: site&.name || harmonic.site,
+      logo: site&.logo,
+      support: site&.support || false,
+      adult: site&.adult || false,
+      title: harmonic.title,
+      subtitle: harmonic.subtitle,
+      cta: harmonic.cta,
+      cta_label: CreatorGalleryHarmonic::CTAS[harmonic.cta],
+      places: harmonic.places,
+      gradient: harmonic.background_gradient,
+      picture: post && showcase.slide_for(post).slice(:id, :tags, :rating, :flags, :score, :uploader_id, :w, :h).merge(
+        src: post.media_asset.has_variant?(:"720x720") ? post.media_asset.variant(:"720x720").file_url : post.file_url,
+        focus_x: harmonic.focus_x, focus_y: harmonic.focus_y, zoom: harmonic.zoom, shade: harmonic.shade,
+      ),
+    }
+  end
+
+  # The owner's list of harmonics as the rows to write, in order, or every
+  # problem with it (sec 3.4, 4.2): each entry's link, words, places and
+  # background, then the list's own rules -- one page per link, one support
+  # link, the cap on counting harmonics, the rows kept. A staff-hidden row is
+  # never the owner's to change (sec 4.3): in the list it only moves; left
+  # out, it stays, after the list. A row whose site left the list keeps its
+  # link unchecked while the link is unchanged, so the site's return restores
+  # it (sec 4.6).
+  #
+  # @param entries [Array<Hash>] the editor's list, string keys
+  # @return [Array(Array<Array(CreatorGalleryHarmonic, Hash)>, Array<String>)]
+  #   [[row, attributes], ...] and [], or nil and the problems
+  def plan_harmonics(entries, viewer)
+    stored = gallery.creator_gallery_harmonics.reload.index_by(&:id)
+    numbered = entries.each_with_index.map do |entry, i|
+      row = entry["id"].present? ? stored[whole(entry["id"])] : CreatorGalleryHarmonic.new(creator_gallery: gallery)
+      [entry, row, i + 1]
+    end
+    owned = numbered.select { |_, row, _| row && !row.staff_hidden? }
+    links = owned.to_h do |entry, row, n|
+      kept = row.persisted? && row.site_entry.nil? && entry["url"].to_s == row.url
+      [n, kept ? { url: row.url, host: row.host, site: row.site } : CreatorGalleryHarmonic.link(entry["url"])]
+    end
+    removed = CreatorHarmonicRemoval.covering(links.values.filter_map { |link| link[:url] })
+    refused = refusals(owned.filter_map { |entry, _, _| whole(entry["background_post_id"]) }.uniq, viewer)
+    limits = CreatorGalleryHarmonic::LIMITS
+    say = ->(key, **vars) { CreatorGalleryHarmonic.sentence(key, **vars) }
+
+    checked = owned.map do |entry, _, n|
+      link = links[n]
+      title = entry["title"].to_s.strip
+      subtitle = entry["subtitle"].to_s.strip
+      cta = entry["cta"].presence
+      places = entry["places"].to_h.stringify_keys.slice(*CreatorGalleryHarmonic::ELEMENTS)
+      post_id = whole(entry["background_post_id"]) if entry["background_post_id"].present?
+      gradient = whole(entry["background_gradient"]) if entry["background_gradient"].present?
+      picture = entry["background_post_id"].present?
+      settings = { "focus_x" => ["focus x", limits["focus"]], "focus_y" => ["focus y", limits["focus"]], "zoom" => ["zoom", limits["zoom"]], "shade" => ["shade", limits["shade"]] }
+      values = settings.keys.index_with { |key| whole(entry[key]) }
+      # Drawn at the smallest size (160 px, sec 2.5) only the mark, the title
+      # and the host draw. A row holding a centre and a side place splits into
+      # thirds of the safe area (86% of the width, sec 2.3); the host's mono
+      # face at 11 px takes 6.6 px a character, and must keep its domain.
+      domain = CreatorGalleryHarmonic.domain(link[:host]) if link[:host]
+      host_row = places.slice("mark", "title", "host").values.compact_blank.select { |place| place[0] == places["host"].to_s[0] }
+      split = host_row.any? { |place| place[1] == "c" } && host_row.any? { |place| place[1] != "c" }
+      problems = [
+        (say.call(link[:problem], n: n, **link[:vars]) if link[:problem]),
+        (say.call(:link_removed, url: link[:url].delete_prefix("https://")) if link[:url] && removed.include?(link[:url])),
+        (say.call(:title_blank, n: n, max: limits["title"]) if title.empty?),
+        (say.call(:title_long, n: n, length: title.length, max: limits["title"]) if title.length > limits["title"]),
+        (say.call(:subtitle_long, n: n, length: subtitle.length, max: limits["subtitle"]) if subtitle.length > limits["subtitle"]),
+        (say.call(:cta, n: n, value: "\"#{cta}\"", allowed: CreatorGalleryHarmonic::CTAS.keys.join(", ")) if cta && !CreatorGalleryHarmonic::CTAS.key?(cta)),
+        *CreatorGalleryHarmonic::ELEMENTS.filter_map do |element|
+          next if element == "mark" && places[element].blank?
+          say.call(:place, n: n, element: element, value: "\"#{places[element]}\"", allowed: CreatorGalleryHarmonic::PLACES.join(", ")) if CreatorGalleryHarmonic::PLACES.exclude?(places[element])
+        end,
+        (say.call(:background_both, n: n) if picture && entry["background_gradient"].present?),
+        (say.call(:gradient, n: n, value: "\"#{entry["background_gradient"]}\"", allowed: CreatorGalleryHarmonic::GRADIENTS.map { |key, name| "#{key} (#{name})" }.join(", ")) if !picture && entry["background_gradient"].present? && !CreatorGalleryHarmonic::GRADIENTS.key?(gradient)),
+        (say.call(:background_stale, n: n) if picture && (post_id.nil? || refused.key?(post_id))),
+        *(picture ? settings : {}).filter_map do |key, (label, (min, max))|
+          say.call(:range, n: n, setting: label, value: entry[key].to_s.presence || "empty", min: min, max: max) unless values[key]&.between?(min, max)
+        end,
+        (say.call(:shade_floor, n: n, value: values["shade"], floor: limits["shade_floor"]) if picture && values["shade"]&.between?(*limits["shade"]) && values["shade"] < limits["shade_floor"]),
+        (say.call(:host_fit, n: n, domain: domain) if domain && split && domain.length * 6.6 > 160 * 0.86 / 3),
+      ].compact
+      attributes = {
+        shown: entry.key?("shown") ? entry["shown"].to_s.truthy? : true,
+        site: link[:site], url: link[:url], title: title, subtitle: subtitle, cta: cta, places: places.compact_blank,
+        background_post_id: post_id, background_gradient: (gradient unless picture),
+        **settings.keys.to_h { |key| [key.to_sym, (values[key] if picture)] },
+      }
+      [n, attributes, problems]
+    end
+    attributes = checked.to_h { |n, attrs, _| [n, attrs] }
+
+    pages = checked.filter_map { |n, attrs, _| [n, attrs[:url]] if attrs[:url] }.group_by(&:last).values.find { |pair| pair.size > 1 }
+    # The later of the first two support links is the one refused.
+    first, second = checked.select { |_, attrs, _| CreatorGalleryHarmonic::SITES[attrs[:site]]&.support }
+    counting = checked.count { |_, attrs, _| attrs[:shown] && CreatorGalleryHarmonic::SITES.key?(attrs[:site]) && removed.exclude?(attrs[:url]) }
+    left_out = stored.values.select(&:staff_hidden?) - numbered.map { |_, row, _| row }
+    twice = numbered.select { |_, row, _| row&.persisted? }.group_by { |_, row, _| row.id }.values.find { |listed| listed.size > 1 }
+    cap = gallery.harmonic_cap
+    over = ->(count, most) { (count - most == 1) ? "one" : count - most }
+    problems = [
+      *numbered.filter_map { |_, row, n| say.call(:unknown, n: n) if row.nil? },
+      (say.call(:same_row, a: twice[0][2], b: twice[1][2]) if twice),
+      *checked.flat_map(&:last),
+      (say.call(:duplicate, a: pages[0][0], b: pages[1][0]) if pages),
+      (say.call(:support_twice, a: second[0], b: first[0], site_a: CreatorGalleryHarmonic::SITES[second[1][:site]].name, site_b: CreatorGalleryHarmonic::SITES[first[1][:site]].name) if second),
+      (say.call(:cap, count: counting, cap: cap, over: over.call(counting, cap)) if counting > cap),
+      (say.call(:rows, count: entries.size + left_out.size, max: limits["rows"], over: over.call(entries.size + left_out.size, limits["rows"])) if entries.size + left_out.size > limits["rows"]),
+    ].compact.uniq
+    return [nil, problems] if problems.any?
+
+    [[*numbered.map { |_, row, n| [row, attributes.fetch(n, {})] }, *left_out.map { |row| [row, {}] }], []]
   end
 
   # The eligible posts, as CreatorControl's parts narrowed in SQL -- each

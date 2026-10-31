@@ -475,7 +475,9 @@ class CreatorGroupTest < ActiveSupport::TestCase
 
       error = assert_raises(ActiveRecord::RecordInvalid) { CreatorJoinRequest.file!(@group, @member) }
       assert_equal("Refused on #{Time.zone.today}. You can ask again after #{Time.zone.today + 7}.", error.record.errors.full_messages.join)
-      travel(CreatorJoinRequest::COOLDOWN + 1.minute) { assert(CreatorJoinRequest.file!(@group, @member).pending?) }
+      # From the refusal's own time, in the zone the cooldown is counted in:
+      # a week across a clock change is 167 or 169 hours, never travel's 168.
+      travel_to(@request.reload.decided_at + CreatorJoinRequest::COOLDOWN + 1.minute) { assert(CreatorJoinRequest.file!(@group, @member).pending?) }
     end
   end
 end

@@ -138,6 +138,51 @@
       </div>
     <% end %>
 
+    <%# Perks: per-user grants that raise one of the account's limits
+        (UserPerk; CREATOR_TUNER.md sec 4.4). Admin only -- never a level, so
+        no gated post opens with one. A grant counts only while the account is
+        in good standing; the number shown is what the account has now. %>
+    <% if CurrentUser.user.is_admin? %>
+      <h2 class="my-4">Perks</h2>
+
+      <div class="space-y-2" id="user-perks">
+        <% UserPerk::PERKS.each do |key, entry| %>
+          <% grant = @user.user_perks.find_by(perk: key, revoked_at: nil) %>
+          <div class="card-outlined p-2 space-y-2">
+            <div class="flex items-center justify-between gap-4">
+              <div class="space-y-1">
+                <div><span class="font-bold"><%= entry[:label] %></span> <%= @user.perk_value(key) %></div>
+                <div class="fineprint">
+                  <% if grant.nil? %>
+                    No grant: everyone's <%= entry[:default] %>.
+                  <% else %>
+                    Granted <%= grant.value %><% if grant.expires_at %>, <%= (grant.expires_at > Time.zone.now) ? "ends" : "ended" %> <%= grant.expires_at.to_date.iso8601 %><% end %>,
+                    <%= time_ago_in_words_tagged(grant.created_at) %><% if grant.granted_by %> by <%= link_to_user grant.granted_by %><% end %>.
+                    <% if @user.perk_value(key) < grant.value %>Not counting while the account is not in good standing.<% end %>
+                  <% end %>
+                </div>
+              </div>
+              <% if grant %>
+                <%= form_tag admin_user_path(@user), method: :put do %>
+                  <%= hidden_field_tag "perk[key]", key, id: nil %>
+                  <%= hidden_field_tag "perk[revoke]", "1", id: nil %>
+                  <%= submit_tag "Revoke", class: "button-outline-danger h-fit" %>
+                <% end %>
+              <% end %>
+            </div>
+
+            <%= form_tag admin_user_path(@user), method: :put, class: "flex flex-wrap items-center gap-2" do %>
+              <%= hidden_field_tag "perk[key]", key, id: nil %>
+              <label>Value <%= number_field_tag "perk[value]", grant&.value || entry[:default] + 1, min: entry[:default] + 1, max: entry[:max], step: 1, required: true, class: "w-20" %></label>
+              <label>Ends <%= date_field_tag "perk[expires_at]", grant&.expires_at&.to_date, min: Time.zone.tomorrow %></label>
+              <%= submit_tag "Grant", class: "button-primary h-fit" %>
+            <% end %>
+            <p class="fineprint">From <%= entry[:default] + 1 %> to <%= entry[:max] %>. A grant replaces the one before it; leave Ends empty for no end.</p>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+
     <% if policy(@user).can_recover_account? %>
       <h2 class="my-4">Account recovery</h2>
 

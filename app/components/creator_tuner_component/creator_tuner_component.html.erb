@@ -1,0 +1,49 @@
+<%# The Tuner; creator_tuner.js gives it motion. Every card is here, and every
+    one but the first is hidden from sight, tab order and screen readers. %>
+<%= tag.section(class: "cg-tuner cg-tuner--#{placement.downcase}", aria: { label: "Tuner" },
+                data: { cg_tuner: placement, scan: scan.nil? ? "" : scan.to_s }) do %>
+  <% if placement == "A" %>
+    <div class="cg-tuner-plate">
+      <div class="cg-tuner-slot">
+        <% cards.each_with_index do |card, i| %>
+          <%= render CreatorHarmonicComponent.new(card: card, hidden: i.positive?) %>
+        <% end %>
+        <canvas class="cg-tuner-static" width="96" height="60" aria-hidden="true"></canvas>
+        <span class="cg-tuner-scanlines" aria-hidden="true"></span>
+      </div>
+      <div class="cg-tuner-dial">
+        <button type="button" class="cg-tuner-scan" data-cg-scan aria-pressed="<%= scan != false %>" title="Scan: the Tuner moves on by itself. Your choice, remembered.">Scan</button>
+        <div class="cg-tuner-scale" aria-hidden="true">
+          <% (0..(cards.size * 4)).each do |k| %>
+            <span class="cg-tuner-tick" style="left: <%= (k * 25.0 / cards.size).round(3) %>%"></span>
+          <% end %>
+          <% cards.each_with_index do |card, i| %>
+            <span class="cg-tuner-station<%= " is-on" if i.zero? %>" data-station="<%= station(card) %>" style="left: <%= ((i + 0.5) * 100.0 / cards.size).round(3) %>%"><b><%= letter(card) %></b></span>
+          <% end %>
+          <span class="cg-tuner-needle" style="left: <%= (50.0 / cards.size).round(3) %>%"></span>
+        </div>
+        <div class="cg-tuner-knob" role="slider" tabindex="0" aria-label="Tuner station"
+             aria-valuemin="1" aria-valuemax="<%= cards.size %>" aria-valuenow="1" aria-valuetext="<%= station(cards.first) %>"
+             style="--rot: <%= (-135 + (135.0 / cards.size)).round(3) %>deg">
+          <span class="cg-tuner-cap"></span>
+        </div>
+      </div>
+    </div>
+  <% else %>
+    <div class="cg-tuner-panel">
+      <div class="cg-tuner-slot">
+        <% cards.each_with_index do |card, i| %>
+          <%= render CreatorHarmonicComponent.new(card: card, hidden: i.positive?) %>
+        <% end %>
+      </div>
+    </div>
+    <div class="cg-tuner-controls">
+      <button type="button" class="cg-tuner-step" data-cg-step="-1" aria-label="Previous harmonic">&#x2039;</button>
+      <% cards.each_with_index do |card, i| %>
+        <button type="button" class="cg-tuner-pip" data-cg-pip="<%= i %>" aria-label="Harmonic <%= i + 1 %> of <%= cards.size %>: <%= card[:title] %>"<%= raw(' aria-current="true"') if i.zero? %>></button>
+      <% end %>
+      <button type="button" class="cg-tuner-scan" data-cg-scan aria-pressed="<%= scan != false %>" title="Scan: the Tuner moves on by itself. Your choice, remembered.">Scan</button>
+      <button type="button" class="cg-tuner-step" data-cg-step="1" aria-label="Next harmonic">&#x203a;</button>
+    </div>
+  <% end %>
+<% end %>

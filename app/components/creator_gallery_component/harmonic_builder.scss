@@ -1,0 +1,215 @@
+// The harmonic builder (harmonic_builder.js; CREATOR_TUNER.md rev 3, sec 3):
+// a glass sheet under the Tuner, over the page, nothing under it moving. On
+// a phone it is a sheet over the bottom of the screen with the card it builds
+// kept in view at its top.
+//
+// The card in hand is the only ringed, orange thing here: every pressed or
+// checked control is neutral, and Save is the accent.
+
+.modcreator {
+  // The builder hangs from a zero-height anchor after the header: above the
+  // hero band, under the bar.
+  .cg-hb-anchor {
+    position: relative; z-index: 2; height: 0;
+    max-width: var(--cg-col); margin: 0 auto; padding: 0 var(--cg-gutter);
+  }
+
+  .cg-tuner { scroll-margin-top: 72px; }
+
+  .cg-hb {
+    position: absolute; top: 0; left: var(--cg-gutter); right: var(--cg-gutter);
+    display: flex; flex-direction: column; gap: 16px;
+    padding: 16px; border-radius: 16px;
+    container-type: inline-size;
+    background: color-mix(in srgb, var(--mod-surface) 96%, transparent);
+
+    h3 { margin: 0; font-size: 15px; font-weight: 700; }
+    fieldset { display: contents; }
+
+    // Neutral: what is pressed or checked here is a choice, not a state.
+    .cg-seg button[aria-pressed="true"], .cg-btn[aria-pressed="true"] {
+      background: var(--mod-surface-3); color: var(--mod-ink); box-shadow: inset 0 0 0 1px var(--mod-line-strong); border-color: var(--mod-line-strong);
+    }
+  }
+
+  .cg-hb-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  .cg-hb-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+  .cg-hb-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cg-hb-cap { margin: 0; }
+
+  .cg-hb-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+
+  .cg-hb-stage { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+  .cg-hb-stage-card {
+    width: min(100%, 380px); touch-action: none;
+
+    .cg-hm-mark, .cg-hm-title, .cg-hm-sub, .cg-hm-cta, .cg-hm-host { cursor: grab; }
+    &:active .cg-hm-mark, &:active .cg-hm-title, &:active .cg-hm-sub, &:active .cg-hm-cta, &:active .cg-hm-host { cursor: grabbing; }
+  }
+
+  .cg-hb-previews {
+    display: flex; align-items: flex-start; gap: 12px; overflow-x: auto; padding-bottom: 4px;
+
+    .cg-hm { cursor: default; }
+  }
+
+  .cg-hb-preview {
+    display: flex; flex: none; flex-direction: column; gap: 4px; margin: 0;
+  }
+
+  .cg-hb-form { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+
+  .cg-hb-sec {
+    display: flex; flex-direction: column; gap: 10px;
+    padding-top: 16px; border-top: 1px solid var(--mod-line);
+
+    &:first-child { padding-top: 0; border-top: 0; }
+  }
+
+  .cg-hb-locked { margin: 0; padding: 10px 12px; border-radius: var(--mod-radius-sm); background: var(--mod-alarm-bg); color: var(--mod-alarm-ink); font-size: 13px; }
+
+  .cg-hb-mono { font-family: var(--mod-mono); font-size: 13px; }
+
+  .cg-hb-pill {
+    align-self: flex-start; margin: 0; padding: 4px 10px; border-radius: var(--mod-pill-radius);
+    background: var(--mod-surface-2); border: 1px solid var(--mod-line); font-size: 12px; color: var(--mod-ink-dim);
+
+    b { color: var(--mod-ink); }
+  }
+
+  .cg-hb-host { font-family: var(--mod-mono); }
+
+  .cg-hb-ask {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 12px; border-radius: var(--mod-radius-sm); border: 1px dashed var(--mod-line-strong);
+
+    p { margin: 0; }
+  }
+
+  .cg-hb-ask-line { font-family: var(--mod-mono); font-size: 13px; user-select: all; overflow-wrap: anywhere; }
+  .cg-hb-ask-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .cg-hb-sites {
+    font-size: 13px;
+
+    summary { cursor: pointer; color: var(--mod-ink-dim); }
+    p { margin: 6px 0 0; }
+    b { color: var(--mod-ink); font-weight: 600; }
+  }
+
+  .cg-hb-fieldhead { display: flex; justify-content: space-between; gap: 8px; }
+
+  .cg-hb-count {
+    font-family: var(--mod-mono); font-size: 11px; color: var(--mod-ink-dim);
+
+    &.is-over { color: var(--mod-alarm-ink); }
+  }
+
+  .cg-hb-bgs { display: flex; flex-direction: column; gap: 8px; }
+
+  .cg-hb-posts {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px;
+    max-height: 220px; overflow: auto; padding: 2px;
+
+    .cg-thumb[aria-checked="true"] { box-shadow: 0 0 0 2px var(--mod-ink), 0 10px 24px -8px rgb(0 0 0 / 80%); }
+  }
+
+  .cg-hb-grads { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .cg-hb-swatch {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    width: 72px; padding: 4px; border: 0; border-radius: var(--mod-radius-sm);
+    background: transparent; cursor: pointer;
+
+    .cg-hm-grad { position: relative; display: block; width: 100%; aspect-ratio: 16 / 10; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--mod-line); }
+
+    // Ground is the card's own background (creator_harmonic_component.scss).
+    .cg-hm-grad--0 {
+      background:
+        radial-gradient(60% 50% at 25% 30%, var(--mod-active-bg), transparent 70%),
+        radial-gradient(50% 45% at 80% 20%, color-mix(in srgb, var(--mod-accent) 12%, transparent), transparent 70%),
+        linear-gradient(160deg, var(--mod-surface-3), var(--mod-surface));
+    }
+
+    &[aria-checked="true"] { background: var(--mod-surface-3); box-shadow: inset 0 0 0 1px var(--mod-line-strong); }
+  }
+
+  .cg-hb-swatch-name { font-size: 12px; color: var(--mod-ink-dim); }
+
+  .cg-hb-ranges { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px 16px; }
+
+  .cg-hb-range {
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 8px;
+
+    .cg-label { grid-column: 1 / -1; }
+    input { width: 100%; }
+    input:disabled { opacity: 0.4; }
+    output { font-family: var(--mod-mono); font-size: 12px; min-width: 4ch; text-align: right; }
+  }
+
+  .cg-hb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .cg-hb-chip {
+    min-height: 34px; padding: 0 12px; border-radius: var(--mod-pill-radius);
+    border: 1px solid var(--mod-line-strong); background: var(--mod-surface-2); color: var(--mod-ink-dim);
+    font-size: 13px; cursor: pointer;
+
+    &:hover { color: var(--mod-ink); }
+    &[aria-checked="true"] { background: var(--mod-surface-3); color: var(--mod-ink); border-color: var(--mod-ink-dim); }
+  }
+
+  .cg-hb-places {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;
+    width: min(100%, 320px); aspect-ratio: 16 / 10; padding: 4px;
+    border-radius: var(--mod-radius-sm); border: 1px solid var(--mod-line); background: var(--mod-surface);
+  }
+
+  .cg-hb-place {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0;
+    padding: 2px; border: 1px dashed var(--mod-line); border-radius: 6px;
+    background: transparent; color: var(--mod-ink-dim); font-size: 11px; cursor: pointer;
+
+    b { font-family: var(--mod-mono); font-weight: 400; font-size: 10px; text-transform: uppercase; }
+    span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mod-ink); }
+    &:hover { border-color: var(--mod-ink-dim); }
+    &[aria-checked="true"] { border-style: solid; border-color: var(--mod-ink); background: var(--mod-surface-3); }
+  }
+
+  .cg-hb-problems {
+    font-size: 13px;
+
+    ul { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 6px; line-height: 1.5; color: var(--mod-alarm-ink); }
+    p { margin: 0; }
+  }
+
+  .cg-hb-foot {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding-top: 16px; border-top: 1px solid var(--mod-line);
+
+    .cg-check { align-items: center; margin-right: auto; }
+  }
+
+  .cg-hb-mod {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 12px; border-radius: var(--mod-radius-sm); border: 1px solid var(--mod-line);
+
+    .cg-input { flex: 1 1 220px; width: auto; }
+    .cg-note { flex-basis: 100%; margin: 0; }
+  }
+
+  @container (width >= 860px) {
+    .cg-hb-grid { grid-template-columns: 400px minmax(0, 1fr); }
+    .cg-hb-stage { position: sticky; top: 16px; align-self: start; }
+  }
+
+  @media (width <= 640px) {
+    .cg-hb {
+      position: fixed; inset: auto 0 0; z-index: 50; max-height: 80vh; overflow: auto;
+      border-radius: 16px 16px 0 0;
+    }
+
+    .cg-hb-stage { position: sticky; top: -16px; z-index: 1; margin: -16px -16px 0; padding: 16px; background: var(--mod-surface); }
+    .cg-hb-previews { display: none; }
+  }
+}

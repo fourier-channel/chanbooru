@@ -9,6 +9,8 @@ class CreatorGallery < ApplicationRecord
   has_many :creator_gallery_posts, -> { order(:position, :id) }, dependent: :destroy, inverse_of: :creator_gallery
   has_many :posts, through: :creator_gallery_posts
   has_many :creator_gallery_messages, -> { order(created_at: :desc) }, dependent: :destroy, inverse_of: :creator_gallery
+  # The Tuner's link cards (CREATOR_TUNER.md). The database cascades them with the gallery.
+  has_many :creator_gallery_harmonics, -> { order(:position, :id) }, dependent: nil, inverse_of: :creator_gallery
   # Claims are history (who asked, who decided), so a gallery that has filed
   # one is not deleted out from under it.
   has_many :artist_claims, dependent: :restrict_with_error
@@ -104,6 +106,12 @@ class CreatorGallery < ApplicationRecord
 
   # URL key is the slug (Matrix localpart), not the numeric id.
   def to_param = slug
+
+  # How many harmonics this page may show: its owner's, perks included; the
+  # default for a page nobody owns.
+  def harmonic_cap
+    user ? user.perk_value(:creator_harmonic_cap) : UserPerk.default(:creator_harmonic_cap)
+  end
 
   # The MXID a visitor should message; falls back to the owning identity.
   def contact = matrix_contact.presence || matrix_id

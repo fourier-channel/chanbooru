@@ -1,0 +1,719 @@
+{
+  "_comment": [
+    "THE CREATOR TUNER'S SITE LIST AND ITS SENTENCES (CREATOR_TUNER.md rev 3, sec 3.4 and 5).",
+    "One file read by both sides: CreatorGalleryHarmonic on the server and harmonic_model.js in the",
+    "builder, so the list and the words cannot drift apart. A pattern is matched against",
+    "host + path + query of the normalized link, anchored at both ends by each reader; host is",
+    "matched against the host alone. A post pattern's profile names its groups as \\1, \\2.",
+    "A site's canonical rules rewrite another spelling of one page to the one the Tuner stores,",
+    "before its posts and accept patterns are tried: the first matching rule, its groups as \\1,",
+    "\\2. One page has one link, so a removal of it covers every spelling (sec 4.5).",
+    "A site taken off this list stops its harmonics drawing and counting at once; the rows stay,",
+    "so putting it back restores them (sec 4.6)."
+  ],
+  "groups": [
+    "Social",
+    "Art",
+    "AI",
+    "Support"
+  ],
+  "sites": [
+    {
+      "key": "x",
+      "name": "X",
+      "group": "Social",
+      "logo": "twitter-logo.png",
+      "support": false,
+      "adult": true,
+      "host": "x\\.com",
+      "shape": "https://x.com/yourname",
+      "accept": [
+        "x\\.com/(?!(?:home|i|search|explore|settings|intent|share|messages|notifications)(?![A-Za-z0-9_]))[A-Za-z0-9_]{1,15}"
+      ],
+      "posts": [
+        [
+          "x\\.com/([A-Za-z0-9_]{1,15})/status/.*",
+          "https://x.com/\\1"
+        ],
+        [
+          "x\\.com/i/.*",
+          null
+        ]
+      ],
+      "canonical": []
+    },
+    {
+      "key": "bluesky",
+      "name": "Bluesky",
+      "group": "Social",
+      "logo": "bluesky-logo.png",
+      "support": false,
+      "adult": true,
+      "host": "bsky\\.app",
+      "shape": "https://bsky.app/profile/you.bsky.social",
+      "accept": [
+        "bsky\\.app/profile/[A-Za-z0-9.:-]+"
+      ],
+      "posts": [
+        [
+          "bsky\\.app/profile/([A-Za-z0-9.:-]+)/post/.*",
+          "https://bsky.app/profile/\\1"
+        ]
+      ],
+      "canonical": []
+    },
+    {
+      "key": "instagram",
+      "name": "Instagram",
+      "group": "Social",
+      "logo": "instagram-logo.png",
+      "support": false,
+      "adult": false,
+      "host": "instagram\\.com",
+      "shape": "https://instagram.com/yourname",
+      "accept": [
+        "instagram\\.com/(?!(?:p|reel|reels|tv|explore|stories|accounts)(?![A-Za-z0-9_.]))[A-Za-z0-9_.]{1,30}"
+      ],
+      "posts": [
+        [
+          "instagram\\.com/([A-Za-z0-9_.]{1,30})/(?:p|reel|reels|tv)/.*",
+          "https://instagram.com/\\1"
+        ],
+        [
+          "instagram\\.com/(?:p|reel|reels|tv|stories)/.*",
+          null
+        ]
+      ],
+      "canonical": []
+    },
+    {
+      "key": "facebook",
+      "name": "Facebook",
+      "group": "Social",
+      "logo": "facebook-logo.png",
+      "support": false,
+      "adult": false,
+      "host": "facebook\\.com",
+      "shape": "https://facebook.com/yourpage",
+      "accept": [
+        "facebook\\.com/profile\\.php\\?id=[0-9]+",
+        "facebook\\.com/(?!(?:watch|groups|events|share|reel|story\\.php|photo\\.php|permalink\\.php|profile\\.php)(?![A-Za-z0-9.-]))[A-Za-z0-9.-]{5,}"
+      ],
+      "posts": [
+        [
+          "facebook\\.com/([A-Za-z0-9.-]{5,})/(?:posts|photos|videos|reels)/.*",
+          "https://facebook.com/\\1"
+        ],
+        [
+          "facebook\\.com/(?:watch|share|story\\.php|photo\\.php|permalink\\.php|reel)(?:[/?].*)?",
+          null
+        ]
+      ],
+      "canonical": []
+    },
+    {
+      "key": "tumblr",
+      "name": "Tumblr",
+      "group": "Social",
+      "logo": "tumblr-logo.png",
+      "support": false,
+      "adult": true,
+      "host": "(?:[a-z0-9-]+\\.)?tumblr\\.com",
+      "shape": "https://tumblr.com/yourblog",
+      "accept": [
+        "tumblr\\.com/(?!(?:dashboard|explore|tagged|search|settings|blog|likes|following|inbox|login|register)(?![A-Za-z0-9-]))[A-Za-z0-9-]+"
+      ],
+      "posts": [
+        [
+          "tumblr\\.com/([A-Za-z0-9-]+)/(?:post/)?[0-9]+.*",
+          "https://tumblr.com/\\1"
+        ]
+      ],
+      "canonical": [
+        [
+          "([a-z0-9-]+)\\.tumblr\\.com(/.*)?",
+          "tumblr.com/\\1\\2"
+        ]
+      ]
+    },
+    {
+      "key": "reddit",
+      "name": "Reddit",
+      "group": "Social",
+      "logo": "reddit-logo.png",
+      "support": false,
+      "adult": true,
+      "host": "reddit\\.com",
+      "shape": "https://reddit.com/user/yourname",
+      "accept": [
+        "reddit\\.com/user/[A-Za-z0-9_-]{3,20}"
+      ],
+      "posts": [
+        [
+          "reddit\\.com/user/([A-Za-z0-9_-]{3,20})/comments/.*",
+          "https://reddit.com/user/\\1"
+        ],
+        [
+          "reddit\\.com/r/[^/]+/comments/.*",
+          null
+        ]
+      ],
+      "canonical": [
+        [
+          "reddit\\.com/u/(.*)",
+          "reddit.com/user/\\1"
+        ]
+      ]
+    },
+    {
+      "key": "youtube",
+      "name": "YouTube",
+      "group": "Social",
+      "logo": "youtube-logo.png",
+      "support": false,
+      "adult": false,
+      "host": "youtube\\.com|youtu\\.be",
+      "shape": "https://youtube.com/@yourname",
+      "accept": [
+        "youtube\\.com/@[A-Za-z0-9._-]{3,30}",
+        "youtube\\.com/channel/UC[A-Za-z0-9_-]{22}"
+      ],
+      "posts": [
+        [
+          "youtu\\.be/.*",
+          null
+        ],
+        [
+          "youtube\\.com/(?:watch|shorts/|live/|embed/|playlist).*",
+          null
+        ]
+      ],
+      "canonical": []
+    },
+    {
+      "key": "mastodon",
+      "name": "Mastodon",
+      "group": "Social",
+      "logo": "mastodon-logo.png",
+      "support": false,
+      "adult": true,
+      "host": "pawoo\\.net|baraag\\.net",
+      "shape": "https://pawoo.net/@yourname",
+      "accept": [
+        "(?:pawoo\\.net|baraag\\.net)/@[A-Za-z0-9_]{1,30}"
+      ],
+      "posts": [
+        [
+          "(pawoo\\.net|baraag\\.net)/(@[A-Za-z0-9_]{1,30})/[0-9]+.*",
+          "https://\\1/\\2"
+        ]
+      ],
+      "canonical": []
+    },
+    {
+      "key": "misskey",
+      "name": "Misskey",
+      "group": "Social",
+      "logo": "misskey-logo.png",
+      "support": false,
+      "adult": true,
+      "host": "misskey\\.(?:io|art|design)",
+      "shape": "https://misskey.io/@yourname",
+      "accept": [
+        "misskey\\.(?:io|art|design)/@[A-Za-z0-9_]{1,30}"
+      ],
+      "posts": [
+        [
+          "misskey\\.(?:io|art|design)/notes/.*",
+          null
+        ]
+      ],
+      "canonical": []
+    },
+    {
+      "key": "pixiv",
+      "name": "pixiv",
+      "group": "Art",
+      "logo": "pixiv-logo.png",
+      "support": false,
+      "adult": true,
+      "host": "pixiv\\.net",
+      "shape": "https://pixiv.net/users/12345",
+      "accept": [
+        "pixiv\\.net/users/[0-9]+"
+      ],
+      "posts": [
+        [
+          "pixiv\\.net/artworks/.*",
+          null
+        ],
+        [
+          "pixiv\\.net/member_illust\\.php.*",
+          null
+        ],
+        [
+          "pixiv\\.net/novel/.*",
+          null
+        ]
+      ],
+      "canonical": [
+        [
+          "pixiv\\.net/[a-z]{2}/(.*)",
+          "pixiv.net/\\1"
+        ]
+      ]
+    },
+    {
+      "key": "deviantart",
+      "name": "DeviantArt",
+      "group": "Art",
+      "logo": "deviant-art-logo.png",
+      "support": false,
+      "adult": true,
+      "host": "(?:[a-z0-9-]+\\.)?deviantart\\.com",
+      "shape": "https://deviantart.com/yourname",
+      "accept": [
+        "deviantart\\.com/[A-Za-z0-9-]{3,20}"
+      ],
+      "posts": [
+        [
+          "deviantart\\.com/([A-Za-z0-9-]{3,20})/art/.*",
+          "https://deviantart.com/\\1"
+        ]
+      ],
+      "canonical": [
+        [
+          "([a-z0-9-]+)\\.deviantart\\.com(/.*)?",
+          "deviantart.com/\\1\\2"
+        ]
+      ]
+    },
+    {
+      "key": "artstation",
+      "name": "ArtStation",
+      "group": "Art",
+      "logo": "artstation-logo.png",
+      "support": false,
+      "adult": false,
+      "host": "artstation\\.com",
+      "shape": "https://artstation.com/yourname",
+      "accept": [
+        "artstation\\.com/(?!(?:artwork|search|learning|marketplace|jobs|blogs|prints)(?![A-Za-z0-9_-]))[A-Za-z0-9_-]{3,63}"
+      ],
+      "posts": [
+        [
+          "artstation\\.com/artwork/.*",
+          null
+        ]
+      ],
+      "canonical": []
+    },
+    {
+      "key": "newgrounds",
+      "name": "Newgrounds",
+      "group": "Art",
+      "logo": "newgrounds-logo.png",
+      "support": false,
+      "adult": true,
+      "host": "[a-z0-9-]+\\.newgrounds\\.com|newgrounds\\.com",
+      "shape": "https://yourname.newgrounds.com",
+      "accept": [
+        "[a-z0-9-]+\\.newgrounds\\.com"
+      ],
+      "posts": [
+        [
+          "newgrounds\\.com/art/view/([a-z0-9-]+)/.*",
+          "https://\\1.newgrounds.com"
+        ],
+        [
+          "newgrounds\\.com/portal/view/.*",
+          null
+        ]
+      ],
+      "canonical": []
+    },
+    {
+      "key": "civitai",
+      "name": "Civitai",
+      "group": "AI",
+      "logo": "civitai-logo.png",
+      "support": false,
+      "adult": true,
+      "host": "civitai\\.(?:com|red)",
+      "shape": "https://civitai.com/user/yourname",
+      "accept": [
+        "civitai\\.(?:com|red)/models/[0-9]+(?:\\?modelVersionId=[0-9]+)?",
+        "civitai\\.(?:com|red)/user/[A-Za-z0-9_.-]+(?:/(?:models|posts|images|articles|collections))?"
+      ],
+      "posts": [
+        [
+          "civitai\\.(?:com|red)/(?:images|posts)/.*",
+          null
+        ]
+      ],
+      "canonical": [
+        [
+          "(civitai\\.(?:com|red)/models/[0-9]+)/[^/?]+(\\?.*)?",
+          "\\1\\2"
+        ]
+      ]
+    },
+    {
+      "key": "tensorart",
+      "name": "Tensor.Art",
+      "group": "AI",
+      "logo": "tensorart-logo.png",
+      "support": false,
+      "adult": true,
+      "host": "tensor\\.art",
+      "shape": "https://tensor.art/u/12345",
+      "accept": [
+        "tensor\\.art/(?:u|models)/[0-9]+"
+      ],
+      "posts": [
+        [
+          "tensor\\.art/(?:images|posts)/.*",
+          null
+        ]
+      ],
+      "canonical": []
+    },
+    {
+      "key": "huggingface",
+      "name": "Hugging Face",
+      "group": "AI",
+      "logo": null,
+      "support": false,
+      "adult": false,
+      "host": "huggingface\\.co",
+      "shape": "https://huggingface.co/yourname",
+      "accept": [
+        "huggingface\\.co/(?:spaces/|datasets/)?(?!(?:docs|blog|papers|pricing|login|join|settings|search|tasks|learn|models|spaces|datasets)(?![A-Za-z0-9_.-]))[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?"
+      ],
+      "posts": [],
+      "canonical": []
+    },
+    {
+      "key": "aichan",
+      "name": "aichan.gallery",
+      "group": "AI",
+      "logo": null,
+      "support": false,
+      "adult": true,
+      "host": "aichan\\.gallery",
+      "shape": "https://aichan.gallery",
+      "accept": [
+        "aichan\\.gallery(?:[/?].*)?"
+      ],
+      "posts": [],
+      "canonical": []
+    },
+    {
+      "key": "kofi",
+      "name": "Ko-fi",
+      "group": "Support",
+      "logo": "ko-fi-logo.png",
+      "support": true,
+      "adult": false,
+      "host": "ko-fi\\.com",
+      "shape": "https://ko-fi.com/yourname",
+      "accept": [
+        "ko-fi\\.com/(?!(?:s|i|post|album|explore|manage|home)(?![A-Za-z0-9_]))[A-Za-z0-9_]{1,50}"
+      ],
+      "posts": [
+        [
+          "ko-fi\\.com/(?:s|i|post|album)/.*",
+          null
+        ]
+      ],
+      "canonical": []
+    },
+    {
+      "key": "patreon",
+      "name": "Patreon",
+      "group": "Support",
+      "logo": "patreon-logo.png",
+      "support": true,
+      "adult": true,
+      "host": "patreon\\.com",
+      "shape": "https://patreon.com/yourname",
+      "accept": [
+        "patreon\\.com/user\\?u=[0-9]+",
+        "patreon\\.com/(?!(?:posts|home|login|signup|search|messages|settings|user|c)(?![A-Za-z0-9_-]))[A-Za-z0-9_-]{1,64}"
+      ],
+      "posts": [
+        [
+          "patreon\\.com/posts/.*",
+          null
+        ]
+      ],
+      "canonical": [
+        [
+          "patreon\\.com/c/(.*)",
+          "patreon.com/\\1"
+        ]
+      ]
+    },
+    {
+      "key": "fantia",
+      "name": "Fantia",
+      "group": "Support",
+      "logo": "fantia-logo.png",
+      "support": true,
+      "adult": true,
+      "host": "fantia\\.jp",
+      "shape": "https://fantia.jp/fanclubs/12345",
+      "accept": [
+        "fantia\\.jp/fanclubs/[0-9]+"
+      ],
+      "posts": [
+        [
+          "fantia\\.jp/(?:posts|products)/.*",
+          null
+        ]
+      ],
+      "canonical": []
+    },
+    {
+      "key": "gumroad",
+      "name": "Gumroad",
+      "group": "Support",
+      "logo": "gumroad-logo.png",
+      "support": true,
+      "adult": true,
+      "host": "(?:[a-z0-9-]+\\.)?gumroad\\.com",
+      "shape": "https://yourname.gumroad.com",
+      "accept": [
+        "[a-z0-9-]+\\.gumroad\\.com"
+      ],
+      "posts": [
+        [
+          "([a-z0-9-]+)\\.gumroad\\.com/l/.*",
+          "https://\\1.gumroad.com"
+        ],
+        [
+          "gumroad\\.com/l/.*",
+          null
+        ]
+      ],
+      "canonical": []
+    }
+  ],
+  "host_aliases": {
+    "twitter.com": "x.com"
+  },
+  "host_prefixes": [
+    "www",
+    "m",
+    "mobile",
+    "old"
+  ],
+  "tracking": "utm_.*|fbclid|si",
+  "shorteners": [
+    "bit.ly",
+    "t.co",
+    "tinyurl.com",
+    "goo.gl",
+    "ow.ly",
+    "buff.ly",
+    "is.gd",
+    "v.gd",
+    "cutt.ly",
+    "rebrand.ly",
+    "shorturl.at",
+    "tiny.cc",
+    "rb.gy",
+    "t.ly",
+    "s.id",
+    "dlvr.it",
+    "lnk.to",
+    "pixiv.me"
+  ],
+  "hubs": [
+    "linktr.ee",
+    "lit.link",
+    "beacons.ai",
+    "carrd.co",
+    "campsite.bio",
+    "bio.link",
+    "solo.to",
+    "allmylinks.com",
+    "potofu.me",
+    "linkin.bio"
+  ],
+  "invites": [
+    "discord.gg",
+    "discord.com",
+    "discordapp.com"
+  ],
+  "ctas": [
+    [
+      "visit",
+      "Visit"
+    ],
+    [
+      "follow",
+      "Follow"
+    ],
+    [
+      "download",
+      "Download"
+    ],
+    [
+      "view_model",
+      "View model"
+    ],
+    [
+      "support",
+      "Support"
+    ],
+    [
+      "join",
+      "Join"
+    ],
+    [
+      "commission",
+      "Commission"
+    ]
+  ],
+  "places": [
+    "tl",
+    "tc",
+    "tr",
+    "ml",
+    "mc",
+    "mr",
+    "bl",
+    "bc",
+    "br"
+  ],
+  "elements": [
+    "mark",
+    "title",
+    "subtitle",
+    "button",
+    "host"
+  ],
+  "presets": [
+    [
+      "corner",
+      "Corner",
+      {
+        "mark": "tl",
+        "title": "bl",
+        "subtitle": "bl",
+        "button": "br",
+        "host": "tr"
+      }
+    ],
+    [
+      "lower_third",
+      "Lower third",
+      {
+        "mark": "bl",
+        "title": "bl",
+        "subtitle": "bl",
+        "button": "br",
+        "host": "br"
+      }
+    ],
+    [
+      "centre",
+      "Centre",
+      {
+        "mark": "tc",
+        "title": "mc",
+        "subtitle": "mc",
+        "button": "bc",
+        "host": "bc"
+      }
+    ],
+    [
+      "split",
+      "Split",
+      {
+        "mark": "tl",
+        "title": "ml",
+        "subtitle": "ml",
+        "button": "mr",
+        "host": "bl"
+      }
+    ]
+  ],
+  "gradients": [
+    [
+      1,
+      "Sea"
+    ],
+    [
+      2,
+      "Ember"
+    ],
+    [
+      3,
+      "Violet"
+    ]
+  ],
+  "limits": {
+    "url": 300,
+    "title": 48,
+    "subtitle": 80,
+    "rows": 30,
+    "shade_floor": 35,
+    "focus": [
+      0,
+      100
+    ],
+    "zoom": [
+      100,
+      200
+    ],
+    "shade": [
+      0,
+      85
+    ]
+  },
+  "defaults": {
+    "focus_x": 50,
+    "focus_y": 50,
+    "zoom": 100,
+    "shade": 45
+  },
+  "problems": {
+    "link_blank": "Harmonic %{n} has no link. Paste the https:// address of the page it points to.",
+    "link_hidden": "Harmonic %{n}'s link carries invisible or direction-changing characters. Type the address again by hand.",
+    "link_not_web": "Harmonic %{n}'s link is not a web address. Paste the full address, starting https://.",
+    "link_dots": "Harmonic %{n}'s link has a . or .. step in its path, which a browser turns into another address. Open the page and paste the address it shows.",
+    "link_http": "Harmonic %{n}'s link uses http://. Use the https:// address of the same page.",
+    "link_userinfo": "Harmonic %{n}'s link carries a name and @ before the site. Remove that part and link the page itself.",
+    "link_machine": "Harmonic %{n}'s link names a machine (%{host}), not a site. Link the site's own address.",
+    "link_port": "Harmonic %{n}'s link names a port (:%{port}). Remove it: the Tuner links only to a site's usual address.",
+    "link_long": "Harmonic %{n}'s link is %{length} characters long and the Tuner holds %{max}. Use a shorter address for the same page.",
+    "link_shortener": "Harmonic %{n}'s link goes through %{host}, which forwards somewhere else. Paste the address it opens.",
+    "link_hub": "Harmonic %{n} links to %{host}, a page of other links the Tuner cannot check. Give each site its own harmonic instead.",
+    "link_invite": "Harmonic %{n} links to a %{host} invite, and invites expire. Link a profile instead.",
+    "link_unlisted": "Harmonic %{n}'s link is to %{host}, which is not on the Tuner's list yet. Ask for it to be added, or link a site that is on the list.",
+    "link_post_profile": "Harmonic %{n} links to one post on %{host}. Link your profile instead: %{profile}.",
+    "link_post": "Harmonic %{n} links to one post on %{host}. Link your profile instead, like %{shape}.",
+    "link_shape": "Harmonic %{n}'s link is not a page the Tuner takes from %{site}. Link a profile, like %{shape}.",
+    "link_removed": "That link (%{url}) was removed by site staff and cannot be added to any page. Remove it from your list, or write to staff if you think this was a mistake.",
+    "duplicate": "Harmonics %{a} and %{b} link to the same page. Remove one of them.",
+    "support_twice": "Harmonic %{a} links to %{site_a}, a support site, and harmonic %{b} already links to %{site_b}. A gallery carries one support link: change or remove one of the two.",
+    "title_blank": "Harmonic %{n}'s title is empty. Give it a title of up to %{max} characters.",
+    "title_long": "Harmonic %{n}'s title is %{length} characters long. Shorten it to %{max} or fewer.",
+    "subtitle_long": "Harmonic %{n}'s subtitle is %{length} characters long. Shorten it to %{max} or fewer.",
+    "cta": "Harmonic %{n}'s button word %{value} is not one of: %{allowed}. Pick one of those, or none.",
+    "place": "Harmonic %{n}'s %{element} place %{value} is not one of: %{allowed}. Pick one of those.",
+    "background_both": "Harmonic %{n} has both a picture and a gradient for its background. Pick one.",
+    "gradient": "Harmonic %{n}'s gradient %{value} is not one of: %{allowed}. Pick one of those.",
+    "background_stale": "Harmonic %{n}'s background is no longer one of your showable posts. Pick another, or a gradient.",
+    "range": "Harmonic %{n}'s %{setting} is %{value}; it runs from %{min} to %{max}. Set it within that.",
+    "shade_floor": "Harmonic %{n}'s shade is %{value}%; over a picture it is at least %{floor}%, so its words stay readable. Set it to %{floor} or more.",
+    "host_fit": "Harmonic %{n}'s link host (%{domain}) shares its row with a centre and a side element, and at the smallest size it would be cut short. Move the host or one of the others to another row.",
+    "cap": "This gallery has %{count} harmonics and holds %{cap}. Remove %{over}.",
+    "rows": "This gallery lists %{count} harmonics, counting hidden ones, and keeps %{max}. Remove %{over}.",
+    "unknown": "Harmonic %{n} is not one of this gallery's harmonics. Reload the page and build it again.",
+    "same_row": "Harmonics %{a} and %{b} are the same harmonic, listed twice. Reload the page and build the list again.",
+    "placement": "The Tuner's placement %{value} is not one of: %{allowed}. Pick one of those."
+  }
+}

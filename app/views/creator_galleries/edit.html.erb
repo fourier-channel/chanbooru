@@ -117,6 +117,7 @@
         can_edit: true,
         editing: true,
         palette: @palette,
+        scan: ModulationSetting.for_viewer(CurrentUser.user, session)["tuner_scan"],
         panels: { "Who sees the posts" => audience, "Booru account and creator tags" => claims, "Character claims" => characters, "Blog messages" => blog }.compact) %>
 <% end %>
 <% content_for(:html_header) do %><% page_title "Edit #{@gallery.slug}" %><% end %>

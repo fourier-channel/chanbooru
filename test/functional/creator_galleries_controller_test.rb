@@ -118,7 +118,7 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
                                             headers: @alice, as: :json
 
       assert_response :success
-      assert_equal({ "ok" => true }, response.parsed_body)
+      assert_equal({ "ok" => true, "harmonic_ids" => [] }, response.parsed_body)
       @gallery.reload
       assert_equal("Alice After Hours", @gallery.title)
       assert_equal("4", @gallery.settings["layout"])
@@ -216,6 +216,144 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
       [@posts[0], @posts[3], @posts[5]].each { |post| assert_not(shown.call(post), "undrawn post ##{post.id} was granted") }
       travel_to(3.hours.from_now) do
         drawn.each { |post| assert_not(shown.call(post), "post ##{post.id} was still granted three hours on") }
+      end
+    end
+
+    context "with the Tuner" do
+      setup do
+        @corner = CreatorGalleryHarmonic::CONFIG["presets"].first.last
+        @harmonic = { url: "https://civitai.com/user/Alice", title: "Alice LoRA", subtitle: "", cta: "visit", places: @corner,
+                      background_post_id: @posts[5].id, focus_x: 50, focus_y: 50, zoom: 100, shade: 45 }
+      end
+
+      # The answer carries the rows' ids in the order saved, so the editor's
+      # next Save upserts what this one wrote.
+      should "save the harmonics with the layout, answer their ids, and an empty list removes them" do
+        patch creator_gallery_path(@gallery), params: { layout: @look.merge(tuner: { enabled: true, placement: "B" }, harmonics: [@harmonic]) }, headers: @alice, as: :json
+
+        assert_equal({ "ok" => true, "harmonic_ids" => @gallery.creator_gallery_harmonics.ids }, response.parsed_body)
+        assert_equal(1, response.parsed_body["harmonic_ids"].size)
+        assert_equal({ "enabled" => true, "placement" => "B" }, @gallery.reload.settings["tuner"])
+        assert_equal([["civitai", @posts[5].id, @corner]], @gallery.creator_gallery_harmonics.pluck(:site, :background_post_id, :places))
+
+        patch creator_gallery_path(@gallery), params: { layout: @look }, headers: @alice, as: :json
+        assert_equal(1, @gallery.creator_gallery_harmonics.count)
+
+        patch creator_gallery_path(@gallery), params: { layout: @look.merge(harmonics: []) }, headers: @alice, as: :json
+        assert_equal({ "ok" => true, "harmonic_ids" => [] }, response.parsed_body)
+        assert_equal(0, @gallery.creator_gallery_harmonics.count)
+      end
+
+      # What the page draws and what harmonic_builder.js is handed: the Tuner
+      # where it is placed, the leaving notice, the Layout sheet's switch, and
+      # the draft, the cards, the list and the cap.
+      should "draw the Tuner where it is placed, and hand the editor its draft, cards and list" do
+        patch creator_gallery_path(@gallery), params: { layout: @look.merge(tuner: { enabled: true, placement: "B" }, harmonics: [@harmonic]) }, headers: @alice, as: :json
+        row = @gallery.creator_gallery_harmonics.sole
+
+        get creator_gallery_path(@gallery)
+        assert_response :success
+        assert_select "header.modcreator-head--sky section.cg-tuner--b[data-cg-tuner=B] a.cg-hm[href='https://civitai.com/user/Alice'][target=_blank]", 1
+        assert_select "dialog[data-cg-leave]", 1
+        assert_select "[data-editor]", 0
+
+        get edit_creator_gallery_path(@gallery), headers: @alice
+        assert_response :success
+        assert_select ".cg-seg[aria-label=Tuner] button[data-cg-act=tuner-mode]", 3
+        assert_select "button[data-cg-act=tuner-mode][data-v=B][aria-pressed=true]", 1
+        assert_select "[data-cg-region=tuner-note][hidden]", 1
+        assert_select "[data-cg-region=builder]", 1
+        editor = JSON.parse(css_select("[data-creator-gallery]").first["data-editor"])
+        assert_equal({ "enabled" => true, "placement" => "B" }, editor["draft"]["tuner"])
+        assert_equal([[row.id, "https://civitai.com/user/Alice", @posts[5].id, false]], editor["draft"]["harmonics"].map { |h| h.values_at("id", "url", "background_post_id", "staff_hidden") })
+        assert_equal([[row.id, "civitai", true, false, nil]], editor["cards"].map { |c| c.values_at("id", "site", "counts", "stale", "notice") })
+        assert_equal(CreatorGalleryHarmonic::CONFIG["sites"].pluck("key"), editor["registry"]["sites"].pluck("key"))
+        assert_equal([UserPerk.default(:creator_harmonic_cap), [], false], editor.values_at("harmonicCap", "removed", "isAdmin"))
+        assert(editor["logos"].values.all? { |path| path.start_with?("/") })
+      end
+
+      should "refuse a Save with a bad harmonic, naming the problem" do
+        patch creator_gallery_path(@gallery), params: { layout: @look.merge(harmonics: [@harmonic.merge(url: "https://example.org/alice")]) }, headers: @alice, as: :json
+
+        assert_response 422
+        assert_equal(["Harmonic 1's link is to example.org, which is not on the Tuner's list yet. Ask for it to be added, or link a site that is on the list."],
+                     response.parsed_body["problems"])
+      end
+
+      # Sec 4.3/4.5: a hide is an admin's alone, logged, and puts the link on
+      # the removals list; showing it again takes it off.
+      should "let an admin hide a harmonic and show it again, each logged" do
+        admin = create(:admin_user)
+        row = @gallery.creator_gallery_harmonics.create!(site: "civitai", url: "https://civitai.com/user/Alice", title: "Alice", places: @corner)
+
+        put_auth creator_gallery_path(@gallery), admin, params: { harmonic_hide: row.id, reason: "impersonation" }
+        assert_redirected_to edit_creator_gallery_path(@gallery)
+        row.reload
+        assert_equal([admin, "impersonation"], [row.staff_hidden_by, row.staff_hidden_reason])
+        assert_equal([["https://civitai.com/user/alice", admin.id, row.id]], CreatorHarmonicRemoval.pluck(:url, :removed_by_id, :source_harmonic_id))
+        assert_equal("hid the harmonic https://civitai.com/user/Alice on the creator page @alice:41chan.net: impersonation", ModAction.last.description)
+        assert_equal(["creator_harmonic_hide", @gallery], [ModAction.last.category, ModAction.last.subject])
+        # The owner's editor checks against the removals by fingerprint alone.
+        get edit_creator_gallery_path(@gallery), headers: @alice
+        assert_equal([CreatorHarmonicRemoval.fingerprint("https://civitai.com/user/alice")], JSON.parse(css_select("[data-creator-gallery]").first["data-editor"])["removed"])
+
+        put_auth creator_gallery_path(@gallery), admin, params: { harmonic_hide: row.id }
+        assert_equal("That harmonic is already hidden.", flash[:notice])
+
+        put_auth creator_gallery_path(@gallery), admin, params: { harmonic_unhide: row.id }
+        assert_nil(row.reload.staff_hidden_at)
+        assert_equal(0, CreatorHarmonicRemoval.count)
+        assert_equal(["creator_harmonic_unhide", @gallery], [ModAction.last.category, ModAction.last.subject])
+      end
+
+      should "keep the link on the removals list while another page's copy of it is still hidden" do
+        admin = create(:admin_user)
+        other = CreatorGallery.create!(matrix_id: "@bob:41chan.net", slug: "bob", user: create(:user))
+        mine, theirs = [@gallery, other].map { |gallery| gallery.creator_gallery_harmonics.create!(site: "civitai", url: "https://civitai.com/user/Bad", title: "Bad", places: @corner) }
+        put_auth creator_gallery_path(@gallery), admin, params: { harmonic_hide: mine.id }
+        put_auth creator_gallery_path(other), admin, params: { harmonic_hide: theirs.id }
+
+        put_auth creator_gallery_path(@gallery), admin, params: { harmonic_unhide: mine.id }
+        assert_nil(mine.reload.staff_hidden_at)
+        assert_equal("Shown again. https://civitai.com/user/Bad stays on the removals list: another page's copy of it is still hidden.", flash[:notice])
+        assert_equal([["https://civitai.com/user/bad", theirs.id]], CreatorHarmonicRemoval.pluck(:url, :source_harmonic_id))
+
+        put_auth creator_gallery_path(other), admin, params: { harmonic_unhide: theirs.id }
+        assert_equal("Shown again. https://civitai.com/user/Bad is off the removals list.", flash[:notice])
+        assert_equal(0, CreatorHarmonicRemoval.count)
+      end
+
+      should "refuse a hide to the page's owner and to a moderator" do
+        row = @gallery.creator_gallery_harmonics.create!(site: "civitai", url: "https://civitai.com/user/Alice", title: "Alice", places: @corner)
+
+        put creator_gallery_path(@gallery), params: { harmonic_hide: row.id }, headers: @alice
+        assert_response 403
+        put_auth creator_gallery_path(@gallery), create(:moderator_user), params: { harmonic_hide: row.id }
+        assert_response 403
+        assert_not(row.reload.staff_hidden?)
+        assert_equal(0, CreatorHarmonicRemoval.count)
+      end
+
+      # Sec 6.2: a picture the page drew is granted as the banner is, and one
+      # it did not draw -- the Tuner off -- is not.
+      should "grant a signed-out viewer the pictures the Tuner drew" do
+        Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+        Danbooru.config.stubs(:anonymous_default_deny?).returns(true)
+        picture = as(@tunnel) { create(:post, uploader: @tunnel, tag_string: "dawn", rating: "g") }
+        FourierPostCreator.create!(post: picture, mxid: @gallery.matrix_id, recorded_by: @tunnel.id)
+        @gallery.creator_gallery_harmonics.create!(site: "civitai", url: "https://civitai.com/user/Alice", title: "Alice", places: @corner,
+                                                   background_post_id: picture.id, focus_x: 50, focus_y: 50, zoom: 100, shade: 45)
+        create_list(:post, 21) # rubocop:disable FactoryBot/ExcessiveCreateList -- off the gallery's first page, so only the draw can grant them
+        shown = -> { MembersOnly.anonymous_shown_post?(picture.id, safe_mode: false) }
+
+        @gallery.update!(settings: { "hero" => { "tags" => %w[rain] }, "layout" => "1-2", "minis" => [{ "tag" => "snow" }], "tuner" => { "enabled" => false }})
+        get creator_gallery_path(@gallery)
+        assert_response :success
+        assert_not(shown.call)
+
+        @gallery.update!(settings: @gallery.settings.merge("tuner" => { "enabled" => true }))
+        get creator_gallery_path(@gallery)
+        assert(shown.call)
       end
     end
   end

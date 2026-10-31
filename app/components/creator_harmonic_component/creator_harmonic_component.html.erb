@@ -1,0 +1,41 @@
+<%# One anchor; nothing in it loads from the site it links to (sec 5.2). %>
+<%= tag.a(class: classes, href: card[:url], target: "_blank", rel: "external noopener noreferrer nofollow ugc", draggable: "false",
+          title: card[:notice], hidden: hidden, aria: { label: "#{card[:title]}, #{card[:host]}" },
+          data: { cg_harmonic: card[:id], name: card[:name], host: card[:host], adult: card[:adult] }) do %>
+  <span class="cg-hm-art">
+    <% if card[:picture] %>
+      <%= tag.img(class: "cg-hm-img mod-blacklist-target", src: card[:picture][:src], alt: "", loading: "lazy", decoding: "async", draggable: "false", style: picture_style, data: marks) %>
+    <% else %>
+      <span class="cg-hm-grad cg-hm-grad--<%= card[:gradient] || 0 %>"></span>
+    <% end %>
+  </span>
+  <span class="cg-hm-shade" style="opacity: <%= shade %>"></span>
+  <% TIERS.each_key do |tier| %>
+    <span class="cg-hm-safe cg-hm-safe--<%= tier %>">
+      <% rows(tier).each do |row, thirds, columns| %>
+        <span class="cg-hm-row cg-hm-row--<%= row %><%= " cg-hm-row--3" if thirds %>">
+          <% columns.each do |column, elements| %>
+            <span class="cg-hm-col cg-hm-col--<%= column %>">
+              <% elements.each do |element| %>
+                <% case element %>
+                <% when "mark" %>
+                  <span class="cg-hm-mark">
+                    <i><% if card[:logo] %><%= helpers.image_pack_tag("static/#{card[:logo]}", alt: "") %><% else %><%= letter %><% end %></i><b><%= card[:name] %></b>
+                  </span>
+                <% when "title" %>
+                  <span class="cg-hm-title"><%= card[:title] %></span>
+                <% when "subtitle" %>
+                  <span class="cg-hm-sub"><%= card[:subtitle] %></span>
+                <% when "button" %>
+                  <span class="cg-hm-cta"><%= card[:cta_label] %></span>
+                <% when "host" %>
+                  <span class="cg-hm-host"><bdi><%= card[:host] %></bdi></span>
+                <% end %>
+              <% end %>
+            </span>
+          <% end %>
+        </span>
+      <% end %>
+    </span>
+  <% end %>
+<% end %>

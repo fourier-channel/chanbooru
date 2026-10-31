@@ -3,6 +3,9 @@ import {
   BLANK_MINI, HERO_MAX, HERO_MIN, MIN_W, MINI_EFFECTS, MINI_MAX, DIRS, ROW_H,
   adderRow, bandRule, layoutOf, miniLook, miniRole, problemsOf, rowsOf, ruleSentence, slotCount, tagsOf,
 } from "./creator_gallery_model";
+import { covered, harmonicModel } from "./harmonic_model";
+import { bindLeave, mountTuner, tunerSection } from "./creator_tuner";
+import { harmonicBuilder } from "./harmonic_builder";
 
 // THE CREATOR GALLERY's page (CreatorGalleryComponent): the ground's parallax,
 // the minibands' cycles and the panels that descend from the header, for
@@ -76,9 +79,10 @@ function heroCategories(tags, list) {
 //
 // One setTimeout chain: a step, then -- once its transition is over -- the
 // settle that puts the post that left back where the next arrival enters
-// from, then the hold. Held while the pointer is on it or the page is hidden,
-// and nothing moves on its own for a reader who asked for less motion: the
-// arrows step it. A post the blacklist marked is passed over.
+// from, then the hold. Held while the pointer is on it, while it is under 60%
+// in view or the page is hidden, and nothing moves on its own for a reader
+// who asked for less motion: the arrows step it. A post the blacklist marked
+// is passed over.
 const TRANSIT_MS = 1300;
 
 function cycleMini(mini, reduced) {
@@ -88,6 +92,7 @@ function cycleMini(mini, reduced) {
   let pos = 0;
   let settled = true;
   let hovered = false;
+  let seen = false;
   let timer = null;
 
   function paint() {
@@ -114,7 +119,7 @@ function cycleMini(mini, reduced) {
       return;
     }
     // Held: the mouse leaving or the page coming back starts it again.
-    if (hovered || document.hidden || shown().length < 2) { return; }
+    if (hovered || !seen || document.hidden || shown().length < 2) { return; }
     pos += 1;
     settled = false;
     paint();
@@ -130,6 +135,11 @@ function cycleMini(mini, reduced) {
   mini.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") { hovered = true; } }, { signal: life.signal });
   mini.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") { hovered = false; resume(); } }, { signal: life.signal });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { resume(); } }, { signal: life.signal });
+  const view = new IntersectionObserver((entries) => {
+    seen = entries.at(-1).intersectionRatio >= 0.6;
+    if (seen) { resume(); }
+  }, { threshold: [0, 0.6, 1] });
+  view.observe(mini);
   // The blacklist can bring back a second post to a band that had stopped.
   document.addEventListener("danbooru:blacklist-applied", () => { paint(); resume(); }, { signal: life.signal });
   mini.addEventListener("click", (e) => {
@@ -142,7 +152,7 @@ function cycleMini(mini, reduced) {
 
   paint();
   resume();
-  return () => { life.abort(); clearTimeout(timer); };
+  return () => { life.abort(); view.disconnect(); clearTimeout(timer); };
 }
 
 // --- the ground's parallax -----------------------------------------------
@@ -187,12 +197,35 @@ function editor(root, data, bindMinis) {
   // the page's.
   const payload = (d) => JSON.stringify({ ...d, minis: d.minis.slice(0, slotCount(d.layout)) });
   const draft = structuredClone(data.draft);
+  // Each harmonic of the draft carries a key of its own, which undo's copies
+  // keep, so a Save's answer finds the entries it was about. It is not sent.
+  let keys = 0;
+  const keyed = (h) => Object.assign(h, { draftKey: (keys += 1) });
+  draft.harmonics.forEach(keyed);
   let savedPayload = payload(draft);
   let serverProblems = [];
   let saving = false;
   let leaving = false;
   let openMini = -1;
   let toastTimer = 0;
+
+  // The Tuner's harmonics (CREATOR_TUNER.md rev 3): the list's own checks,
+  // Save's sentences (harmonic_model.js), against the rows as saved.
+  const model = harmonicModel(data.registry);
+  const limits = data.registry.limits;
+  const sites = new Map(model.sites.map((site) => [site.key, site]));
+  const ctaLabels = new Map(data.registry.ctas);
+  let serverCards = new Map(data.cards.map((card) => [card.id, card]));
+  let savedBackground = new Map(data.draft.harmonics.map((h) => [h.id, h.background_post_id]));
+  // The removals' fingerprints (CreatorHarmonicRemoval.fingerprint).
+  const removed = new Set(data.removed);
+  let stored = new Map(data.draft.harmonics.map((h) => [h.id, {
+    url: h.url, host: serverCards.get(h.id)?.host, site: serverCards.get(h.id)?.site, staff_hidden: h.staff_hidden,
+  }]));
+  // A background the server found no longer showable, while it is the one saved.
+  const stale = (h) => Boolean(h.id && h.background_post_id === savedBackground.get(h.id) && serverCards.get(h.id)?.stale);
+  let harmonicProblems = [];
+  let stopTuner = null;
 
   function toast(text) {
     const box = region("toast");
@@ -242,7 +275,8 @@ function editor(root, data, bindMinis) {
 
   // --- what Save waits on ---
   function report() {
-    const problems = [...new Set([...serverProblems, ...problemsOf(draft, slideOf)])];
+    harmonicProblems = model.problems(draft.harmonics, { stored, removed, stale, cap: data.harmonicCap });
+    const problems = [...new Set([...serverProblems, ...problemsOf(draft, slideOf), ...harmonicProblems.map((p) => p.text)])];
     const dirty = payload(draft) !== savedPayload;
     const button = region("problems-btn");
     button.hidden = !problems.length;
@@ -251,7 +285,8 @@ function editor(root, data, bindMinis) {
     button.setAttribute("aria-expanded", String(!region("problems").hidden));
     region("problems-list").replaceChildren(el("ul", {}, ...problems.map((p) => el("li", {}, p))));
     region("dirty").textContent = saving ? "saving" : dirty ? "unsaved changes" : "saved";
-    root.querySelector("[data-cg-act='save']").disabled = saving || !dirty || problems.length > 0;
+    // The bar's Save and the builder's are one.
+    root.querySelectorAll("[data-cg-act='save']").forEach((b) => { b.disabled = saving || !dirty || problems.length > 0; });
     root.querySelector("[data-cg-act='discard']").disabled = saving || !dirty;
   }
 
@@ -259,6 +294,132 @@ function editor(root, data, bindMinis) {
     serverProblems = [];
     report();
   }
+
+  // --- the Tuner, drawn from the draft ---
+  // A harmonic of the draft as the page would draw it (CreatorGalleryLayout#card):
+  // what the server drew while it is unchanged, the link model's reading of
+  // what was typed since. A staff-hidden one is the server's, as it was.
+  function draftCard(h, i) {
+    const number = i + 1;
+    const server = serverCards.get(h.id);
+    if (h.staff_hidden) { return { ...server, number }; }
+    const unchanged = server && h.url === server.url;
+    const found = unchanged ? server : model.link(h.url);
+    const site = sites.get(found.site);
+    const host = found.host ?? found.vars?.host ?? "";
+    const settings = Object.fromEntries(["focus_x", "focus_y", "zoom", "shade"].map((key) => [key, h[key] ?? data.registry.defaults[key]]));
+    const slide = h.background_post_id && slideOf(h.background_post_id);
+    let drawn = null;
+    if (server?.picture && h.background_post_id === savedBackground.get(h.id)) {
+      drawn = { ...server.picture, ...settings };
+    } else if (slide) {
+      drawn = {
+        id: slide.id, tags: slide.tags, rating: slide.rating, flags: slide.flags, score: slide.score, uploader_id: slide.uploader_id, src: picture(slide), ...settings,
+      };
+    }
+    return {
+      id: h.id,
+      number,
+      shown: h.shown !== false,
+      counts: Boolean(h.shown !== false && site && !(found.url && covered(found.url, removed))),
+      url: found.url ?? null,
+      host,
+      site: found.site ?? null,
+      name: site?.name ?? (unchanged ? server.name : null) ?? (host || "No site"),
+      logo: site ? site.logo : (unchanged && server.logo) || null,
+      support: Boolean(site?.support),
+      adult: Boolean(site ? site.adult : unchanged && server.adult),
+      title: h.title,
+      subtitle: h.subtitle,
+      cta: h.cta,
+      cta_label: ctaLabels.get(h.cta) ?? null,
+      places: h.places ?? {},
+      gradient: h.background_gradient,
+      picture: drawn,
+      notice: harmonicProblems.find((p) => p.n === number)?.text ?? null,
+    };
+  }
+
+  const counting = () => draft.harmonics.filter((h, i) => draftCard(h, i).counts).length;
+
+  // The Tuner where the draft puts it, the harmonic in hand ringed and shown
+  // first, and the add tile while there is room. It holds still: its cards
+  // open the builder, they do not lead away.
+  function drawTuner() {
+    const { enabled, placement } = draft.tuner;
+    const head = region("head");
+    const old = Array.from(head.querySelectorAll("[data-cg-tuner]"));
+    // Focus on the Tuner stays on it through a redraw, on the card it shows.
+    const held = old.some((section) => section.contains(document.activeElement));
+    const gone = old.flatMap((section) => Array.from(section.querySelectorAll(".mod-blacklist-target")));
+    stopTuner?.();
+    stopTuner = null;
+    old.forEach((section) => section.remove());
+    head.classList.toggle("modcreator-head--dial", enabled && placement === "A");
+    head.classList.toggle("modcreator-head--sky", enabled && placement === "B");
+    region("id").classList.toggle("modcreator-id--tuned", enabled && placement === "A");
+    const cards = enabled ? draft.harmonics.map(draftCard) : [];
+    const add = enabled && draft.harmonics.length < limits.rows && counting() < data.harmonicCap;
+    let arrived = [];
+    if (cards.length || add) {
+      // eslint-disable-next-line no-use-before-define -- the builder redraws the Tuner, and the Tuner rings the builder's harmonic
+      const ring = builder.index >= 0 ? builder.index : null;
+      const section = tunerSection(placement, cards, { logos: data.logos, shadeFloor: limits.shade_floor, add, ring });
+      section.dataset.cgBuild = "";
+      if (placement === "B") { head.querySelector(".modcreator-banner").after(section); } else { region("id").append(section); }
+      stopTuner = mountTuner(section, { hold: true });
+      arrived = Array.from(section.querySelectorAll(".mod-blacklist-target"));
+      if (held) { section.querySelector(".cg-hm:not([hidden])")?.focus(); }
+    }
+    const engine = document.querySelector("#blacklist-box")?.blacklist;
+    if (engine && (arrived.length || gone.length)) { engine.adopt(arrived, gone); }
+  }
+
+  const builder = harmonicBuilder(region("builder"), {
+    registry: data.registry,
+    logos: data.logos,
+    cap: data.harmonicCap,
+    isAdmin: data.isAdmin,
+    saveUrl: data.saveUrl,
+    entries: () => draft.harmonics,
+    card: (i) => draftCard(draft.harmonics[i], i),
+    problems: () => harmonicProblems,
+    counting,
+    placement: () => draft.tuner.placement,
+    // eslint-disable-next-line no-use-before-define -- the Layout sheet's Tuner switch and the builder's are one
+    setPlacement: (placement) => setTuner(true, placement),
+    // The creator's own posts, asked as the banner's are.
+    posts: () => candidates([]),
+    slideOf,
+    fill,
+    toast,
+    dirty: () => payload(draft) !== savedPayload,
+    changed: () => {
+      changed();
+      drawTuner();
+    },
+    moved: () => {
+      drawTuner();
+      report();
+    },
+  });
+
+  function setTuner(enabled, placement) {
+    draft.tuner = { enabled, placement };
+    root.querySelectorAll("[data-cg-act='tuner-mode']").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === (enabled ? placement : "off"))));
+    region("tuner-note").hidden = enabled;
+    if (!enabled) { builder.close(); }
+    changed();
+    drawTuner();
+    builder.paint();
+  }
+
+  // A new harmonic: a link to fill in, words in the corner, the ground behind.
+  const blankHarmonic = () => keyed({
+    id: null, shown: true, url: "", title: "", subtitle: "", cta: null,
+    places: { ...data.registry.presets.find(([key]) => key === "corner")[2] },
+    background_post_id: null, background_gradient: null, focus_x: null, focus_y: null, zoom: null, shade: null, staff_hidden: false,
+  });
 
   // --- the hero band ---
   function rebuildBelt() {
@@ -547,8 +708,14 @@ function editor(root, data, bindMinis) {
       layout: {
         headline: draft.headline, subline: draft.subline, banner: draft.banner, depth: draft.depth,
         hero, layout: draft.layout, minis: draft.minis.slice(0, slotCount(draft.layout)),
+        tuner: draft.tuner,
+        // A staff-hidden harmonic is sent by its id alone to keep its place.
+        harmonics: draft.harmonics.map((h) => Object.fromEntries(Object.entries(h).filter(([key]) => key !== "staff_hidden" && key !== "draftKey"))),
       },
     };
+    // The entries as sent: the draft can change, and undo copy its entries,
+    // while Save waits.
+    const sentHarmonics = structuredClone(draft.harmonics);
     try {
       const r = await fetch(data.saveUrl, {
         method: "PATCH",
@@ -557,7 +724,32 @@ function editor(root, data, bindMinis) {
         body: JSON.stringify(body),
       });
       if (r.ok) {
-        savedPayload = sent;
+        const ids = (await r.json()).harmonic_ids;
+        const unchanged = payload(draft) === sent;
+        // A new entry learns its id from the answer, wherever undo has put it.
+        // One undo brought back after Save went without it is new again: its
+        // row is gone, unless staff hid it, and the server keeps those.
+        const idOf = new Map(sentHarmonics.map((h, i) => [h.draftKey, ids[i]]));
+        draft.harmonics.forEach((h) => { h.id = idOf.has(h.draftKey) ? idOf.get(h.draftKey) : (h.staff_hidden ? h.id : null); });
+        // The draft takes the links in the server's spelling while it is what was sent.
+        if (unchanged) { draft.harmonics.forEach((h) => { h.url = model.link(h.url).url ?? h.url; }); }
+        // The rows as saved are the entries as sent, whatever the draft has
+        // become: the server's cards stand for a background it drew.
+        const saved = sentHarmonics.map((h, i) => ({ ...h, id: ids[i] }));
+        serverCards = new Map(saved.filter((h) => serverCards.has(h.id) && savedBackground.get(h.id) === h.background_post_id)
+          .map((h) => [h.id, serverCards.get(h.id)]));
+        savedBackground = new Map(saved.map((h) => [h.id, h.background_post_id]));
+        stored = new Map(saved.map((h) => {
+          const found = model.link(h.url);
+          return [h.id, found.url ? { url: found.url, host: found.host, site: found.site, staff_hidden: h.staff_hidden } : stored.get(h.id)];
+        }));
+        savedPayload = unchanged ? payload(draft) : payload({ ...JSON.parse(sent), harmonics: saved });
+        // The steps back lead to entries without their ids.
+        builder.forget();
+        report();
+        drawTuner();
+        // A builder typed into while Save waited is left as it is.
+        if (unchanged) { builder.paint(); }
         toast("Saved. This is the page everyone sees from their next visit.");
       } else if (r.status === 422 && payload(draft) !== sent) {
         // The problems are the sent draft's, and it has changed since.
@@ -597,6 +789,9 @@ function editor(root, data, bindMinis) {
       break;
     }
     case "save": save(); break;
+    case "tuner-mode": setTuner(v !== "off", v === "off" ? draft.tuner.placement : v); break;
+    // About and the builder never show together (the gallery's own listener opened it).
+    case "about": if (!root.querySelector("#modcreator-about").hidden) { builder.close(); } break;
     case "discard":
       leaving = true;
       window.location.reload();
@@ -645,6 +840,24 @@ function editor(root, data, bindMinis) {
       break;
     default: break;
     }
+  });
+
+  // The Tuner the editor draws holds still: a card opens the builder on its
+  // harmonic, the add tile opens it on a new one.
+  root.addEventListener("click", (e) => {
+    const tuner = e.target.closest("[data-cg-tuner]");
+    if (!tuner) { return; }
+    if (e.target.closest("[data-cg-add]")) {
+      builder.add(blankHarmonic());
+      return;
+    }
+    const card = e.target.closest("a.cg-hm");
+    if (!card) { return; }
+    e.preventDefault();
+    builder.open(Array.from(tuner.querySelectorAll("a.cg-hm")).indexOf(card));
+  });
+  root.addEventListener("auxclick", (e) => {
+    if (e.target.closest("[data-cg-tuner] a.cg-hm")) { e.preventDefault(); }
   });
 
   // Typing previews at once; a slider redraws its band once it is let go.
@@ -749,6 +962,7 @@ function editor(root, data, bindMinis) {
   renderMinis();
   loadHero();
   candidates([]).then(renderRule);
+  drawTuner();
   report();
 }
 
@@ -804,10 +1018,14 @@ function initGallery(root) {
   }
 
   if (!reduced) { parallax(root); }
+  // A harmonic leaves the booru through the leaving notice; the editor's own
+  // Tuner opens the builder instead.
+  bindLeave(root);
   if (root.dataset.editor) {
     editor(root, JSON.parse(root.dataset.editor), bindMinis);
   } else {
     bindMinis();
+    root.querySelectorAll("[data-cg-tuner]").forEach((section) => mountTuner(section));
   }
 }
 

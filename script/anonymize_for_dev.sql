@@ -122,10 +122,12 @@ bulk_update_requests: script=map status=keep tags=derive results=blank reason=fi
 character_claims: tag_name=map status=keep note=fill creator_slug=map
 comments: body=fill
 creator_galleries: slug=map matrix_id=map title=fill bio=fill matrix_contact=map settings=blank default_audience=keep
+creator_gallery_harmonics: site=keep url=fill title=fill subtitle=fill cta=keep places=keep staff_hidden_reason=fill
 creator_gallery_messages: body=fill
 creator_gallery_posts: band=keep
 creator_group_memberships: source=keep
 creator_groups: name=derive
+creator_harmonic_removals: url=fill reason=fill
 creator_join_requests: status=keep note=fill
 creator_post_audiences: audience=keep
 creator_tag_releases: tag_name=map note=fill
@@ -187,6 +189,7 @@ uploads: source=map status=keep referer_url=map error=null
 user_events: ip_addr=purge session_id=purge user_agent=purge metadata=purge login_session_id=purge
 user_feedback: category=keep body=fill
 user_name_change_requests: original_name=map desired_name=map
+user_perks: perk=keep source=keep
 user_upgrades: transaction_id=purge
 users: name=map default_image_size=keep favorite_tags=map blacklisted_tags=map time_zone=blank bcrypt_password_hash=derive custom_style=null last_ip_addr=null totp_secret=null backup_codes=null
 wiki_page_versions: title=map body=fill other_names=blank
@@ -763,6 +766,9 @@ UPDATE creator_galleries g
        bio = pg_temp.fill(g.bio, 'Creator bio ' || g.id),
        settings = '{}'::jsonb;
 UPDATE creator_gallery_messages SET body = pg_temp.fill(body, 'Gallery message ' || id);
+UPDATE creator_gallery_harmonics SET url = 'https://example.invalid/harmonic-' || id, title = left(pg_temp.fill(title, 'Harmonic ' || id), 48),
+       subtitle = left(pg_temp.fill(subtitle, 'Harmonic subtitle ' || id), 80), staff_hidden_reason = pg_temp.fill(staff_hidden_reason, 'Hide reason ' || id);
+UPDATE creator_harmonic_removals SET url = 'https://example.invalid/removal-' || id, reason = pg_temp.fill(reason, 'Removal reason ' || id);
 UPDATE creator_join_requests SET note = pg_temp.fill(note, 'Join request note ' || id);
 UPDATE character_claims SET tag_name = pg_temp.tm(tag_name), creator_slug = pg_temp.nm(creator_slug), note = pg_temp.fill(note, 'Claim note ' || id);
 UPDATE artist_claims SET tag_name = pg_temp.tm(tag_name), note = pg_temp.fill(note, 'Claim note ' || id);

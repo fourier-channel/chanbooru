@@ -36,6 +36,13 @@ class CreatorVisibilityLogTest < ActionDispatch::IntegrationTest
     ArtistClaim.create!(artist: as(@admin) { create(:artist, name: "4chan_maple") }, creator_gallery: @gallery).reject!(by: @admin)
     CreatorTagRelease.set!("aichan_maple", released: true, by: @admin)
     ModAction.log("unlinked the booru account of creator page maple", :creator_gallery_unlink, subject: @gallery, user: @admin)
+    # The Creator Tuner (operator, 2026-10-31): a harmonic hidden and shown
+    # again through the page's own door, and a perk granted and revoked.
+    harmonic = @gallery.creator_gallery_harmonics.create!(site: "civitai", url: "https://civitai.com/user/maple", title: "Maple", places: CreatorGalleryHarmonic::CONFIG["presets"].first.last)
+    put_auth creator_gallery_path(@gallery), @admin, params: { harmonic_hide: harmonic.id, reason: "impersonation" }
+    put_auth creator_gallery_path(@gallery), @admin, params: { harmonic_unhide: harmonic.id }
+    UserPerk.grant!(@maple, :creator_harmonic_cap, value: 8, by: @admin)
+    UserPerk.revoke!(@maple, :creator_harmonic_cap, by: @admin)
     # The flagged-tag review queue (operator, 2026-10-12): flag, release and
     # banish, through their real write paths.
     as(@tunnel) { create(:post, uploader: @tunnel, tag_string: "under_review sent_away") }

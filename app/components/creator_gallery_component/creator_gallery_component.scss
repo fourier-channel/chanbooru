@@ -318,6 +318,47 @@ body:has(.modcreator) {
   .modcreator-about-btn svg { transition: transform 0.2s; }
   .modcreator-about-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
 
+  // A Tuner in the header (CreatorTunerComponent). A, the Masthead Dial, is
+  // a column of the id row across from the name, the actions under the name;
+  // its plate stands on the row's floor and rises into the banner, which is
+  // tall enough to take it. Narrower, the dial sits beside the avatar and the
+  // name and actions go under both, the card sized to what is left.
+  .modcreator-head--dial .modcreator-banner { height: clamp(260px, 22vw, 300px); }
+
+  .modcreator-id--tuned {
+    --cg-card: min(320px, calc(100vw - (2 * var(--cg-gutter)) - 112px - 30px));
+
+    display: grid; grid-template: "av tun" "name name" "act act" / 112px 1fr; align-items: end; gap: 12px 16px;
+
+    .modcreator-avatar { grid-area: av; }
+    .modcreator-name { grid-area: name; padding-bottom: 0; }
+    .modcreator-actions { grid-area: act; }
+    .cg-tuner { grid-area: tun; justify-self: end; }
+  }
+
+  @media (width >= 840px) {
+    .modcreator-id--tuned {
+      --cg-card: clamp(240px, 27vw, 320px);
+
+      grid-template: "av name tun" "av act tun" / 112px minmax(280px, 1fr) calc(var(--cg-card) + 14px);
+      gap: 10px 24px;
+
+      .modcreator-avatar { align-self: end; }
+      .cg-tuner { position: relative; align-self: stretch; justify-self: stretch; }
+      .cg-tuner-plate { position: absolute; right: 0; bottom: 0; }
+    }
+  }
+
+  // B, the Skywave Dial: the banner grows to hold the panel, and only while
+  // the Tuner is on; the card is the banner less the panel's edges and the
+  // controls' plate.
+  .modcreator-head--sky {
+    --cg-sky: clamp(280px, calc(22vw + 44px), 344px);
+
+    .modcreator-banner { height: var(--cg-sky); }
+    .cg-tuner--b { --cg-card: calc((var(--cg-sky) - 126px) * 1.6); }
+  }
+
   .modcreator-signin {
     display: inline-flex; align-items: center; min-height: 44px; padding: 0 1rem; border-radius: var(--mod-radius);
     border: 1px solid var(--mod-line); color: var(--mod-ink-dim); text-decoration: none; font-size: 14px;
@@ -624,6 +665,8 @@ body:has(.modcreator) {
     .modcreator-mini { height: min(var(--mini-h), 72vw); }
     .modcreator-id { margin-top: -48px; }
     .modcreator-avatar { width: 88px; height: 88px; }
+    .modcreator-id--tuned { --cg-card: min(320px, calc(100vw - (2 * var(--cg-gutter)) - 88px - 30px)); grid-template-columns: 88px 1fr; }
+    .modcreator-head--sky .cg-tuner--b { --cg-card: calc((var(--cg-sky) - 136px) * 1.6); }
   }
 
   @media (prefers-reduced-motion: reduce) {

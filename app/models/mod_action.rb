@@ -41,6 +41,10 @@ class ModAction < ApplicationRecord
     creator_user_rule_update
     creator_hidden_post_view
     creator_group_update
+    creator_harmonic_hide
+    creator_harmonic_unhide
+    user_perk_grant
+    user_perk_revoke
     tag_flag
     tag_flag_release
     tag_banish
@@ -189,6 +193,14 @@ class ModAction < ApplicationRecord
     # and up, as an admin's change of someone's email is: it says an account
     # was taken over or locked out. Never carries the password.
     user_password_reset: 1124,
+    # The Creator Tuner (CREATOR_TUNER.md rev 3, operator 2026-10-31): an
+    # admin hiding a creator's link card, which also puts its URL on the
+    # removals list, and taking that back. Admin-only, like the unlink.
+    creator_harmonic_hide: 1125,
+    creator_harmonic_unhide: 1126,
+    # A perk granted to or revoked from an account by an admin (UserPerk).
+    user_perk_grant: 1127,
+    user_perk_revoke: 1128,
   }
 
   normalizes :category, with: ->(category) { category.to_s.parameterize.underscore.presence }

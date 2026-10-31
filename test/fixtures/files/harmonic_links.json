@@ -1,0 +1,714 @@
+{
+ "_comment": "Link cases both readers of config/creator_harmonics.json must answer alike: CreatorGalleryHarmonic.link (test/unit/creator_gallery_harmonic_test.rb) and harmonic_model.js link() (test/javascript/harmonic_model.test.mjs). Each is [pasted, answer].",
+ "cases": [
+  [
+   "",
+   {
+    "problem": "link_blank",
+    "vars": {}
+   }
+  ],
+  [
+   "   ",
+   {
+    "problem": "link_blank",
+    "vars": {}
+   }
+  ],
+  [
+   "https://x.com/dusk\u200bmaker",
+   {
+    "problem": "link_hidden",
+    "vars": {}
+   }
+  ],
+  [
+   "https://x.com/\u202edusk",
+   {
+    "problem": "link_hidden",
+    "vars": {}
+   }
+  ],
+  [
+   "\ufeffhttps://x.com/duskmaker",
+   {
+    "problem": "link_hidden",
+    "vars": {}
+   }
+  ],
+  [
+   "https://x.com/dusk\u00admaker",
+   {
+    "problem": "link_hidden",
+    "vars": {}
+   }
+  ],
+  [
+   "https://x.com/dusk\tmaker",
+   {
+    "problem": "link_hidden",
+    "vars": {}
+   }
+  ],
+  [
+   "x.com/duskmaker",
+   {
+    "problem": "link_not_web",
+    "vars": {}
+   }
+  ],
+  [
+   "https://x.com/dusk maker",
+   {
+    "problem": "link_not_web",
+    "vars": {}
+   }
+  ],
+  [
+   "https://x.com/dusk\u00a0maker",
+   {
+    "problem": "link_not_web",
+    "vars": {}
+   }
+  ],
+  [
+   "javascript:alert(1)",
+   {
+    "problem": "link_not_web",
+    "vars": {}
+   }
+  ],
+  [
+   "ftp://x.com/duskmaker",
+   {
+    "problem": "link_not_web",
+    "vars": {}
+   }
+  ],
+  [
+   "https://",
+   {
+    "problem": "link_not_web",
+    "vars": {}
+   }
+  ],
+  [
+   "http://x.com/duskmaker",
+   {
+    "problem": "link_http",
+    "vars": {}
+   }
+  ],
+  [
+   "https://user@x.com/duskmaker",
+   {
+    "problem": "link_userinfo",
+    "vars": {}
+   }
+  ],
+  [
+   "https://[::1]/",
+   {
+    "problem": "link_machine",
+    "vars": {
+     "host": "[::1]"
+    }
+   }
+  ],
+  [
+   "https://127.0.0.1/admin",
+   {
+    "problem": "link_machine",
+    "vars": {
+     "host": "127.0.0.1"
+    }
+   }
+  ],
+  [
+   "https://localhost/x",
+   {
+    "problem": "link_machine",
+    "vars": {
+     "host": "localhost"
+    }
+   }
+  ],
+  [
+   "https://api.localhost/x",
+   {
+    "problem": "link_machine",
+    "vars": {
+     "host": "api.localhost"
+    }
+   }
+  ],
+  [
+   "https://intranet/x",
+   {
+    "problem": "link_machine",
+    "vars": {
+     "host": "intranet"
+    }
+   }
+  ],
+  [
+   "https://x.com:8443/duskmaker",
+   {
+    "problem": "link_port",
+    "vars": {
+     "port": "8443"
+    }
+   }
+  ],
+  [
+   "https://civitai.com/user/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   {
+    "problem": "link_long",
+    "vars": {
+     "length": 305,
+     "max": 300
+    }
+   }
+  ],
+  [
+   "https://bit.ly/3abc",
+   {
+    "problem": "link_shortener",
+    "vars": {
+     "host": "bit.ly"
+    }
+   }
+  ],
+  [
+   "https://linktr.ee/duskmaker",
+   {
+    "problem": "link_hub",
+    "vars": {
+     "host": "linktr.ee"
+    }
+   }
+  ],
+  [
+   "https://dusk.carrd.co",
+   {
+    "problem": "link_hub",
+    "vars": {
+     "host": "dusk.carrd.co"
+    }
+   }
+  ],
+  [
+   "https://discord.gg/abc",
+   {
+    "problem": "link_invite",
+    "vars": {
+     "host": "discord.gg"
+    }
+   }
+  ],
+  [
+   "https://example.org/dusk",
+   {
+    "problem": "link_unlisted",
+    "vars": {
+     "host": "example.org"
+    }
+   }
+  ],
+  [
+   "https://b\u00fccher.example/x",
+   {
+    "problem": "link_unlisted",
+    "vars": {
+     "host": "xn--bcher-kva.example"
+    }
+   }
+  ],
+  [
+   "https://x.com/duskmaker/status/123",
+   {
+    "problem": "link_post_profile",
+    "vars": {
+     "host": "x.com",
+     "profile": "https://x.com/duskmaker"
+    }
+   }
+  ],
+  [
+   "https://www.pixiv.net/en/artworks/123",
+   {
+    "problem": "link_post",
+    "vars": {
+     "host": "pixiv.net",
+     "shape": "https://pixiv.net/users/12345"
+    }
+   }
+  ],
+  [
+   "https://civitai.com/images/123",
+   {
+    "problem": "link_post",
+    "vars": {
+     "host": "civitai.com",
+     "shape": "https://civitai.com/user/yourname"
+    }
+   }
+  ],
+  [
+   "https://youtu.be/abc",
+   {
+    "problem": "link_post",
+    "vars": {
+     "host": "youtu.be",
+     "shape": "https://youtube.com/@yourname"
+    }
+   }
+  ],
+  [
+   "https://bsky.app/profile/dusk.bsky.social/post/3k",
+   {
+    "problem": "link_post_profile",
+    "vars": {
+     "host": "bsky.app",
+     "profile": "https://bsky.app/profile/dusk.bsky.social"
+    }
+   }
+  ],
+  [
+   "https://dusk.tumblr.com/post/123/slug",
+   {
+    "problem": "link_post_profile",
+    "vars": {
+     "host": "tumblr.com",
+     "profile": "https://tumblr.com/dusk"
+    }
+   }
+  ],
+  [
+   "https://ko-fi.com/s/abc",
+   {
+    "problem": "link_post",
+    "vars": {
+     "host": "ko-fi.com",
+     "shape": "https://ko-fi.com/yourname"
+    }
+   }
+  ],
+  [
+   "https://pawoo.net/@dusk/1234",
+   {
+    "problem": "link_post_profile",
+    "vars": {
+     "host": "pawoo.net",
+     "profile": "https://pawoo.net/@dusk"
+    }
+   }
+  ],
+  [
+   "https://www.newgrounds.com/art/view/dusk/night",
+   {
+    "problem": "link_post_profile",
+    "vars": {
+     "host": "newgrounds.com",
+     "profile": "https://dusk.newgrounds.com"
+    }
+   }
+  ],
+  [
+   "https://dusk.gumroad.com/l/pack",
+   {
+    "problem": "link_post_profile",
+    "vars": {
+     "host": "dusk.gumroad.com",
+     "profile": "https://dusk.gumroad.com"
+    }
+   }
+  ],
+  [
+   "https://facebook.com/permalink.php?story_fbid=1",
+   {
+    "problem": "link_post",
+    "vars": {
+     "host": "facebook.com",
+     "shape": "https://facebook.com/yourpage"
+    }
+   }
+  ],
+  [
+   "https://reddit.com/r/art/comments/abc/x",
+   {
+    "problem": "link_post",
+    "vars": {
+     "host": "reddit.com",
+     "shape": "https://reddit.com/user/yourname"
+    }
+   }
+  ],
+  [
+   "https://civitai.com/search?q=x",
+   {
+    "problem": "link_shape",
+    "vars": {
+     "site": "Civitai",
+     "shape": "https://civitai.com/user/yourname"
+    }
+   }
+  ],
+  [
+   "https://x.com/i",
+   {
+    "problem": "link_shape",
+    "vars": {
+     "site": "X",
+     "shape": "https://x.com/yourname"
+    }
+   }
+  ],
+  [
+   "https://x.com/home",
+   {
+    "problem": "link_shape",
+    "vars": {
+     "site": "X",
+     "shape": "https://x.com/yourname"
+    }
+   }
+  ],
+  [
+   "https://x.com/",
+   {
+    "problem": "link_shape",
+    "vars": {
+     "site": "X",
+     "shape": "https://x.com/yourname"
+    }
+   }
+  ],
+  [
+   "https://huggingface.co/docs",
+   {
+    "problem": "link_shape",
+    "vars": {
+     "site": "Hugging Face",
+     "shape": "https://huggingface.co/yourname"
+    }
+   }
+  ],
+  [
+   "https://gumroad.com",
+   {
+    "problem": "link_shape",
+    "vars": {
+     "site": "Gumroad",
+     "shape": "https://yourname.gumroad.com"
+    }
+   }
+  ],
+  [
+   "https://huggingface.co/./dusk",
+   {
+    "problem": "link_dots",
+    "vars": {}
+   }
+  ],
+  [
+   "https://aichan.gallery/oc/../dusk",
+   {
+    "problem": "link_dots",
+    "vars": {}
+   }
+  ],
+  [
+   "https://aichan.gallery/oc/%2e%2E/dusk",
+   {
+    "problem": "link_dots",
+    "vars": {}
+   }
+  ],
+  [
+   "https://tumblr.com/dusk/123",
+   {
+    "problem": "link_post_profile",
+    "vars": {
+     "host": "tumblr.com",
+     "profile": "https://tumblr.com/dusk"
+    }
+   }
+  ],
+  [
+   "https://dusk.deviantart.com/art/night-123",
+   {
+    "problem": "link_post_profile",
+    "vars": {
+     "host": "deviantart.com",
+     "profile": "https://deviantart.com/dusk"
+    }
+   }
+  ],
+  [
+   "https://tumblr.com/dashboard",
+   {
+    "problem": "link_shape",
+    "vars": {
+     "site": "Tumblr",
+     "shape": "https://tumblr.com/yourblog"
+    }
+   }
+  ],
+  [
+   "HTTPS://X.com/DuskMaker",
+   {
+    "url": "https://x.com/DuskMaker",
+    "site": "x"
+   }
+  ],
+  [
+   "  https://x.com/duskmaker\n",
+   {
+    "url": "https://x.com/duskmaker",
+    "site": "x"
+   }
+  ],
+  [
+   "https://x.com:443/duskmaker",
+   {
+    "url": "https://x.com/duskmaker",
+    "site": "x"
+   }
+  ],
+  [
+   "https://x.com./duskmaker",
+   {
+    "url": "https://x.com/duskmaker",
+    "site": "x"
+   }
+  ],
+  [
+   "https://www.twitter.com/duskmaker/",
+   {
+    "url": "https://x.com/duskmaker",
+    "site": "x"
+   }
+  ],
+  [
+   "https://x.com/duskmaker?utm_source=a&fbclid=z&si=q#top",
+   {
+    "url": "https://x.com/duskmaker",
+    "site": "x"
+   }
+  ],
+  [
+   "https://x.com/inkmaker",
+   {
+    "url": "https://x.com/inkmaker",
+    "site": "x"
+   }
+  ],
+  [
+   "https://instagram.com/reelmaker",
+   {
+    "url": "https://instagram.com/reelmaker",
+    "site": "instagram"
+   }
+  ],
+  [
+   "https://www.pixiv.net/en/users/123",
+   {
+    "url": "https://pixiv.net/users/123",
+    "site": "pixiv"
+   }
+  ],
+  [
+   "https://civitai.red/user/dusk/models",
+   {
+    "url": "https://civitai.red/user/dusk/models",
+    "site": "civitai"
+   }
+  ],
+  [
+   "https://civitai.com/models/123/dusk-lora?modelVersionId=456",
+   {
+    "url": "https://civitai.com/models/123?modelVersionId=456",
+    "site": "civitai"
+   }
+  ],
+  [
+   "https://m.youtube.com/@dusk",
+   {
+    "url": "https://youtube.com/@dusk",
+    "site": "youtube"
+   }
+  ],
+  [
+   "https://ko-fi.com/duskmaker",
+   {
+    "url": "https://ko-fi.com/duskmaker",
+    "site": "kofi"
+   }
+  ],
+  [
+   "https://dusk.newgrounds.com",
+   {
+    "url": "https://dusk.newgrounds.com",
+    "site": "newgrounds"
+   }
+  ],
+  [
+   "https://huggingface.co/dusk/dusk-lora",
+   {
+    "url": "https://huggingface.co/dusk/dusk-lora",
+    "site": "huggingface"
+   }
+  ],
+  [
+   "https://patreon.com/user?u=123",
+   {
+    "url": "https://patreon.com/user?u=123",
+    "site": "patreon"
+   }
+  ],
+  [
+   "https://www.facebook.com/profile.php?id=1000",
+   {
+    "url": "https://facebook.com/profile.php?id=1000",
+    "site": "facebook"
+   }
+  ],
+  [
+   "https://old.reddit.com/u/dusk",
+   {
+    "url": "https://reddit.com/user/dusk",
+    "site": "reddit"
+   }
+  ],
+  [
+   "https://aichan.gallery/oc/dusk",
+   {
+    "url": "https://aichan.gallery/oc/dusk",
+    "site": "aichan"
+   }
+  ],
+  [
+   "https://fantia.jp/fanclubs/123",
+   {
+    "url": "https://fantia.jp/fanclubs/123",
+    "site": "fantia"
+   }
+  ],
+  [
+   "https://reddit.com/u/dusk",
+   {
+    "url": "https://reddit.com/user/dusk",
+    "host": "reddit.com",
+    "site": "reddit"
+   }
+  ],
+  [
+   "https://dusk.tumblr.com",
+   {
+    "url": "https://tumblr.com/dusk",
+    "host": "tumblr.com",
+    "site": "tumblr"
+   }
+  ],
+  [
+   "https://tumblr.com/dusk/",
+   {
+    "url": "https://tumblr.com/dusk",
+    "site": "tumblr"
+   }
+  ],
+  [
+   "https://dusk.deviantart.com",
+   {
+    "url": "https://deviantart.com/dusk",
+    "host": "deviantart.com",
+    "site": "deviantart"
+   }
+  ],
+  [
+   "https://patreon.com/c/dusk",
+   {
+    "url": "https://patreon.com/dusk",
+    "site": "patreon"
+   }
+  ],
+  [
+   "https://civitai.com/models/123/dusk-lora",
+   {
+    "url": "https://civitai.com/models/123",
+    "site": "civitai"
+   }
+  ],
+  [
+   "https://aichan.gallery/u/%62ad",
+   {
+    "url": "https://aichan.gallery/u/bad",
+    "site": "aichan"
+   }
+  ],
+  [
+   "https://aichan.gallery/caf\u00e9|x{y}",
+   {
+    "url": "https://aichan.gallery/caf%C3%A9%7Cx%7By%7D",
+    "site": "aichan"
+   }
+  ],
+  [
+   "https://aichan.gallery/a%2fb%zz%",
+   {
+    "url": "https://aichan.gallery/a%2Fb%25zz%25",
+    "site": "aichan"
+   }
+  ],
+  [
+   "https://aichan.gallery//oc//dusk/",
+   {
+    "url": "https://aichan.gallery/oc/dusk",
+    "site": "aichan"
+   }
+  ],
+  [
+   "https://x.com/duskmaker?utm%5Fsource=a",
+   {
+    "url": "https://x.com/duskmaker",
+    "site": "x"
+   }
+  ],
+  [
+   "https://civitai\u3002com/user/bad",
+   {
+    "url": "https://civitai.com/user/bad",
+    "site": "civitai"
+   }
+  ],
+  [
+   "https://civitai\uff61com/user/bad",
+   {
+    "url": "https://civitai.com/user/bad",
+    "site": "civitai"
+   }
+  ],
+  [
+   "https://civitai.com\u3002/user/bad",
+   {
+    "url": "https://civitai.com/user/bad",
+    "site": "civitai"
+   }
+  ],
+  [
+   "https://civitai.com\u2024/user/bad",
+   {
+    "url": "https://civitai.com/user/bad",
+    "site": "civitai"
+   }
+  ],
+  [
+   "https://\uff43ivitai\uff0ecom/user/bad",
+   {
+    "url": "https://civitai.com/user/bad",
+    "site": "civitai"
+   }
+  ]
+ ]
+}

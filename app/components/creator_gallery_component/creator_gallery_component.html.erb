@@ -111,6 +111,17 @@
               </button>
             <% end %>
           </div>
+          <%# The Tuner: off, or a card of the creator's links at A (the Masthead,
+              by the name) or B (the Skywave, in the banner). %>
+          <div class="cg-field">
+            <span class="cg-label">Tuner</span>
+            <div class="cg-seg" role="group" aria-label="Tuner">
+              <% [["off", "Off"], ["A", "Masthead (A)"], ["B", "Skywave (B)"]].each do |v, name| %>
+                <button type="button" data-cg-act="tuner-mode" data-v="<%= v %>" aria-pressed="<%= v == (look["tuner"]["enabled"] ? look["tuner"]["placement"] : "off") %>"><%= name %></button>
+              <% end %>
+            </div>
+            <p class="cg-note" data-cg-region="tuner-note"<%= " hidden" if look["tuner"]["enabled"] %>>Turn the Tuner on to build harmonics: cards of your links on other sites.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -126,7 +137,7 @@
   <% end %>
 
   <%# --- the header: banner, avatar, name, and the panels that descend ---- %>
-  <header class="modcreator-head">
+  <%= tag.header(class: ["modcreator-head", ("modcreator-head--dial" if tuner == "A"), ("modcreator-head--sky" if tuner == "B")], data: { cg_region: "head" }) do %>
     <%= tag.div(class: ["modcreator-banner", ("mod-blacklist-target" if banner)], style: depth_style, aria: { hidden: true }, data: { cg_depth: "", **(banner ? marks(banner) : {}) }) do %>
       <% if banner %>
         <img class="modcreator-banner-art" src="<%= picture(banner) %>" alt="">
@@ -134,8 +145,12 @@
         <span class="modcreator-banner-art modcreator-banner-art--none"></span>
       <% end %>
     <% end %>
+    <%# B, the Skywave Dial, in the banner; the banner itself is decoration. %>
+    <% if tuner == "B" %>
+      <%= render CreatorTunerComponent.new(placement: "B", cards: draw[:harmonics], scan: scan) %>
+    <% end %>
 
-    <div class="modcreator-id">
+    <div class="modcreator-id<%= " modcreator-id--tuned" if tuner == "A" %>" data-cg-region="id">
       <div class="modcreator-avatar" title="From Matrix">
         <% if avatar[:url] %>
           <img class="modcreator-avatar-img" src="<%= avatar[:url] %>" alt="" width="112" height="112">
@@ -187,6 +202,9 @@
           <a class="modcreator-signin" href="/fourier/login" rel="nofollow">Sign in with Matrix</a>
         <% end %>
       </div>
+      <% if tuner == "A" %>
+        <%= render CreatorTunerComponent.new(placement: "A", cards: draw[:harmonics], scan: scan) %>
+      <% end %>
     </div>
 
     <%# The panels descend from the header on About, and each one can be put
@@ -244,7 +262,13 @@
       </div>
     </div>
     <% end %>
-  </header>
+  <% end %>
+
+  <%# The harmonic builder opens here, under the header and over the page;
+      the editor draws it (harmonic_builder.js). %>
+  <% if editing %>
+    <div class="cg-hb-anchor" data-cg-region="builder"></div>
+  <% end %>
 
   <% unless closed %>
   <main class="modcreator-main">
@@ -429,5 +453,21 @@
       </div>
     <% end %>
   </main>
+  <% end %>
+
+  <%# The leaving notice every harmonic opens first (sec 5.3): what the link
+      is and where it goes, Stay focused. It is a modal over the booru alone. %>
+  <% if tuner || editing %>
+    <dialog class="cg-leave" data-cg-leave aria-label="Leaving 41chan">
+      <form method="dialog">
+        <p>This link takes you away from 41chan, to <b data-cg-leave-service></b>. From this point on, whatever happens is between you and them.</p>
+        <p class="cg-leave-addr" data-cg-leave-addr></p>
+        <p data-cg-leave-adult hidden>This site carries work for adults. Go on only if you are 18 or older.</p>
+        <div class="cg-leave-actions">
+          <button class="cg-btn cg-btn--sm" value="stay" autofocus>Stay here</button>
+          <button class="cg-btn cg-btn--sm cg-leave-go" value="go">Go to <span data-cg-leave-service></span></button>
+        </div>
+      </form>
+    </dialog>
   <% end %>
 </div>

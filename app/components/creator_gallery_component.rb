@@ -24,14 +24,16 @@ class CreatorGalleryComponent < ApplicationComponent
   ROW_H = { 1 => 340, 2 => 300, 3 => 250, 4 => 230 }.freeze
   MIN_W = { 1 => 560, 2 => 360, 3 => 250, 4 => 220 }.freeze
 
-  attr_reader :gallery, :viewer, :draw, :avatar, :can_edit, :editing, :palette, :panels, :closed
+  attr_reader :gallery, :viewer, :draw, :avatar, :can_edit, :editing, :palette, :panels, :closed, :scan
 
   # @param draw [Hash] CreatorGalleryLayout#draw(viewer)
   # @param avatar [Hash] CreatorGalleryLayout#avatar(viewer): { name:, mxc:, url:, problem: }
   # @param palette [Array<Hash>] CreatorGalleryLayout#palette, in edit mode
   # @param panels [Hash{String => String}] the edit page's sections, title => HTML, in edit mode
-  def initialize(gallery:, viewer:, draw:, avatar:, can_edit:, editing: false, palette: nil, panels: nil, closed: false) # rubocop:disable Metrics/ParameterLists
+  # @param scan [Boolean, nil] the viewer's Tuner Scan (ModulationSetting tuner_scan)
+  def initialize(gallery:, viewer:, draw:, avatar:, can_edit:, scan:, editing: false, palette: nil, panels: nil, closed: false) # rubocop:disable Metrics/ParameterLists
     super
+    @scan = scan
     @closed = closed
     @gallery = gallery
     @viewer = viewer
@@ -59,6 +61,12 @@ class CreatorGalleryComponent < ApplicationComponent
   # the page's. A closed page names no one, so its letter is its address's.
   def monogram
     (closed ? gallery.slug : (avatar[:name].presence || title)).delete_prefix("@")[0].to_s.upcase
+  end
+
+  # The Tuner's placement, "A" or "B", when the page draws one: switched on,
+  # with a card this viewer is drawn, on a page open to them.
+  def tuner
+    draw[:tuner]["placement"] if !closed && draw[:tuner]["enabled"] && draw[:harmonics].any?
   end
 
   def hero_slides
@@ -158,7 +166,20 @@ class CreatorGalleryComponent < ApplicationComponent
         hero: look["hero"].merge("tags" => layout.pills(look["hero"]["tags"]), "posts" => stored["hero"].to_a),
         layout: look["layout"],
         minis: look["minis"].each_with_index.map { |mini, i| mini.merge("posts" => stored["mini#{i + 1}"].to_a) },
+        tuner: look["tuner"],
+        harmonics: gallery.creator_gallery_harmonics.map do |harmonic|
+          harmonic.slice(:id, :shown, :url, :title, :subtitle, :cta, :places, :background_post_id, :background_gradient, :focus_x, :focus_y, :zoom, :shade)
+                  .merge("staff_hidden" => harmonic.staff_hidden?)
+        end,
       },
+      cards: draw[:harmonics],
+      harmonicCap: gallery.harmonic_cap,
+      # The builder's list and link checks (harmonic_model.js), the bundled
+      # logos it draws, and every removal's fingerprint.
+      registry: CreatorGalleryHarmonic::CONFIG,
+      logos: CreatorGalleryHarmonic::CONFIG["sites"].filter_map { |site| site["logo"] }.index_with { |file| helpers.asset_pack_path("static/#{file}") },
+      removed: CreatorHarmonicRemoval.pluck(:url).map { |url| CreatorHarmonicRemoval.fingerprint(url) },
+      isAdmin: CurrentUser.user.is_admin?,
       slides: [*hero_slides, *draw[:minis].flat_map { |mini| mini[:slides] }, draw[:banner]].compact.uniq { |slide| slide[:id] },
       palette: palette.to_a,
       slug: gallery.slug,

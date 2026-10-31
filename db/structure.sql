@@ -669,6 +669,54 @@ ALTER SEQUENCE public.creator_galleries_id_seq OWNED BY public.creator_galleries
 
 
 --
+-- Name: creator_gallery_harmonics; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.creator_gallery_harmonics (
+    id bigint NOT NULL,
+    creator_gallery_id bigint NOT NULL,
+    "position" integer DEFAULT 0 NOT NULL,
+    shown boolean DEFAULT true NOT NULL,
+    site character varying NOT NULL,
+    url character varying(300) NOT NULL,
+    title character varying(48) NOT NULL,
+    subtitle character varying(80) DEFAULT ''::character varying NOT NULL,
+    cta character varying,
+    places jsonb DEFAULT '{}'::jsonb NOT NULL,
+    background_post_id bigint,
+    background_gradient smallint,
+    focus_x smallint,
+    focus_y smallint,
+    zoom smallint,
+    shade smallint,
+    staff_hidden_at timestamp(6) without time zone,
+    staff_hidden_by_id bigint,
+    staff_hidden_reason text,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: creator_gallery_harmonics_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.creator_gallery_harmonics_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_gallery_harmonics_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.creator_gallery_harmonics_id_seq OWNED BY public.creator_gallery_harmonics.id;
+
+
+--
 -- Name: creator_gallery_messages; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -802,6 +850,40 @@ CREATE SEQUENCE public.creator_groups_id_seq
 --
 
 ALTER SEQUENCE public.creator_groups_id_seq OWNED BY public.creator_groups.id;
+
+
+--
+-- Name: creator_harmonic_removals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.creator_harmonic_removals (
+    id bigint NOT NULL,
+    url character varying(300) NOT NULL,
+    reason text DEFAULT ''::text NOT NULL,
+    removed_by_id bigint NOT NULL,
+    source_harmonic_id bigint,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: creator_harmonic_removals_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.creator_harmonic_removals_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_harmonic_removals_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.creator_harmonic_removals_id_seq OWNED BY public.creator_harmonic_removals.id;
 
 
 --
@@ -1926,7 +2008,8 @@ CREATE TABLE public.modulation_settings (
     session_bar_open boolean DEFAULT false NOT NULL,
     session_autorefresh boolean DEFAULT true NOT NULL,
     hero_band boolean DEFAULT false NOT NULL,
-    random_trails jsonb DEFAULT '{}'::jsonb NOT NULL
+    random_trails jsonb DEFAULT '{}'::jsonb NOT NULL,
+    tuner_scan boolean
 );
 
 
@@ -3511,6 +3594,44 @@ ALTER SEQUENCE public.user_name_change_requests_id_seq OWNED BY public.user_name
 
 
 --
+-- Name: user_perks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_perks (
+    id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    perk character varying NOT NULL,
+    value integer NOT NULL,
+    source character varying NOT NULL,
+    granted_by_id bigint,
+    expires_at timestamp(6) without time zone,
+    revoked_at timestamp(6) without time zone,
+    revoked_by_id bigint,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: user_perks_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.user_perks_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: user_perks_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.user_perks_id_seq OWNED BY public.user_perks.id;
+
+
+--
 -- Name: user_sessions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3737,6 +3858,13 @@ ALTER TABLE ONLY public.creator_galleries ALTER COLUMN id SET DEFAULT nextval('p
 
 
 --
+-- Name: creator_gallery_harmonics id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_gallery_harmonics ALTER COLUMN id SET DEFAULT nextval('public.creator_gallery_harmonics_id_seq'::regclass);
+
+
+--
 -- Name: creator_gallery_messages id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3762,6 +3890,13 @@ ALTER TABLE ONLY public.creator_group_memberships ALTER COLUMN id SET DEFAULT ne
 --
 
 ALTER TABLE ONLY public.creator_groups ALTER COLUMN id SET DEFAULT nextval('public.creator_groups_id_seq'::regclass);
+
+
+--
+-- Name: creator_harmonic_removals id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_harmonic_removals ALTER COLUMN id SET DEFAULT nextval('public.creator_harmonic_removals_id_seq'::regclass);
 
 
 --
@@ -4185,6 +4320,13 @@ ALTER TABLE ONLY public.user_name_change_requests ALTER COLUMN id SET DEFAULT ne
 
 
 --
+-- Name: user_perks id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_perks ALTER COLUMN id SET DEFAULT nextval('public.user_perks_id_seq'::regclass);
+
+
+--
 -- Name: user_sessions id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -4340,6 +4482,14 @@ ALTER TABLE ONLY public.creator_galleries
 
 
 --
+-- Name: creator_gallery_harmonics creator_gallery_harmonics_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_gallery_harmonics
+    ADD CONSTRAINT creator_gallery_harmonics_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: creator_gallery_messages creator_gallery_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4369,6 +4519,14 @@ ALTER TABLE ONLY public.creator_group_memberships
 
 ALTER TABLE ONLY public.creator_groups
     ADD CONSTRAINT creator_groups_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: creator_harmonic_removals creator_harmonic_removals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_harmonic_removals
+    ADD CONSTRAINT creator_harmonic_removals_pkey PRIMARY KEY (id);
 
 
 --
@@ -4897,6 +5055,14 @@ ALTER TABLE ONLY public.user_feedback
 
 ALTER TABLE ONLY public.user_name_change_requests
     ADD CONSTRAINT user_name_change_requests_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_perks user_perks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_perks
+    ADD CONSTRAINT user_perks_pkey PRIMARY KEY (id);
 
 
 --
@@ -5528,6 +5694,20 @@ CREATE INDEX index_creator_galleries_on_user_id ON public.creator_galleries USIN
 
 
 --
+-- Name: index_creator_gallery_harmonics_on_creator_gallery_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_gallery_harmonics_on_creator_gallery_id ON public.creator_gallery_harmonics USING btree (creator_gallery_id);
+
+
+--
+-- Name: index_creator_gallery_harmonics_on_site; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_gallery_harmonics_on_site ON public.creator_gallery_harmonics USING btree (site);
+
+
+--
 -- Name: index_creator_gallery_messages_on_creator_gallery_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5588,6 +5768,13 @@ CREATE INDEX index_creator_groups_on_creator_gallery_id ON public.creator_groups
 --
 
 CREATE UNIQUE INDEX index_creator_groups_on_name ON public.creator_groups USING btree (name);
+
+
+--
+-- Name: index_creator_harmonic_removals_on_url; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_creator_harmonic_removals_on_url ON public.creator_harmonic_removals USING btree (url);
 
 
 --
@@ -7941,6 +8128,20 @@ CREATE INDEX index_user_name_change_requests_on_user_id_and_created_at ON public
 
 
 --
+-- Name: index_user_perks_on_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_user_perks_on_user_id ON public.user_perks USING btree (user_id);
+
+
+--
+-- Name: index_user_perks_on_user_id_and_perk; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_user_perks_on_user_id_and_perk ON public.user_perks USING btree (user_id, perk) WHERE (revoked_at IS NULL);
+
+
+--
 -- Name: index_user_sessions_on_created_at; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8426,6 +8627,14 @@ ALTER TABLE ONLY public.post_mxcs
 
 ALTER TABLE ONLY public.tag_versions
     ADD CONSTRAINT fk_rails_373a0aa141 FOREIGN KEY (updater_id) REFERENCES public.users(id);
+
+
+--
+-- Name: user_perks fk_rails_3a08148acf; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_perks
+    ADD CONSTRAINT fk_rails_3a08148acf FOREIGN KEY (user_id) REFERENCES public.users(id);
 
 
 --
@@ -8981,6 +9190,14 @@ ALTER TABLE ONLY public.favorites
 
 
 --
+-- Name: creator_gallery_harmonics fk_rails_d241c8e15d; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_gallery_harmonics
+    ADD CONSTRAINT fk_rails_d241c8e15d FOREIGN KEY (creator_gallery_id) REFERENCES public.creator_galleries(id) ON DELETE CASCADE;
+
+
+--
 -- Name: uploads fk_rails_d29b037216; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9179,6 +9396,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261031120000'),
 ('20261024120000'),
 ('20261023120000'),
 ('20261019132157'),

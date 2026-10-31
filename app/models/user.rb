@@ -185,6 +185,8 @@ class User < ApplicationRecord
   has_many :purchased_upgrades, class_name: "UserUpgrade", foreign_key: :purchaser_id, dependent: :destroy
   has_many :user_events, dependent: :destroy
   has_one :active_ban, -> { active }, class_name: "Ban"
+  # Limits raised for this account (UserPerk); honoured by perk_value alone.
+  has_many :user_perks, dependent: :destroy
   has_one :email_address, dependent: :destroy
   has_many :api_keys, dependent: :destroy
   has_many :note_versions, foreign_key: "updater_id"
@@ -832,6 +834,18 @@ class User < ApplicationRecord
     # query parameter wide.
     def listing_per_page_limit
       can_browse_freely? ? MAX_PER_PAGE : Danbooru.config.restricted_browsing_per_page.to_i
+    end
+
+    # A limit a perk raises (UserPerk), as this account has it now: the
+    # largest live grant, never below the default -- and the default alone
+    # unless the account is in good standing: a member, not restricted, not
+    # deleted, and not banned by its ACTIVE ban (the cached is_banned bit can
+    # lag one).
+    def perk_value(perk)
+      default = UserPerk.default(perk)
+      return default unless is_member? && !is_restricted? && !is_deleted? && active_ban.nil?
+
+      [default, *user_perks.active.where(perk: perk.to_s).pluck(:value)].max
     end
 
     def tag_query_limit

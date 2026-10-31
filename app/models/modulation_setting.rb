@@ -38,7 +38,7 @@ class ModulationSetting < ApplicationRecord
   # always reloads after an auth action, so there is no preference to keep.
   # Dropped from the key list rather than defaulted to true, so a stored
   # `false` from before the ruling cannot come back and disable the reload.
-  PANEL_KEYS = %w[image_cap tags_expanded gallery_sort gallery_view gallery_show_deleted session_bar_open hero_band].freeze
+  PANEL_KEYS = %w[image_cap tags_expanded gallery_sort gallery_view gallery_show_deleted session_bar_open hero_band tuner_scan].freeze
 
   SESSION_KEY = :modulation_settings
 
@@ -56,6 +56,7 @@ class ModulationSetting < ApplicationRecord
       "session_bar_open" => false,
       # The landing carousel run edge to edge ("Maximize Hero Band").
       "hero_band" => false,
+      "tuner_scan" => nil,
     }
   end
 
@@ -88,6 +89,11 @@ class ModulationSetting < ApplicationRecord
     clean["gallery_show_deleted"] = changes["gallery_show_deleted"].to_s.truthy? unless changes["gallery_show_deleted"].nil?
     clean["session_bar_open"] = changes["session_bar_open"].to_s.truthy? unless changes["session_bar_open"].nil?
     clean["hero_band"] = changes["hero_band"].to_s.truthy? unless changes["hero_band"].nil?
+    # The Tuner's Scan: NULL is no opinion (on, unless the viewer's system asks for reduced motion).
+    unless changes["tuner_scan"].nil?
+      scan = changes["tuner_scan"].to_s
+      clean["tuner_scan"] = scan.empty? ? nil : scan.truthy?
+    end
     return for_viewer(user, session) if clean.empty?
 
     if user.present? && !user.is_anonymous?
