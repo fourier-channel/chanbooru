@@ -235,13 +235,13 @@ services:
     command: ["http", "0.0.0.0", "5588", "/iqdb/data/iqdb.sqlite"]
 
   redis:
-    image: redis:6.2.24
+    image: redis:6.2.24@sha256:71075871d0c318a0a835648a954e32d2b88d7b2a75c89a034ad0aa404e0319c9
 
   # Fork: stock postgres, not upstream's ghcr.io/danbooru/postgres:16.1 (stock 16.1
   # plus pgbackrest, which nothing here uses; backups are pg_dump). 16.15 opened
   # production's 16.1 data directory unchanged in a rehearsal on its dump.
   postgres:
-    image: postgres:16.15-bookworm@sha256:d81f7b51697014367236d07ec58b54153fc28f828b72bf247fe5c7487520bcb0
+    image: postgres:16.15-bookworm@sha256:e8a07d2c7579b038938cdba6c539e580e5001caf9ea203d397b5cc83e76bd938
     shm_size: 1gb
     environment:
       POSTGRES_USER: danbooru
@@ -321,7 +321,7 @@ services:
     # Fork: upstream's image rebuilt with its fixes (docker/archives), made on
     # the workstation and loaded here by bin/chanbooru-image; never pulled, so a
     # box that was not sent it refuses the deploy.
-    image: chanbooru-archives:f0b0b25808aa
+    image: chanbooru-archives:d9d5703e1f51
     pull_policy: never
     environment:
       <<: *sqs-env

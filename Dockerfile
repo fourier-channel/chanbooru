@@ -38,7 +38,7 @@ ARG OPENRESTY_SHA256="3195e665c97023419051dc51d195e9f774a3d00ed6e7cd8a3751c4722e
 ARG NODE_VERSION="24.19.0"
 ARG UBUNTU_VERSION="resolute-20261006@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944"
 # Remember to update the UBUNTU_SNAPSHOT ARG below when UBUNTU_VERSION is updated
-ARG UBUNTU_SNAPSHOT="20261020T000000Z"
+ARG UBUNTU_SNAPSHOT="20261028T000000Z"
 # Fork: rclone's own static build, not Ubuntu's package. Ubuntu's rclone 1.60 is
 # built with go1.26.0 and carried 1 critical and 25 highs with a fix (scan of
 # 2026-10-24); no newer one is packaged. Only the binary is copied.

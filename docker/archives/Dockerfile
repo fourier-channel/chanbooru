@@ -20,7 +20,7 @@ FROM ghcr.io/danbooru/archives@sha256:46eca16bc5f80bcf83d3a9a98a338b11dd63ab2aa3
 
 USER root
 # Debian bookworm as published at 2026-10-20, not "whatever is current".
-RUN printf 'Types: deb\nURIs: http://snapshot.debian.org/archive/debian/20261020T000000Z\nSuites: bookworm bookworm-updates\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n\nTypes: deb\nURIs: http://snapshot.debian.org/archive/debian-security/20261020T000000Z\nSuites: bookworm-security\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n' > /etc/apt/sources.list.d/debian.sources \
+RUN printf 'Types: deb\nURIs: http://snapshot.debian.org/archive/debian/20261028T000000Z\nSuites: bookworm bookworm-updates\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n\nTypes: deb\nURIs: http://snapshot.debian.org/archive/debian-security/20261028T000000Z\nSuites: bookworm-security\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n' > /etc/apt/sources.list.d/debian.sources \
  && apt-get -o Acquire::Check-Valid-Until=false update \
  && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Check-Valid-Until=false upgrade -y \
  && DEBIAN_FRONTEND=noninteractive apt-get purge -y libexpat1 \
