@@ -117,6 +117,19 @@ class ChanbooruReleasesTest < ActiveSupport::TestCase
     end
   end
 
+  context "install" do
+    # The asset build starts the buildx builder that bin/build-docker-image
+    # stops; found running after the 2026-10-31 deploy.
+    should "stop the buildx builder after the asset build, before it can fail" do
+      script = File.read(SCRIPT)
+      build = script.index("--target packs")
+      stop = script.index("docker buildx stop")
+      assert stop, "install must stop the builder its asset build started"
+      assert_operator build, :<, stop, "stop after the asset build"
+      assert_operator stop, :<, script.index("fail \"the asset build for $name failed\""), "stop before a failed build exits"
+    end
+  end
+
   context "previous and prune" do
     should "name the release before the current one, and keep it when pruning" do
       fake_release(@parent)

@@ -79,7 +79,7 @@ current_release() {
 }
 
 cmd_install() {
-  local commit=$1 name dir tmp sha
+  local commit=$1 name dir tmp sha packs
   name="$(release_name "$commit")" || true
   [[ -n "$name" ]] || fail "no commit '$commit' in this checkout" "git fetch, then give a commit this checkout has"
   sha="$(git rev-parse "$commit^{commit}")"
@@ -110,7 +110,14 @@ cmd_install() {
   echo "   compiled assets (cached unless JS or CSS changed)"
   mkdir -p "$tmp/public/packs"
   git archive "$sha" | docker buildx build - --quiet --target packs --file Dockerfile \
-      --output "type=local,dest=$tmp/public/packs" > /dev/null \
+      --output "type=local,dest=$tmp/public/packs" > /dev/null
+  packs=$?
+  # This build starts the buildx builder that bin/build-docker-image stops after
+  # its own: left running, buildkit is a live image the nightly vulnerability
+  # scan counts (found running after the 2026-10-31 deploy). A build running
+  # elsewhere keeps it up.
+  pgrep -f "buildx build" > /dev/null || docker buildx stop > /dev/null 2>&1 || true
+  (( packs == 0 )) \
     || fail "the asset build for $name failed" "build it by hand to read the error: git archive $name | docker buildx build - --target packs --output type=local,dest=/tmp/packs-check"
   [[ -f "$tmp/public/packs/manifest.json" ]] || fail "the asset build for $name produced no public/packs/manifest.json" "inspect $tmp/public/packs; the packs stage copies build-assets' public/packs"
 
