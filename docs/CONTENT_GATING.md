@@ -259,7 +259,12 @@ in or out, for about two hours after the gallery is viewed, and the next view
 renews it. The grant belongs to the gallery, not to whoever viewed it. It
 passes this gate only: a deleted, jailed, flagged or otherwise hidden post
 stays hidden, a post whose every message was deleted stays hidden, and a
-private gallery grants nothing. Signed out, its page opens like any other
+private gallery grants nothing. And it passes only a post a signed-out
+visitor could see but for this gate, for everyone: a picture behind a
+sensitive tag is not let out even to Gold, since its image could only be
+asked for as a signed-out visitor. Its card is simply absent, as on the
+front page, and the gallery shows the rest; inside its rooms it shows as
+ever. Signed out, its page opens like any other
 signed-out post's: while the site is showing it (gate 10). Its image opens to
 anyone while the grant is fresh.
 
