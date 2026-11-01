@@ -22,12 +22,6 @@ function el(tag, attrs, ...kids) {
 const clamp = (lo, x, hi) => Math.min(hi, Math.max(lo, x));
 const length = (text) => [...strip(text)].length;
 
-// What the blacklist matches a post on (CreatorGalleryComponent#marks).
-const marks = (slide) => ({
-  "data-id": slide.id, "data-tags": slide.tags, "data-rating": slide.rating,
-  "data-flags": slide.flags, "data-score": slide.score, "data-uploader-id": slide.uploader_id,
-});
-
 // The card's elements: key, name, and the class harmonicCard draws it with.
 const ELEMENTS = [["mark", "Mark", "cg-hm-mark"], ["title", "Title", "cg-hm-title"], ["subtitle", "Subtitle", "cg-hm-sub"], ["button", "Button", "cg-hm-cta"], ["host", "Host", "cg-hm-host"]];
 const ELEMENT_OF = Object.fromEntries(ELEMENTS.map(([key, , name]) => [name, key]));
@@ -47,7 +41,10 @@ const sameAs = (node) => `[data-cg-act="${node.dataset.cgAct}"]${node.dataset.v 
 //   (the draft's list, edited in place), card(i), problems(), counting(),
 //   placement(), setPlacement(p), posts() (a promise of the creator's own
 //   posts), slideOf(id), dirty(), changed() (after an edit), moved() (after
-//   the builder opened, closed or moved to another harmonic), fill, toast
+//   the builder opened, closed or moved to another harmonic), fill, toast,
+//   deck(slides, opts) (the editor's post deck, post_deck.js), view(i, frame,
+//   painted) (sets harmonic i's picture's view over `frame()`, the stage's
+//   art, and calls `painted` once the draft has it)
 // @return { open(i), close(), paint(), add(blank), forget(), index }
 export function harmonicBuilder(anchor, ctx) {
   const { registry, logos } = ctx;
@@ -188,24 +185,27 @@ export function harmonicBuilder(anchor, ctx) {
   function backgroundSection(current) {
     const post = current.background_post_id ?? null;
     const radio = (attrs, checked, ...kids) => el("button", { type: "button", role: "radio", "aria-checked": String(checked), tabindex: checked ? 0 : -1, ...attrs }, ...kids);
-    const thumb = (slide) => radio({ class: "cg-thumb mod-blacklist-target", "data-cg-act": "hb-bg", title: `post #${slide.id}`, ...marks(slide) }, slide.id === post,
-      el("img", { src: slide.thumb || slide.src, alt: "", loading: "lazy", draggable: "false" }));
     const slides = posts ? posts.slides : [];
     // The post in place that is not among those offered: hidden from the
-    // creator now, or no longer theirs. It stays, by its number.
-    const missing = post && !slides.some((slide) => slide.id === post)
-      ? [ctx.slideOf(post) ? thumb(ctx.slideOf(post)) : radio({ class: "cg-thumb", "data-cg-act": "hb-bg", "data-id": post }, true, el("span", { class: "cg-thumb-cap" }, `#${post}`))]
-      : [];
-    let offered = [el("p", { class: "cg-note" }, "Finding your posts...")];
+    // creator now, or no longer theirs. It stays first, or by its number.
+    const away = post && !slides.some((slide) => slide.id === post);
+    const kept = away && ctx.slideOf(post) ? [ctx.slideOf(post)] : [];
+    const missing = away && !kept.length ? [radio({ class: "cg-thumb", "data-cg-act": "hb-bg", "data-id": post }, true, el("span", { class: "cg-thumb-cap" }, `#${post}`))] : [];
+    // The editor's post deck, choosing one: a card's click chooses it.
+    const deck = (list) => ctx.deck(list, {
+      size: 72,
+      label: "Your posts",
+      card: (slide) => [{ role: "radio", "aria-checked": String(slide.id === post), tabindex: slide.id === post ? 0 : -1, "data-cg-act": "hb-bg" }],
+    });
+    let offered = [el("p", { class: "cg-note" }, "Finding your posts..."), ...missing, ...(kept.length ? [deck(kept)] : [])];
     if (posts === false) {
-      offered = [el("p", { class: "cg-note" }, "Your posts did not load. Close the builder and open it again to retry.")];
+      offered = [el("p", { class: "cg-note" }, "Your posts did not load. Close the builder and open it again to retry."), ...missing, ...(kept.length ? [deck(kept)] : [])];
     } else if (posts) {
       offered = [
         ...(posts.total > posts.slides.length ? [el("p", { class: "cg-note" }, `${posts.slides.length} of ${posts.total} posts are shown: the newest ${posts.cap} at most, and only those you may see.`)] : []),
-        el("div", { class: "cg-hb-posts cg-scroll" }, ...missing, ...slides.map(thumb)),
+        ...missing,
+        deck([...kept, ...slides]),
       ];
-    } else if (missing.length) {
-      offered = [el("div", { class: "cg-hb-posts cg-scroll" }, ...missing)];
     }
     const gradient = post ? undefined : (current.background_gradient ?? null);
     const ranges = SETTINGS.map(([key, name, range]) => {
@@ -224,7 +224,10 @@ export function harmonicBuilder(anchor, ctx) {
         el("div", { class: "cg-hb-grads" }, ...[[null, "Ground"], ...registry.gradients].map(([key, name]) => radio(
           { class: "cg-hb-swatch", "data-cg-act": "hb-grad", "data-v": key ?? "" }, gradient === key,
           el("span", { class: `cg-hm-grad cg-hm-grad--${key ?? 0}` }), el("span", { class: "cg-hb-swatch-name" }, name))))),
-      el("div", { class: "cg-hb-ranges" }, ...ranges),
+      el("div", { class: "cg-hb-ranges" }, ...ranges,
+        // The picture's view is the post's, set over the stage's card: the
+        // same view wherever else the post is drawn.
+        el("button", { type: "button", class: "cg-btn cg-btn--sm cg-hb-view", "data-cg-act": "hb-view", disabled: !post, title: "Move, scale, stretch or flip the picture on the card above" }, "View")),
       el("p", { class: "cg-note" }, post
         ? `Words sit on the picture, so the shade has a floor of ${shadeFloor}%.`
         : "A gradient is drawn dark enough for words, so it takes no focus, zoom or shade."));
@@ -499,6 +502,7 @@ export function harmonicBuilder(anchor, ctx) {
       paint();
       break;
     case "hb-bg": choosePost(Number(act.dataset.id)); break;
+    case "hb-view": ctx.view(index, () => live.stage?.querySelector(".cg-hm-art"), refresh); break;
     case "hb-grad": chooseGradient(v === "" ? null : Number(v)); break;
     case "hb-move": move(Number(v)); break;
     case "hb-remove": remove(); break;

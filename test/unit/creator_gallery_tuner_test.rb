@@ -227,6 +227,17 @@ class CreatorGalleryTunerTest < ActiveSupport::TestCase
     end
   end
 
+  context "The Tuner's station marks" do
+    # The dial draws each site's logo from the booru's own bundle, never from
+    # the site; a site the list names a logo for must have one to draw.
+    should "name only logos the booru bundles, and none at all for a site that has no logo" do
+      logos = CreatorGalleryHarmonic::CONFIG["sites"].pluck("logo")
+
+      assert_equal([], logos.compact.reject { |file| Rails.public_path.join("logos", file).file? })
+      assert_includes(logos, nil)
+    end
+  end
+
   context "Drawing harmonics" do
     should "draw nothing for viewers while the Tuner is off, and every row for its manager" do
       save(harmonic, harmonic(url: "https://x.com/maple", shown: "false"), tuner: { "enabled" => "false", "placement" => "B" })

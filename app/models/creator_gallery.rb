@@ -11,6 +11,8 @@ class CreatorGallery < ApplicationRecord
   has_many :creator_gallery_messages, -> { order(created_at: :desc) }, dependent: :destroy, inverse_of: :creator_gallery
   # The Tuner's link cards (CREATOR_TUNER.md). The database cascades them with the gallery.
   has_many :creator_gallery_harmonics, -> { order(:position, :id) }, dependent: nil, inverse_of: :creator_gallery
+  # Each post's applied view on this page (CreatorGalleryPostView).
+  has_many :creator_gallery_post_views, dependent: :delete_all
   # Claims are history (who asked, who decided), so a gallery that has filed
   # one is not deleted out from under it.
   has_many :artist_claims, dependent: :restrict_with_error

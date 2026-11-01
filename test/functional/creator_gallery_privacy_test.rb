@@ -8,8 +8,9 @@ require "test_helper"
 # its avatar -- no name, no handle, no About, no News, no band -- and grants
 # them the banner alone. Its creator, an admin and the people the creator lets
 # in creator-wide (a creator-wide allow, beaten by a creator-wide block) see
-# the whole page. The contact link and the Matrix handle show only once the
-# creator turns them on, on every page.
+# the whole page. The contact link, which carries the Matrix ID, shows only
+# once the creator turns it on, on every page; until then the box under the
+# title names the creator and nothing else (operator, 2026-11-01).
 class CreatorGalleryPrivacyTest < ActionDispatch::IntegrationTest
   WORDS = ["Rainy Atelier", "I draw rain.", "Commissions open", "After Hours", "@alice:41chan.net", "alice-work", "Message on Matrix", "More from"].freeze
 
@@ -179,12 +180,16 @@ class CreatorGalleryPrivacyTest < ActionDispatch::IntegrationTest
   end
 
   context "the Matrix contact" do
-    should "be off until the creator turns it on, for every page" do
-      view
-      assert_select ".modcreator-actions a[href^='https://matrix.to/']", 0
-      assert_select ".modcreator-handle", 0
-      assert_no_match(/alice-work/, response.body)
-      assert_open
+    should "be off until the creator turns it on, for every page, the box under the title naming the creator alone" do
+      [nil, create(:user)].each do |viewer|
+        view(viewer)
+        assert_select ".modcreator-name span.modcreator-contact", text: @owner.pretty_name
+        assert_select "a.modcreator-contact, a[href^='https://matrix.to/'], .modcreator-handle", 0
+        ["@alice:41chan.net", "alice-work", "Message on Matrix"].each do |words|
+          assert_no_match(/#{Regexp.escape(words)}/, response.body, "a page with the contact off showed #{words.inspect}")
+        end
+        assert_open
+      end
 
       get_auth creator_galleries_path, create(:user)
       assert_response :success
@@ -192,11 +197,15 @@ class CreatorGalleryPrivacyTest < ActionDispatch::IntegrationTest
       assert_select ".modcreator-index-handle", 0
     end
 
-    should "show the link and the handle once on" do
+    should "show one link under the title once on: the icon and the Matrix ID, Message on Matrix on hover" do
       @gallery.update!(show_contact: true)
       view
-      assert_select ".modcreator-actions a[href='https://matrix.to/#/@alice-work:41chan.net']", text: /Message on Matrix/
-      assert_select ".modcreator-handle", text: "@alice:41chan.net"
+      assert_select ".modcreator-name h1.modcreator-title + a.modcreator-contact[href='https://matrix.to/#/@alice-work:41chan.net'][title='Message on Matrix']" do
+        assert_select "svg", 1
+        assert_select ".modcreator-contact-id", text: "@alice:41chan.net"
+      end
+      assert_select ".modcreator-contact", 1
+      assert_select ".modcreator-actions a[href^='https://matrix.to/'], .modcreator-handle", 0
 
       get_auth creator_galleries_path, create(:user)
       assert_response :success
@@ -214,6 +223,43 @@ class CreatorGalleryPrivacyTest < ActionDispatch::IntegrationTest
       @gallery.update!(show_contact: true)
       get_auth wiki_page_path(wiki), member
       assert_select "#wiki-page-original-character", text: /To suggest a change, message them from their creator page\./
+    end
+  end
+
+  # The viewer's own choices for the page (ModulationSetting), read where it
+  # is drawn: About open and the wheel the page's until the viewer says
+  # otherwise, signed in or out, on the page and in its editor.
+  context "the viewer's settings" do
+    should "open About and leave the wheel to the page until the viewer changes them" do
+      view(@owner)
+      assert_select ".modcreator-hero > button.modcreator-about-btn[aria-expanded='true']"
+      assert_select ".modcreator-hero > #modcreator-about:not([hidden])"
+      assert_select ".modland:not(.is-wheel) .modland-wheel-toggle[aria-checked='false']"
+
+      ModulationSetting.record!(@owner, nil, "creator_about_open" => false, "wheel_scroll" => true)
+      view(@owner)
+      assert_select ".modcreator-hero > button.modcreator-about-btn[aria-expanded='false']"
+      assert_select ".modcreator-hero > #modcreator-about[hidden]"
+      assert_select ".modland.is-wheel .modland-wheel-toggle[aria-checked='true']"
+
+      reset!
+      get edit_creator_gallery_path(@gallery), headers: { "X-Fourier-Identity" => "@alice:41chan.net" }
+      assert_response :success
+      assert_select ".modcreator-hero > button.modcreator-about-btn[aria-expanded='true']"
+      assert_select ".modland:not(.is-wheel) .modland-wheel-toggle[aria-checked='false']"
+    end
+
+    should "remember a signed-out visitor's choices in their session" do
+      patch modulation_settings_path, params: { creator_about_open: false, wheel_scroll: true }, as: :json
+      assert_response :success
+      view
+      assert_select ".modcreator-hero > #modcreator-about[hidden]"
+      assert_select ".modland.is-wheel .modland-wheel-toggle[aria-checked='true']"
+
+      get edit_creator_gallery_path(@gallery), headers: { "X-Fourier-Identity" => "@alice:41chan.net" }
+      assert_response :success
+      assert_select ".modcreator-hero > button.modcreator-about-btn[aria-expanded='false']"
+      assert_select ".modland.is-wheel .modland-wheel-toggle[aria-checked='true']"
     end
   end
 

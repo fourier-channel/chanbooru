@@ -5,8 +5,8 @@ require "test_helper"
 # A harmonic as the Tuner draws it (CreatorHarmonicComponent; CREATOR_TUNER.md
 # rev 3, sec 2 and 5): one anchor out, opened in a new context with nothing
 # of the booru sent along, nothing in it loaded from the site it names, and
-# its words in the rows its places make. The Tuner around it
-# (CreatorTunerComponent) in both placements.
+# its words in the rows its places make. The Tuner around it is
+# creator_tuner_component_test.rb's.
 class CreatorHarmonicComponentTest < ViewComponent::TestCase
   PRESETS = CreatorGalleryHarmonic::CONFIG["presets"].to_h { |key, _label, places| [key, places] }
 
@@ -60,6 +60,19 @@ class CreatorHarmonicComponentTest < ViewComponent::TestCase
       assert_includes(img["style"], "scale(1.5)")
       assert_includes(page.find(".cg-hm-shade", visible: :all)["style"], "opacity: 0.35")
       assert_no_css(".cg-hm-grad", visible: :all)
+    end
+
+    # The post's applied view (item 8), about the card's centre, then the
+    # card's own focus and zoom; the style is the one creator_tuner.js draws
+    # for the builder (test/fixtures/files/post_views.json).
+    should "draw the background post under its applied view, composed with the card's focus and zoom" do
+      render_card(picture: picture(view: { flip_h: true, flip_v: false, x: 100, y: 0, scale: 1000, stretch: 1200 }))
+
+      assert_equal("object-position: 30% 60%; transform-origin: 30% 60%; transform: translate(20%, -10%) translate(10%, 0%) scale(-1.2, 1) translate(-20%, 10%) scale(1.5)",
+                   page.find("img.cg-hm-img", visible: :all)["style"])
+
+      render_card(picture: picture(view: nil))
+      assert_equal("object-position: 30% 60%; transform-origin: 30% 60%; transform: scale(1.5)", page.find("img.cg-hm-img", visible: :all)["style"])
     end
 
     should "draw a gradient with nothing of any post when there is no picture to draw" do
@@ -121,32 +134,6 @@ class CreatorHarmonicComponentTest < ViewComponent::TestCase
     should "be out of sight and the tab order when it is not the card the Tuner shows" do
       render_card(hidden: true)
       assert_css("a.cg-hm[hidden]", visible: :all)
-    end
-  end
-
-  context "the Tuner" do
-    should "draw A as a card over a station scale, a needle and a knob, the first card shown" do
-      render_inline(CreatorTunerComponent.new(placement: "A", cards: [card, card(id: 12, name: "Pixiv", title: "Works")], scan: nil))
-
-      assert_css("section.cg-tuner.cg-tuner--a[data-cg-tuner='A'][data-scan='']")
-      assert_css(".cg-tuner-slot a.cg-hm", count: 1)
-      assert_css(".cg-tuner-slot a.cg-hm[hidden]", count: 1, visible: :all)
-      assert_css(".cg-tuner-station", count: 2, visible: :all)
-      assert_css(".cg-tuner-station.is-on", text: "B", visible: :all)
-      knob = page.find(".cg-tuner-knob[role='slider']")
-      assert_equal(%w[0 1 2 1 Bluesky:], [knob["tabindex"], knob["aria-valuemin"], knob["aria-valuemax"], knob["aria-valuenow"], knob["aria-valuetext"].split.first])
-      assert_equal("true", page.find("[data-cg-scan]")["aria-pressed"])
-    end
-
-    should "draw B as a card in a panel, with previous, a pip a card, Scan and next" do
-      render_inline(CreatorTunerComponent.new(placement: "B", cards: [card, card(id: 12, title: "Works")], scan: false))
-
-      assert_css("section.cg-tuner--b[data-scan='false'] .cg-tuner-panel .cg-tuner-slot a.cg-hm", count: 1)
-      assert_css(".cg-tuner-pip", count: 2)
-      assert_css(".cg-tuner-pip[aria-current='true'][aria-label='Harmonic 1 of 2: Daily sketches']")
-      assert_css("[data-cg-step='-1'], [data-cg-step='1']", count: 2)
-      assert_equal("false", page.find("[data-cg-scan]")["aria-pressed"])
-      assert_no_css(".cg-tuner-knob")
     end
   end
 end

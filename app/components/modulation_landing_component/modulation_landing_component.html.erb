@@ -1,4 +1,4 @@
-<div class="modland<%= " is-hero-max" if hero_band? %>" data-modland data-config="<%= config.to_json %>">
+<div class="modland<%= " is-hero-max" if hero_band? %><%= " is-wheel" if wheel_scroll? %>" data-modland data-config="<%= config.to_json %>">
 
   <%# --- the showcase -------------------------------------------------
       The post view's stage, not a lookalike: same grid, same flank columns,
@@ -37,8 +37,7 @@
       </div>
 
       <div class="modland-stage-wrap">
-        <button type="button" class="modland-arrow modland-arrow--prev" data-act="prev" aria-label="Previous">&#8249;</button>
-        <button type="button" class="modland-arrow modland-arrow--next" data-act="next" aria-label="Next">&#8250;</button>
+        <%= render "landing/belt_controls", wheel: wheel_scroll? %>
 
         <%# One run of cells, magnified in the middle. Empty here because every
             cell is a persistent node the script owns: cells are built once per

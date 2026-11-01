@@ -21,8 +21,9 @@ class ModulationLandingComponent < ApplicationComponent
   # nil (LandingShowcase#promoted_cards).
   #
   # `settings` is the viewer's Modulation view state (ModulationSetting.for_viewer);
-  # the landing page reads one key of it, hero_band, and renders the band
-  # already maximised so a remembered choice does not flash into place.
+  # the landing page reads two keys of it, hero_band and wheel_scroll, and
+  # renders the band already in that state so a remembered choice does not
+  # flash into place.
   def initialize(categories:, promoted: [], preference: nil, viewer: nil, settings: nil)
     super
     @categories = categories.to_a
@@ -34,6 +35,12 @@ class ModulationLandingComponent < ApplicationComponent
 
   def hero_band?
     @settings["hero_band"].to_s.truthy?
+  end
+
+  # The mouse wheel steps the belt (ModulationSetting.wheel_scroll); off, it
+  # scrolls the page.
+  def wheel_scroll?
+    @settings["wheel_scroll"].to_s.truthy?
   end
 
   def any_slides?

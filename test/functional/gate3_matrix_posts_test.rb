@@ -186,4 +186,78 @@ class Gate3MatrixPostsTest < ActionDispatch::IntegrationTest
       assert_equal [], listed
     end
   end
+
+  # THE PLACED-POST GRANT (operator, 2026-11-01): a post placed on a public
+  # creator's page a signed-out viewer opened passes Gate 3 for a signed-out
+  # viewer while the record is fresh (MembersOnly.anonymous_placed_ids). Not
+  # one with no rooms left (redacted, or still closed); not a signed-in
+  # viewer, nor a verified Matrix one outside the rooms -- not ruled on.
+  context "a post placed on a public creator's page, with the switch on" do
+    setup do
+      Danbooru.config.stubs(:gate3_matrix_posts_enforced?).returns(true)
+      Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+      MembersOnly.remember_placed_for_anonymous([@art.id, @avatar.id, @unknown.id, @plain.id])
+      @request = ActionDispatch::TestRequest.create
+    end
+
+    should "pass Gate 3 for a signed-out viewer, but not with no rooms" do
+      assert_equal [@unknown.id], hidden(User.anonymous)
+      assert_equal [@newest, @avatar, @art, @plain].map(&:id), search_ids(nil, headers: {})
+    end
+
+    should "leave a signed-in viewer and a verified Matrix viewer outside the rooms as they were" do
+      assert_equal [@art.id, @avatar.id, @unknown.id], hidden(@member)
+      assert_equal [@newest, @plain].map(&:id), search_ids(@member, headers: {})
+      joined("!elsewhere:41chan.net")
+      assert_equal [@newest, @avatar, @plain].map(&:id), search_ids(nil)
+    end
+
+    should "read the record once a request, however many posts and searches ask" do
+      reads = 0
+      count = ->(*, payload) { reads += 1 if payload[:key].to_s.include?("anonymous_placed") }
+      ActiveSupport::Notifications.subscribed(count, "cache_read.active_support") do
+        CurrentUser.set(user: User.anonymous, request: @request) do
+          CreatorVisibility.forget!
+          @art.reload
+          5.times { @art.hidden_from?(User.anonymous) }
+          2.times { PostQuery.normalize("gate3_tag", current_user: User.anonymous).with_implicit_metatags.posts.to_sql }
+        end
+      end
+      assert_equal 2, reads, "this hour's bucket and the last, read once each"
+    end
+
+    should "see a newly placed post within the same request" do
+      fresh = as(@uploader) { create(:post, md5: md5, uploader: @uploader, tag_string: "gate3_tag", source: "mxc://41chan.net/fresh") }
+      placed!(fresh, ["!art:41chan.net"])
+      CurrentUser.set(user: User.anonymous, request: @request) do
+        CreatorVisibility.forget!
+        assert(fresh.hidden_from?(User.anonymous), "fixture: not placed yet")
+        MembersOnly.remember_placed_for_anonymous([fresh.id])
+        assert_not(fresh.hidden_from?(User.anonymous), "the grant read before the write was kept")
+      end
+    end
+
+    should "grant nothing outside a request: a job is no signed-out viewer" do
+      CurrentUser.set(user: User.anonymous, request: nil) do
+        CreatorVisibility.forget!
+        assert_empty MatrixViewerRooms.placed_grant(User.anonymous)
+        assert(@art.reload.hidden_from?(User.anonymous), "a job was granted a placed post")
+        found = PostQuery.normalize("gate3_tag", current_user: User.anonymous).with_implicit_metatags.posts.pluck(:id)
+        assert_equal [@newest, @plain].map(&:id).sort, found.sort
+      end
+    end
+
+    should "add the grant to a signed-out search alone, inline, with no rooms excluded" do
+      placed = [@art.id, @avatar.id, @unknown.id].sort.join(",")
+      sql = CurrentUser.set(user: User.anonymous, request: @request) do
+        PostQuery.normalize("gate3_tag", current_user: User.anonymous).with_implicit_metatags.posts.to_sql
+      end
+      assert_includes sql, "(posts.room_ids && '{0}'::integer[] OR (cardinality(posts.room_ids) > 0 AND posts.id IN (SELECT unnest('{#{placed}}'::integer[]))))"
+
+      sql = CurrentUser.set(user: @member, request: @request) do
+        PostQuery.normalize("gate3_tag", current_user: @member).with_implicit_metatags.posts.to_sql
+      end
+      assert_not_includes sql, "posts.id IN (SELECT unnest("
+    end
+  end
 end

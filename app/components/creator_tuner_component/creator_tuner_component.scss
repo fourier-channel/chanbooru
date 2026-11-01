@@ -29,21 +29,16 @@
 
 .cg-tuner-plate { padding: 6px; }
 
-// Static and scanlines, drawn only while the needle is between stations.
-.cg-tuner-static {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  image-rendering: pixelated; opacity: 0; pointer-events: none;
-}
+// The static, fourier.channel's front page in small (creator_tuner.js), drawn
+// only while the needle moves; the script sizes it to the slot's pixels.
+.cg-tuner-static { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
 
-.cg-tuner-scanlines {
-  position: absolute; inset: 0; opacity: 0; pointer-events: none;
-  background: repeating-linear-gradient(to bottom, rgb(0 0 0 / 60%) 0 1px, transparent 1px 3px);
-}
-
-.cg-tuner-dial { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+// The dial row is three quarters of the 36 px controls B keeps (operator,
+// 2026-11-01); the knob and Scan still answer a 36 px touch around them.
+.cg-tuner-dial { display: flex; align-items: center; gap: 4.5px; margin-top: 4.5px; }
 
 .cg-tuner-scale {
-  position: relative; flex: 1; min-width: 0; height: 40px; overflow: hidden;
+  position: relative; flex: 1; min-width: 0; height: 30px; overflow: hidden;
   border-radius: var(--mod-radius-sm); border: 1px solid var(--mod-line);
   background: linear-gradient(color-mix(in srgb, var(--mod-surface) 60%, #000000), var(--mod-surface));
   cursor: pointer; touch-action: none;
@@ -53,15 +48,25 @@
 
 .cg-tuner-station {
   position: absolute; top: 0; bottom: 0; transform: translateX(-50%);
-  display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding-top: 4px;
-  font: 700 11px var(--mod-mono); color: var(--mod-ink-faint);
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding-top: 3px;
+  font: 700 8.5px var(--mod-mono); color: var(--mod-ink-faint);
 
-  &::after { content: ""; width: 1px; height: 12px; background: var(--mod-ink-faint); }
+  &::after { content: ""; width: 1px; height: 9px; background: var(--mod-ink-faint); }
   &.is-on { color: var(--mod-ink); }
   &.is-on::after { background: var(--mod-ink-dim); }
+
+  // The site's mark on a neutral round plate, so a dark logo still reads on
+  // the dark scale; the logo is drawn as it is, dimmed while not tuned.
+  b {
+    display: grid; place-items: center; width: 15px; height: 15px; overflow: hidden; border-radius: 50%;
+    background: rgb(0 0 0 / 55%); border: 1px solid var(--mod-line-strong);
+  }
+
+  img { display: block; width: 76%; height: 76%; object-fit: contain; opacity: 0.55; }
+  &.is-on img { opacity: 1; }
 }
 
-// Under 24 px a station, the letters crowd: the scale keeps its marks, and a
+// Under 24 px a station, the marks crowd: the scale keeps its ticks, and a
 // tap goes to the nearest station.
 .cg-tuner-scale--bare .cg-tuner-station b { visibility: hidden; }
 
@@ -72,22 +77,23 @@
 }
 
 .cg-tuner-knob {
-  flex: none; position: relative; width: 36px; height: 36px; border-radius: 50%;
+  flex: none; position: relative; width: 27px; height: 27px; border-radius: 50%;
   border: 1px solid var(--mod-line-strong); cursor: grab; touch-action: none;
   background: repeating-conic-gradient(var(--mod-surface-3) 0 5deg, var(--mod-surface-2) 5deg 10deg);
   box-shadow: 0 2px 6px rgb(0 0 0 / 60%);
 
+  &::before { content: ""; position: absolute; inset: -4.5px; border-radius: 50%; }
   &:active { cursor: grabbing; }
   &:focus-visible { outline: 2px solid var(--mod-ink); outline-offset: 2px; }
 }
 
 .cg-tuner-cap {
-  position: absolute; inset: 5px; border-radius: 50%;
+  position: absolute; inset: 4px; border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, var(--mod-line-strong), var(--mod-surface-2) 70%);
   transform: rotate(var(--rot, 0deg));
 
   &::after {
-    content: ""; position: absolute; left: 50%; top: 2px; width: 2px; height: 8px; margin-left: -1px;
+    content: ""; position: absolute; left: 50%; top: 2px; width: 2px; height: 6px; margin-left: -1px;
     border-radius: 1px; background: var(--mod-ink);
   }
 }
@@ -112,6 +118,13 @@
   &::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--mod-line-strong); }
   &[aria-pressed="true"] { color: var(--mod-ink); }
   &[aria-pressed="true"]::before { background: var(--mod-ink); box-shadow: 0 0 5px var(--mod-ink); }
+}
+
+.cg-tuner-dial .cg-tuner-scan {
+  position: relative; width: 39px; min-width: 0; height: 27px; gap: 4px; font-size: 9px;
+
+  &::before { width: 5px; height: 5px; }
+  &::after { content: ""; position: absolute; inset: -4.5px 0; }
 }
 
 // --- B, the Skywave Dial -----------------------------------------------------

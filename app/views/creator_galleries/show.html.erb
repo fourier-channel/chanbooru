@@ -1,11 +1,14 @@
 <% content_for(:content) do %>
+  <% settings = ModulationSetting.for_viewer(CurrentUser.user, session) %>
   <%= render CreatorGalleryComponent.new(
         gallery: @gallery,
         viewer: CurrentUser.user,
         draw: @draw,
         avatar: @avatar,
         closed: @closed,
-        scan: ModulationSetting.for_viewer(CurrentUser.user, session)["tuner_scan"],
+        scan: settings["tuner_scan"],
+        wheel: settings["wheel_scroll"].to_s.truthy?,
+        about_open: settings["creator_about_open"].to_s.truthy?,
         can_edit: FourierIdentity.matches?(request, @gallery.matrix_id) || CurrentUser.user.is_admin?) %>
   <%# Outside the gallery component on purpose: nothing the hero band draws changes (2026-10-09). %>
   <%= render "creator_galleries/join" if @join_groups %>

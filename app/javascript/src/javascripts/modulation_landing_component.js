@@ -1666,6 +1666,22 @@ function initLanding(root) {
     showResume();
   }
 
+  // One view choice, remembered server-side through the endpoint every other
+  // Modulation view choice uses. The page keeps the choice either way; a
+  // failed save says it will not survive a reload.
+  function saveSetting(key, on, what) {
+    fetch("/modulation/settings", {
+      method: "PATCH",
+      headers: { "X-CSRF-Token": (document.querySelector('meta[name="csrf-token"]') || {}).content || "", "Content-Type": "application/json", Accept: "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ [key]: on }),
+    }).then((r) => {
+      if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
+    }).catch(() => {
+      Notice.error(`Could not save the ${what} setting; it will not be remembered. Reload the page and set it again.`);
+    });
+  }
+
   // MAXIMIZE HERO BAND. The class does the widening (stylesheet); the run is
   // re-laid for the width it now has; the choice is remembered server-side
   // through the same endpoint every other Modulation view choice uses.
@@ -1676,16 +1692,8 @@ function initLanding(root) {
     btn.title = on ? "Restore Hero Band" : "Maximize Hero Band";
     beltStale = true;
     requestAnimationFrame(() => { render(); positionThumb(); });
-    fetch("/modulation/settings", {
-      method: "PATCH",
-      headers: { "X-CSRF-Token": (document.querySelector('meta[name="csrf-token"]') || {}).content || "", "Content-Type": "application/json", Accept: "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({ hero_band: on }),
-    }).catch(() => {
-      Notice.error("Could not save the hero band setting; it will not be remembered.");
-    });
+    saveSetting("hero_band", on, "hero band");
   }
-
 
   // --- the fresh set --------------------------------------------------------
   //
@@ -1722,6 +1730,69 @@ function initLanding(root) {
 
   const refresh = cfg.slidesUrl && cfg.refreshMs ? setInterval(pullFreshSet, cfg.refreshMs) : null;
 
+  // With the toggle on, the wheel steps the belt, one notch one slide, by
+  // Technetium's rule (fourier_wheel_step.js), and counts as browsing like
+  // any key. Over the panel only, and the page does not scroll under it
+  // there: a wheel that moved the belt AND the page would be two things for
+  // one gesture. Off, there is NO listener at all, not one that returns
+  // early: a non-passive wheel listener makes the browser wait on the main
+  // thread before every scroll over the band. Ctrl+wheel (a pinch, a zoom)
+  // is always the browser's.
+  const panel = root.querySelector(".modland-stage-wrap");
+  let wheelState = WHEEL_IDLE;
+  function onWheel(e) {
+    if (e.ctrlKey) { return; }
+    e.preventDefault();
+    const r = wheelStep(wheelState, { dx: e.deltaX, dy: e.deltaY, mode: e.deltaMode, t: e.timeStamp });
+    wheelState = r.state;
+    if (r.step) { step(r.step); pause(); }
+  }
+  function armWheel() {
+    if (!panel) { return; }
+    wheelState = WHEEL_IDLE;
+    panel.addEventListener("wheel", onWheel, { passive: false });
+  }
+  function disarmWheel() {
+    if (panel) { panel.removeEventListener("wheel", onWheel); }
+  }
+  if (root.classList.contains("is-wheel")) { armWheel(); }
+
+  // THE WHEEL TOGGLE (operator, 2026-11-01: the band's wheel "catches
+  // attempts to scroll down the page"). The state is the root's is-wheel
+  // class, so the server draws it and the editor's rebuild keeps it. Turning
+  // it on, the arrows "charge up" (is-charging, the glow building), then
+  // "pop" with a shimmer (is-popping) as their words change to Up and Down;
+  // the glow then stays, a static shadow, until it is turned off. Both steps
+  // are finite and end on animationend; with reduced motion there are none,
+  // so the end state is applied at once.
+  function toggleWheel(btn) {
+    const on = !root.classList.contains("is-wheel");
+    root.classList.remove("is-charging", "is-popping");
+    root.classList.toggle("is-wheel", on);
+    btn.setAttribute("aria-checked", String(on));
+    btn.title = on ? "Mouse wheel: scroll the page" : "Mouse wheel: scroll this band";
+    const prev = root.querySelector(".modland-arrow--prev");
+    const next = root.querySelector(".modland-arrow--next");
+    if (prev) { prev.setAttribute("aria-label", on ? "Up: previous" : "Previous"); }
+    if (next) { next.setAttribute("aria-label", on ? "Down: next" : "Next"); }
+    if (on) {
+      armWheel();
+      if (!lessMotion.matches) { root.classList.add("is-charging"); }
+    } else {
+      disarmWheel();
+    }
+    saveSetting("wheel_scroll", on, "wheel scroll");
+  }
+
+  // Both arrows run each step; the first to finish moves the sequence on.
+  root.addEventListener("animationend", (e) => {
+    if (e.animationName === "modland-charge" && root.classList.contains("is-charging")) {
+      root.classList.replace("is-charging", "is-popping");
+    } else if (e.animationName === "modland-shimmer") {
+      root.classList.remove("is-popping");
+    }
+  }, { signal: life.signal });
+
   // --- interaction --------------------------------------------------------
 
   root.addEventListener("click", (e) => {
@@ -1743,6 +1814,8 @@ function initLanding(root) {
 
     if (act.dataset.act === "resume") { e.preventDefault(); resume(); return; }
     if (act.dataset.act === "hero") { e.preventDefault(); toggleHero(act); return; }
+    // Not browsing: the toggle neither steps nor pauses the ride.
+    if (act.dataset.act === "wheel") { e.preventDefault(); toggleWheel(act); return; }
 
     e.preventDefault();
     if (act.dataset.act === "next") { step(1); } else if (act.dataset.act === "prev") { step(-1); } else if (act.dataset.act === "axis") {
@@ -1768,21 +1841,6 @@ function initLanding(root) {
     hovered = window.matchMedia("(hover: hover)").matches && root.matches(":hover");
     root.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") { hovered = true; } }, { signal: life.signal });
     root.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") { hovered = false; } }, { signal: life.signal });
-  }
-
-  // The wheel steps the belt, one notch one slide, by Technetium's rule
-  // (fourier_wheel_step.js), and counts as browsing like any key. Over the
-  // panel only, and the page does not scroll under it there: a wheel that
-  // moved the belt AND the page would be two things for one gesture.
-  const panel = root.querySelector(".modland-stage-wrap");
-  let wheelState = WHEEL_IDLE;
-  if (panel) {
-    panel.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      const r = wheelStep(wheelState, { dx: e.deltaX, dy: e.deltaY, mode: e.deltaMode, t: e.timeStamp });
-      wheelState = r.state;
-      if (r.step) { step(r.step); pause(); }
-    }, { passive: false, signal: life.signal });
   }
 
   window.addEventListener("resize", () => { beltStale = true; positionThumb(); if (root.classList.contains("is-hero-max")) { scheduleRender(); } }, { signal: life.signal });
@@ -1819,6 +1877,7 @@ function initLanding(root) {
   // of row) finds the belt dead and does nothing, and the root is as the
   // server drew it, to be built again.
   root.modlandTeardown = () => {
+    disarmWheel();
     dead = true;
     life.abort();
     stopTimer();
@@ -1833,6 +1892,8 @@ function initLanding(root) {
     region("belt").replaceChildren();
     if (holder) { holder.remove(); }
     if (cfg.effect) { root.classList.remove(`is-fx-${cfg.effect}`); }
+    // A charge cut off mid-way would hold its class with nothing left to end it.
+    root.classList.remove("is-charging", "is-popping");
     delete root.dataset.modlandBooted;
     delete root.modlandTeardown;
   };

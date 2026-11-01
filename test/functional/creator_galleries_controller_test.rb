@@ -108,6 +108,39 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
       assert_equal(300, response.parsed_body["cap"])
     end
 
+    # A post's applied view (item 8): saved with the look for the posts it
+    # puts where views are drawn, kept per post, and drawn to a signed-out
+    # visitor as the creator left it.
+    should "save the views the look sends, and leave them when a Save sends none" do
+      views = [{ post_id: @posts[0].id, flip_h: true, flip_v: false, x: 120, y: -50, scale: 900, stretch: 1100 },
+               { post_id: @posts[2].id, flip_h: false, flip_v: true, x: 0, y: 0, scale: 1000, stretch: 1000 }]
+      patch creator_gallery_path(@gallery), params: { layout: @look.merge(views: views) }, headers: @alice, as: :json
+
+      assert_response :success
+      assert_equal([[@posts[0].id, true, false, 120, -50, 900, 1100], [@posts[2].id, false, true, 0, 0, 1000, 1000]],
+                   @gallery.creator_gallery_post_views.order(:post_id).pluck(:post_id, :flip_h, :flip_v, :x, :y, :scale, :stretch))
+
+      patch creator_gallery_path(@gallery), params: { layout: @look }, headers: @alice, as: :json
+      assert_response :success
+      assert_equal(2, @gallery.creator_gallery_post_views.count)
+    end
+
+    # params.expect drops a key it does not know (it passes no
+    # on_unpermitted), so a field outside the view's own is never written.
+    should "refuse a view out of range, naming the remedy and writing nothing, and keep only a view's own fields" do
+      patch creator_gallery_path(@gallery), params: { layout: @look.merge(headline: "Turned", views: [{ post_id: @posts[0].id, scale: 5000 }]) }, headers: @alice, as: :json
+
+      assert_response 422
+      assert_equal(["Post ##{@posts[0].id}'s view has a scale of 5000; it must be a whole number from 200 to 4000. Press Reset on the view, or bring it back in range."],
+                   response.parsed_body["problems"])
+      assert_equal(0, @gallery.creator_gallery_post_views.count)
+      assert_not_equal("Turned", @gallery.reload.settings["headline"])
+
+      patch creator_gallery_path(@gallery), params: { layout: @look.merge(views: [{ post_id: @posts[0].id, x: 10, rotation: 90 }]) }, headers: @alice, as: :json
+      assert_response :success
+      assert_equal([{ post_id: @posts[0].id, flip_h: false, flip_v: false, x: 10, y: 0, scale: 1000, stretch: 1000 }], CreatorGalleryLayout.new(@gallery.reload).views)
+    end
+
     should "keep the candidate list behind the owner gate" do
       get edit_creator_gallery_path(@gallery, format: :json), params: { tags: "night" }, headers: { "X-Fourier-Identity" => "@mallory:41chan.net" }
       assert_response 403
@@ -160,6 +193,28 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
 
       delete creator_gallery_remove_post_path(@gallery, @posts[0].id), params: { format: :json }, headers: @alice
       assert_equal(0, @gallery.creator_gallery_posts.count)
+    end
+
+    # A post may be on one miniband (operator, 2026-11-01), at both doors.
+    should "refuse a post on a second miniband, saved or added, naming both and the remedy" do
+      twice = @look.merge(minis: @look[:minis].each_with_index.map { |mini, i| (i == 3) ? mini.merge(posts: [@posts[3].id, @posts[0].id]) : mini })
+      patch creator_gallery_path(@gallery), params: { layout: twice }, headers: @alice, as: :json
+
+      assert_response 422
+      assert_equal({ "ok" => false, "problems" => ["Post ##{@posts[0].id} is already on miniband 1. A post can be on one miniband only: take it off miniband 1 to put it on miniband 4, or leave it off miniband 4."] },
+                   response.parsed_body)
+      assert_equal(0, @gallery.creator_gallery_posts.count)
+
+      @gallery.update!(settings: { "hero" => { "tags" => %w[night] }, "layout" => "4", "minis" => [{ "tag" => "rain" }, { "tag" => "neon" }] })
+      @gallery.creator_gallery_posts.create!(band: "mini1", post: @posts[0], position: 0)
+      post creator_gallery_add_post_path(@gallery), params: { post_id: @posts[0].id, band: "mini2", format: :json }, headers: @alice
+
+      assert_response 422
+      assert_equal(["Post ##{@posts[0].id} is already on miniband 1. A post can be on one miniband only: take it off miniband 1 to put it on miniband 2, or leave it off miniband 2."],
+                   response.parsed_body["problems"])
+      post creator_gallery_add_post_path(@gallery), params: { post_id: @posts[0].id, band: "hero", format: :json }, headers: @alice
+      assert_response :success
+      assert_equal(%w[hero mini1], @gallery.creator_gallery_posts.reorder(:band).pluck(:band))
     end
 
     should "refuse a layout save to anyone but the owner or an admin" do
@@ -270,6 +325,16 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
         assert_equal(CreatorGalleryHarmonic::CONFIG["sites"].pluck("key"), editor["registry"]["sites"].pluck("key"))
         assert_equal([UserPerk.default(:creator_harmonic_cap), [], false], editor.values_at("harmonicCap", "removed", "isAdmin"))
         assert(editor["logos"].values.all? { |path| path.start_with?("/") })
+      end
+
+      should "draw a harmonic's background under its applied view to a signed-out visitor" do
+        view = { post_id: @posts[5].id, flip_h: true, flip_v: false, x: 100, y: 0, scale: 1000, stretch: 1200 }
+        patch creator_gallery_path(@gallery), params: { layout: @look.merge(tuner: { enabled: true, placement: "B" }, harmonics: [@harmonic], views: [view]) }, headers: @alice, as: :json
+        assert_response :success
+
+        get creator_gallery_path(@gallery)
+        assert_response :success
+        assert_select "a.cg-hm img.cg-hm-img[style=?]", "object-position: 50% 50%; transform-origin: 50% 50%; transform: translate(0%, 0%) translate(10%, 0%) scale(-1.2, 1) translate(0%, 0%) scale(1)", 1
       end
 
       should "refuse a Save with a bad harmonic, naming the problem" do

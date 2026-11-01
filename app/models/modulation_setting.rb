@@ -38,7 +38,7 @@ class ModulationSetting < ApplicationRecord
   # always reloads after an auth action, so there is no preference to keep.
   # Dropped from the key list rather than defaulted to true, so a stored
   # `false` from before the ruling cannot come back and disable the reload.
-  PANEL_KEYS = %w[image_cap tags_expanded gallery_sort gallery_view gallery_show_deleted session_bar_open hero_band tuner_scan].freeze
+  PANEL_KEYS = %w[image_cap tags_expanded gallery_sort gallery_view gallery_show_deleted session_bar_open hero_band tuner_scan wheel_scroll creator_about_open].freeze
 
   SESSION_KEY = :modulation_settings
 
@@ -57,6 +57,12 @@ class ModulationSetting < ApplicationRecord
       # The landing carousel run edge to edge ("Maximize Hero Band").
       "hero_band" => false,
       "tuner_scan" => nil,
+      # Every hero band's mouse wheel steps its belt only once the viewer
+      # turns it on: off, the wheel scrolls the page (operator, 2026-11-01).
+      "wheel_scroll" => false,
+      # A creator gallery's About panel, one choice for every gallery; open
+      # until the viewer closes it (operator, 2026-11-01).
+      "creator_about_open" => true,
     }
   end
 
@@ -89,6 +95,8 @@ class ModulationSetting < ApplicationRecord
     clean["gallery_show_deleted"] = changes["gallery_show_deleted"].to_s.truthy? unless changes["gallery_show_deleted"].nil?
     clean["session_bar_open"] = changes["session_bar_open"].to_s.truthy? unless changes["session_bar_open"].nil?
     clean["hero_band"] = changes["hero_band"].to_s.truthy? unless changes["hero_band"].nil?
+    clean["wheel_scroll"] = changes["wheel_scroll"].to_s.truthy? unless changes["wheel_scroll"].nil?
+    clean["creator_about_open"] = changes["creator_about_open"].to_s.truthy? unless changes["creator_about_open"].nil?
     # The Tuner's Scan: NULL is no opinion (on, unless the viewer's system asks for reduced motion).
     unless changes["tuner_scan"].nil?
       scan = changes["tuner_scan"].to_s

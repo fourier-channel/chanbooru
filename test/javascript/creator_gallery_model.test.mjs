@@ -109,9 +109,42 @@ test("problemsOf: minibands past the layout's slots are not asked about", () => 
   assert.deepEqual(problemsOf(draft, slideOf), []);
 });
 
+// A post may be on one miniband (operator, 2026-11-01); the hero band may
+// share any. `saved` is each miniband's posts as last saved: a duplicate saved
+// before the rule is kept, a post put on a second miniband is refused.
+const sharing = [{ tag: "rain", posts: [4] }, goodMinis[1], { tag: "neon", posts: [1, 4] }];
+const takenFrom1To3 = "Post #4 is already on miniband 1. A post can be on one miniband only: take it off miniband 1 to put it on miniband 3, or leave it off miniband 3.";
+
+test("problemsOf: a post put on a second miniband names where it is, where it was put and the remedy", () => {
+  const hero = { tags: [gen("night")], posts: [1, 2, 3, 4, 5] };
+  assert.deepEqual(problemsOf(draftOf(hero, sharing), slideOf, [[4], [7], [1]]), [takenFrom1To3]);
+  // Saved nowhere yet, it is on the first miniband that has it.
+  assert.deepEqual(problemsOf(draftOf(hero, sharing), slideOf, []), [takenFrom1To3]);
+});
+
+test("problemsOf: a duplicate saved before the rule is kept; the hero band shares freely", () => {
+  const hero = { tags: [gen("night")], posts: [1, 2, 3, 4, 5] };
+  assert.deepEqual(problemsOf(draftOf(hero, sharing), slideOf, [[4], [7], [1, 4]]), []);
+});
+
+test("problemsOf: a kept duplicate put on one more miniband names every one it is on", () => {
+  const hero = { tags: [gen("night")], posts: [1, 2, 3, 4, 5] };
+  const minis = [sharing[0], { tag: "sea", posts: [7, 4] }, sharing[2]];
+  assert.deepEqual(problemsOf(draftOf(hero, minis), slideOf, [[4], [7], [1, 4]]), [
+    "Post #4 is already on minibands 1 and 3. A post can be on one miniband only: take it off minibands 1 and 3 to put it on miniband 2, or leave it off miniband 2.",
+  ]);
+});
+
+test("problemsOf: a miniband past the layout's slots shares nothing", () => {
+  const hero = { tags: [gen("night")], posts: [1, 2, 3, 4, 5] };
+  assert.deepEqual(problemsOf(draftOf(hero, [...goodMinis, { tag: "rain", posts: [4] }]), slideOf, [[4], [7], [1]]), []);
+});
+
 test("problems are ASCII: the apostrophes are not curly", () => {
-  const draft = draftOf({ tags: [], posts: [] }, [{ tag: "", posts: [] }]);
-  problemsOf(draft, slideOf).forEach((p) => assert.match(p, /^[\x20-\x7e]*$/));
+  const draft = draftOf({ tags: [], posts: [] }, [{ tag: "", posts: [] }, goodMinis[1], { tag: "rain", posts: [7] }]);
+  const out = problemsOf(draft, slideOf, []);
+  assert.ok(out.some((p) => p.startsWith("Post #7 is already on miniband 2.")));
+  out.forEach((p) => assert.match(p, /^[\x20-\x7e]*$/));
 });
 
 test("adderRow: with no tags, a tag fits its palette count", () => {

@@ -24,16 +24,20 @@ class CreatorGalleryComponent < ApplicationComponent
   ROW_H = { 1 => 340, 2 => 300, 3 => 250, 4 => 230 }.freeze
   MIN_W = { 1 => 560, 2 => 360, 3 => 250, 4 => 220 }.freeze
 
-  attr_reader :gallery, :viewer, :draw, :avatar, :can_edit, :editing, :palette, :panels, :closed, :scan
+  attr_reader :gallery, :viewer, :draw, :avatar, :can_edit, :editing, :palette, :panels, :closed, :scan, :wheel, :about_open
 
   # @param draw [Hash] CreatorGalleryLayout#draw(viewer)
   # @param avatar [Hash] CreatorGalleryLayout#avatar(viewer): { name:, mxc:, url:, problem: }
   # @param palette [Array<Hash>] CreatorGalleryLayout#palette, in edit mode
   # @param panels [Hash{String => String}] the edit page's sections, title => HTML, in edit mode
   # @param scan [Boolean, nil] the viewer's Tuner Scan (ModulationSetting tuner_scan)
-  def initialize(gallery:, viewer:, draw:, avatar:, can_edit:, scan:, editing: false, palette: nil, panels: nil, closed: false) # rubocop:disable Metrics/ParameterLists
+  # @param wheel [Boolean] the hero band's wheel is the viewer's to step it (ModulationSetting wheel_scroll)
+  # @param about_open [Boolean] About starts open (ModulationSetting creator_about_open)
+  def initialize(gallery:, viewer:, draw:, avatar:, can_edit:, scan:, editing: false, palette: nil, panels: nil, closed: false, wheel: false, about_open: true) # rubocop:disable Metrics/ParameterLists
     super
     @scan = scan
+    @wheel = wheel
+    @about_open = about_open
     @closed = closed
     @gallery = gallery
     @viewer = viewer
@@ -71,10 +75,6 @@ class CreatorGalleryComponent < ApplicationComponent
 
   def hero_slides
     draw[:hero][:slides]
-  end
-
-  def generals
-    draw[:hero][:tags].reject { |tag| tag[:category] == "character" }
   end
 
   # The belt's rows: every post in the band, then one row per character of the
@@ -139,10 +139,12 @@ class CreatorGalleryComponent < ApplicationComponent
   end
 
   # The look as CSS variables: the ground's blur and dim, the parallax's
-  # strength, the banner's focus.
+  # strength, the banner's focus, and the banner post's applied view, which
+  # both layers compose after the parallax (CreatorGalleryPostView).
   def depth_style
     depth = look["depth"]
-    "--cg-blur: #{depth["blur"]}px; --cg-dim: #{depth["dim"] / 100.0}; --cg-par: #{depth["parallax"] / 100.0}; --cg-y: #{look["banner"]["y"]}%"
+    view = CreatorGalleryPostView.style(draw[:banner]&.dig(:view))
+    ["--cg-blur: #{depth["blur"]}px; --cg-dim: #{depth["dim"] / 100.0}; --cg-par: #{depth["parallax"] / 100.0}; --cg-y: #{look["banner"]["y"]}%", view.presence].compact.join("; ")
   end
 
   # What the editor starts from: the saved look with each band's tags and
@@ -167,6 +169,8 @@ class CreatorGalleryComponent < ApplicationComponent
         layout: look["layout"],
         minis: look["minis"].each_with_index.map { |mini, i| mini.merge("posts" => stored["mini#{i + 1}"].to_a) },
         tuner: look["tuner"],
+        # Every view the creator saved, by post: choosing a post re-applies its own.
+        views: layout.views,
         harmonics: gallery.creator_gallery_harmonics.map do |harmonic|
           harmonic.slice(:id, :shown, :url, :title, :subtitle, :cta, :places, :background_post_id, :background_gradient, :focus_x, :focus_y, :zoom, :shade)
                   .merge("staff_hidden" => harmonic.staff_hidden?)
@@ -205,6 +209,19 @@ class CreatorGalleryComponent < ApplicationComponent
   end
 
   def member? = MembersOnly.member?(viewer)
+
+  # The box under the title while the contact is off names the creator and
+  # nothing else (operator, 2026-11-01): their Matrix display name, else their
+  # booru account's. Never the Matrix ID: a display name holding the ID is
+  # the ID, and so is one that is the ID's localpart in any case -- the name a
+  # homeserver gives an account that never chose one. Nil when the page knows
+  # no name to give.
+  def contact_name
+    ids = [gallery.matrix_id, gallery.contact].map { |id| id.delete_prefix("@").downcase }
+    name = avatar[:name].presence
+    name = nil if name && ids.any? { |id| name.delete_prefix("@").downcase == id.split(":").first || name.downcase.include?(id) }
+    name || gallery.user&.pretty_name
+  end
 
   # matrix.to deep link opens the viewer's Matrix client to message the creator.
   def matrix_url

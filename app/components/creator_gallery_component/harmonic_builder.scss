@@ -108,12 +108,9 @@
 
   .cg-hb-bgs { display: flex; flex-direction: column; gap: 8px; }
 
-  .cg-hb-posts {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px;
-    max-height: 220px; overflow: auto; padding: 2px;
-
-    .cg-thumb[aria-checked="true"] { box-shadow: 0 0 0 2px var(--mod-ink), 0 10px 24px -8px rgb(0 0 0 / 80%); }
-  }
+  // The background in place that is no longer offered, by its number.
+  .cg-hb-bgs > .cg-thumb { width: 72px; }
+  .cg-hb-bgs .cg-thumb[aria-checked="true"] { box-shadow: 0 0 0 2px var(--mod-ink), 0 10px 24px -8px rgb(0 0 0 / 80%); }
 
   .cg-hb-grads { display: flex; flex-wrap: wrap; gap: 8px; }
 
@@ -138,6 +135,7 @@
   .cg-hb-swatch-name { font-size: 12px; color: var(--mod-ink-dim); }
 
   .cg-hb-ranges { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px 16px; }
+  .cg-hb-view { justify-self: start; align-self: end; }
 
   .cg-hb-range {
     display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 8px;

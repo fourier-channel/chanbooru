@@ -285,10 +285,14 @@ class PostQuery
   # functionally over the potential of a tag count mismatch") -- so
   # CountMethods count without it, and one viewer's rooms never key a count.
   # Only the viewer's own query (#with_implicit_metatags) carries it.
+  #
+  # Signed out, the posts placed on a public creator's page a signed-out
+  # viewer opened are ORed in, fresh, with rooms left (operator, 2026-11-01;
+  # MatrixViewerRooms.condition): the one exception to the overlap.
   def matrix_rooms_condition
     return nil unless @implicit && MatrixViewerRooms.enforced_for?(current_user)
 
-    "posts.room_ids && #{MatrixViewerRooms.literal(current_user)}"
+    MatrixViewerRooms.condition(current_user)
   end
 
   # THE HIDDEN TAGS AS ONE ROW FILTER, on every query the viewer's own search

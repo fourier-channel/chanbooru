@@ -119,10 +119,19 @@ class CreatorGalleriesController < ApplicationController
   # A private page this viewer is not let in to (CreatorGallery#page_open_to?)
   # is its banner and avatar and nothing else, cut here before anything
   # renders or is granted: no band, no News, no join section.
+  #
+  # A page that is not private, opened signed out, first records the posts
+  # its creator placed on it, which lets them through Gate 3 for signed-out
+  # viewers while fresh (operator, 2026-11-01;
+  # MembersOnly.remember_placed_for_anonymous) -- before the draw, so the
+  # draw draws them. Whether or not default-deny is on: Gate 3 hides Matrix
+  # posts from a signed-out viewer either way. A private page records
+  # nothing, even for a viewer it is open to.
   def show
     skip_authorization
     viewer = CurrentUser.user
     @layout = CreatorGalleryLayout.new(@gallery)
+    MembersOnly.remember_placed_for_anonymous(@layout.placed_post_ids) if !@gallery.page_private? && MembersOnly.signed_out?(viewer, request)
     @draw = @layout.draw(viewer, manager: owner_identity? || viewer.is_admin?)
     @avatar = @layout.avatar(viewer)
     @closed = !@gallery.page_open_to?(viewer, request)
@@ -425,7 +434,8 @@ class CreatorGalleriesController < ApplicationController
                                                                   hero: [:effect, :dir, :hold, :cells, { tags: [], posts: [] }],
                                                                   minis: [[:tag, :effect, :dir, :hold, { posts: [] }]], tuner: %i[enabled placement],
                                                                   harmonics: [[:id, :shown, :url, :title, :subtitle, :cta, :background_post_id, :background_gradient,
-                                                                               :focus_x, :focus_y, :zoom, :shade, { places: CreatorGalleryHarmonic::ELEMENTS.map(&:to_sym) }]] }])
+                                                                               :focus_x, :focus_y, :zoom, :shade, { places: CreatorGalleryHarmonic::ELEMENTS.map(&:to_sym) }]],
+                                                                  views: [%i[post_id flip_h flip_v x y scale stretch]] }])
     problems = CreatorGalleryLayout.new(@gallery).save(page: gallery_params.to_h, look: look.to_h, viewer: CurrentUser.user)
     if problems.empty?
       render json: { ok: true, harmonic_ids: @gallery.creator_gallery_harmonics.reload.ids }
@@ -444,6 +454,11 @@ class CreatorGalleriesController < ApplicationController
   # The Tuner's pictures are granted as the banner is, their own category of
   # slides by integer post id (CREATOR_TUNER.md sec 6.2), with nothing to
   # merge back: a picture carries no creator link.
+  #
+  # A Matrix post the creator placed is drawn signed out, and so granted
+  # here, only through the placed record #show writes first (operator,
+  # 2026-11-01): Gate 3 lifted for it, no other gate. A placed post another
+  # gate refuses is never drawn, so never granted.
   def grant_anonymous_draw
     hero, *minis, banner, _pictures = MembersOnly.anonymous_landing(
       [@draw[:hero], *@draw[:minis], { slides: [@draw[:banner]].compact }, { slides: @draw[:harmonics].filter_map { |card| card[:picture] }}],

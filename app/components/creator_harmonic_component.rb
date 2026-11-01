@@ -59,9 +59,10 @@ class CreatorHarmonicComponent < ApplicationComponent
     picture ? [picture[:shade], CreatorGalleryHarmonic::LIMITS["shade_floor"]].max / 100.0 : 0
   end
 
+  # The card's focus and zoom over the post's applied view (item 8), drawn
+  # as creator_tuner.js draws it for the builder (post_view.js#pictureStyle).
   def picture_style
-    picture = card[:picture]
-    "object-position: #{picture[:focus_x]}% #{picture[:focus_y]}%; transform-origin: #{picture[:focus_x]}% #{picture[:focus_y]}%; transform: scale(#{picture[:zoom] / 100.0})"
+    CreatorGalleryPostView.picture_style(card[:picture])
   end
 
   # What the blacklist matches the picture on; the picture alone, so a

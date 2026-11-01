@@ -135,6 +135,41 @@ class LandingControllerTest < ActionDispatch::IntegrationTest
         assert_select ".modland", 1
       end
 
+      # Operator, 2026-11-01: the band's wheel "catches attempts to scroll
+      # down the page". A small toggle box; off, the wheel is the page's.
+      should "leave the wheel to the page until the viewer turns it on" do
+        get root_path
+
+        assert_response :success
+        assert_select ".modland.is-wheel", 0
+        assert_select ".modland-stage-wrap .modland-wheel-toggle[data-act=wheel][role=switch][aria-checked=false]", 1
+        assert_select ".modland-arrow--prev[data-act=prev][aria-label=Previous]", 1
+        assert_select ".modland-arrow--next[data-act=next][aria-label=Next]", 1
+        assert_select ".modland-arrow--prev .modland-arrow-word", text: "Up"
+        assert_select ".modland-arrow--next .modland-arrow-word", text: "Down"
+      end
+
+      should "render the band with the wheel on for a viewer who turned it on" do
+        ModulationSetting.record!(@user, nil, "wheel_scroll" => true)
+
+        get_auth root_path, @user
+
+        assert_response :success
+        assert_select ".modland.is-wheel", 1
+        assert_select ".modland-wheel-toggle[aria-checked=true]", 1
+        assert_select ".modland-arrow--prev[aria-label='Up: previous']", 1
+        assert_select ".modland-arrow--next[aria-label='Down: next']", 1
+      end
+
+      should "render the wheel on for a signed-out viewer from their session" do
+        patch modulation_settings_path, params: { wheel_scroll: true }, as: :json
+        get root_path
+
+        assert_response :success
+        assert_select ".modland.is-wheel", 1
+        assert_select ".modland-wheel-toggle[aria-checked=true]", 1
+      end
+
       # A landing page that renders empty boxes on a new site is worse than one
       # that renders nothing, so every section asks before taking up space.
       should "omit the creator sections when there is nothing to show" do

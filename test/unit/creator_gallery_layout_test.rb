@@ -32,14 +32,26 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
       "hero" => { "tags" => %w[night wren ivo], "effect" => "depth", "dir" => "right", "hold" => 6, "cells" => 7, "posts" => @posts.map(&:id) },
       "layout" => "1-2",
       "minis" => [
-        { "tag" => "rain", "effect" => "fade", "dir" => "up", "hold" => 4, "posts" => @posts.first(3).map(&:id) },
-        { "tag" => "snow", "effect" => "flip", "dir" => "down", "hold" => 7, "posts" => @posts.last(3).map(&:id) },
-        { "tag" => "night", "effect" => "slide", "dir" => "left", "hold" => 5, "posts" => [@posts.first.id] },
+        { "tag" => "rain", "effect" => "fade", "dir" => "up", "hold" => 4, "posts" => [@posts[0].id, @posts[1].id] },
+        { "tag" => "snow", "effect" => "flip", "dir" => "down", "hold" => 7, "posts" => [@posts[3].id, @posts[4].id] },
+        { "tag" => "night", "effect" => "slide", "dir" => "left", "hold" => 5, "posts" => [@posts[2].id] },
       ],
     }.merge(over.transform_keys(&:to_s))
   end
 
   def hero(**over) = look["hero"].merge(over.transform_keys(&:to_s))
+
+  # A moved, scaled, stretched and flipped view of `post`, as the editor sends it.
+  def view_of(post, **over)
+    { "post_id" => post.id, "flip_h" => true, "flip_v" => false, "x" => 120, "y" => -50, "scale" => 900, "stretch" => 1100 }.merge(over.transform_keys(&:to_s))
+  end
+
+  # The view a row draws, for a view_of with these changes.
+  def drawn_view(**over) = { flip_h: true, flip_v: false, x: 120, y: -50, scale: 900, stretch: 1100 }.merge(over)
+
+  def saved_views = @gallery.creator_gallery_post_views.reload.to_h { |row| [row.post_id, row.value] }
+
+  def save_look(**over) = layout.save(viewer: @maple, page: {}, look: look(**over))
 
   def ids(slides) = slides.pluck(:id)
 
@@ -346,7 +358,7 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
       assert_equal({ "tags" => %w[night wren ivo], "effect" => "depth", "dir" => "right", "hold" => 6, "cells" => 7 }, @gallery.settings["hero"])
       assert_equal({ "tag" => "snow", "effect" => "flip", "dir" => "down", "hold" => 7 }, @gallery.settings["minis"][1])
       rows = @gallery.creator_gallery_posts.group_by(&:band).transform_values { |list| list.map(&:post_id) }
-      assert_equal({ "hero" => @posts.map(&:id), "mini1" => @posts.first(3).map(&:id), "mini2" => @posts.last(3).map(&:id), "mini3" => [@posts.first.id] }, rows)
+      assert_equal({ "hero" => @posts.map(&:id), "mini1" => [@posts[0].id, @posts[1].id], "mini2" => [@posts[3].id, @posts[4].id], "mini3" => [@posts[2].id] }, rows)
       assert_equal(@posts.first.id, layout.draw(@admin)[:banner][:id])
     end
 
@@ -360,7 +372,7 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
         "hero" => hero("tags" => %w[night wren ivo nosuchtag secret_sauce], "posts" => [@posts[0].id, @posts[1].id, private_post.id, stray.id]),
         "minis" => [
           { "tag" => "", "effect" => "slide", "dir" => "left", "hold" => 4, "posts" => [] },
-          { "tag" => "snow", "effect" => "spin", "dir" => "left", "hold" => 30, "posts" => [] },
+          { "tag" => "snow", "effect" => "spin", "dir" => "left", "hold" => 30, "posts" => [@posts[3].id] },
           { "tag" => "night", "effect" => "slide", "dir" => "left", "hold" => 4, "posts" => @posts.map(&:id) + [@posts[0].id] },
         ],
       )
@@ -377,10 +389,10 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
         "Miniband 1 has no tag. Pick one on the miniband.",
         "Miniband 2's effect must be one of slide, fade, drift, flip or depth.",
         "Miniband 2's hold must be a whole number of seconds from 2 to 12.",
-        "Miniband 2 has no posts. Open Posts on it and pick at least one.",
         "Miniband 3 holds 7 posts; 6 is the most.",
         "Post ##{@posts[0].id} is on miniband 3 twice. Take one off.",
         "Title is too long (maximum is 120 characters)",
+        "Post ##{@posts[3].id} is already on miniband 2. A post can be on one miniband only: take it off miniband 2 to put it on miniband 3, or leave it off miniband 3.",
       ], problems)
       @gallery.reload
       assert_equal({}, @gallery.settings)
@@ -506,6 +518,180 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
 
     should "want a miniband for every slot of the layout" do
       assert_equal(["The layout 2-3 has 5 minibands; 3 were sent."], layout.save(viewer: @maple, page: {}, look: look("layout" => "2-3")))
+    end
+
+    # A post may be on one miniband (operator, 2026-11-01); the hero band may
+    # share any. The stored rows, read under the lock, tell a duplicate saved
+    # before the rule (kept as it is) from a post put on a second miniband.
+    context "a post on more than one miniband" do
+      should "refuse it, naming where it is, where it was put and the remedy, and write nothing" do
+        twice = look("minis" => look["minis"].each_with_index.map { |mini, i| (i == 2) ? mini.merge("posts" => [@posts[2].id, @posts[0].id]) : mini })
+        taken = "Post ##{@posts[0].id} is already on miniband 1. A post can be on one miniband only: take it off miniband 1 to put it on miniband 3, or leave it off miniband 3."
+
+        assert_equal([taken], layout.save(viewer: @maple, page: {}, look: twice))
+        assert_equal({}, @gallery.reload.settings)
+        assert_equal(0, @gallery.creator_gallery_posts.count)
+
+        choose("mini1", [@posts[0]])
+        assert_equal([taken], layout.save(viewer: @maple, page: {}, look: twice))
+        assert_equal([["mini1", @posts[0].id]], @gallery.reload.creator_gallery_posts.pluck(:band, :post_id))
+      end
+
+      should "keep one saved before the rule, and refuse it back once it is taken off" do
+        choose("mini1", [@posts[0]])
+        choose("mini3", [@posts[0]])
+        kept = look("minis" => look["minis"].each_with_index.map { |mini, i| (i == 2) ? mini.merge("posts" => [@posts[2].id, @posts[0].id]) : mini })
+
+        # The hero band holds @posts[0] too, and that is no problem.
+        assert_equal([], layout.save(viewer: @maple, page: {}, look: kept))
+        assert_equal(%w[hero mini1 mini3], @gallery.reload.creator_gallery_posts.where(post_id: @posts[0].id).reorder(:band).pluck(:band))
+        assert_equal([], layout.save(viewer: @maple, page: {}, look: look))
+        assert_equal(["Post ##{@posts[0].id} is already on miniband 1. A post can be on one miniband only: take it off miniband 1 to put it on miniband 3, or leave it off miniband 3."],
+                     layout.save(viewer: @maple, page: {}, look: kept))
+        assert_equal(%w[hero mini1], @gallery.reload.creator_gallery_posts.where(post_id: @posts[0].id).reorder(:band).pluck(:band))
+      end
+
+      should "name every miniband a kept duplicate is on when it is put on one more" do
+        choose("mini1", [@posts[0]])
+        choose("mini3", [@posts[0]])
+        thrice = look("minis" => [
+          look["minis"][0],
+          look["minis"][1].merge("tag" => "neon", "posts" => [@posts[3].id, @posts[0].id]),
+          look["minis"][2].merge("posts" => [@posts[2].id, @posts[0].id]),
+        ])
+
+        assert_equal(["Post ##{@posts[0].id} is already on minibands 1 and 3. A post can be on one miniband only: take it off minibands 1 and 3 to put it on miniband 2, or leave it off miniband 2."],
+                     layout.save(viewer: @maple, page: {}, look: thrice))
+      end
+
+      should "say only twice of a post twice on one miniband" do
+        twice = look("minis" => look["minis"].each_with_index.map { |mini, i| (i == 0) ? mini.merge("posts" => [@posts[0].id, @posts[1].id, @posts[0].id]) : mini })
+
+        assert_equal(["Post ##{@posts[0].id} is on miniband 1 twice. Take one off."], layout.save(viewer: @maple, page: {}, look: twice))
+      end
+
+      should "refuse it at the API door too, and let the hero band have it" do
+        @gallery.update!(settings: { "hero" => { "tags" => %w[night] }, "layout" => "1-2", "minis" => [{ "tag" => "rain" }, { "tag" => "neon" }, { "tag" => "night" }] })
+        choose("mini1", [@posts[0]])
+
+        assert_equal("Post ##{@posts[0].id} is already on miniband 1. A post can be on one miniband only: take it off miniband 1 to put it on miniband 2, or leave it off miniband 2.",
+                     layout.add(@posts[0], "mini2", @maple))
+        assert_nil(layout.add(@posts[0], "mini1", @maple))
+        assert_nil(layout.add(@posts[0], "hero", @maple))
+        choose("mini3", [@posts[0]])
+        assert_equal("Post ##{@posts[0].id} is already on minibands 1 and 3. A post can be on one miniband only: take it off minibands 1 and 3 to put it on miniband 2, or leave it off miniband 2.",
+                     layout.add(@posts[0], "mini2", @maple))
+        assert_equal(%w[hero mini1 mini3], @gallery.reload.creator_gallery_posts.reorder(:band).pluck(:band))
+      end
+    end
+  end
+
+  # A post's APPLIED VIEW (operator, 2026-11-01, item 8): saved with the look
+  # for a post this Save puts where a view is drawn -- the banner, a harmonic's
+  # background, a miniband -- and kept when the post leaves the page, so it
+  # re-applies when the post is chosen again. Never the hero band's: that is
+  # the front page's carousel too.
+  context "Applied views" do
+    setup do
+      @harmonic = { "url" => "https://civitai.com/user/maple", "title" => "Maple LoRA", "cta" => "visit", "places" => CreatorGalleryHarmonic::CONFIG["presets"].first.last,
+                    "background_post_id" => @posts[5].id, "focus_x" => 50, "focus_y" => 40, "zoom" => 120, "shade" => 45 }
+    end
+
+    should "save a view of the banner, a harmonic's background and a miniband's post, and draw each, nil on every other slide" do
+      sent = look("tuner" => { "enabled" => true, "placement" => "A" }, "harmonics" => [@harmonic],
+                  "views" => [view_of(@posts[0]), view_of(@posts[5], "flip_v" => true), view_of(@posts[3], "x" => -1000)])
+
+      assert_equal([], layout.save(viewer: @maple, page: {}, look: sent))
+      assert_equal({ @posts[0].id => drawn_view, @posts[5].id => drawn_view(flip_v: true), @posts[3].id => drawn_view(x: -1000) }, saved_views)
+
+      drawn = layout.draw(@admin)
+      assert_equal(drawn_view, drawn[:banner][:view])
+      assert_equal(drawn_view(flip_v: true), drawn[:harmonics].first[:picture][:view])
+      assert_equal([[drawn_view, nil], [drawn_view(x: -1000), nil], [nil]], drawn[:minis].map { |mini| mini[:slides].pluck(:view) })
+      assert_equal(@posts.map(&:id), ids(drawn[:hero][:slides]))
+      assert(drawn[:hero][:slides].all? { |slide| slide.key?(:view) && slide[:view].nil? }, "a hero slide carries view: nil")
+      assert(drawn[:minis].flat_map { |mini| mini[:slides] }.all? { |slide| slide.key?(:view) }, "every miniband slide carries view:")
+      assert_equal([@posts[0], @posts[3], @posts[5]].map(&:id).sort, layout.views.pluck(:post_id))
+      assert_equal({ post_id: @posts[3].id, **drawn_view(x: -1000) }, layout.views.find { |view| view[:post_id] == @posts[3].id })
+    end
+
+    should "refuse a view out of its range, not whole or not a flip, naming the range and the remedy, and write nothing" do
+      sent = look("views" => [view_of(@posts[0], "x" => 1001), view_of(@posts[1], "scale" => "big", "stretch" => 499),
+                              view_of(@posts[2], "flip_h" => "maybe", "y" => nil)])
+
+      assert_equal(["Post ##{@posts[0].id}'s view has a move across of 1001; it must be a whole number from -1000 to 1000. Press Reset on the view, or bring it back in range.",
+                    "Post ##{@posts[1].id}'s view has a scale of big; it must be a whole number from 200 to 4000. Press Reset on the view, or bring it back in range.",
+                    "Post ##{@posts[1].id}'s view has a stretch of 499; it must be a whole number from 500 to 2000. Press Reset on the view, or bring it back in range.",
+                    "Post ##{@posts[2].id}'s view has a horizontal flip of maybe; it must be true or false. Press Reset on the view, or flip it again.",
+                    "Post ##{@posts[2].id}'s view has a move down of empty; it must be a whole number from -1000 to 1000. Press Reset on the view, or bring it back in range."],
+                   layout.save(viewer: @maple, page: {}, look: sent))
+      assert_equal({}, @gallery.reload.settings)
+      assert_equal(0, CreatorGalleryPostView.count)
+    end
+
+    should "refuse a view of a post this Save does not put where views are drawn, of no post id, or two of one post" do
+      assert_equal(["Post ##{@posts[5].id}'s view cannot be saved: this Save puts the post on no miniband, banner or harmonic background, where views are drawn. Put it on one, or leave its view out.",
+                    "Post #99999999's view cannot be saved: this Save puts the post on no miniband, banner or harmonic background, where views are drawn. Put it on one, or leave its view out.",
+                    "A view's post must be a post id. Send each view with the post_id of a post on the page.",
+                    "Post ##{@posts[0].id} has 2 views. Send one view per post."],
+                   save_look("views" => [view_of(@posts[5]), { "post_id" => 99_999_999 }, view_of(@posts[1], "post_id" => "first"), view_of(@posts[0]), view_of(@posts[0], "x" => 0)]))
+      assert_equal(0, CreatorGalleryPostView.count)
+
+      # A Save that leaves the harmonics as they are leaves their backgrounds on the page.
+      assert_equal([], save_look("tuner" => { "enabled" => true, "placement" => "A" }, "harmonics" => [@harmonic]))
+      assert_equal([], save_look("views" => [view_of(@posts[5])]))
+      assert_equal([@posts[5].id], saved_views.keys)
+    end
+
+    should "name only a refused post's own refusal for its view, never that the Save puts it nowhere" do
+      @posts[3].update_columns(is_deleted: true) # rubocop:disable Rails/SkipsModelValidations -- deleted after it was chosen, as a post can be
+
+      problems = save_look("views" => [view_of(@posts[3])])
+
+      assert_includes(problems, "Post ##{@posts[3].id} cannot be chosen: it is deleted. Take it off.")
+      assert_empty(problems.grep(/view cannot be saved/))
+      assert_equal(0, CreatorGalleryPostView.count)
+    end
+
+    should "leave every view when the Save carries none, and reset a post on the page that the list leaves out or sends as the identity" do
+      assert_equal([], save_look("views" => [view_of(@posts[0]), view_of(@posts[1]), view_of(@posts[3])]))
+      assert_equal([], save_look)
+      assert_equal([@posts[0], @posts[1], @posts[3]].map(&:id).sort, saved_views.keys.sort)
+
+      identity = CreatorGalleryPostView::IDENTITY.transform_keys(&:to_s)
+      assert_equal([], save_look("views" => [view_of(@posts[0], "y" => 7), identity.merge("post_id" => @posts[1].id)]))
+      assert_equal({ @posts[0].id => drawn_view(y: 7) }, saved_views)
+
+      assert_equal([], save_look("views" => []))
+      assert_equal({}, saved_views)
+    end
+
+    should "keep the view of a post taken off the page, and draw it again when the post comes back" do
+      assert_equal([], save_look("views" => [view_of(@posts[3])]))
+      off = look["minis"].each_with_index.map { |mini, i| (i == 1) ? mini.merge("posts" => [@posts[4].id]) : mini }
+
+      assert_equal([], save_look("minis" => off, "views" => []))
+      assert_equal({ @posts[3].id => drawn_view }, saved_views)
+      assert_equal([nil], layout.draw(@admin)[:minis][1][:slides].pluck(:view))
+
+      assert_equal([], save_look)
+      assert_equal([drawn_view, nil], layout.draw(@admin)[:minis][1][:slides].pluck(:view))
+    end
+
+    should "keep at most #{CreatorGalleryLayout::VIEWS_KEPT} views, dropping the oldest-changed of posts off the page" do
+      now = Time.zone.now
+      kept = CreatorGalleryLayout::VIEWS_KEPT
+      off_page = Array.new(kept) { |i| { creator_gallery_id: @gallery.id, post_id: 90_000_000 + i, x: 5, created_at: now, updated_at: now - (i + 1).minutes } }
+      on_page = { creator_gallery_id: @gallery.id, post_id: @posts[1].id, x: 5, created_at: now, updated_at: now - 30.days }
+      CreatorGalleryPostView.insert_all!([*off_page, on_page]) # rubocop:disable Rails/SkipsModelValidations -- a gallery's worth of old views at once
+
+      assert_equal([], save_look("views" => [view_of(@posts[0]), view_of(@posts[1], "flip_h" => false, "x" => 5, "y" => 0, "scale" => 1000, "stretch" => 1000)]))
+
+      ids = saved_views.keys
+      assert_equal(kept, ids.size)
+      assert_includes(ids, @posts[0].id)
+      assert_includes(ids, @posts[1].id)
+      assert_equal([90_000_000 + kept - 2, 90_000_000 + kept - 1], off_page.pluck(:post_id) - ids)
     end
   end
 

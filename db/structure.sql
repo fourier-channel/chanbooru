@@ -749,6 +749,44 @@ ALTER SEQUENCE public.creator_gallery_messages_id_seq OWNED BY public.creator_ga
 
 
 --
+-- Name: creator_gallery_post_views; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.creator_gallery_post_views (
+    id bigint NOT NULL,
+    creator_gallery_id bigint NOT NULL,
+    post_id bigint NOT NULL,
+    flip_h boolean DEFAULT false NOT NULL,
+    flip_v boolean DEFAULT false NOT NULL,
+    x smallint DEFAULT 0 NOT NULL,
+    y smallint DEFAULT 0 NOT NULL,
+    scale smallint DEFAULT 1000 NOT NULL,
+    stretch smallint DEFAULT 1000 NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: creator_gallery_post_views_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.creator_gallery_post_views_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_gallery_post_views_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.creator_gallery_post_views_id_seq OWNED BY public.creator_gallery_post_views.id;
+
+
+--
 -- Name: creator_gallery_posts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2009,7 +2047,9 @@ CREATE TABLE public.modulation_settings (
     session_autorefresh boolean DEFAULT true NOT NULL,
     hero_band boolean DEFAULT false NOT NULL,
     random_trails jsonb DEFAULT '{}'::jsonb NOT NULL,
-    tuner_scan boolean
+    tuner_scan boolean,
+    wheel_scroll boolean DEFAULT false NOT NULL,
+    creator_about_open boolean DEFAULT true NOT NULL
 );
 
 
@@ -3872,6 +3912,13 @@ ALTER TABLE ONLY public.creator_gallery_messages ALTER COLUMN id SET DEFAULT nex
 
 
 --
+-- Name: creator_gallery_post_views id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_gallery_post_views ALTER COLUMN id SET DEFAULT nextval('public.creator_gallery_post_views_id_seq'::regclass);
+
+
+--
 -- Name: creator_gallery_posts id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -4495,6 +4542,14 @@ ALTER TABLE ONLY public.creator_gallery_harmonics
 
 ALTER TABLE ONLY public.creator_gallery_messages
     ADD CONSTRAINT creator_gallery_messages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: creator_gallery_post_views creator_gallery_post_views_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_gallery_post_views
+    ADD CONSTRAINT creator_gallery_post_views_pkey PRIMARY KEY (id);
 
 
 --
@@ -5712,6 +5767,13 @@ CREATE INDEX index_creator_gallery_harmonics_on_site ON public.creator_gallery_h
 --
 
 CREATE INDEX index_creator_gallery_messages_on_creator_gallery_id ON public.creator_gallery_messages USING btree (creator_gallery_id);
+
+
+--
+-- Name: index_creator_gallery_post_views_on_gallery_and_post; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_creator_gallery_post_views_on_gallery_and_post ON public.creator_gallery_post_views USING btree (creator_gallery_id, post_id);
 
 
 --
@@ -8406,6 +8468,14 @@ ALTER TABLE ONLY public.tag_quarantines
 
 
 --
+-- Name: creator_gallery_post_views fk_rails_14f6a35d54; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_gallery_post_views
+    ADD CONSTRAINT fk_rails_14f6a35d54 FOREIGN KEY (creator_gallery_id) REFERENCES public.creator_galleries(id) ON DELETE CASCADE;
+
+
+--
 -- Name: upload_media_assets fk_rails_171271f781; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9396,6 +9466,8 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261101000002'),
+('20261101000001'),
 ('20261031120000'),
 ('20261024120000'),
 ('20261023120000'),

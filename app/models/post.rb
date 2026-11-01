@@ -2296,6 +2296,12 @@ class Post < ApplicationRecord
   # is on. A post that is not a Matrix post ({0}) is never asked about the
   # viewer's rooms. No creator's allow opens it, so it sits here.
   #
+  # The one exception (operator, 2026-11-01): signed out, a post placed on a
+  # public creator's page a signed-out viewer opened passes while the record
+  # is fresh (MatrixViewerRooms.placed_grant) -- unless it has no rooms left:
+  # redaction still wins (2026-10-15). Read only once the rooms have said
+  # hidden, so every other post costs nothing more.
+  #
   # A post loaded without the column (a narrowed select) reads it rather
   # than guess.
   def hidden_by_matrix_rooms?(user = CurrentUser.user)
@@ -2303,8 +2309,9 @@ class Post < ApplicationRecord
 
     rooms = has_attribute?(:room_ids) ? room_ids : Post.where(id: id).pick(:room_ids).to_a
     return false if rooms == [MatrixViewerRooms::NOT_MATRIX]
+    return false if rooms.intersect?(MatrixViewerRooms.ids(user))
 
-    !rooms.intersect?(MatrixViewerRooms.ids(user))
+    rooms.empty? || MatrixViewerRooms.placed_grant(user).exclude?(id)
   end
 
   # A new Matrix post starts closed ({}): until fourier-auth has answered for
@@ -2464,9 +2471,11 @@ class Post < ApplicationRecord
 
     # Gate 3 for posts (#hidden_by_matrix_rooms?): the rooms do not meet the
     # viewer's, as one row filter with the viewer's set inlined (see
-    # MatrixViewerRooms.literal). room_ids is NOT NULL, so the inversion
+    # MatrixViewerRooms.literal) -- nor, signed out, is the post placed on a
+    # public creator's page with rooms left (MatrixViewerRooms.condition,
+    # operator 2026-11-01). room_ids is NOT NULL, so the inversion
     # without_hidden_posts makes of it is exact.
-    terms << where("NOT (posts.room_ids && #{MatrixViewerRooms.literal(user)})") if MatrixViewerRooms.enforced_for?(user)
+    terms << where("NOT (#{MatrixViewerRooms.condition(user)})") if MatrixViewerRooms.enforced_for?(user)
 
     # By id, as PostQuery#hidden_post_metatags excludes them -- one array
     # literal, unnested, for the reasons Searchable#attribute_matches gives

@@ -23,6 +23,8 @@ class CreatorTunerComponent < ApplicationComponent
     @scan = scan
   end
 
+  # A station's mark is its site's bundled logo; this letter stands in for a
+  # site with none.
   def letter(card)
     card[:name].to_s[0].to_s.upcase
   end

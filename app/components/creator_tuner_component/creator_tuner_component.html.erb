@@ -8,8 +8,7 @@
         <% cards.each_with_index do |card, i| %>
           <%= render CreatorHarmonicComponent.new(card: card, hidden: i.positive?) %>
         <% end %>
-        <canvas class="cg-tuner-static" width="96" height="60" aria-hidden="true"></canvas>
-        <span class="cg-tuner-scanlines" aria-hidden="true"></span>
+        <canvas class="cg-tuner-static" width="320" height="200" aria-hidden="true"></canvas>
       </div>
       <div class="cg-tuner-dial">
         <button type="button" class="cg-tuner-scan" data-cg-scan aria-pressed="<%= scan != false %>" title="Scan: the Tuner moves on by itself. Your choice, remembered.">Scan</button>
@@ -18,7 +17,7 @@
             <span class="cg-tuner-tick" style="left: <%= (k * 25.0 / cards.size).round(3) %>%"></span>
           <% end %>
           <% cards.each_with_index do |card, i| %>
-            <span class="cg-tuner-station<%= " is-on" if i.zero? %>" data-station="<%= station(card) %>" style="left: <%= ((i + 0.5) * 100.0 / cards.size).round(3) %>%"><b><%= letter(card) %></b></span>
+            <span class="cg-tuner-station<%= " is-on" if i.zero? %>" data-station="<%= station(card) %>" style="left: <%= ((i + 0.5) * 100.0 / cards.size).round(3) %>%"><b><% if card[:logo] %><%= helpers.image_pack_tag("static/#{card[:logo]}", alt: "") %><% else %><%= letter(card) %><% end %></b></span>
           <% end %>
           <span class="cg-tuner-needle" style="left: <%= (50.0 / cards.size).round(3) %>%"></span>
         </div>

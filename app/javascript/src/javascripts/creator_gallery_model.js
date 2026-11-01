@@ -77,11 +77,18 @@ function lacking(rule, slide) {
   return missing.length ? words(missing, "and") : `any of ${words(rule.c, "or")}`;
 }
 
+// "miniband 1", "minibands 1 and 3".
+const minibands = (nums) => `miniband${nums.length > 1 ? "s" : ""} ${words(nums, "and")}`;
+
 // @param draft {hero: {tags, posts}, layout, minis: [{tag, posts}]} -- posts
 //   are ids in order
 // @param slideOf id => slide, or undefined for a post the page has not seen
 //   (then only the server can judge it)
-export function problemsOf(draft, slideOf) {
+// @param saved each miniband's post ids as last saved, by index: a post may
+//   be on one miniband (operator, 2026-11-01), but a duplicate saved before
+//   that rule is kept; only a miniband newly holding a post another one
+//   holds is refused. The hero band may share any.
+export function problemsOf(draft, slideOf, saved) {
   const { hero } = draft;
   const rule = bandRule(hero.tags);
   const chosen = hero.posts.map((id) => [id, slideOf(id)]).filter(([, s]) => s);
@@ -99,12 +106,22 @@ export function problemsOf(draft, slideOf) {
     ...(hero.tags.length ? chosen.filter(([, s]) => !rule.ok(s)) : [])
       .map(([id, s]) => `Post #${id} does not carry ${lacking(rule, s)}. Take it off the band or change the band's tags.`),
   ];
-  const miniProblems = draft.minis.slice(0, slotCount(draft.layout)).map((m, i) => (
+  const minis = draft.minis.slice(0, slotCount(draft.layout));
+  const miniProblems = minis.map((m, i) => (
     (!m.tag && `Miniband ${i + 1} has no tag. Pick one on the miniband.`) ||
     (!m.posts.length && `Miniband ${i + 1} has no posts. Open Posts on it and pick at least one.`) ||
     (m.posts.length > MINI_MAX && `Miniband ${i + 1} holds ${m.posts.length} posts; ${MINI_MAX} is the most.`)
   ));
-  return [...heroProblems, ...miniProblems].filter(Boolean);
+  const bandsOf = new Map();
+  minis.forEach((m, i) => new Set(m.posts).forEach((id) => bandsOf.set(id, [...(bandsOf.get(id) || []), i + 1])));
+  const takenProblems = [...bandsOf].filter(([, nums]) => nums.length > 1).map(([id, nums]) => {
+    const was = nums.filter((band) => (saved[band - 1] || []).includes(id));
+    const added = nums.filter((band) => !was.includes(band));
+    const held = was.length ? was : added.slice(0, 1);
+    const put = was.length ? added : added.slice(1);
+    return put.length > 0 && `Post #${id} is already on ${minibands(held)}. A post can be on one miniband only: take it off ${minibands(held)} to put it on ${minibands(put)}, or leave it off ${minibands(put)}.`;
+  });
+  return [...heroProblems, ...miniProblems, ...takenProblems].filter(Boolean);
 }
 
 // What adding `tag` to the band would do, for the "+ Tag" adder's row.

@@ -1,0 +1,27 @@
+{
+ "_comment": "A post's applied view as both readers draw it: CreatorGalleryPostView.transform / .picture_style (test/unit/creator_gallery_post_view_test.rb) and post_view.js transform / pictureStyle (test/javascript/post_view.test.mjs). `limits` are each field's [min, max]; `views` are [view, transform]; `pictures` are [a harmonic's picture, its img style].",
+ "limits": {
+  "x": [-1000, 1000],
+  "y": [-1000, 1000],
+  "scale": [200, 4000],
+  "stretch": [500, 2000]
+ },
+ "views": [
+  [null, ""],
+  [{ "flip_h": false, "flip_v": false, "x": 0, "y": 0, "scale": 1000, "stretch": 1000 }, ""],
+  [{ "flip_h": true, "flip_v": false, "x": 0, "y": 0, "scale": 1000, "stretch": 1000 }, "translate(0%, 0%) scale(-1, 1)"],
+  [{ "flip_h": false, "flip_v": true, "x": 0, "y": 0, "scale": 1000, "stretch": 1000 }, "translate(0%, 0%) scale(1, -1)"],
+  [{ "flip_h": false, "flip_v": false, "x": 0, "y": -50, "scale": 900, "stretch": 1000 }, "translate(0%, -5%) scale(0.9, 0.9)"],
+  [{ "flip_h": true, "flip_v": true, "x": 125, "y": -333, "scale": 1100, "stretch": 1200 }, "translate(12.5%, -33.3%) scale(-1.32, -1.1)"],
+  [{ "flip_h": false, "flip_v": false, "x": -1000, "y": 1000, "scale": 200, "stretch": 500 }, "translate(-100%, 100%) scale(0.1, 0.2)"],
+  [{ "flip_h": false, "flip_v": false, "x": 1000, "y": -1000, "scale": 4000, "stretch": 2000 }, "translate(100%, -100%) scale(8, 4)"],
+  [{ "flip_h": false, "flip_v": false, "x": 7, "y": -1, "scale": 1234, "stretch": 1567 }, "translate(0.7%, -0.1%) scale(1.933678, 1.234)"]
+ ],
+ "pictures": [
+  [{ "focus_x": 30, "focus_y": 60, "zoom": 150, "view": null }, "object-position: 30% 60%; transform-origin: 30% 60%; transform: scale(1.5)"],
+  [{ "focus_x": 50, "focus_y": 50, "zoom": 100, "view": null }, "object-position: 50% 50%; transform-origin: 50% 50%; transform: scale(1)"],
+  [{ "focus_x": 50, "focus_y": 50, "zoom": 133, "view": { "flip_h": false, "flip_v": false, "x": 0, "y": 0, "scale": 1000, "stretch": 1000 } }, "object-position: 50% 50%; transform-origin: 50% 50%; transform: scale(1.33)"],
+  [{ "focus_x": 30, "focus_y": 60, "zoom": 150, "view": { "flip_h": true, "flip_v": false, "x": 100, "y": 0, "scale": 1000, "stretch": 1200 } }, "object-position: 30% 60%; transform-origin: 30% 60%; transform: translate(20%, -10%) translate(10%, 0%) scale(-1.2, 1) translate(-20%, 10%) scale(1.5)"],
+  [{ "focus_x": 50, "focus_y": 50, "zoom": 120, "view": { "flip_h": false, "flip_v": true, "x": -250, "y": 40, "scale": 800, "stretch": 1000 } }, "object-position: 50% 50%; transform-origin: 50% 50%; transform: translate(0%, 0%) translate(-25%, 4%) scale(0.8, -0.8) translate(0%, 0%) scale(1.2)"]
+ ]
+}

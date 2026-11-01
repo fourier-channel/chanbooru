@@ -114,7 +114,7 @@ module MembersOnly
     "landing#show" => { formats: %i[html], why: "the front page, and the Open Graph tags a link unfurler (Discordbot) reads; its carousel is the live anonymous draw, on purpose (operator, 2026-10-08)" },
     "landing#slides" => { formats: %i[json], why: "the front page's 5-minute fresh draw. Operator, 2026-10-08: \"The landing carousel was the Anonymous draw, purposely. It let me choose creators to show off without opening the whole booru.\" Its scope is the rows the operator configured" },
     "landing#preference" => { formats: %i[html], why: "the front page's 'Skip this next time' form; sets a cookie on this browser and redirects, names nothing" },
-    "creator_galleries#show" => { formats: %i[html], why: "a creator's page, promoted or not (operator, 2026-10-23): the front page's Promoted Creators links there, and a claimed character's pill. It grants only the posts it drew, fresh (CreatorGalleriesController#grant_anonymous_draw); the list of pages stays shut" },
+    "creator_galleries#show" => { formats: %i[html], why: "a creator's page, promoted or not (operator, 2026-10-23): the front page's Promoted Creators links there, and a claimed character's pill. It grants only the posts it drew, fresh (CreatorGalleriesController#grant_anonymous_draw); a page not private also lets the posts its creator placed through Gate 3, fresh (operator, 2026-11-01; remember_placed_for_anonymous); the list of pages stays shut" },
     "modulation#creator_activity" => { formats: %i[json], why: "creator_lamps.js re-reads the activity lamps on the front page's creator pills; booleans for names the caller sent" },
 
     # --- browsing: the newest posts, and the posts the site showed -----------
@@ -363,12 +363,57 @@ module MembersOnly
   def remember_shown_to_anonymous(ids, safe_mode:, now: Time.now)
     return if ids.empty?
 
-    key = recent_shown_key(safe_mode, now)
-    Rails.cache.write(key, ((Rails.cache.read(key).to_a - ids.to_a) + ids.to_a.uniq).last(RECENT_SHOWN_CAP), expires_in: RECENT_SHOWN_TTL)
+    remember_in_bucket(recent_shown_key(safe_mode, now), ids, RECENT_SHOWN_CAP)
   end
 
   def anonymous_recent_shown_ids(safe_mode, now: Time.now)
     [now, now - 1.hour].flat_map { |at| Rails.cache.read(recent_shown_key(safe_mode, at)).to_a }.to_set
+  end
+
+  # WHAT WAS PLACED, THE SECOND RECORD (operator, 2026-11-01: "Images a user
+  # places on their public gallery is considered a whitelist for those posts
+  # that lets them through Gate 3 (specifically). Just as with all other
+  # signed-out content, the authorizations are temporary.")
+  #
+  # The posts the creator placed on a page that is not private -- hero picks,
+  # miniband posts, the banner, the Tuner's pictures, as stored
+  # (CreatorGalleryLayout#placed_post_ids) -- written by a signed-out view of
+  # it (CreatorGalleriesController#show) BEFORE the draw, so the draw sees
+  # the grant. Kept as the shown record is kept: an hourly bucket, read for
+  # this hour and the last, two hours at most, the most recently placed kept
+  # under the cap. One record for both safe modes: Gate 3 has nothing to do
+  # with safe mode.
+  #
+  # Read by Gate 3 alone (MatrixViewerRooms.placed_grant), for a signed-out
+  # viewer alone. Only the posts Gate 3 could hide are written -- a post that
+  # is not a Matrix post ({0}) is never asked about rooms -- so the list every
+  # signed-out search inlines is as long as the Matrix posts placed. The cap
+  # is per bucket, and a read is two buckets: at most 4,000 ids, a literal of
+  # about 30 KB, in practice far less, since a page viewed in both hours is
+  # the same ids twice. A view writes its own page's posts again before
+  # drawing, so only a later click on a page that fell out is refused.
+  PLACED_CAP = 2_000
+
+  def placed_key(at)
+    ["members_only", "anonymous_placed", at.utc.strftime("%Y%m%d%H")]
+  end
+
+  def remember_placed_for_anonymous(ids, now: Time.current)
+    return if ids.empty?
+
+    matrix = Post.where(id: ids).where.not("posts.room_ids = '{#{MatrixViewerRooms::NOT_MATRIX}}'::integer[]").pluck(:id)
+    return if matrix.empty?
+
+    remember_in_bucket(placed_key(now), matrix, PLACED_CAP)
+    CreatorVisibility.forget(MatrixViewerRooms::PLACED_GRANT)
+  end
+
+  def anonymous_placed_ids(now: Time.current)
+    [now, now - 1.hour].flat_map { |at| Rails.cache.read(placed_key(at)).to_a }.to_set
+  end
+
+  def remember_in_bucket(key, ids, cap)
+    Rails.cache.write(key, ((Rails.cache.read(key).to_a - ids.to_a) + ids.to_a.uniq).last(cap), expires_in: RECENT_SHOWN_TTL)
   end
 
   # The gallery's first page as it is now, for a link opened without the

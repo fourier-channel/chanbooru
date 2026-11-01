@@ -1,0 +1,27 @@
+<%# A HERO BAND'S CONTROLS, ONE DEFINITION for every hero band (the landing
+    page's and a creator gallery's), rendered inside its .modland-stage-wrap.
+    `wheel`: the viewer's ModulationSetting.wheel_scroll.
+
+    The wheel toggle (operator, 2026-11-01: the band's wheel "catches attempts
+    to scroll down the page", so "a small toggle box on every instance of the
+    hero band"). Off, the wheel is the page's; on, it steps the belt, and the
+    arrows read Up and Down -- the wheel's own directions, which they mirror:
+    wheel down is next. Their acts do not change. The root's is-wheel class
+    carries the state, set here by the server and flipped by the script
+    (modulation_landing_component.js toggleWheel). %>
+<button type="button" class="modland-wheel-toggle" data-act="wheel" role="switch"
+        aria-checked="<%= wheel %>" aria-label="Scroll the band with the mouse wheel"
+        title="<%= wheel ? "Mouse wheel: scroll the page" : "Mouse wheel: scroll this band" %>">
+  <svg class="modland-wheel-mouse" viewBox="0 0 16 22" aria-hidden="true">
+    <rect class="modland-wheel-body" x="1.5" y="1.5" width="13" height="19" rx="6.5" />
+    <line class="modland-wheel-notch" x1="8" y1="5" x2="8" y2="9" />
+  </svg>
+</button>
+<button type="button" class="modland-arrow modland-arrow--prev" data-act="prev"
+        aria-label="<%= wheel ? "Up: previous" : "Previous" %>">
+  <span class="modland-arrow-face" aria-hidden="true"><span class="modland-arrow-glyph">&#8249;</span><span class="modland-arrow-word">Up</span></span>
+</button>
+<button type="button" class="modland-arrow modland-arrow--next" data-act="next"
+        aria-label="<%= wheel ? "Down: next" : "Next" %>">
+  <span class="modland-arrow-face" aria-hidden="true"><span class="modland-arrow-glyph">&#8250;</span><span class="modland-arrow-word">Down</span></span>
+</button>

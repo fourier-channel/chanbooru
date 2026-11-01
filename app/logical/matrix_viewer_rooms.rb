@@ -36,6 +36,9 @@ class MatrixViewerRooms
   CACHE_WITH_ROOMS = 45.seconds
   CACHE_OTHERWISE = 10.seconds
 
+  # The memo's kind for #placed_grant, forgotten when the record is written.
+  PLACED_GRANT = :placed_grant
+
   class Failure < StandardError; end
 
   attr_reader :mxid, :request
@@ -63,6 +66,38 @@ class MatrixViewerRooms
   # seconds). Every element is an Integer, so nothing else can reach the SQL.
   def self.literal(user)
     "'{#{ids(user).map { |id| Integer(id) }.join(",")}}'::integer[]"
+  end
+
+  # THE PLACED-POST GRANT (operator, 2026-11-01): the posts placed on a
+  # public creator's page a signed-out viewer opened, fresh
+  # (MembersOnly.anonymous_placed_ids), pass gate 3 for a signed-out viewer
+  # -- the anonymous user with no verified Matrix identity on the request.
+  # Empty for everyone else: a signed-in viewer outside a post's rooms is not
+  # ruled on, so is unchanged; and empty with no request at all, since a job
+  # or a console is no viewer -- LandingShowcaseCache's refresh searches as
+  # User.anonymous for a list every viewer is served. Read once a request
+  # (CreatorVisibility.memoized): a page asks it per post and per search,
+  # and nothing in front of the cache absorbs the reads.
+  def self.placed_grant(user, request: CurrentUser.request)
+    return Set.new unless request && user&.is_anonymous? && identity(user, request).nil?
+
+    CreatorVisibility.memoized(PLACED_GRANT, user) { MembersOnly.anonymous_placed_ids }
+  end
+
+  # What gate 3 shows `user`, as one row condition: the rooms meet theirs,
+  # or, signed out, the post is placed (#placed_grant) and has rooms left --
+  # REDACTION STILL WINS (operator, 2026-10-15): a post whose every placement
+  # was redacted, or a new one still closed, is {} and stays hidden. The
+  # grant's ids are inlined as one literal, unnested, as the room set is
+  # (#literal), and only when there are any, so a signed-in search and an
+  # empty record read exactly as before. PostQuery#matrix_rooms_condition
+  # filters on it; Post.hidden_from inverts it.
+  def self.condition(user)
+    overlap = "posts.room_ids && #{literal(user)}"
+    placed = placed_grant(user)
+    return overlap if placed.empty?
+
+    "(#{overlap} OR (cardinality(posts.room_ids) > 0 AND posts.id IN (SELECT unnest('{#{placed.map { |id| Integer(id) }.sort.join(",")}}'::integer[]))))"
   end
 
   def self.identity(user, request)

@@ -6,6 +6,12 @@ import {
 import { covered, harmonicModel } from "./harmonic_model";
 import { bindLeave, mountTuner, tunerSection } from "./creator_tuner";
 import { harmonicBuilder } from "./harmonic_builder";
+import { keepTab, postDecks } from "./post_deck";
+import { placed, usedMap, usedWords } from "./post_deck_model";
+import {
+  HANDLES, IDENTITY, move, pictureStyle, putView, resize, scaleBy, style as viewStyle, toBox, transform, viewIn,
+} from "./post_view";
+import Notice from "./notice";
 
 // THE CREATOR GALLERY's page (CreatorGalleryComponent): the ground's parallax,
 // the minibands' cycles and the panels that descend from the header, for
@@ -45,6 +51,18 @@ function el(tag, attrs, ...kids) {
   node.append(...kids);
   return node;
 }
+
+// A post's applied view on `node`, as --cg-view (post_view.js): its picture,
+// or the banner's layers, compose it into their own transform.
+function showView(node, view) {
+  const t = transform(view);
+  if (t) { node?.style.setProperty("--cg-view", t); } else { node?.style.removeProperty("--cg-view"); }
+}
+
+// A post to pick, marked for the blacklist like every other drawn post: every
+// card of every post deck (post_deck.js), the harmonic builder's among them.
+const thumb = (slide, attrs, ...kids) => el("button", { type: "button", class: "cg-thumb mod-blacklist-target", title: `post #${slide.id}`, ...marks(slide), ...attrs },
+  el("img", { src: slide.thumb || slide.src, alt: "", loading: "lazy", draggable: "false" }), ...kids);
 
 const pill = (tag, ...extra) => el("span", { class: pillClass(tag.category) },
   el("span", { class: "mod-pill-dot" }), el("span", { class: "mod-pill-label" }, label(tag.name)), ...extra);
@@ -192,10 +210,18 @@ function editor(root, data, bindMinis) {
   const palette = new Map(data.palette.map((t) => [t.name, t]));
   const categoryOf = (name) => palette.get(name)?.category || "general";
 
+  // The views of the posts the draft puts where views are drawn -- the
+  // banner, the harmonics' backgrounds, the layout's minibands -- which are
+  // the views a Save sends (CreatorGalleryLayout#save's `placed`). A post off
+  // the page keeps the view it has, to bring back when it is chosen again.
+  const viewsOnPage = (d) => {
+    const ids = new Set([d.banner.post_id, ...d.harmonics.map((h) => h.background_post_id), ...d.minis.slice(0, slotCount(d.layout)).flatMap((m) => m.posts)]);
+    return d.views.filter((v) => ids.has(v.post_id));
+  };
   // What Save compares and sends: the minibands past the layout's count are
   // kept while editing, so a layout switched back keeps them, and are not
   // the page's.
-  const payload = (d) => JSON.stringify({ ...d, minis: d.minis.slice(0, slotCount(d.layout)) });
+  const payload = (d) => JSON.stringify({ ...d, minis: d.minis.slice(0, slotCount(d.layout)), views: viewsOnPage(d) });
   const draft = structuredClone(data.draft);
   // Each harmonic of the draft carries a key of its own, which undo's copies
   // keep, so a Save's answer finds the entries it was about. It is not sent.
@@ -203,6 +229,12 @@ function editor(root, data, bindMinis) {
   const keyed = (h) => Object.assign(h, { draftKey: (keys += 1) });
   draft.harmonics.forEach(keyed);
   let savedPayload = payload(draft);
+  // A post's applied view is the draft's, by post: choosing a post again
+  // brings back the view it was given.
+  const viewOf = (id) => viewIn(draft.views, id);
+  // Each miniband's posts as last saved: a post already in the band is the
+  // creator's to keep, whatever the dedupe rule says of a post added now.
+  let savedMinis = data.draft.minis.map((m) => m.posts);
   let serverProblems = [];
   let saving = false;
   let leaving = false;
@@ -276,7 +308,7 @@ function editor(root, data, bindMinis) {
   // --- what Save waits on ---
   function report() {
     harmonicProblems = model.problems(draft.harmonics, { stored, removed, stale, cap: data.harmonicCap });
-    const problems = [...new Set([...serverProblems, ...problemsOf(draft, slideOf), ...harmonicProblems.map((p) => p.text)])];
+    const problems = [...new Set([...serverProblems, ...problemsOf(draft, slideOf, savedMinis), ...harmonicProblems.map((p) => p.text)])];
     const dirty = payload(draft) !== savedPayload;
     const button = region("problems-btn");
     button.hidden = !problems.length;
@@ -311,10 +343,11 @@ function editor(root, data, bindMinis) {
     const slide = h.background_post_id && slideOf(h.background_post_id);
     let drawn = null;
     if (server?.picture && h.background_post_id === savedBackground.get(h.id)) {
-      drawn = { ...server.picture, ...settings };
+      drawn = { ...server.picture, ...settings, view: viewOf(h.background_post_id) };
     } else if (slide) {
       drawn = {
-        id: slide.id, tags: slide.tags, rating: slide.rating, flags: slide.flags, score: slide.score, uploader_id: slide.uploader_id, src: picture(slide), ...settings,
+        id: slide.id, tags: slide.tags, rating: slide.rating, flags: slide.flags, score: slide.score, uploader_id: slide.uploader_id, src: picture(slide),
+        ...settings, view: viewOf(slide.id),
       };
     }
     return {
@@ -375,6 +408,10 @@ function editor(root, data, bindMinis) {
     if (engine && (arrived.length || gone.length)) { engine.adopt(arrived, gone); }
   }
 
+  // Every post picker is a deck, its enlarged card and dragged card hung from
+  // the page, over everything.
+  const decks = postDecks(root, { thumb, picture, fill });
+
   const builder = harmonicBuilder(region("builder"), {
     registry: data.registry,
     logos: data.logos,
@@ -390,8 +427,24 @@ function editor(root, data, bindMinis) {
     setPlacement: (placement) => setTuner(true, placement),
     // The creator's own posts, asked as the banner's are.
     posts: () => candidates([]),
+    // The background's view, set on the builder's card (`frame`); `painted`
+    // draws the builder again once the draft has it.
+    view: (i, frame, painted) => {
+      const h = draft.harmonics[i];
+      // eslint-disable-next-line no-use-before-define -- the builder is drawn before the view editor is defined
+      editView(h.background_post_id, {
+        what: "The harmonic's picture",
+        frame,
+        paint: (view) => frame()?.querySelector(".cg-hm-img")?.setAttribute("style", pictureStyle({ ...draftCard(h, i).picture, view })),
+        kept: () => {
+          drawTuner();
+          painted();
+        },
+      });
+    },
     slideOf,
     fill,
+    deck: decks.deck,
     toast,
     dirty: () => payload(draft) !== savedPayload,
     changed: () => {
@@ -484,17 +537,14 @@ function editor(root, data, bindMinis) {
     region("rule").textContent = base && all ? ruleSentence(draft.hero.tags, fitting, all.total, cappedOf(base)) : ruleSentence(draft.hero.tags, "...", "...");
   }
 
-  // A post to pick, marked for the blacklist like every other drawn post.
-  const thumb = (slide, attrs, ...kids) => el("button", { type: "button", class: "cg-thumb mod-blacklist-target", title: `post #${slide.id}`, ...marks(slide), ...attrs },
-    el("img", { src: slide.thumb || slide.src, alt: "", loading: "lazy", draggable: "false" }), ...kids);
-
   // A redraw keeps each list where it was scrolled, so a pick does not jump
-  // the grid back to its top.
+  // the deck back to its top, and moves the staging strips in it from what
+  // they were to what they are (post_deck.js restage).
   function keepScroll(box, draw) {
     // Keyed by the miniband too: every miniband's list has the same class.
     const key = (list) => `${list.closest("[data-cg-mini]")?.dataset.cgMini ?? ""} ${list.className}`;
     const at = new Map([...box.querySelectorAll(".cg-scroll")].map((list) => [key(list), [list.scrollTop, list.scrollLeft]]));
-    draw();
+    decks.restage(box, draw);
     box.querySelectorAll(".cg-scroll").forEach((list) => {
       [list.scrollTop, list.scrollLeft] = at.get(key(list)) || [0, 0];
     });
@@ -505,6 +555,23 @@ function editor(root, data, bindMinis) {
   const capNote = (answer) => (cappedOf(answer)
     ? [el("p", { class: "cg-note" }, `${answer.slides.length} of ${answer.total} posts are shown: the newest ${answer.cap} at most, and only those you may see.`)] : []);
 
+  // A post on a staging strip: its card, numbered, and the keys that move it
+  // along or take it off; on a miniband, also its View, set on the miniband
+  // itself. `band` is hero or mini; `attrs` say which miniband.
+  const stripItem = (band, id, i, n, attrs) => {
+    const slide = slideOf(id);
+    const where = band === "hero" ? "the band" : "the miniband";
+    return el("div", { class: "modcreator-strip-item", role: "listitem", "data-flip-id": id },
+      slide ? thumb(slide, { tabindex: "-1" }, el("span", { class: "cg-thumb-num" }, String(i + 1))) : el("span", { class: "cg-thumb" }, el("span", { class: "cg-thumb-cap" }, `#${id}`)),
+      el("div", { class: "modcreator-strip-moves" },
+        el("button", { type: "button", "data-cg-act": `${band}-move`, ...attrs, "data-id": id, "data-v": -1, disabled: i === 0, "aria-label": `Move post #${id} earlier` }, "\u2039"),
+        el("button", { type: "button", "data-cg-act": `${band}-pick`, ...attrs, "data-id": id, "aria-label": `Take post #${id} off ${where}` }, "\u00d7"),
+        el("button", { type: "button", "data-cg-act": `${band}-move`, ...attrs, "data-id": id, "data-v": 1, disabled: i === n - 1, "aria-label": `Move post #${id} later` }, "\u203a")),
+      ...(band === "mini" ? [el("button", {
+        type: "button", class: "modcreator-strip-view", "data-cg-act": "mini-view", ...attrs, "data-id": id, disabled: !slide, "aria-label": `Move, scale or flip post #${id} on the miniband`,
+      }, "View")] : []));
+  };
+
   function renderHeroPicker() {
     const box = region("hero-picker");
     const posts = draft.hero.posts;
@@ -514,33 +581,50 @@ function editor(root, data, bindMinis) {
     const rule = bandRule(draft.hero.tags);
     const base = heroBase();
     const full = posts.length >= HERO_MAX;
-    const strip = posts.map((id, i) => {
-      const slide = slideOf(id);
-      return el("div", { class: "modcreator-strip-item" },
-        slide ? thumb(slide, { tabindex: "-1" }, el("span", { class: "cg-thumb-num" }, String(i + 1))) : el("span", { class: "cg-thumb" }, el("span", { class: "cg-thumb-cap" }, `#${id}`)),
-        el("div", { class: "modcreator-strip-moves" },
-          el("button", { type: "button", "data-cg-act": "hero-move", "data-id": id, "data-v": -1, disabled: i === 0, "aria-label": `Move post #${id} earlier` }, "\u2039"),
-          el("button", { type: "button", "data-cg-act": "hero-pick", "data-id": id, "aria-label": `Take post #${id} off the band` }, "\u00d7"),
-          el("button", { type: "button", "data-cg-act": "hero-move", "data-id": id, "data-v": 1, disabled: i === posts.length - 1, "aria-label": `Move post #${id} later` }, "\u203a")));
-    });
-    let grid = [el("p", { class: "cg-note" }, "Add tags to the band first. Its candidates are every post that fits them.")];
+    const stageAs = (list) => {
+      draft.hero.posts = list;
+      renderHeroPicker(); renderChips(); rebuildBelt(); changed();
+    };
+    let deck = [el("p", { class: "cg-note" }, "Add tags to the band first. Its candidates are every post that fits them.")];
     if (draft.hero.tags.length && !base) {
-      grid = [el("p", { class: "cg-note" }, "Finding the band's candidates...")];
+      deck = [el("p", { class: "cg-note" }, "Finding the band's candidates...")];
     } else if (draft.hero.tags.length) {
-      grid = [...capNote(base), el("div", { class: "modcreator-picker-grid cg-scroll" }, ...base.slides.filter(rule.ok).map((s) => {
-        const at = posts.indexOf(s.id);
-        const chars = rule.c.filter((c) => tagsOf(s).includes(c)).map(label).join(", ");
-        return thumb(s, { "data-cg-act": "hero-pick", "aria-pressed": String(at >= 0), disabled: full && at < 0 },
-          ...(at >= 0 ? [el("span", { class: "cg-thumb-num" }, String(at + 1))] : []),
-          el("span", { class: "cg-thumb-cap" }, `#${s.id}`, ...(chars ? [el("br", {}), el("span", { class: "cg-thumb-chars" }, chars)] : [])));
-      }))];
+      deck = [...capNote(base), decks.deck(base.slides.filter(rule.ok), {
+        size: 112,
+        label: "The band's candidates",
+        card: (s) => {
+          const at = posts.indexOf(s.id);
+          const chars = rule.c.filter((c) => tagsOf(s).includes(c)).map(label).join(", ");
+          return [{ "aria-pressed": String(at >= 0) },
+            ...(at >= 0 ? [el("span", { class: "cg-thumb-num" }, String(at + 1))] : []),
+            el("span", { class: "cg-thumb-cap" }, `#${s.id}`, ...(chars ? [el("br", {}), el("span", { class: "cg-thumb-chars" }, chars)] : []))];
+        },
+        blocked: (s) => full && !posts.includes(s.id),
+        act: (s) => {
+          const on = posts.includes(s.id);
+          return {
+            attrs: { "data-cg-act": "hero-pick", "data-id": s.id },
+            text: on ? "Take off the band" : "Pick",
+            disabled: full && !on,
+            why: full && !on ? `The band holds ${HERO_MAX} posts, the most. Take one off first` : null,
+          };
+        },
+        strip: "hero",
+        drop: (id, index) => stageAs(placed(posts, id, index)),
+      })];
     }
     keepScroll(box, () => fill(box,
       el("div", { class: "modcreator-picker-head" },
         el("span", { class: "cg-label modcreator-picker-title" }, `The band's posts: ${posts.length}, from ${HERO_MIN} to ${HERO_MAX}, in this order`),
         el("button", { type: "button", class: "cg-btn cg-btn--sm", "data-cg-act": "hero-picker" }, "Done")),
-      ...(posts.length ? [el("div", { class: "modcreator-picker-strip cg-scroll" }, ...strip)] : []),
-      ...grid));
+      decks.stage("hero", posts.map((id, i) => stripItem("hero", id, i, posts.length, {})), {
+        label: "The band's posts, in order",
+        empty: "Drag a post here to put it on the band, or open one and Pick it.",
+        slideOf,
+        drop: (id, index) => stageAs(placed(posts, id, index)),
+        off: (id) => stageAs(posts.filter((p) => p !== id)),
+      }),
+      ...deck));
   }
 
   function loadHero() {
@@ -572,32 +656,13 @@ function editor(root, data, bindMinis) {
     const mini = draft.minis[i];
     const list = chosenSlides(mini.posts);
     const tag = mini.tag ? { name: mini.tag, category: categoryOf(mini.tag) } : null;
-    const answer = loaded.get(mini.tag);
     const options = mini.tag && !palette.has(mini.tag) ? [{ name: mini.tag, count: mini.posts.length }, ...data.palette] : data.palette;
-    const picker = openMini === i && el("div", { class: "modcreator-mini-picker modcreator-edit-ui" },
-      el("div", { class: "modcreator-mini-picker-head" },
-        el("span", { class: "cg-label" }, tag ? `${label(tag.name)}: ${mini.posts.length} of ${MINI_MAX}` : "Pick a tag first"),
-        el("button", { type: "button", class: "cg-btn cg-btn--sm", "data-cg-act": "mini-picker", "data-i": i }, "Done")),
-      ...(tag && answer ? capNote(answer) : []),
-      el("div", { class: "modcreator-mini-picker-grid cg-scroll" }, ...(tag && answer ? [
-        // A chosen post not among the candidates shown -- hidden from the
-        // curator, or no longer a valid choice -- is its number, to take off.
-        ...mini.posts.filter((id) => !answer.slides.some((s) => s.id === id)).map((id) => el("button", {
-          type: "button", class: "cg-thumb", "data-cg-act": "mini-pick", "data-i": i, "data-id": id, "aria-pressed": "true", "aria-label": `Take post #${id} off the miniband`,
-        }, el("span", { class: "cg-thumb-num" }, String(mini.posts.indexOf(id) + 1)), el("span", { class: "cg-thumb-cap" }, `#${id}`))),
-        ...answer.slides.map((s) => {
-          const at = mini.posts.indexOf(s.id);
-          return thumb(s, { "data-cg-act": "mini-pick", "data-i": i, "aria-pressed": String(at >= 0), disabled: mini.posts.length >= MINI_MAX && at < 0 },
-            ...(at >= 0 ? [el("span", { class: "cg-thumb-num" }, String(at + 1))] : []));
-        }),
-      ] : [el("p", { class: "cg-note" }, tag ? "Finding the posts..." : "This miniband shows one tag. Pick it above.")])));
-
     return el("div", {
       class: "modcreator-mini", "data-cg-mini": i, "data-effect": mini.effect, "data-dir": mini.dir, "data-hold": mini.hold,
       style: `--mini-h: ${ROW_H[n]}px; --mini-w: ${MIN_W[n]}px`,
     },
     ...list.map((s) => el("a", { class: "modcreator-mini-item modcreator-card mod-blacklist-target", href: s.url, title: `post #${s.id}`, ...marks(s) },
-      el("img", { class: "modcreator-mini-img", src: picture(s), alt: "", loading: "lazy", draggable: "false" }))),
+      el("img", { class: "modcreator-mini-img", src: picture(s), alt: "", loading: "lazy", draggable: "false", style: viewStyle(viewOf(s.id)) || null }))),
     ...(list.length ? [
       el("div", { class: "modcreator-mini-shade", "aria-hidden": "true" }),
       el("button", { type: "button", class: "modcreator-mini-arrow modcreator-mini-arrow--prev", "data-cg-act": "mini-step", "data-v": -1, "aria-label": "Previous post" }, "\u2039"),
@@ -622,14 +687,87 @@ function editor(root, data, bindMinis) {
       el("label", { class: "modcreator-mini-hold" }, "Hold",
         el("input", { type: "range", min: 2, max: 12, value: mini.hold, "data-cg-field": "mini-hold", "data-i": i }),
         el("span", {}, `${mini.hold}s`)),
-      el("button", { type: "button", class: "cg-btn cg-btn--sm", "data-cg-act": "mini-picker", "data-i": i, "aria-expanded": String(openMini === i) }, `Posts (${mini.posts.length}/${MINI_MAX})`)),
-    ...(picker ? [picker] : []));
+      el("button", { type: "button", class: "cg-btn cg-btn--sm", "data-cg-act": "mini-picker", "data-i": i, "aria-expanded": String(openMini === i) }, `Posts (${mini.posts.length}/${MINI_MAX})`)));
   }
 
   function renderMinis() {
     keepScroll(region("minis"), () => fill(region("minis"), ...rowsOf(draft.layout).map((row) => el("div", { class: "modcreator-minis-row" }, ...row.map((i) => miniSlot(i, row.length))))));
     region("layout-name").textContent = layoutOf(draft.layout).label;
+    // eslint-disable-next-line no-use-before-define -- the window redraws the minibands it picks for
+    renderMiniWindow();
     bindMinis();
+  }
+
+  // The open miniband's posts, in a window over the page: its staging strip,
+  // then its deck. A post another miniband shows is marked with where it is,
+  // and may not be picked here (the dedupe rule, problemsOf); one this
+  // miniband already has stays to take off.
+  function renderMiniWindow() {
+    const old = root.querySelector(".modcreator-mini-window");
+    const i = openMini < slotCount(draft.layout) ? openMini : -1;
+    // Another miniband's window is a new one: its lists start at their tops.
+    if (old && Number(old.dataset.i) !== i) {
+      fill(old);
+      old.remove();
+    }
+    if (i < 0) { return; }
+    const win = root.querySelector(".modcreator-mini-window") || root.appendChild(el("div", {
+      class: "modcreator-mini-window modcreator-edit-ui", role: "dialog", "aria-modal": "true", "aria-label": `Miniband ${i + 1}'s posts`, "data-i": i, tabindex: "-1",
+    }));
+    const mini = draft.minis[i];
+    const answer = loaded.get(mini.tag);
+    const used = usedMap(draft.minis.slice(0, slotCount(draft.layout)), i);
+    const full = mini.posts.length >= MINI_MAX;
+    const here = (id) => mini.posts.includes(id);
+    const stageAs = (list) => {
+      mini.posts = list;
+      renderMinis(); changed();
+    };
+    let deck = [el("p", { class: "cg-note" }, mini.tag ? "Finding the posts..." : "This miniband shows one tag. Pick it on the miniband.")];
+    if (mini.tag && answer) {
+      deck = [...capNote(answer), decks.deck(answer.slides, {
+        size: 112,
+        label: `Miniband ${i + 1}'s candidates`,
+        card: (s) => {
+          const at = mini.posts.indexOf(s.id);
+          return [{ "aria-pressed": String(at >= 0) }, ...(at >= 0 ? [el("span", { class: "cg-thumb-num" }, String(at + 1))] : [])];
+        },
+        note: (s) => (used.has(s.id) ? `${here(s.id) ? "Also in" : "Used in"} ${usedWords(used.get(s.id))}` : null),
+        blocked: (s) => !here(s.id) && (used.has(s.id) || full),
+        act: (s) => {
+          const why = (used.has(s.id) && "A post shows on one miniband only. Take it off the other first") || (full && `A miniband holds ${MINI_MAX} posts, the most. Take one off first`);
+          return {
+            attrs: { "data-cg-act": "mini-pick", "data-i": i, "data-id": s.id },
+            text: here(s.id) ? "Take off the miniband" : "Pick",
+            disabled: !here(s.id) && Boolean(why),
+            why: here(s.id) ? null : why || null,
+          };
+        },
+        strip: `mini-${i}`,
+        drop: (id, index) => stageAs(placed(mini.posts, id, index)),
+      })];
+    }
+    keepScroll(win, () => fill(win,
+      el("div", { class: "modcreator-mini-window-head" },
+        el("span", { class: "modcreator-mini-num" }, String(i + 1)),
+        el("span", { class: "cg-label" }, mini.tag ? `${label(mini.tag)}: ${mini.posts.length} of ${MINI_MAX}, in this order` : "Pick a tag first"),
+        el("button", { type: "button", class: "cg-btn cg-btn--sm", "data-cg-act": "mini-picker", "data-i": i }, "Done")),
+      decks.stage(`mini-${i}`, mini.posts.map((id, k) => stripItem("mini", id, k, mini.posts.length, { "data-i": i })), {
+        label: `Miniband ${i + 1}'s posts, in order`,
+        empty: "Drag a post here to put it on the miniband, or open one and Pick it.",
+        slideOf,
+        drop: (id, index) => stageAs(placed(mini.posts, id, index)),
+        off: (id) => stageAs(mini.posts.filter((p) => p !== id)),
+      }),
+      ...deck));
+  }
+
+  // The window closes, and the keyboard is back on the miniband's Posts.
+  function closeMini(refocus) {
+    const i = openMini;
+    openMini = -1;
+    renderMinis();
+    if (refocus) { root.querySelector(`[data-cg-act='mini-picker'][data-i='${i}']`)?.focus({ preventScroll: true }); }
   }
 
   function loadMini(i) {
@@ -640,10 +778,14 @@ function editor(root, data, bindMinis) {
   // --- the look: banner, depth, layout ---
   function renderBanners() {
     const all = loaded.get("");
-    fill(region("banners"),
+    keepScroll(region("banners"), () => fill(region("banners"),
       ...(all ? capNote(all) : []),
       el("button", { type: "button", class: "modcreator-banner-none", "data-cg-act": "banner", "aria-pressed": String(!draft.banner.post_id) }, "None"),
-      ...(all ? all.slides.map((s) => thumb(s, { "data-cg-act": "banner", "aria-pressed": String(s.id === draft.banner.post_id) })) : [el("span", { class: "cg-note" }, "Finding your posts...")]));
+      ...(all ? [decks.deck(all.slides, {
+        size: 80,
+        label: "Your posts",
+        card: (s) => [{ "data-cg-act": "banner", "aria-pressed": String(s.id === draft.banner.post_id) }],
+      })] : [el("span", { class: "cg-note" }, "Finding your posts...")])));
   }
 
   function paintBanner() {
@@ -664,7 +806,8 @@ function editor(root, data, bindMinis) {
     if (engine) { engine.adopt(slide ? layers : [], layers); }
   }
 
-  // The look as the layers' CSS variables (CreatorGalleryComponent#depth_style).
+  // The look as the layers' CSS variables (CreatorGalleryComponent#depth_style),
+  // the banner post's view among them.
   function paintDepth() {
     const { blur, dim, parallax: strength } = draft.depth;
     layers.forEach((layer) => {
@@ -672,7 +815,9 @@ function editor(root, data, bindMinis) {
       layer.style.setProperty("--cg-dim", String(dim / 100));
       layer.style.setProperty("--cg-par", String(strength / 100));
       layer.style.setProperty("--cg-y", `${draft.banner.y}%`);
+      showView(layer, viewOf(draft.banner.post_id));
     });
+    root.querySelector("[data-cg-act='view-banner']").disabled = !draft.banner.post_id;
   }
 
   const press = (act, v) => root.querySelectorAll(`[data-cg-act="${act}"]`).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === String(v))));
@@ -694,6 +839,172 @@ function editor(root, data, bindMinis) {
     }
   }
 
+  // --- a post's applied view, set on the page itself (item 8) ---
+  //
+  // A box over the picture in `frame()`: a drag moves the picture, the wheel
+  // scales it, a corner scales it evenly and an edge stretches it (Distort);
+  // Flip, Reset and Done are in a bar by it. Each gesture is worked from the
+  // view it started from (post_view.js). `paint` draws the view on the page
+  // as it goes; the draft takes it when the gesture ends, and then `kept`
+  // runs. One picture at a time: Done, Escape or a press anywhere else ends it.
+  let viewing = null;
+  function editView(id, { what, frame, paint, kept }) {
+    viewing?.();
+    if (!id || !frame()) { return; }
+    const opener = document.activeElement;
+    const life = new AbortController();
+    const on = { signal: life.signal };
+    let view = viewOf(id);
+    let over = false;
+    let settle = 0;
+    let wheel = null;
+    let queued = 0;
+    const box = el("div", {
+      class: "modcreator-viewer-box", tabindex: "0",
+      "aria-label": `${what}. Drag it, or use the arrow keys, to move it; the wheel, or + and -, scales it; a corner scales it, an edge stretches it.`,
+    }, ...HANDLES.map((handle) => el("span", { class: `modcreator-viewer-handle modcreator-viewer-handle--${handle}`, "data-handle": handle, "aria-hidden": "true" })));
+    const bar = el("div", { class: "modcreator-viewer-bar cg-glass" },
+      el("button", { type: "button", class: "cg-btn cg-btn--sm", "data-view": "flip_h", "aria-pressed": "false", title: "Mirror it left to right" }, "Flip H"),
+      el("button", { type: "button", class: "cg-btn cg-btn--sm", "data-view": "flip_v", "aria-pressed": "false", title: "Mirror it top to bottom" }, "Flip V"),
+      el("button", { type: "button", class: "cg-btn cg-btn--sm", "data-view": "reset", title: "Back to the picture as posted" }, "Reset"),
+      el("button", { type: "button", class: "cg-btn cg-btn--sm cg-btn--go", "data-view": "done" }, "Done"));
+    const layer = el("div", { class: "modcreator-viewer", role: "group", "aria-label": `${what}: its view` }, box, bar);
+
+    function commit() {
+      settle = 0;
+      draft.views = putView(draft.views, id, view);
+      changed();
+      kept?.();
+    }
+
+    function end() {
+      if (over) { return; }
+      over = true;
+      if (settle) {
+        clearTimeout(settle);
+        commit();
+      }
+      const held = layer.contains(document.activeElement);
+      life.abort();
+      layer.remove();
+      root.classList.remove("is-viewing");
+      root.querySelectorAll(".is-view-target").forEach((node) => node.classList.remove("is-view-target"));
+      viewing = null;
+      if (held && opener?.isConnected) { opener.focus({ preventScroll: true }); }
+    }
+
+    // The box over the frame, where the view draws the picture before its flips.
+    function place() {
+      queued = 0;
+      const node = frame();
+      if (!node) {
+        end();
+        return;
+      }
+      const r = node.getBoundingClientRect();
+      const b = toBox(view, r);
+      Object.assign(layer.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+      Object.assign(box.style, { left: `${b.left}px`, top: `${b.top}px`, width: `${b.width}px`, height: `${b.height}px` });
+      // Under the frame, or over it where the window ends first.
+      bar.classList.toggle("is-above", r.bottom + 56 > window.innerHeight);
+      ["flip_h", "flip_v"].forEach((flip) => bar.querySelector(`[data-view="${flip}"]`).setAttribute("aria-pressed", String(view[flip])));
+    }
+
+    function show(next) {
+      view = next;
+      paint(view);
+      place();
+    }
+
+    function keep(next) {
+      show(next);
+      commit();
+    }
+
+    layer.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || e.target.closest(".modcreator-viewer-bar")) { return; }
+      e.preventDefault();
+      box.focus({ preventScroll: true });
+      const r = frame().getBoundingClientRect();
+      const from = view;
+      const grip = e.target;
+      const { handle } = grip.dataset;
+      const drag = new AbortController();
+      grip.setPointerCapture(e.pointerId);
+      grip.addEventListener("pointermove", (m) => show(handle
+        ? resize(from, handle, m.clientX - r.left, m.clientY - r.top, r)
+        : move(from, m.clientX - e.clientX, m.clientY - e.clientY, r)), { signal: drag.signal });
+      const drop = () => {
+        drag.abort();
+        if (view !== from) { commit(); }
+      };
+      grip.addEventListener("pointerup", drop, { signal: drag.signal });
+      grip.addEventListener("pointercancel", drop, { signal: drag.signal });
+    }, on);
+
+    // A run of wheel steps is one gesture from the view it began on, its
+    // factor held to the scale's range so a turn back answers at once.
+    layer.addEventListener("wheel", (e) => {
+      if (e.ctrlKey) { return; }
+      e.preventDefault();
+      const dy = e.deltaMode === WheelEvent.DOM_DELTA_LINE ? e.deltaY * 16 : e.deltaY;
+      wheel = settle ? wheel : { from: view, factor: 1 };
+      wheel.factor = Math.min(4000 / wheel.from.scale, Math.max(200 / wheel.from.scale, wheel.factor * Math.exp(-dy / 600)));
+      show(scaleBy(wheel.from, wheel.factor));
+      clearTimeout(settle);
+      settle = setTimeout(commit, 250);
+    }, { ...on, passive: false });
+
+    box.addEventListener("keydown", (e) => {
+      const r = frame().getBoundingClientRect();
+      const step = e.shiftKey ? 0.1 : 0.01;
+      const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+      const factor = { "+": 1.05, "=": 1.05, "-": 1 / 1.05 }[e.key];
+      if (nudge) {
+        keep(move(view, nudge[0] * r.width, nudge[1] * r.height, r));
+      } else if (factor) {
+        keep(scaleBy(view, factor));
+      } else {
+        return;
+      }
+      e.preventDefault();
+    }, on);
+
+    bar.addEventListener("click", (e) => {
+      const act = e.target.closest("[data-view]")?.dataset.view;
+      if (act === "flip_h" || act === "flip_v") {
+        keep({ ...view, [act]: !view[act] });
+      } else if (act === "reset") {
+        keep(IDENTITY);
+      } else if (act === "done") {
+        end();
+      }
+    }, on);
+
+    // Escape is Done here before it closes anything under the box.
+    window.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") { return; }
+      e.preventDefault();
+      e.stopPropagation();
+      end();
+    }, { ...on, capture: true });
+    document.addEventListener("pointerdown", (e) => { if (!layer.contains(e.target)) { end(); } }, { ...on, capture: true });
+    const requeue = () => { queued ||= requestAnimationFrame(place); };
+    window.addEventListener("scroll", requeue, { ...on, capture: true, passive: true });
+    window.addEventListener("resize", requeue, on);
+    life.signal.addEventListener("abort", () => cancelAnimationFrame(queued));
+
+    viewing = end;
+    // In place first: a miniband post its cycle has moved out of the band
+    // would otherwise be scrolled to inside the band's clip.
+    frame().classList.add("is-view-target");
+    root.classList.add("is-viewing");
+    frame().scrollIntoView({ block: "nearest", inline: "nearest" });
+    root.append(layer);
+    place();
+    box.focus({ preventScroll: true });
+  }
+
   // --- Save and Discard ---
   async function save() {
     saving = true;
@@ -711,6 +1022,7 @@ function editor(root, data, bindMinis) {
         tuner: draft.tuner,
         // A staff-hidden harmonic is sent by its id alone to keep its place.
         harmonics: draft.harmonics.map((h) => Object.fromEntries(Object.entries(h).filter(([key]) => key !== "staff_hidden" && key !== "draftKey"))),
+        views: viewsOnPage(draft),
       },
     };
     // The entries as sent: the draft can change, and undo copy its entries,
@@ -744,6 +1056,7 @@ function editor(root, data, bindMinis) {
           return [h.id, found.url ? { url: found.url, host: found.host, site: found.site, staff_hidden: h.staff_hidden } : stored.get(h.id)];
         }));
         savedPayload = unchanged ? payload(draft) : payload({ ...JSON.parse(sent), harmonics: saved });
+        savedMinis = JSON.parse(sent).minis.map((m) => m.posts);
         // The steps back lead to entries without their ids.
         builder.forget();
         report();
@@ -820,18 +1133,45 @@ function editor(root, data, bindMinis) {
     }
     case "mini-dir": mini.dir = v; renderMinis(); changed(); break;
     case "mini-picker":
-      openMini = openMini === i ? -1 : i;
+      if (openMini === i) {
+        closeMini(true);
+        break;
+      }
+      openMini = i;
       renderMinis();
-      if (openMini === i) { loadMini(i).then(renderMinis); }
+      root.querySelector(".modcreator-mini-window")?.focus({ preventScroll: true });
+      // Drawn only into the window it was asked for: one closed meanwhile (a
+      // View begun on its strip) keeps the minibands it left, view and all.
+      loadMini(i).then(() => { if (openMini === i) { renderMinis(); } });
       break;
     case "mini-pick":
       mini.posts = mini.posts.includes(id) ? mini.posts.filter((p) => p !== id) : [...mini.posts, id];
       renderMinis(); changed();
       break;
+    case "mini-move": {
+      const from = mini.posts.indexOf(id);
+      const to = from + Number(v);
+      [mini.posts[from], mini.posts[to]] = [mini.posts[to], mini.posts[from]];
+      renderMinis(); changed();
+      break;
+    }
     case "banner":
       draft.banner.post_id = act.dataset.id ? id : null;
-      renderBanners(); paintBanner(); changed();
+      renderBanners(); paintBanner(); paintDepth(); changed();
       break;
+    case "view-banner": {
+      const frame = () => root.querySelector(".modcreator-banner");
+      editView(draft.banner.post_id, { what: "The banner", frame, paint: (view) => layers.forEach((layer) => showView(layer, view)) });
+      break;
+    }
+    case "mini-view": {
+      // The miniband shows the post alone while its view is set, its window
+      // out of the way.
+      closeMini(false);
+      const frame = () => root.querySelector(`[data-cg-mini="${i}"] .modcreator-mini-item[data-id="${id}"]`);
+      editView(id, { what: `Post #${id} on miniband ${i + 1}`, frame, paint: (view) => showView(frame()?.querySelector(".modcreator-mini-img"), view) });
+      break;
+    }
     case "layout":
       draft.layout = v;
       draft.minis = [...draft.minis, ...Array.from({ length: Math.max(0, slotCount(v) - draft.minis.length) }, () => structuredClone(BLANK_MINI))];
@@ -903,7 +1243,10 @@ function editor(root, data, bindMinis) {
     } else if (field === "page_private" || field === "show_contact") {
       draft[field] = e.target.checked;
       // The contact previews here; a private page is still the whole page to its creator.
-      if (field === "show_contact") { root.querySelectorAll("[data-cg-contact]").forEach((shown) => { shown.hidden = !e.target.checked; }); }
+      if (field === "show_contact") {
+        root.querySelectorAll("[data-cg-contact]").forEach((shown) => { shown.hidden = !e.target.checked; });
+        root.querySelectorAll("[data-cg-contact-off]").forEach((shown) => { shown.hidden = e.target.checked; });
+      }
       changed();
     } else if (field === "mini-effect") {
       draft.minis[i].effect = e.target.value;
@@ -931,8 +1274,19 @@ function editor(root, data, bindMinis) {
     const inside = e.composedPath().some((node) => node instanceof Element && node.matches("[data-cg-region='adder'], .modcreator-add-tag"));
     if (!region("adder").hidden && !inside) { toggleAdder(false); }
   });
+  // The miniband's window closes on a press outside it, once any enlarged
+  // card over it has closed.
+  document.addEventListener("pointerdown", (e) => {
+    const win = root.querySelector(".modcreator-mini-window");
+    if (!win || decks.popOpen || win.contains(e.target) || e.target.closest?.("[data-cg-act='mini-picker']")) { return; }
+    closeMini(false);
+  }, true);
   document.addEventListener("keydown", (e) => {
+    const win = root.querySelector(".modcreator-mini-window");
+    // An enlarged card over the window keeps the keyboard itself.
+    if (win && !decks.popOpen) { keepTab(e, win); }
     if (e.key !== "Escape") { return; }
+    if (openMini >= 0) { closeMini(true); }
     toggleAdder(false);
     root.querySelectorAll("[data-cg-sheet]").forEach((sheet) => { sheet.hidden = true; });
     root.querySelectorAll(".cg-seg [data-cg-act='sheet']").forEach((b) => b.setAttribute("aria-pressed", "false"));
@@ -968,6 +1322,24 @@ function editor(root, data, bindMinis) {
 
 // --- every viewer ----------------------------------------------------------
 
+// The PATCH modulation_landing_component.js saveSetting makes, for About.
+function saveAboutOpen(open) {
+  fetch("/modulation/settings", {
+    method: "PATCH",
+    headers: {
+      "X-CSRF-Token": (document.querySelector('meta[name="csrf-token"]') || {}).content || "",
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    credentials: "same-origin",
+    body: JSON.stringify({ creator_about_open: open }),
+  }).then((r) => {
+    if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
+  }).catch(() => {
+    Notice.error("Could not save whether About is open; it will not be remembered. Reload the page and set it again.");
+  });
+}
+
 function initGallery(root) {
   if (root.dataset.cgBooted) { return; }
   root.dataset.cgBooted = "1";
@@ -979,7 +1351,7 @@ function initGallery(root) {
     stops = Array.from(root.querySelectorAll("[data-cg-mini]"), (mini) => cycleMini(mini, reduced));
   };
 
-  // The panels descend from the header on About; one put away is listed
+  // About sits at the top of the band's panel; one box put away is listed
   // above the rest, to bring back.
   function listHidden() {
     const away = Array.from(root.querySelectorAll("[data-cg-panel]")).filter((box) => box.hidden);
@@ -995,6 +1367,10 @@ function initGallery(root) {
       const about = root.querySelector("#modcreator-about");
       about.hidden = !about.hidden;
       act.setAttribute("aria-expanded", String(!about.hidden));
+      // The viewer's own choice is remembered (ModulationSetting
+      // creator_about_open); the builder and a link to a section open About
+      // without asking, and are not.
+      saveAboutOpen(!about.hidden);
     } else if (act.dataset.cgAct === "hide-panel") {
       act.closest("[data-cg-panel]").hidden = true;
       listHidden();

@@ -1,4 +1,5 @@
 import Notice from "./notice";
+import { pictureStyle } from "./post_view";
 
 // THE TUNER (CreatorTunerComponent; CREATOR_TUNER.md rev 3, sec 7): a
 // creator's harmonics one card at a time. A, the Masthead Dial, tunes with a
@@ -60,7 +61,7 @@ export function harmonicCard(card, { hidden = false, ring = false, logos = {}, s
   const art = picture
     ? el("img", {
       class: "cg-hm-img mod-blacklist-target", src: picture.src, alt: "", loading: "lazy", decoding: "async", draggable: "false",
-      style: `object-position: ${picture.focus_x}% ${picture.focus_y}%; transform-origin: ${picture.focus_x}% ${picture.focus_y}%; transform: scale(${picture.zoom / 100})`,
+      style: pictureStyle(picture),
       "data-id": picture.id, "data-tags": picture.tags, "data-rating": picture.rating, "data-flags": picture.flags, "data-score": picture.score, "data-uploader-id": picture.uploader_id,
     })
     : el("span", { class: `cg-hm-grad cg-hm-grad--${card.gradient || 0}` });
@@ -128,14 +129,97 @@ function saveScan(on) {
 
 const HOLD_A = [8000, 6000];
 
+// The static between stations, after fourier.channel's front page
+// (~/fourier-domain/sites/fourier.channel/index.html, its glitch field and
+// noise waves): sparse grey speckles and hairlines on a dark veil, a band
+// torn sideways now and then, and two or three orange waves seen only in
+// fragments, each flickering out. Its strength is the dial's noise; it is
+// drawn only while the needle moves, so it ends with the tuning.
+function staticWaves() {
+  const now = performance.now();
+  return Array.from({ length: 2 + Math.floor(Math.random() * 2) }, () => ({
+    freq: 1 + (Math.random() * 3),
+    amp: 0.03 + (Math.random() * 0.08),
+    y: 0.5 + (((Math.random() * 2) - 1) * 0.35),
+    phase: Math.random() * Math.PI * 2,
+    travel: Math.random(),
+    speed: (0.05 + (Math.random() * 0.2)) * (Math.random() < 0.5 ? -1 : 1),
+    env: Math.random(),
+    envWidth: 0.2 + (Math.random() * 0.3),
+    envSpeed: (0.15 + (Math.random() * 0.35)) * (Math.random() < 0.5 ? -1 : 1),
+    out: 0,
+    next: now + 150 + (Math.random() * 600),
+  }));
+}
+
+const WAVE_SEGMENTS = 32;
+
+function drawStatic(context, { w, h, dpr }, noise, waves, orange, dt) {
+  const now = performance.now();
+  const grey = (lo, span, a) => {
+    const v = lo + Math.floor(Math.random() * span);
+    return `rgba(${v}, ${v}, ${v}, ${a.toFixed(3)})`;
+  };
+  context.clearRect(0, 0, w, h);
+  context.globalAlpha = 1;
+  context.fillStyle = "rgba(10, 10, 10, 0.7)";
+  context.fillRect(0, 0, w, h);
+
+  context.strokeStyle = orange;
+  context.lineWidth = 1;
+  waves.forEach((wave) => {
+    wave.env += (wave.envSpeed * dt) / 1000;
+    if (wave.env > 1.5) { wave.env -= 2; } else if (wave.env < -0.5) { wave.env += 2; }
+    wave.travel += (wave.speed * dt) / 1000;
+    wave.travel -= Math.floor(wave.travel);
+    if (now >= wave.next) {
+      wave.out = now + 60 + (Math.random() * 180);
+      wave.next = wave.out + 250 + (Math.random() * 700);
+    }
+    if (now < wave.out) { return; }
+    const at = (k) => [((k + wave.travel) % 1) * w, (wave.y + (wave.amp * Math.sin((wave.freq * k * Math.PI * 2) + wave.phase))) * h];
+    Array.from({ length: WAVE_SEGMENTS }, (_, seg) => seg).forEach((seg) => {
+      const env = Math.max(0, 1 - (Math.abs(((seg + 0.5) / WAVE_SEGMENTS) - wave.env) / wave.envWidth));
+      const [x1, y1] = at(seg / WAVE_SEGMENTS);
+      const [x2, y2] = at((seg + 1) / WAVE_SEGMENTS);
+      // A segment across the wrap would draw a line over the whole card.
+      if (env <= 0 || x2 < x1) { return; }
+      context.globalAlpha = env * (0.25 + (0.5 * noise));
+      context.beginPath();
+      context.moveTo(x1, y1);
+      context.lineTo(x2, y2);
+      context.stroke();
+    });
+  });
+  context.globalAlpha = 1;
+
+  Array.from({ length: Math.floor(70 * noise) }).forEach(() => {
+    context.fillStyle = grey(150, 105, 0.15 + (0.35 * Math.random() * noise));
+    context.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random(), 1 + Math.random());
+  });
+  Array.from({ length: Math.floor(10 * noise) }).forEach(() => {
+    const y = Math.floor(Math.random() * h) + 0.5;
+    context.strokeStyle = grey(180, 75, 0.08 + (0.12 * noise));
+    context.beginPath();
+    context.moveTo(0, y);
+    context.lineTo(w, y);
+    context.stroke();
+  });
+  // The tear: a band of what is drawn, laid back over itself sideways. The
+  // source is in the canvas's own pixels, the destination in CSS pixels.
+  if (Math.random() < 0.35 * noise) {
+    const band = 3 + (Math.random() * 9);
+    const y = Math.random() * (h - band);
+    const dx = (Math.random() < 0.5 ? -1 : 1) * (2 + (Math.random() * 10)) * noise;
+    context.drawImage(context.canvas, 0, y * dpr, w * dpr, band * dpr, dx, y, w, band);
+  }
+}
+
 function dialA(section, view, reduce) {
   const slot = section.querySelector(".cg-tuner-slot");
   const cards = Array.from(slot.querySelectorAll(".cg-hm"));
   const canvas = section.querySelector(".cg-tuner-static");
   const context = canvas.getContext("2d");
-  const image = context.createImageData(canvas.width, canvas.height);
-  const pixels = new Uint32Array(image.data.buffer);
-  const scanlines = section.querySelector(".cg-tuner-scanlines");
   const needle = section.querySelector(".cg-tuner-needle");
   const knob = section.querySelector(".cg-tuner-knob");
   const scale = section.querySelector(".cg-tuner-scale");
@@ -160,6 +244,12 @@ function dialA(section, view, reduce) {
   let drag = false;
   let wandering = false;
   let hold = 0;
+  // The static's size in CSS pixels and its pixel ratio, its waves and its
+  // orange (the formant's own, never a literal), all taken as a tuning starts.
+  const size = { w: 0, h: 0, dpr: 1 };
+  let waves = [];
+  let orange = "";
+  let staticT = 0;
 
   const near = () => clamp(0, Math.round(p), n - 1);
 
@@ -183,19 +273,20 @@ function dialA(section, view, reduce) {
     needle.style.left = `${(f * 100).toFixed(3)}%`;
     knob.style.setProperty("--rot", `${(-135 + (f * 270)).toFixed(1)}deg`);
     if (noise > 0.01) {
-      pixels.forEach((_, i) => {
-        const v = Math.floor(Math.random() * 255);
-        pixels[i] = 0xff000000 | (v << 16) | (v << 8) | v;
-      });
-      context.putImageData(image, 0, 0);
-      cards[k].style.filter = `blur(${(noise * 3).toFixed(2)}px) saturate(${(1 - (noise * 0.6)).toFixed(2)})`;
-      cards[k].style.transform = `translate(${((Math.random() - 0.5) * noise * 4).toFixed(1)}px, ${((Math.random() - 0.5) * noise * 2).toFixed(1)}px)`;
+      const now = performance.now();
+      drawStatic(context, size, noise, waves, orange, staticT ? Math.min(100, now - staticT) : 16);
+      staticT = now;
+      cards[k].style.filter = `blur(${(noise * 2).toFixed(2)}px) saturate(${(1 - (noise * 0.6)).toFixed(2)})`;
+      // The card tears sideways with the static, and hardly moves up or down.
+      cards[k].style.transform = `translate(${((Math.random() - 0.5) * noise * 10).toFixed(1)}px, ${((Math.random() - 0.5) * noise).toFixed(1)}px)`;
+      canvas.style.opacity = Math.min(1, noise * 1.5).toFixed(3);
     } else {
+      staticT = 0;
+      context.clearRect(0, 0, size.w, size.h);
+      canvas.style.opacity = "0";
       cards[k].style.filter = "";
       cards[k].style.transform = "";
     }
-    canvas.style.opacity = (noise * 0.85).toFixed(3);
-    scanlines.style.opacity = (noise * 0.6).toFixed(3);
   }
 
   let watcher = null;
@@ -235,6 +326,17 @@ function dialA(section, view, reduce) {
     if (!raf) {
       lastT = 0;
       lastP = p;
+      size.dpr = Math.min(window.devicePixelRatio || 1, 2);
+      size.w = slot.clientWidth;
+      size.h = slot.clientHeight;
+      const [w, h] = [Math.round(size.w * size.dpr), Math.round(size.h * size.dpr)];
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+      context.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
+      waves = staticWaves();
+      orange = getComputedStyle(section).getPropertyValue("--mod-active-fg").trim();
       raf = requestAnimationFrame(frame);
     }
   }
@@ -369,7 +471,7 @@ function dialA(section, view, reduce) {
     });
   }, on);
 
-  // Under 24 px a station the letters hide (CreatorTunerComponent).
+  // Under 24 px a station the marks hide (CreatorTunerComponent).
   const fit = new ResizeObserver(() => scale.classList.toggle("cg-tuner-scale--bare", scale.clientWidth / n < 24));
   fit.observe(scale);
 
@@ -496,7 +598,9 @@ export function mountTuner(section, { hold = false } = {}) {
 // after the last.
 export function tunerSection(placement, cards, { logos = {}, shadeFloor = 35, add = false, ring = null } = {}) {
   const start = ring ?? 0;
-  const stations = [...cards.map((card) => [`${card.name}: ${card.title}`, card.name.charAt(0).toUpperCase()]), ...(add ? [["Add a harmonic", "+"]] : [])];
+  // A station is [its name, its letter, its bundled logo]: the logo is the
+  // mark, the letter stands in for a site with none.
+  const stations = [...cards.map((card) => [`${card.name}: ${card.title}`, card.name.charAt(0).toUpperCase(), card.logo && logos[card.logo]]), ...(add ? [["Add a harmonic", "+", null]] : [])];
   const n = stations.length;
   const tiles = [
     ...cards.map((card, i) => harmonicCard(card, { hidden: i !== start, ring: i === ring, logos, shadeFloor })),
@@ -508,12 +612,12 @@ export function tunerSection(placement, cards, { logos = {}, shadeFloor = 35, ad
   if (placement === "A") {
     section.append(el("div", { class: "cg-tuner-plate" },
       el("div", { class: "cg-tuner-slot" }, ...tiles,
-        el("canvas", { class: "cg-tuner-static", width: 96, height: 60, "aria-hidden": "true" }),
-        el("span", { class: "cg-tuner-scanlines", "aria-hidden": "true" })),
+        el("canvas", { class: "cg-tuner-static", width: 320, height: 200, "aria-hidden": "true" })),
       el("div", { class: "cg-tuner-dial" }, scan(),
         el("div", { class: "cg-tuner-scale", "aria-hidden": "true" },
           ...Array.from({ length: (n * 4) + 1 }, (_, k) => el("span", { class: "cg-tuner-tick", style: `left: ${((k * 25) / n).toFixed(3)}%` })),
-          ...stations.map(([station, letter], i) => el("span", { class: `cg-tuner-station${i === start ? " is-on" : ""}`, "data-station": station, style: `left: ${(((i + 0.5) * 100) / n).toFixed(3)}%` }, el("b", {}, letter))),
+          ...stations.map(([station, letter, src], i) => el("span", { class: `cg-tuner-station${i === start ? " is-on" : ""}`, "data-station": station, style: `left: ${(((i + 0.5) * 100) / n).toFixed(3)}%` },
+            el("b", {}, src ? el("img", { src, alt: "" }) : letter))),
           el("span", { class: "cg-tuner-needle" })),
         el("div", { class: "cg-tuner-knob", role: "slider", tabindex: 0, "aria-label": "Tuner station", "aria-valuemin": 1, "aria-valuemax": n },
           el("span", { class: "cg-tuner-cap" })))));
