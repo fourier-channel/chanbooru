@@ -41,6 +41,8 @@
           </div>
 
           <div class="flex flex-col text-right text-xs max-w-1/2">
+            <%# Fork: IpDataPruner clears an old event's address, user agent and session id (operator, 2026-11-01). %>
+            <% if ip_addr %>
             <div class="flex items-center justify-end gap-1">
               <% if IpAddressPolicy.new(CurrentUser.user, ip_addr).show? && (geolocation&.is_proxy? || ip_addr.is_tor?) %>
                 <%= link_to "Proxy", current_page_path(search: { ip_geolocation: { is_proxy: true } }, page: nil), class: "chip-red text-error text-xxs" %>
@@ -58,6 +60,7 @@
                 <%= link_to search_icon, ip_address_path(ip_addr) %>
               <% end %>
             </div>
+            <% end %>
 
             <% if ip_addr&.is_tor? %>
               <div>
@@ -83,9 +86,11 @@
                 <%= link_to "»", current_page_path(search: { user_agent: user_agent.raw_user_agent, user_agent_ilike: nil }, page: nil) %>
               </div>
 
-              <div>
-                <%= link_to user_event.session_id[0..6], current_page_path(search: { session_id: user_event.session_id }, page: nil), title: user_event.session_id %>
-              </div>
+              <% if user_event.session_id %>
+                <div>
+                  <%= link_to user_event.session_id[0..6], current_page_path(search: { session_id: user_event.session_id }, page: nil), title: user_event.session_id %>
+                </div>
+              <% end %>
             <% end %>
           </div>
         </div>

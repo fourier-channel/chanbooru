@@ -105,7 +105,10 @@
 
     <% if policy(UserEvent).can_see_session? %>
       <% t.column "Session" do |user_event| %>
-        <%= link_to user_event.session_id[0..6], current_page_path(search: search_params.deep_merge(session_id: user_event.session_id), page: nil), class: "font-monospace" %>
+        <%# Fork: IpDataPruner clears an old event's address, user agent and session id (operator, 2026-11-01). %>
+        <% if user_event.session_id %>
+          <%= link_to user_event.session_id[0..6], current_page_path(search: search_params.deep_merge(session_id: user_event.session_id), page: nil), class: "font-monospace" %>
+        <% end %>
       <% end %>
 
       <% t.column "Browser" do |user_event| %>
@@ -127,7 +130,7 @@
     <% end %>
 
     <% t.column "Location" do |user_event| %>
-      <% if user_event.ip_addr.is_tor? %>
+      <% if user_event.ip_addr&.is_tor? %>
         <%= link_to "Tor", current_page_path(search: search_params.deep_merge(ip_addr: user_event.ip_addr.supernet(64)), page: nil) %>
       <% elsif user_event.city.present? && user_event.country.present? %>
         <%= link_to user_event.ip_geolocation.city, current_page_path(search: search_params.deep_merge(ip_geolocation: { city: user_event.ip_geolocation.city, country: user_event.ip_geolocation.country }), page: nil) %>,
@@ -139,6 +142,7 @@
       <div class="flex items-center gap-1 leading-none">
         <% ip_addr = user_event.ip_addr %>
 
+        <% if ip_addr %>
         <% if IpAddressPolicy.new(CurrentUser.user, ip_addr).show? && (user_event.ip_geolocation&.is_proxy? || ip_addr.is_tor?) %>
           <%= link_to "Proxy", current_page_path(search: search_params.deep_merge(ip_geolocation: { is_proxy: true }), page: nil), class: "chip-red text-error text-xxs" %>
         <% end %>
@@ -153,6 +157,7 @@
 
         <% if IpAddressPolicy.new(CurrentUser.user, ip_addr).show? %>
           <%= link_to search_icon, ip_address_path(ip_addr) %>
+        <% end %>
         <% end %>
       </div>
     <% end %>

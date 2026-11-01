@@ -7,7 +7,10 @@
 #
 # Operator ruling, 2026-11-01: "7 days [of IPs] is appropriate, so long as we
 # are not storing the IPs anywhere they can be accidentally leaked. 7 days of
-# IPs is still a lot of sensitive data." (fourier-basis roadmap ops.61)
+# IPs is still a lot of sensitive data." (fourier-basis roadmap ops.61) That is
+# at most 7 days, so MAX_AGE is 6: an hourly run keeps a row up to MAX_AGE plus
+# an hour, and a run or two missed still lands inside the 7 (the org's number
+# for every store: a 6 day cutoff, run hourly or better).
 #
 # A row that is history keeps the row and loses the identity; a row that is only
 # a cache or telemetry is deleted. Each store, and the timestamp that dates it:
@@ -21,6 +24,14 @@
 #                    hold per-request data, so whatever is in it goes too.
 #                    login_session_id stays: a random id per sign-in, cleared
 #                    at logout, naming the account's own login and no device.
+#   login_sessions   session_id, dated by last_seen_at: the same browser id as
+#                    user_events.session_id, written when the login began and
+#                    reached from an event by its login_session_id, so it goes
+#                    with the events' or one join undoes their clearing.
+#                    last_seen_at is written at sign-in and at logout and never
+#                    per request, so it dates the id's recording; NULL counts as
+#                    old. Nothing signs anyone in by it (that is login_id), so
+#                    the login itself stays as valid as it was.
 #   users            last_ip_addr, dated by last_logged_in_at. SessionLoader
 #                    rewrites the address on every request it changes on, and
 #                    moves last_logged_in_at on any request an hour after the
@@ -42,9 +53,9 @@
 #   ip_bans          never: an enforcement record a moderator wrote.
 class IpDataPruner
   # The one statement of the period. Everything above is measured against it.
-  MAX_AGE = 7.days
+  MAX_AGE = 6.days
 
-  STORES = %i[user_events users api_keys ip_geolocations user_sessions].freeze
+  STORES = %i[user_events login_sessions users api_keys ip_geolocations user_sessions].freeze
 
   attr_reader :cutoff
 
@@ -78,6 +89,7 @@ class IpDataPruner
   def pending
     {
       user_events: stale_user_events.count,
+      login_sessions: stale_login_sessions.count,
       users: stale_users.count,
       api_keys: stale_api_keys.count,
       ip_geolocations: stale_ip_geolocations.count,
@@ -87,6 +99,10 @@ class IpDataPruner
 
   def stale_user_events
     UserEvent.where(created_at: ...cutoff).where("ip_addr IS NOT NULL OR user_agent IS NOT NULL OR session_id IS NOT NULL OR metadata IS NOT NULL")
+  end
+
+  def stale_login_sessions
+    LoginSession.where.not(session_id: nil).where("last_seen_at IS NULL OR last_seen_at < ?", cutoff)
   end
 
   def stale_users
@@ -107,6 +123,10 @@ class IpDataPruner
 
   def prune_user_events!
     stale_user_events.update_all(ip_addr: nil, user_agent: nil, session_id: nil, metadata: nil)
+  end
+
+  def prune_login_sessions!
+    stale_login_sessions.update_all(session_id: nil)
   end
 
   def prune_users!

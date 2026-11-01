@@ -19,6 +19,24 @@ class UserEventsControllerTest < ActionDispatch::IntegrationTest
         assert_response :success
       end
 
+      # IpDataPruner nulls an old event's address, user agent and session id
+      # and keeps the event (operator, 2026-11-01), so the account history
+      # draws it with no network identity.
+      context "with an event the IP pruner has cleared" do
+        setup do
+          create(:user_event, user: @user, category: :login, created_at: IpDataPruner::MAX_AGE.ago - 1.day)
+          PruneIpDataJob.perform_now
+          assert(UserEvent.exists?(user: @user, ip_addr: nil, session_id: nil, user_agent: nil))
+        end
+
+        should "render it for the owner and a moderator, as a list and as a table" do
+          [@user, create(:moderator_user)].product(%w[list table]).each do |viewer, mode|
+            get_auth user_events_path(mode: mode, search: { user_id: @user.id }), viewer
+            assert_response :success, "#{mode} for #{viewer.level_string}"
+          end
+        end
+      end
+
       should "show mods all events" do
         get_auth user_events_path, create(:moderator_user)
 

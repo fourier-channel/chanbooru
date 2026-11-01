@@ -1757,7 +1757,7 @@ CREATE TABLE public.login_sessions (
     updated_at timestamp(6) without time zone NOT NULL,
     user_id bigint NOT NULL,
     login_id uuid NOT NULL,
-    session_id uuid NOT NULL,
+    session_id uuid,
     status integer NOT NULL,
     last_seen_at timestamp(6) without time zone
 );
@@ -9466,6 +9466,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261101000003'),
 ('20261101000002'),
 ('20261101000001'),
 ('20261031120000'),

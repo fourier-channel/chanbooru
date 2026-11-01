@@ -1,7 +1,7 @@
 require "test_helper"
 
-# Operator ruling, 2026-11-01: IP addresses and user agents live 7 days.
-# IpDataPruner names each store and the timestamp that dates it.
+# Operator ruling, 2026-11-01: IP addresses and user agents live at most 7
+# days. IpDataPruner names each store and the timestamp that dates it.
 class PruneIpDataJobTest < ActiveJob::TestCase
   def old
     IpDataPruner::MAX_AGE.ago - 1.day
@@ -18,8 +18,8 @@ class PruneIpDataJobTest < ActiveJob::TestCase
   end
 
   context "PruneIpDataJob" do
-    should "state the period once, as the operator ruled it" do
-      assert_equal(7.days, IpDataPruner::MAX_AGE)
+    should "state the period once, so an hourly run keeps nothing past 7 days" do
+      assert_equal(6.days, IpDataPruner::MAX_AGE)
     end
 
     should "be queued by the hourly maintenance" do
@@ -48,6 +48,39 @@ class PruneIpDataJobTest < ActiveJob::TestCase
       should "leave a fresh event untouched" do
         assert_equal(@fresh_snapshot, @fresh_event.reload.attributes)
         assert_not_nil(@fresh_event.ip_addr)
+      end
+    end
+
+    context "on login_sessions" do
+      setup do
+        @old_login = create(:login_session, last_seen_at: old)
+        @unseen_login = create(:login_session, last_seen_at: nil)
+        @fresh_login = create(:login_session, last_seen_at: fresh)
+        @fresh_snapshot = @fresh_login.reload.attributes
+        PruneIpDataJob.perform_now
+      end
+
+      should "clear the browser id of a login seen before the period, and of one never seen, and keep the login" do
+        @old_login.reload
+        assert_nil(@old_login.session_id)
+        assert_nil(@unseen_login.reload.session_id)
+        assert(@old_login.active?)
+        assert_not_nil(@old_login.login_id)
+      end
+
+      should "leave a login seen within the period untouched" do
+        assert_equal(@fresh_snapshot, @fresh_login.reload.attributes)
+        assert_not_nil(@fresh_login.session_id)
+      end
+
+      should "leave no event's browser id reachable through its login" do
+        login = create(:login_session, last_seen_at: old)
+        event = create(:user_event, created_at: old, user: login.user, login_session: login, session_id: login.session_id)
+
+        PruneIpDataJob.perform_now
+
+        assert_nil(event.reload.session_id)
+        assert_nil(LoginSession.find_by!(login_id: event.login_session_id).session_id)
       end
     end
 
@@ -135,14 +168,16 @@ class PruneIpDataJobTest < ActiveJob::TestCase
     should "report what it would change, and change nothing doing so" do
       create(:user_event, created_at: old)
       create(:user, last_ip_addr: "203.0.113.6", last_logged_in_at: old)
+      create(:login_session, last_seen_at: old)
 
       pending = IpDataPruner.new.pending
       assert_equal(1, pending[:user_events])
+      assert_equal(1, pending[:login_sessions])
       assert_equal(1, pending[:users])
       assert_equal(pending, IpDataPruner.new.pending)
 
       PruneIpDataJob.perform_now
-      assert_equal({ user_events: 0, users: 0, api_keys: 0, ip_geolocations: 0, user_sessions: 0 }, IpDataPruner.new.pending)
+      assert_equal({ user_events: 0, login_sessions: 0, users: 0, api_keys: 0, ip_geolocations: 0, user_sessions: 0 }, IpDataPruner.new.pending)
     end
   end
 end
