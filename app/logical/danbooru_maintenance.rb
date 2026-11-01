@@ -11,6 +11,10 @@ module DanbooruMaintenance
     queue PruneUploadsJob
     queue PruneJobsJob
     queue PruneBansJob
+    # Fork: IP addresses and user agents live IpDataPruner::MAX_AGE (7 days,
+    # operator 2026-11-01). Hourly, not daily, so they outlive it by at most
+    # an hour rather than a day.
+    queue PruneIpDataJob
     # LandingShowcaseRefreshJob is NOT here any more: it runs on its own
     # clock in config/initializers/clockwork.rb, every
     # LandingShowcaseCache::REFRESH_EVERY, because hourly was far too long for
