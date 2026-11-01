@@ -39,6 +39,7 @@ which is why nearly every signed-out cell says gate 10.
 | its creator set it to private (gate 9) | {no: gate 10} / {no: gate 10} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {yes: logged} / {yes: logged} | {yes} / {yes} |
 | a flagged tag (gate 12) | {no: gate 10} / {no: gate 10} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {yes} / {yes} | {yes: its own} / {yes: its own} |
 | a Matrix upload, viewer not in its room (gate 3) | {no: gate 10} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {yes} / {yes: via R2} |
+| that upload, placed on its creator's public gallery | {yes: about 2 h} / {yes: about 2 h} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {yes} / {yes: via R2} |
 
 **The columns.**
 
@@ -239,8 +240,9 @@ with the rooms you have joined. A site asset -- an avatar, a room icon, an
 emote -- is visible to any signed-in viewer with a verified Matrix identity.
 Everyone else gets no post: not in search, paging or next/previous, and its
 page answers 404. **Admins are not exempt**; Matrix posts are moderated in the
-jail panel. Signed out, or signed in with a board account but no verified
-Matrix identity, there are no Matrix posts at all. A tag name found only on
+jail panel. Signed in with a board account but no verified Matrix identity,
+there are no Matrix posts at all; signed out, none either, except what a
+creator placed on a public gallery (below). A tag name found only on
 Matrix posts you cannot see is absent from your tag lists. Counts are not
 narrowed: a tag's count may include Matrix posts you cannot see. If the board
 cannot learn which rooms you have joined, you get no Matrix posts.
@@ -249,6 +251,16 @@ cannot learn which rooms you have joined, you get no Matrix posts.
 while the message that placed the image there still stands. Once it is
 deleted, that room's members are refused the image within the caching window
 below. The same holds for a deleted avatar, room icon or emote.
+
+**A creator's public gallery lets its own pictures out.** A Matrix post a
+creator placed on a gallery that is not private -- a hero pick, a miniband
+picture, the banner, a Tuner picture -- passes this gate for signed-out
+visitors for about two hours after the gallery is viewed signed out, and the
+next view renews it. It passes this gate only: a deleted, jailed, flagged or
+otherwise hidden post stays hidden, a post whose every message was deleted
+stays hidden, and a private gallery grants nothing. Signed-in viewers outside
+the post's rooms are not affected. Its page and image open like any other
+signed-out post's: while the site is showing it (gate 10).
 
 **An upload that never became a post** is visible only to admins and to the
 bot that uploaded it.
@@ -288,6 +300,7 @@ storage does not hold is refused (404); there is no second source.
 | an ordinary post (`1girl`) on the site's welcome page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 | that same `1girl`, once it leaves the hero band | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 | a Matrix upload, viewer not in its room (gate 3) | {no: gate 10} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {yes} / {yes: via R2} |
+| that upload, placed on its creator's public gallery | {yes: about 2 h} / {yes: about 2 h} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {yes} / {yes: via R2} |
 
 ---
 
