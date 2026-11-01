@@ -95,6 +95,21 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Whether the post is hidden from @gold, whose rooms are `rooms`; the search
+  # and the post's own rule must agree.
+  def hidden_from_gold?(post, rooms: [MatrixViewerRooms::NOT_MATRIX])
+    CreatorVisibility.forget!
+    MatrixViewerRooms.stubs(:ids).returns(rooms)
+    CurrentUser.set(user: @gold, request: ActionDispatch::TestRequest.create) do
+      found = PostQuery.normalize("id:#{post.id}", current_user: @gold).with_implicit_metatags.posts.pluck(:id)
+      hidden = post.reload.hidden_from?(@gold)
+      assert_equal !hidden, found.include?(post.id), "the search and Post#hidden_from? must agree"
+      hidden
+    end
+  ensure
+    MatrixViewerRooms.unstub(:ids)
+  end
+
   def md5_ask(posts)
     get posts_path(format: :json), params: { tags: "md5:#{posts.map(&:md5).join(",")}", only: "md5,is_deleted,source", limit: posts.size }
     assert_response :success
@@ -207,6 +222,59 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
       reset!
       view(headers: { "X-Fourier-Identity" => "@bob:41chan.net" })
       assert(rendered?(@hero), "a verified Matrix viewer outside the rooms was not drawn the placed Matrix post")
+    end
+  end
+
+  # The grant opens Gate 3 only for a post the image door can then serve
+  # (operator, 2026-11-01: as the hero band, a card whose picture would not
+  # come is absent, and the rest go on). The Matrix door asks the booru as
+  # nobody for a viewer outside the rooms, so a placed post that a signed-out
+  # viewer may not see, Gate 3 aside, is not granted -- not even to a viewer
+  # whose own gates would pass it. Inside its rooms it shows as ever.
+  context "a placed post a signed-out viewer may not see" do
+    setup do
+      @gold = create(:gold_user)
+      @gated = as(@tunnel) { create(:post, uploader: @tunnel, md5: SecureRandom.hex(16), tag_string: "night child", rating: "g") }
+      FourierPostCreator.create!(post: @gated, mxid: @gallery.matrix_id, recorded_by: @tunnel.id)
+      @gated.update_columns(room_ids: @hero.room_ids) # rubocop:disable Rails/SkipsModelValidations -- PostMxc's answer
+      @gallery.creator_gallery_posts.create!(band: "hero", post: @gated, position: 10)
+      CreatorVisibility.forget!
+    end
+
+    should "be absent for a Gold viewer outside its rooms, the rest of the band drawn" do
+      view(@gold)
+      assert(rendered?(@hero), "fixture: the placed post every viewer may see is drawn")
+      assert_not(rendered?(@gated), "a placed post the image door would refuse was drawn for a Gold viewer outside its rooms")
+      assert(hidden_from_gold?(@gated))
+      assert_not(hidden_from_gold?(@hero))
+
+      reset!
+      MatrixViewerRooms.stubs(:ids).returns([MatrixViewerRooms::NOT_MATRIX, MatrixViewerRooms::SITE_ASSET])
+      view(@gold, headers: { "X-Fourier-Identity" => "@bob:41chan.net" })
+      assert(rendered?(@hero), "fixture: a verified Matrix viewer outside the rooms is drawn the placed post every viewer may see")
+      assert_not(rendered?(@gated), "drawn for a verified Matrix viewer outside its rooms")
+    end
+
+    should "be absent when banned, for an approver outside its rooms" do
+      approver = create(:approver)
+      @gated.update_columns(tag_string: "night", is_banned: true) # rubocop:disable Rails/SkipsModelValidations
+      view(approver)
+      assert(rendered?(@hero), "fixture: the placed post every viewer may see is drawn")
+      assert_not(rendered?(@gated), "a banned placed post, whose md5 the signed-out ask withholds, was drawn for an approver outside its rooms")
+    end
+
+    should "be drawn for a Gold viewer inside its rooms, as without the grant" do
+      inside = [MatrixViewerRooms::NOT_MATRIX, MatrixViewerRooms::SITE_ASSET, *@gated.room_ids]
+      MatrixViewerRooms.stubs(:ids).returns(inside)
+      view(@gold)
+      assert(rendered?(@gated), "a Gold viewer inside the rooms was not drawn the gated post")
+      assert_not(hidden_from_gold?(@gated, rooms: inside))
+    end
+
+    should "be refused by the image door's md5 ask, as its card is absent" do
+      view(@gold)
+      reset!
+      assert_equal [@hero.md5], md5_ask([@hero, @gated])
     end
   end
 

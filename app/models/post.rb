@@ -2299,8 +2299,10 @@ class Post < ApplicationRecord
   # The one exception (operator, 2026-11-01): a post placed on a public
   # creator's page someone opened passes, for every viewer, while the record
   # is fresh (MatrixViewerRooms.placed_grant) -- unless it has no rooms left:
-  # redaction still wins (2026-10-15). Read only once the rooms have said
-  # hidden, so every other post costs nothing more.
+  # redaction still wins (2026-10-15) -- and only if a signed-out viewer may
+  # see it, this gate aside, since the image door serves it to no one else.
+  # Read only once the rooms have said hidden, so every other post costs
+  # nothing more.
   #
   # A post loaded without the column (a narrowed select) reads it rather
   # than guess.
@@ -2311,7 +2313,7 @@ class Post < ApplicationRecord
     return false if rooms == [MatrixViewerRooms::NOT_MATRIX]
     return false if rooms.intersect?(MatrixViewerRooms.ids(user))
 
-    rooms.empty? || MatrixViewerRooms.placed_grant(user).exclude?(id)
+    rooms.empty? || MatrixViewerRooms.placed_grant.exclude?(id)
   end
 
   # A new Matrix post starts closed ({}): until fourier-auth has answered for
@@ -2429,8 +2431,10 @@ class Post < ApplicationRecord
   # both to the same fixtures.
   #
   # by_creator: false leaves out the creator term, for a caller that holds
-  # the ids already and checks them in Ruby (hidden_ids_among).
-  def self.hidden_from(user, by_creator: true)
+  # the ids already and checks them in Ruby (hidden_ids_among). rooms: false
+  # leaves out Gate 3's, for the one question asked of every gate but it --
+  # which placed posts the image door can serve (MatrixViewerRooms.placed_grant).
+  def self.hidden_from(user, by_creator: true, rooms: true)
     tags = "string_to_array(posts.tag_string, ' ')"
     terms = []
     # The tag names that hide a post whoever uploaded it, as ONE overlap:
@@ -2475,7 +2479,7 @@ class Post < ApplicationRecord
     # public creator's page with rooms left (MatrixViewerRooms.condition,
     # operator 2026-11-01). room_ids is NOT NULL, so the inversion
     # without_hidden_posts makes of it is exact.
-    terms << where("NOT (#{MatrixViewerRooms.condition(user)})") if MatrixViewerRooms.enforced_for?(user)
+    terms << where("NOT (#{MatrixViewerRooms.condition(user)})") if rooms && MatrixViewerRooms.enforced_for?(user)
 
     # By id, as PostQuery#hidden_post_metatags excludes them -- one array
     # literal, unnested, for the reasons Searchable#attribute_matches gives
@@ -2593,11 +2597,11 @@ class Post < ApplicationRecord
   # creator-hidden ones are read from the per-request set in memory, not
   # sent back to the database as a list of every hidden id (measured,
   # 2026-10-08: ~200 ms of a 1,000-pool page).
-  def self.hidden_ids_among(ids, user = CurrentUser.user)
+  def self.hidden_ids_among(ids, user = CurrentUser.user, rooms: true)
     return Set.new if ids.empty?
 
     by_creator = CreatorVisibility.hidden_ids(user) & ids
-    hidden = hidden_from(user, by_creator: false)
+    hidden = hidden_from(user, by_creator: false, rooms: rooms)
     hidden.nil? ? by_creator : by_creator | where(id: ids.uniq).and(hidden).pluck(:id)
   end
 

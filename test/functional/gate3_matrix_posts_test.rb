@@ -241,7 +241,7 @@ class Gate3MatrixPostsTest < ActionDispatch::IntegrationTest
     should "grant nothing outside a request: a job is no viewer" do
       CurrentUser.set(user: User.anonymous, request: nil) do
         CreatorVisibility.forget!
-        assert_empty MatrixViewerRooms.placed_grant(User.anonymous)
+        assert_empty MatrixViewerRooms.placed_grant
         assert(@art.reload.hidden_from?(User.anonymous), "a job was granted a placed post")
         found = PostQuery.normalize("gate3_tag", current_user: User.anonymous).with_implicit_metatags.posts.pluck(:id)
         assert_equal [@newest, @plain].map(&:id).sort, found.sort
