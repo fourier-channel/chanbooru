@@ -69,28 +69,28 @@ class MatrixViewerRooms
   end
 
   # THE PLACED-POST GRANT (operator, 2026-11-01): the posts placed on a
-  # public creator's page a signed-out viewer opened, fresh
-  # (MembersOnly.anonymous_placed_ids), pass gate 3 for a signed-out viewer
-  # -- the anonymous user with no verified Matrix identity on the request.
-  # Empty for everyone else: a signed-in viewer outside a post's rooms is not
-  # ruled on, so is unchanged; and empty with no request at all, since a job
-  # or a console is no viewer -- LandingShowcaseCache's refresh searches as
-  # User.anonymous for a list every viewer is served. Read once a request
-  # (CreatorVisibility.memoized): a page asks it per post and per search,
-  # and nothing in front of the cache absorbs the reads.
+  # public creator's page someone opened, fresh (MembersOnly.placed_ids),
+  # pass gate 3 for every viewer -- signed out, signed in, or a verified
+  # Matrix identity outside the post's rooms: "an unlock for gate 3 on that
+  # specific view surface and not scoped to any given user". Empty with no
+  # request at all, since a job or a console is no viewer --
+  # LandingShowcaseCache's refresh searches as User.anonymous for a list
+  # every viewer is served, long after a grant has lapsed. Read once a
+  # request (CreatorVisibility.memoized): a page asks it per post and per
+  # search, and nothing in front of the cache absorbs the reads.
   def self.placed_grant(user, request: CurrentUser.request)
-    return Set.new unless request && user&.is_anonymous? && identity(user, request).nil?
+    return Set.new unless request
 
-    CreatorVisibility.memoized(PLACED_GRANT, user) { MembersOnly.anonymous_placed_ids }
+    CreatorVisibility.memoized(PLACED_GRANT, user) { MembersOnly.placed_ids }
   end
 
   # What gate 3 shows `user`, as one row condition: the rooms meet theirs,
-  # or, signed out, the post is placed (#placed_grant) and has rooms left --
+  # or the post is placed (#placed_grant) and has rooms left --
   # REDACTION STILL WINS (operator, 2026-10-15): a post whose every placement
   # was redacted, or a new one still closed, is {} and stays hidden. The
   # grant's ids are inlined as one literal, unnested, as the room set is
-  # (#literal), and only when there are any, so a signed-in search and an
-  # empty record read exactly as before. PostQuery#matrix_rooms_condition
+  # (#literal), and only when there are any, so an empty record reads
+  # exactly as before. PostQuery#matrix_rooms_condition
   # filters on it; Post.hidden_from inverts it.
   def self.condition(user)
     overlap = "posts.room_ids && #{literal(user)}"

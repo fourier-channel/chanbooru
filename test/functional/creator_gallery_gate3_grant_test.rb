@@ -7,14 +7,14 @@ require "test_helper"
 # those posts that lets them through Gate 3 (specifically). Just as with all
 # other signed-out content, the authorizations are temporary."
 #
-# A signed-out view of a creator's page that is not private records the posts
-# its creator PLACED there -- the hero picks, each miniband's posts, the
+# A view of a creator's page that is not private, by anyone, records the
+# posts its creator PLACED there -- the hero picks, each miniband's posts, the
 # banner and the Tuner's pictures, as stored -- for the hour or two the shown
-# record keeps (MembersOnly.remember_placed_for_anonymous). While fresh, a
-# Matrix post among them passes Gate 3 for a signed-out viewer, and nothing
-# else: every other gate still hides it, a post whose every placement was
-# redacted (no rooms) stays hidden, and a signed-in viewer outside its rooms
-# is not ruled on, so is unchanged.
+# record keeps (MembersOnly.remember_placed). While fresh, a Matrix post among
+# them passes Gate 3 for every viewer, signed in or out (operator, 2026-11-01:
+# "an unlock for gate 3 on that specific view surface and not scoped to any
+# given user"), and nothing else: every other gate still hides it, and a post
+# whose every placement was redacted (no rooms) stays hidden.
 class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
   include TagQuarantineTestHelper
 
@@ -162,7 +162,7 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
       # The page's own rules refuse the jailed and the deleted one, so their
       # placements grant nothing; the rest are recorded, and another gate
       # must hide them.
-      assert_equal [flagged, prefixed].map(&:id).sort, (others.map(&:id) & MembersOnly.anonymous_placed_ids.to_a).sort
+      assert_equal [flagged, prefixed].map(&:id).sort, (others.map(&:id) & MembersOnly.placed_ids.to_a).sort
       others.each { |post| assert_not(drawn?(post), "post ##{post.id} was drawn") }
       assert_empty found_signed_out(others)
       MembersOnly.remember_shown_to_anonymous(others.map(&:id), safe_mode: false)
@@ -191,32 +191,53 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
       assert(rendered?(@hero), "fixture: the creator's own placed post is on the page")
       [foreign, misfit].each do |post|
         assert_not(rendered?(post), "post ##{post.id} is on the page")
-        assert_not_includes MembersOnly.anonymous_placed_ids, post.id, "post ##{post.id}, which the page refuses, was recorded as placed"
+        assert_not_includes MembersOnly.placed_ids, post.id, "post ##{post.id}, which the page refuses, was recorded as placed"
       end
       assert_empty found_signed_out([foreign, misfit])
     end
 
-    should "leave a signed-in viewer outside the rooms as they were" do
-      view
+    should "draw its placed posts to a signed-in viewer outside the rooms too" do
       member = create(:user)
       view(member)
-      assert_not(rendered?(@hero), "a member outside the rooms was drawn the Matrix post")
-      assert(rendered?(@plain))
+      assert(rendered?(@hero), "a member outside the rooms was not drawn the placed Matrix post")
+      assert_not(rendered?(@redacted))
       CreatorVisibility.forget!
-      assert(CurrentUser.set(user: member, request: nil) { @hero.reload.hidden_from?(member) })
+      assert_not(CurrentUser.set(user: member, request: ActionDispatch::TestRequest.create) { @hero.reload.hidden_from?(member) })
 
       reset!
       view(headers: { "X-Fourier-Identity" => "@bob:41chan.net" })
-      assert_not(rendered?(@hero), "a verified Matrix viewer outside the rooms was drawn the Matrix post")
+      assert(rendered?(@hero), "a verified Matrix viewer outside the rooms was not drawn the placed Matrix post")
     end
   end
 
-  context "a private page viewed signed out" do
+  context "a public page viewed signed in" do
+    should "record its placed posts for everyone, and answer the image door's md5 ask for them" do
+      member = create(:user)
+      view(member)
+      placed = MembersOnly.placed_ids
+      [@hero, @mini, @banner, @picture].each { |post| assert_includes placed, post.id }
+      [@plain, @loose].each { |post| assert_not_includes placed, post.id }
+
+      # The Matrix door asks the booru as nobody for a token holder outside
+      # the rooms, so the md5 ask answers the placed posts whoever viewed the
+      # page; never one with no rooms left, nor one not placed.
+      reset!
+      assert_equal [@hero.md5], md5_ask([@hero, @loose, @redacted])
+      # A signed-in view draws nothing for a signed-out viewer: the post's page
+      # opens to one only when a signed-out view drew it (gate 10).
+      assert_not(drawn?(@hero))
+      get post_path(@hero)
+      assert_response 404
+    end
+  end
+
+  context "a private page" do
     setup { @gallery.update!(page_private: true) }
 
     should "record nothing, so its Matrix posts stay hidden" do
+      view(@owner)
       view
-      assert_empty MembersOnly.anonymous_placed_ids
+      assert_empty MembersOnly.placed_ids
       assert_not(drawn?(@banner), "a private page's Matrix banner was drawn")
       assert_equal [@plain.id], found_signed_out([@hero, @plain, @mini, @banner, @picture])
     end

@@ -411,7 +411,7 @@ module CreatorVisibility
   def forget! = Memo.reset
 
   # Forget one kind of memo, for every viewer: its source was just written in
-  # this request (MembersOnly.remember_placed_for_anonymous).
+  # this request (MembersOnly.remember_placed).
   def forget(kind) = Memo.sets&.delete_if { |key, _| key.first == kind }
 
   # --- internals ---

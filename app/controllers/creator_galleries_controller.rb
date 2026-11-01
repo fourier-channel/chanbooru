@@ -120,18 +120,16 @@ class CreatorGalleriesController < ApplicationController
   # is its banner and avatar and nothing else, cut here before anything
   # renders or is granted: no band, no News, no join section.
   #
-  # A page that is not private, opened signed out, first records the posts
-  # its creator placed on it, which lets them through Gate 3 for signed-out
-  # viewers while fresh (operator, 2026-11-01;
-  # MembersOnly.remember_placed_for_anonymous) -- before the draw, so the
-  # draw draws them. Whether or not default-deny is on: Gate 3 hides Matrix
-  # posts from a signed-out viewer either way. A private page records
-  # nothing, even for a viewer it is open to.
+  # A page that is not private, opened by anyone, first records the posts
+  # its creator placed on it, which lets them through Gate 3 for every viewer
+  # while fresh (operator, 2026-11-01: "not scoped to any given user";
+  # MembersOnly.remember_placed) -- before the draw, so the draw draws them.
+  # A private page records nothing, even for a viewer it is open to.
   def show
     skip_authorization
     viewer = CurrentUser.user
     @layout = CreatorGalleryLayout.new(@gallery)
-    MembersOnly.remember_placed_for_anonymous(@layout.placed_post_ids) if !@gallery.page_private? && MembersOnly.signed_out?(viewer, request)
+    MembersOnly.remember_placed(@layout.placed_post_ids) unless @gallery.page_private?
     @draw = @layout.draw(viewer, manager: owner_identity? || viewer.is_admin?)
     @avatar = @layout.avatar(viewer)
     @closed = !@gallery.page_open_to?(viewer, request)

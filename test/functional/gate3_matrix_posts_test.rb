@@ -188,15 +188,16 @@ class Gate3MatrixPostsTest < ActionDispatch::IntegrationTest
   end
 
   # THE PLACED-POST GRANT (operator, 2026-11-01): a post placed on a public
-  # creator's page a signed-out viewer opened passes Gate 3 for a signed-out
-  # viewer while the record is fresh (MembersOnly.anonymous_placed_ids). Not
-  # one with no rooms left (redacted, or still closed); not a signed-in
-  # viewer, nor a verified Matrix one outside the rooms -- not ruled on.
+  # creator's page someone opened passes Gate 3 for every viewer while the
+  # record is fresh (MembersOnly.placed_ids) -- signed out, signed in, or a
+  # verified Matrix viewer outside its rooms: "an unlock for gate 3 on that
+  # specific view surface and not scoped to any given user". Not one with no
+  # rooms left (redacted, or still closed).
   context "a post placed on a public creator's page, with the switch on" do
     setup do
       Danbooru.config.stubs(:gate3_matrix_posts_enforced?).returns(true)
       Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
-      MembersOnly.remember_placed_for_anonymous([@art.id, @avatar.id, @unknown.id, @plain.id])
+      MembersOnly.remember_placed([@art.id, @avatar.id, @unknown.id, @plain.id])
       @request = ActionDispatch::TestRequest.create
     end
 
@@ -205,16 +206,16 @@ class Gate3MatrixPostsTest < ActionDispatch::IntegrationTest
       assert_equal [@newest, @avatar, @art, @plain].map(&:id), search_ids(nil, headers: {})
     end
 
-    should "leave a signed-in viewer and a verified Matrix viewer outside the rooms as they were" do
-      assert_equal [@art.id, @avatar.id, @unknown.id], hidden(@member)
-      assert_equal [@newest, @plain].map(&:id), search_ids(@member, headers: {})
+    should "pass Gate 3 for a signed-in viewer and a verified Matrix viewer outside the rooms too" do
+      assert_equal [@unknown.id], hidden(@member)
+      assert_equal [@newest, @avatar, @art, @plain].map(&:id), search_ids(@member, headers: {})
       joined("!elsewhere:41chan.net")
-      assert_equal [@newest, @avatar, @plain].map(&:id), search_ids(nil)
+      assert_equal [@newest, @avatar, @art, @plain].map(&:id), search_ids(nil)
     end
 
     should "read the record once a request, however many posts and searches ask" do
       reads = 0
-      count = ->(*, payload) { reads += 1 if payload[:key].to_s.include?("anonymous_placed") }
+      count = ->(*, payload) { reads += 1 if payload[:key].to_s.include?("gate3_placed") }
       ActiveSupport::Notifications.subscribed(count, "cache_read.active_support") do
         CurrentUser.set(user: User.anonymous, request: @request) do
           CreatorVisibility.forget!
@@ -232,12 +233,12 @@ class Gate3MatrixPostsTest < ActionDispatch::IntegrationTest
       CurrentUser.set(user: User.anonymous, request: @request) do
         CreatorVisibility.forget!
         assert(fresh.hidden_from?(User.anonymous), "fixture: not placed yet")
-        MembersOnly.remember_placed_for_anonymous([fresh.id])
+        MembersOnly.remember_placed([fresh.id])
         assert_not(fresh.hidden_from?(User.anonymous), "the grant read before the write was kept")
       end
     end
 
-    should "grant nothing outside a request: a job is no signed-out viewer" do
+    should "grant nothing outside a request: a job is no viewer" do
       CurrentUser.set(user: User.anonymous, request: nil) do
         CreatorVisibility.forget!
         assert_empty MatrixViewerRooms.placed_grant(User.anonymous)
@@ -247,17 +248,21 @@ class Gate3MatrixPostsTest < ActionDispatch::IntegrationTest
       end
     end
 
-    should "add the grant to a signed-out search alone, inline, with no rooms excluded" do
-      placed = [@art.id, @avatar.id, @unknown.id].sort.join(",")
-      sql = CurrentUser.set(user: User.anonymous, request: @request) do
-        PostQuery.normalize("gate3_tag", current_user: User.anonymous).with_implicit_metatags.posts.to_sql
+    should "add the grant to every viewer's search, inline, with no rooms excluded" do
+      grant = "posts.id IN (SELECT unnest('{#{[@art.id, @avatar.id, @unknown.id].sort.join(",")}}'::integer[]))"
+      [User.anonymous, @member].each do |user|
+        sql = CurrentUser.set(user: user, request: @request) do
+          PostQuery.normalize("gate3_tag", current_user: user).with_implicit_metatags.posts.to_sql
+        end
+        assert_includes sql, "(posts.room_ids && '{0}'::integer[] OR (cardinality(posts.room_ids) > 0 AND #{grant}))"
       end
-      assert_includes sql, "(posts.room_ids && '{0}'::integer[] OR (cardinality(posts.room_ids) > 0 AND posts.id IN (SELECT unnest('{#{placed}}'::integer[]))))"
 
+      Rails.cache.clear
       sql = CurrentUser.set(user: @member, request: @request) do
+        CreatorVisibility.forget!
         PostQuery.normalize("gate3_tag", current_user: @member).with_implicit_metatags.posts.to_sql
       end
-      assert_not_includes sql, "posts.id IN (SELECT unnest("
+      assert_not_includes sql, "posts.id IN (SELECT unnest(", "an empty record must leave the search as it was"
     end
   end
 end

@@ -2296,8 +2296,8 @@ class Post < ApplicationRecord
   # is on. A post that is not a Matrix post ({0}) is never asked about the
   # viewer's rooms. No creator's allow opens it, so it sits here.
   #
-  # The one exception (operator, 2026-11-01): signed out, a post placed on a
-  # public creator's page a signed-out viewer opened passes while the record
+  # The one exception (operator, 2026-11-01): a post placed on a public
+  # creator's page someone opened passes, for every viewer, while the record
   # is fresh (MatrixViewerRooms.placed_grant) -- unless it has no rooms left:
   # redaction still wins (2026-10-15). Read only once the rooms have said
   # hidden, so every other post costs nothing more.

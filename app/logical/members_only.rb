@@ -114,7 +114,7 @@ module MembersOnly
     "landing#show" => { formats: %i[html], why: "the front page, and the Open Graph tags a link unfurler (Discordbot) reads; its carousel is the live anonymous draw, on purpose (operator, 2026-10-08)" },
     "landing#slides" => { formats: %i[json], why: "the front page's 5-minute fresh draw. Operator, 2026-10-08: \"The landing carousel was the Anonymous draw, purposely. It let me choose creators to show off without opening the whole booru.\" Its scope is the rows the operator configured" },
     "landing#preference" => { formats: %i[html], why: "the front page's 'Skip this next time' form; sets a cookie on this browser and redirects, names nothing" },
-    "creator_galleries#show" => { formats: %i[html], why: "a creator's page, promoted or not (operator, 2026-10-23): the front page's Promoted Creators links there, and a claimed character's pill. It grants only the posts it drew, fresh (CreatorGalleriesController#grant_anonymous_draw); a page not private also lets the posts its creator placed through Gate 3, fresh (operator, 2026-11-01; remember_placed_for_anonymous); the list of pages stays shut" },
+    "creator_galleries#show" => { formats: %i[html], why: "a creator's page, promoted or not (operator, 2026-10-23): the front page's Promoted Creators links there, and a claimed character's pill. It grants only the posts it drew, fresh (CreatorGalleriesController#grant_anonymous_draw); a page not private also lets the posts its creator placed through Gate 3 for everyone, fresh (operator, 2026-11-01; remember_placed); the list of pages stays shut" },
     "modulation#creator_activity" => { formats: %i[json], why: "creator_lamps.js re-reads the activity lamps on the front page's creator pills; booleans for names the caller sent" },
 
     # --- browsing: the newest posts, and the posts the site showed -----------
@@ -277,12 +277,20 @@ module MembersOnly
   # fourier-auth reads an absent md5 as refused and then asks again as the
   # reader's own booru session, so a signed-in reader is unaffected.
   #
+  # And for a post placed on a public creator's page (placed_ids): its
+  # image is public while the grant is fresh, whoever opened the page
+  # (operator, 2026-11-01: "not scoped to any given user"). The Matrix door
+  # cannot ask as the reader's booru session -- it holds a Matrix token, not
+  # one -- so for a token holder outside the rooms it asks this, as nobody,
+  # and a signed-in view of the page must be enough. Its post page still
+  # opens signed out only for what a signed-out view drew.
+  #
   # fourier-auth's ask carries no safe mode, so both modes' shown sets count.
   # One batch (up to 20 rows) costs four cache reads and two cached newest
   # pages, whatever the batch holds; the rows kept are then
   # read back by primary key, so the answer renders as any other search does.
   def anonymous_md5_rows(posts)
-    shown = anonymous_shown_ids_in_either_mode
+    shown = anonymous_shown_ids_in_either_mode | placed_ids
     posts.where(id: posts.map(&:id).select { |id| shown.include?(id) })
   end
 
@@ -377,17 +385,19 @@ module MembersOnly
   #
   # The posts the creator placed on a page that is not private -- hero picks,
   # miniband posts, the banner, the Tuner's pictures, as stored
-  # (CreatorGalleryLayout#placed_post_ids) -- written by a signed-out view of
-  # it (CreatorGalleriesController#show) BEFORE the draw, so the draw sees
-  # the grant. Kept as the shown record is kept: an hourly bucket, read for
+  # (CreatorGalleryLayout#placed_post_ids) -- written by any view of it,
+  # signed in or out (CreatorGalleriesController#show; operator, 2026-11-01:
+  # "not scoped to any given user"), BEFORE the draw, so the draw sees the
+  # grant. Kept as the shown record is kept: an hourly bucket, read for
   # this hour and the last, two hours at most, the most recently placed kept
   # under the cap. One record for both safe modes: Gate 3 has nothing to do
   # with safe mode.
   #
-  # Read by Gate 3 alone (MatrixViewerRooms.placed_grant), for a signed-out
-  # viewer alone. Only the posts Gate 3 could hide are written -- a post that
-  # is not a Matrix post ({0}) is never asked about rooms -- so the list every
-  # signed-out search inlines is as long as the Matrix posts placed. The cap
+  # Read by Gate 3 (MatrixViewerRooms.placed_grant), for every viewer, and by
+  # the image door's md5 ask (anonymous_md5_rows). Only the posts Gate 3
+  # could hide are written -- a post that is not a Matrix post ({0}) is never
+  # asked about rooms -- so the list every search inlines is as long as the
+  # Matrix posts placed. The cap
   # is per bucket, and a read is two buckets: at most 4,000 ids, a literal of
   # about 30 KB, in practice far less, since a page viewed in both hours is
   # the same ids twice. A view writes its own page's posts again before
@@ -395,10 +405,10 @@ module MembersOnly
   PLACED_CAP = 2_000
 
   def placed_key(at)
-    ["members_only", "anonymous_placed", at.utc.strftime("%Y%m%d%H")]
+    ["members_only", "gate3_placed", at.utc.strftime("%Y%m%d%H")]
   end
 
-  def remember_placed_for_anonymous(ids, now: Time.current)
+  def remember_placed(ids, now: Time.current)
     return if ids.empty?
 
     matrix = Post.where(id: ids).where.not("posts.room_ids = '{#{MatrixViewerRooms::NOT_MATRIX}}'::integer[]").pluck(:id)
@@ -408,7 +418,7 @@ module MembersOnly
     CreatorVisibility.forget(MatrixViewerRooms::PLACED_GRANT)
   end
 
-  def anonymous_placed_ids(now: Time.current)
+  def placed_ids(now: Time.current)
     [now, now - 1.hour].flat_map { |at| Rails.cache.read(placed_key(at)).to_a }.to_set
   end
 
