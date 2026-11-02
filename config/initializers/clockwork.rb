@@ -9,8 +9,14 @@ module Clockwork
     File.write("tmp/danbooru-cron-heartbeat.txt", Time.now.utc.to_s + "\n")
   end
 
+  # Fork: every block that runs app code runs inside the Rails reloader, as a
+  # job or a request does. The cron process lives for days and is never a
+  # server, so without it a dev box keeps calling the code it booted with:
+  # vesper's cron, up 17 h, never queued PruneIpDataJob after ad69b11eb added
+  # it to `hourly`, and kept 13-day-old IPs (2026-11-01). In production code
+  # never changes under a running process, so this is the executor only.
   every(1.hour, "hourly", at: "**:00") do
-    DanbooruMaintenance.hourly
+    Rails.application.reloader.wrap { DanbooruMaintenance.hourly }
   end
 
   # Fork: the tag-count rebuild, hourly but OFF the hour. It aggregates the
@@ -22,7 +28,7 @@ module Clockwork
   # timers (read 2026-10-19: every five minutes on 0 and 2 past, and a few
   # daily ones in the first quarter of an hour) and of everything else here.
   every(1.hour, "regenerate-post-counts", at: "**:43") do
-    DanbooruMaintenance.queue(RegeneratePostCountsJob)
+    Rails.application.reloader.wrap { DanbooruMaintenance.queue(RegeneratePostCountsJob) }
   end
 
   # The multi-creator carousel rows: one search per creator, off the request
@@ -38,19 +44,21 @@ module Clockwork
   # job, so the carousel has one clock and a blog outage cannot stop the
   # creator rows refreshing.
   every(Danbooru.config.landing_refresh_every, "landing-showcase") do
-    LandingShowcaseRefreshJob.perform_later
-    LandingBlogRefreshJob.perform_later
+    Rails.application.reloader.wrap do
+      LandingShowcaseRefreshJob.perform_later
+      LandingBlogRefreshJob.perform_later
+    end
   end
 
   every(1.day, "daily", at: "00:00") do
-    DanbooruMaintenance.daily
+    Rails.application.reloader.wrap { DanbooruMaintenance.daily }
   end
 
   every(1.week, "weekly", at: "Sunday 00:00") do
-    DanbooruMaintenance.weekly
+    Rails.application.reloader.wrap { DanbooruMaintenance.weekly }
   end
 
   every(1.month, "monthly", at: "00:00") do
-    DanbooruMaintenance.monthly
+    Rails.application.reloader.wrap { DanbooruMaintenance.monthly }
   end
 end
