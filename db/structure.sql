@@ -2049,7 +2049,8 @@ CREATE TABLE public.modulation_settings (
     random_trails jsonb DEFAULT '{}'::jsonb NOT NULL,
     tuner_scan boolean,
     wheel_scroll boolean DEFAULT false NOT NULL,
-    creator_about_open boolean DEFAULT true NOT NULL
+    creator_about_open boolean DEFAULT true NOT NULL,
+    creator_about_boxes jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 
@@ -9466,6 +9467,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261102000001'),
 ('20261101000003'),
 ('20261101000002'),
 ('20261101000001'),

@@ -198,9 +198,9 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
     end
   end
 
-  # The hero band's panel (operator, 2026-11-01): no eyebrow of tags, and
-  # About at its top, its button at the panel's top right, open unless the
-  # viewer closed it (ModulationSetting creator_about_open).
+  # The hero band's panel (operator, 2026-11-01/02): no eyebrow of tags, and
+  # About's button at the panel's top right, its region above the panel,
+  # open unless the viewer closed it (ModulationSetting creator_about_open).
   context "the hero band's panel" do
     should "carry no eyebrow over the headline" do
       render_gallery
@@ -208,21 +208,20 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
       assert_css(".modcreator-hero > .modcreator-hero-head > h2.modcreator-headline:first-child", visible: :all)
     end
 
-    should "hold About at its top, open by default, above the band" do
+    should "keep only About's button in the band's panel, its region above the panel, open by default" do
       render_gallery
 
       assert_css("section.modcreator-hero > button.modcreator-about-btn[data-cg-act='about'][aria-controls='modcreator-about'][aria-expanded='true']")
-      assert_css("section.modcreator-hero > #modcreator-about.modcreator-about:not([hidden]) ~ .modcreator-hero-head")
-      assert_css("section.modcreator-hero > #modcreator-about ~ .modcreator-belt")
-      assert_css("#modcreator-about [data-cg-panel='bio']", text: "Nothing here yet.")
-      assert_no_css(".modcreator-head #modcreator-about, .modcreator-actions .modcreator-about-btn", visible: :all)
+      assert_css("main.modcreator-main > #modcreator-about.modcreator-about:not([hidden]) + section.modcreator-hero")
+      assert_no_css(".modcreator-hero #modcreator-about, .modcreator-hero .modcreator-box, .modcreator-head #modcreator-about, .modcreator-actions .modcreator-about-btn", visible: :all)
+      assert_css("#modcreator-about [data-cg-box='bio']", text: "Nothing here yet.")
     end
 
     should "start About closed for a viewer who closed it" do
       render_gallery(about_open: false)
 
       assert_css("section.modcreator-hero > button.modcreator-about-btn[aria-expanded='false']")
-      assert_css("section.modcreator-hero > #modcreator-about[hidden]", visible: :all)
+      assert_css("main.modcreator-main > #modcreator-about[hidden]", visible: :all)
     end
 
     should "draw no About, band or panel on a page closed to the viewer" do
@@ -231,6 +230,76 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
     end
   end
 
+  # The About boxes (operator, 2026-11-02): a chip per box to open and close
+  # it, a close control on each, a grip to resize it, every one as the viewer
+  # left it (ModulationSetting creator_about_boxes), by a kind that is the
+  # same on every gallery.
+  context "the About boxes" do
+    setup do
+      @gallery.update!(bio: "Fields and trees.")
+      @gallery.creator_gallery_messages.create!(body: "Commissions open")
+      CreatorGalleryComponent.any_instance.stubs(:characters).returns(["pine_(maple)"])
+    end
+
+    should "list every box on a chip, in order, each open with a close control and a resize grip" do
+      render_gallery
+
+      assert_equal(%w[bio characters blog], page.all("#modcreator-about .modcreator-about-chips button[data-cg-act='box']").pluck("data-v"))
+      assert_equal(%w[Bio Characters News], page.all("#modcreator-about .modcreator-about-chips button").map(&:text).map(&:strip))
+      assert_css(".modcreator-about-chips button[aria-pressed='true']", count: 3)
+      assert_css(".modcreator-about-chips button[data-v='blog'][aria-controls='modcreator-box-blog']")
+      assert_css(".modcreator-boxes > section.modcreator-box:not([hidden])", count: 3)
+      assert_equal(%w[bio characters blog], page.all(".modcreator-boxes > section.modcreator-box").pluck("data-cg-box"))
+      %w[bio characters blog].each do |kind|
+        assert_css("section#modcreator-box-#{kind}[data-cg-box='#{kind}'][data-flip-id='#{kind}']:not([style]) .modcreator-box-head button[data-cg-act='box'][data-v='#{kind}'][aria-label^='Close']")
+        assert_css("section#modcreator-box-#{kind} > .modcreator-box-body:not([style])")
+        assert_css("section#modcreator-box-#{kind} > .modcreator-box-grip[role='separator'][aria-orientation='horizontal'][tabindex='0'][aria-valuemin='80'][aria-valuemax='2000']")
+      end
+      assert_css("#modcreator-box-characters", text: "pine (maple)")
+      assert_css("#modcreator-box-blog", text: "Commissions open")
+    end
+
+    # Inside the region named About, nothing else is: the bio's box, its
+    # chip and its controls are the Bio, so "Close About" only ever means
+    # the region's own button.
+    should "name the bio's box Bio, so no control inside About is named About" do
+      render_gallery
+
+      assert_css("section#modcreator-box-bio[aria-label='Bio'] .modcreator-box-title", text: "Bio")
+      assert_css("#modcreator-box-bio .modcreator-box-x[aria-label='Close Bio']")
+      assert_css("#modcreator-box-bio .modcreator-box-grip[aria-label='Resize Bio']")
+      assert_no_css("#modcreator-about [aria-label*='About']:not(#modcreator-about):not(.modcreator-about-chips)", visible: :all)
+    end
+
+    should "draw each box as the viewer left it: closed ones hidden, a set height kept" do
+      render_gallery(about_boxes: { "characters" => { "open" => false }, "blog" => { "open" => true, "h" => 320 }, "gone" => { "open" => false }})
+
+      assert_css(".modcreator-about-chips button[data-v='characters'][aria-pressed='false']")
+      assert_css(".modcreator-about-chips button[data-v='blog'][aria-pressed='true']")
+      assert_css("#modcreator-box-characters[hidden]", visible: :all)
+      # A height is the body's, its content's room: the box's head and grip
+      # are always drawn whole around it, so the least height still shows 80px.
+      assert_css("#modcreator-box-blog:not([hidden]):not([style]) > .modcreator-box-body[style='height: 320px']")
+      assert_css("#modcreator-box-blog .modcreator-box-grip[aria-valuenow='320']")
+      assert_css("#modcreator-box-bio:not([hidden]):not([style]) > .modcreator-box-body:not([style])")
+      assert_no_css("[data-cg-box='gone'], [data-v='gone']", visible: :all)
+    end
+
+    should "name the edit page's sections by a slug of their title, and draw them as boxes like the rest" do
+      panels = ["Who sees the posts", "Booru account and creator tags", "Character claims", "Blog messages"].index_with { |name| ApplicationController.helpers.tag.p(name) }
+      render_gallery(can_edit: true, editing: true, palette: [], panels: panels, about_boxes: { "character-claims" => { "open" => false }})
+
+      assert_equal(%w[bio characters blog who-sees-the-posts booru-account-and-creator-tags character-claims blog-messages],
+                   page.all(".modcreator-about-chips button[data-cg-act='box']").pluck("data-v"))
+      assert_css("section#modcreator-box-character-claims.modcreator-box--wide[hidden]", visible: :all)
+      assert_css("section#modcreator-box-who-sees-the-posts.modcreator-box--wide:not([hidden]) > .modcreator-box-body", text: "Who sees the posts")
+    end
+
+    should "leave no trace of the old hide-and-list mechanism" do
+      render_gallery
+      assert_no_css(".modcreator-about-hidden, [data-cg-region='hidden-panels'], [data-cg-act='hide-panel'], [data-cg-act='show-panel'], [data-cg-panel]", visible: :all)
+    end
+  end
   # The wheel toggle (operator, 2026-11-01): on every hero band, the page's
   # wheel unless the viewer turns it on (ModulationSetting wheel_scroll).
   context "the hero band's wheel toggle" do
@@ -343,7 +412,7 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
       assert_css("[data-cg-act='save'][disabled]")
       assert_css("[data-cg-sheet='page']", visible: :all)
       assert_css("[data-cg-sheet='layout'] [data-cg-act='layout']", count: CreatorGalleryLayout::LAYOUTS.size, visible: :all)
-      assert_css("[data-cg-panel][data-cg-title='Blog messages'] #blog-form", visible: :all)
+      assert_css("section.modcreator-box--wide[data-cg-box='blog-messages'] #blog-form", visible: :all)
       # Discard reloads the page; a field the browser refilled would show what was discarded.
       assert_no_css("[data-cg-field]:not([autocomplete='off'])", visible: :all)
       assert_no_link("Edit Gallery")
@@ -352,7 +421,7 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
     should "draw the contact link hidden and the name box shown while the contact is off, to preview the switch" do
       assert_css(".modcreator-name a.modcreator-contact[data-cg-contact][hidden][title='Message on Matrix']", visible: :all)
       assert_css(".modcreator-name span.modcreator-contact[data-cg-contact-off]:not([hidden])", text: "Maple Woods")
-      assert_css(".modcreator-hero > #modcreator-about:not([hidden]) [data-cg-panel][data-cg-title='Blog messages']", visible: :all)
+      assert_css(".modcreator-main > #modcreator-about:not([hidden]) [data-cg-box='blog-messages']", visible: :all)
       assert_no_css(".modcreator-eyebrow", visible: :all)
     end
   end

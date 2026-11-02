@@ -38,9 +38,19 @@ class ModulationSetting < ApplicationRecord
   # always reloads after an auth action, so there is no preference to keep.
   # Dropped from the key list rather than defaulted to true, so a stored
   # `false` from before the ruling cannot come back and disable the reload.
-  PANEL_KEYS = %w[image_cap tags_expanded gallery_sort gallery_view gallery_show_deleted session_bar_open hero_band tuner_scan wheel_scroll creator_about_open].freeze
+  PANEL_KEYS = %w[image_cap tags_expanded gallery_sort gallery_view gallery_show_deleted session_bar_open hero_band tuner_scan wheel_scroll creator_about_open creator_about_boxes].freeze
 
   SESSION_KEY = :modulation_settings
+
+  # A change refused whole, its sentence naming the shape that is taken.
+  class Refused < StandardError; end
+
+  # A creator gallery's About boxes: a kind is a stable slug (bio, characters,
+  # blog, an edit-page section's title), a height its body's, in pixels: the
+  # room for its content, under its head and over its grip.
+  ABOUT_BOX_KIND = /\A[a-z0-9-]{1,40}\z/
+  ABOUT_BOX_HEIGHTS = 80..2000
+  ABOUT_BOX_LIMIT = 16
 
   validates :image_cap, inclusion: { in: IMAGE_CAPS }
   validates :gallery_view, inclusion: { in: GALLERY_VIEWS }
@@ -63,6 +73,10 @@ class ModulationSetting < ApplicationRecord
       # A creator gallery's About panel, one choice for every gallery; open
       # until the viewer closes it (operator, 2026-11-01).
       "creator_about_open" => true,
+      # Each About box as the viewer left it, by kind (operator, 2026-11-02):
+      # {"bio" => {"open" => false, "h" => 320}}. A box with no entry is open
+      # at its content's height.
+      "creator_about_boxes" => {},
     }
   end
 
@@ -78,9 +92,11 @@ class ModulationSetting < ApplicationRecord
   end
 
   # Persist a change for a viewer. Unknown keys are dropped, values validated;
-  # returns the resulting settings hash.
+  # returns the resulting settings hash. A creator_about_boxes change it cannot
+  # keep raises Refused, and nothing of the change is written.
   def self.record!(user, session, changes)
     clean = {}
+    clean["creator_about_boxes"] = about_boxes(for_viewer(user, session)["creator_about_boxes"], changes["creator_about_boxes"]) unless changes["creator_about_boxes"].nil?
     cap = changes["image_cap"].presence
     clean["image_cap"] = cap if IMAGE_CAPS.include?(cap)
     clean["tags_expanded"] = changes["tags_expanded"].to_s.truthy? unless changes["tags_expanded"].nil?
@@ -111,5 +127,29 @@ class ModulationSetting < ApplicationRecord
       session[SESSION_KEY] = defaults.merge((session[SESSION_KEY] || {}).merge(clean))
     end
     for_viewer(user, session)
+  end
+
+  # The viewer's About boxes with a change merged in, box by box: a PATCH
+  # carries only the box that changed. In a box, `open` is read like any
+  # flag and `h` is a height or nil for the content's; a box given nil is
+  # forgotten, back to open at its content's height.
+  def self.about_boxes(stored, change)
+    refuse = ->(what) { raise Refused, "creator_about_boxes #{what}. It takes {\"bio\": {\"open\": false, \"h\": 320}}: up to #{ABOUT_BOX_LIMIT} boxes by kind (a-z, 0-9 and -), each with open true or false and h #{ABOUT_BOX_HEIGHTS.min} to #{ABOUT_BOX_HEIGHTS.max} or null, or null to forget the box." }
+    refuse.call("is not an object of boxes") unless change.is_a?(Hash)
+    merged = change.reduce(stored.to_h) do |boxes, (kind, box)|
+      refuse.call("names a box #{kind.to_s.first(40).inspect} that is not a kind") unless ABOUT_BOX_KIND.match?(kind.to_s)
+      next boxes.except(kind.to_s) if box.nil?
+      refuse.call("gives #{kind} a #{box.class.name.downcase}, not an object") unless box.is_a?(Hash)
+      refuse.call("gives #{kind} #{(box.keys.map(&:to_s) - %w[open h]).join(", ")}, which a box does not keep") unless (box.keys.map(&:to_s) - %w[open h]).empty?
+      entry = (boxes[kind.to_s] || {}).merge(box.transform_keys(&:to_s))
+      entry["open"] = entry["open"].to_s.truthy? if entry.key?("open")
+      height = entry["h"]
+      height = height.to_i if height.is_a?(String) && height.match?(/\A\d+\z/)
+      refuse.call("gives #{kind} a height of #{entry["h"].inspect}") unless height.nil? || (height.is_a?(Integer) && ABOUT_BOX_HEIGHTS.cover?(height))
+      entry = entry.merge("h" => height).compact
+      entry.empty? ? boxes.except(kind.to_s) : boxes.merge(kind.to_s => entry)
+    end
+    refuse.call("would keep #{merged.size} boxes, more than #{ABOUT_BOX_LIMIT}") if merged.size > ABOUT_BOX_LIMIT
+    merged
   end
 end

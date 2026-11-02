@@ -24,7 +24,7 @@ class CreatorGalleryComponent < ApplicationComponent
   ROW_H = { 1 => 340, 2 => 300, 3 => 250, 4 => 230 }.freeze
   MIN_W = { 1 => 560, 2 => 360, 3 => 250, 4 => 220 }.freeze
 
-  attr_reader :gallery, :viewer, :draw, :avatar, :can_edit, :editing, :palette, :panels, :closed, :scan, :wheel, :about_open
+  attr_reader :gallery, :viewer, :draw, :avatar, :can_edit, :editing, :palette, :panels, :closed, :scan, :wheel, :about_open, :box_states
 
   # @param draw [Hash] CreatorGalleryLayout#draw(viewer)
   # @param avatar [Hash] CreatorGalleryLayout#avatar(viewer): { name:, mxc:, url:, problem: }
@@ -33,11 +33,13 @@ class CreatorGalleryComponent < ApplicationComponent
   # @param scan [Boolean, nil] the viewer's Tuner Scan (ModulationSetting tuner_scan)
   # @param wheel [Boolean] the hero band's wheel is the viewer's to step it (ModulationSetting wheel_scroll)
   # @param about_open [Boolean] About starts open (ModulationSetting creator_about_open)
-  def initialize(gallery:, viewer:, draw:, avatar:, can_edit:, scan:, editing: false, palette: nil, panels: nil, closed: false, wheel: false, about_open: true) # rubocop:disable Metrics/ParameterLists
+  # @param about_boxes [Hash] each About box as the viewer left it, by kind (ModulationSetting creator_about_boxes)
+  def initialize(gallery:, viewer:, draw:, avatar:, can_edit:, scan:, editing: false, palette: nil, panels: nil, closed: false, wheel: false, about_open: true, about_boxes: {}) # rubocop:disable Metrics/ParameterLists
     super
     @scan = scan
     @wheel = wheel
     @about_open = about_open
+    @box_states = about_boxes
     @closed = closed
     @gallery = gallery
     @viewer = viewer
@@ -197,6 +199,24 @@ class CreatorGalleryComponent < ApplicationComponent
 
   def messages
     gallery.creator_gallery_messages
+  end
+
+  # About's boxes in their fixed order, each as this viewer left it: the bio,
+  # the characters and the news where the page has them, then the edit page's
+  # own sections, whose html is drawn as given. A kind is the same on every
+  # gallery -- an edit section's is its title's slug -- so one viewer's choice
+  # for a box holds wherever that box is drawn. A box the viewer never
+  # touched is open at its content's height.
+  def about_boxes
+    @about_boxes ||= [
+      { kind: "bio", title: "Bio" },
+      ({ kind: "characters", title: "Characters" } if characters.any?),
+      ({ kind: "blog", title: "News" } if messages.any?),
+      *panels.to_h.map { |name, html| { kind: name.parameterize, title: name, html: html } },
+    ].compact.map do |box|
+      state = box_states[box[:kind]] || {}
+      box.merge(open: state.fetch("open", true), h: state["h"])
+    end
   end
 
   # The creator's original characters: their standing claims (CharacterClaim),

@@ -221,70 +221,84 @@
 
   <% unless closed %>
   <main class="modcreator-main">
+    <%# --- ABOUT: the creator's boxes, over the hero band's panel. Only its
+        button is in the panel, at the top right; opening About pushes the
+        panel down. It starts as the viewer last left it (ModulationSetting
+        creator_about_open, open by default), and so does each box: a chip
+        opens and closes it, the grip under it sets its height
+        (creator_about_boxes). Open boxes share the row's width. --- %>
+    <div class="modcreator-about" id="modcreator-about" role="region" aria-label="About" <%= "hidden" unless about_open %>>
+      <div class="modcreator-about-clip">
+        <div class="modcreator-about-chips" role="group" aria-label="About boxes">
+          <% about_boxes.each do |box| %>
+            <button type="button" class="cg-btn cg-btn--sm modcreator-about-chip" data-cg-act="box" data-v="<%= box[:kind] %>" aria-pressed="<%= box[:open] %>" aria-controls="modcreator-box-<%= box[:kind] %>"><%= box[:title] %></button>
+          <% end %>
+        </div>
+        <div class="modcreator-boxes" data-cg-region="boxes">
+          <% about_boxes.each do |box| %>
+            <%= tag.section(class: ["modcreator-box", "cg-glass", ("modcreator-box--wide" if box[:html])], id: "modcreator-box-#{box[:kind]}", hidden: !box[:open],
+                            aria: { label: box[:title] }, data: { cg_box: box[:kind], flip_id: box[:kind] }) do %>
+              <div class="modcreator-box-head">
+                <h2 class="cg-label modcreator-box-title"><%= box[:title] %></h2>
+                <button type="button" class="cg-btn cg-btn--sm modcreator-box-x" data-cg-act="box" data-v="<%= box[:kind] %>" aria-label="Close <%= box[:title] %>" title="Close">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+                </button>
+              </div>
+              <%# A height is the body's: the head and the grip are drawn whole
+                  around it, so the least a viewer can give still shows content. %>
+              <%= tag.div(class: "modcreator-box-body cg-scroll", style: ("height: #{box[:h]}px" if box[:h])) do %>
+                <% if box[:html] %>
+                  <%# The edit page's own sections, with their own forms and routes. %>
+                  <%= box[:html] %>
+                <% elsif box[:kind] == "bio" %>
+                  <p class="modcreator-bio" data-cg-static="bio"><%= gallery.bio.presence || "Nothing here yet." %></p>
+                <% elsif box[:kind] == "characters" %>
+                  <div class="modcreator-characters">
+                    <ul>
+                      <% characters.each do |tag| %>
+                        <li>
+                          <% if member? %>
+                            <%= link_to tag.tr("_", " "), helpers.posts_path(tags: tag) %>
+                            <%= link_to "wiki", helpers.wiki_page_path(tag), class: "modcreator-characters-wiki" %>
+                          <% else %>
+                            <%= tag.tr("_", " ") %>
+                          <% end %>
+                        </li>
+                      <% end %>
+                    </ul>
+                  </div>
+                <% else %>
+                  <div class="modcreator-blog">
+                    <% messages.each do |m| %>
+                      <article class="modcreator-post">
+                        <time class="modcreator-post-time"><%= m.created_at.strftime("%Y-%m-%d") %></time>
+                        <p class="modcreator-post-body"><%= m.body %></p>
+                      </article>
+                    <% end %>
+                  </div>
+                <% end %>
+              <% end %>
+              <%# The box's height, the viewer's to set: drag it, or arrow keys;
+                  a double-click or Home gives it back its content's height. %>
+              <div class="modcreator-box-grip" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="Resize <%= box[:title] %>"
+                   aria-valuemin="<%= ModulationSetting::ABOUT_BOX_HEIGHTS.min %>" aria-valuemax="<%= ModulationSetting::ABOUT_BOX_HEIGHTS.max %>" <% if box[:h] %>aria-valuenow="<%= box[:h] %>"<% end %>
+                   title="Drag to resize, or use the arrow keys. Double-click or Home fits the content.">
+                <span class="modcreator-box-grip-bar" aria-hidden="true"></span>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
     <%# --- THE HERO BAND: the landing page's own belt, on the posts the
         creator chose under the band's tags. Its axis tabs are the character
         filter: All, then each of the band's characters. --- %>
     <section class="modcreator-hero cg-glass" aria-label="Hero band">
-      <%# About sits at the top of the band's panel, its button at the
-          panel's top right; open, it pushes the band down. It starts as the
-          viewer last left it (ModulationSetting creator_about_open, open by
-          default). Each box can be put away; the ones put away are listed,
-          to bring back. %>
       <button type="button" class="cg-btn modcreator-about-btn" data-cg-act="about" aria-expanded="<%= about_open %>" aria-controls="modcreator-about">
         About
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
       </button>
-      <div class="modcreator-about" id="modcreator-about" <%= "hidden" unless about_open %>>
-        <div class="modcreator-about-hidden" data-cg-region="hidden-panels" hidden></div>
-        <div class="modcreator-boxes">
-          <section class="modcreator-box cg-glass" data-cg-panel="bio" data-cg-title="About">
-            <div class="modcreator-box-head"><h2 class="cg-label modcreator-box-title">About</h2><button type="button" class="cg-btn cg-btn--sm" data-cg-act="hide-panel">Hide</button></div>
-            <p class="modcreator-bio" data-cg-static="bio"><%= gallery.bio.presence || "Nothing here yet." %></p>
-          </section>
-
-          <% if characters.any? %>
-            <section class="modcreator-box cg-glass" data-cg-panel="characters" data-cg-title="Characters">
-              <div class="modcreator-box-head"><h2 class="cg-label modcreator-box-title">Characters</h2><button type="button" class="cg-btn cg-btn--sm" data-cg-act="hide-panel">Hide</button></div>
-              <div class="modcreator-characters">
-                <ul>
-                  <% characters.each do |tag| %>
-                    <li>
-                      <% if member? %>
-                        <%= link_to tag.tr("_", " "), helpers.posts_path(tags: tag) %>
-                        <%= link_to "wiki", helpers.wiki_page_path(tag), class: "modcreator-characters-wiki" %>
-                      <% else %>
-                        <%= tag.tr("_", " ") %>
-                      <% end %>
-                    </li>
-                  <% end %>
-                </ul>
-              </div>
-            </section>
-          <% end %>
-
-          <% if messages.any? %>
-            <section class="modcreator-box cg-glass" data-cg-panel="blog" data-cg-title="News">
-              <div class="modcreator-box-head"><h2 class="cg-label modcreator-box-title">News</h2><button type="button" class="cg-btn cg-btn--sm" data-cg-act="hide-panel">Hide</button></div>
-              <div class="modcreator-blog">
-                <% messages.each do |m| %>
-                  <article class="modcreator-post">
-                    <time class="modcreator-post-time"><%= m.created_at.strftime("%Y-%m-%d") %></time>
-                    <p class="modcreator-post-body"><%= m.body %></p>
-                  </article>
-                <% end %>
-              </div>
-            </section>
-          <% end %>
-
-          <%# The edit page's own sections, with their own forms and routes. %>
-          <% panels.to_h.each_with_index do |(name, html), i| %>
-            <section class="modcreator-box modcreator-box--wide cg-glass" data-cg-panel="panel-<%= i %>" data-cg-title="<%= name %>">
-              <div class="modcreator-box-head"><h2 class="cg-label modcreator-box-title"><%= name %></h2><button type="button" class="cg-btn cg-btn--sm" data-cg-act="hide-panel">Hide</button></div>
-              <%= html %>
-            </section>
-          <% end %>
-        </div>
-      </div>
 
       <div class="modcreator-hero-head">
         <h2 class="modcreator-headline modcreator-static" data-cg-static="headline"><%= look["headline"] %></h2>

@@ -158,7 +158,7 @@ media_assets: md5=keep file_ext=keep file_key=keep pixel_hash=keep
 media_metadata: metadata=derive
 mod_actions: description=derive subject_type=keep
 moderation_reports: model_type=keep reason=fill
-modulation_settings: image_cap=keep gallery_sort=keep gallery_view=keep random_trails=blank
+modulation_settings: image_cap=keep gallery_sort=keep gallery_view=keep random_trails=blank creator_about_boxes=keep
 news_updates: message=fill
 note_versions: body=fill
 notes: body=fill

@@ -23,9 +23,13 @@ class ModulationSettingsController < ApplicationController
     skip_authorization
     return update_blocklist if params[:blocklist].present?
 
-    changes = KEYS.index_with { |k| params[k] }.compact
+    # A nested value (creator_about_boxes) arrives as Parameters; the model
+    # cleans every key and value of it, so it is read as a plain hash.
+    changes = KEYS.index_with { |k| params[k] }.compact.transform_values { |v| v.respond_to?(:to_unsafe_h) ? v.to_unsafe_h : v }
     settings = ModulationSetting.record!(CurrentUser.user, session, changes)
     render json: settings, status: 200
+  rescue ModulationSetting::Refused => e
+    render json: { error: e.message }, status: 422
   end
 
   private

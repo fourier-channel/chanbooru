@@ -12,6 +12,8 @@ import {
   HANDLES, IDENTITY, move, pictureStyle, putView, resize, scaleBy, style as viewStyle, toBox, transform, viewIn,
 } from "./post_view";
 import Notice from "./notice";
+import { captureRects, playFLIP } from "./flip";
+import { clampHeight, keyHeight } from "./creator_about_model";
 
 // THE CREATOR GALLERY's page (CreatorGalleryComponent): the ground's parallax,
 // the minibands' cycles and the panels that descend from the header, for
@@ -1104,7 +1106,7 @@ function editor(root, data, bindMinis) {
     case "save": save(); break;
     case "tuner-mode": setTuner(v !== "off", v === "off" ? draft.tuner.placement : v); break;
     // About and the builder never show together (the gallery's own listener opened it).
-    case "about": if (!root.querySelector("#modcreator-about").hidden) { builder.close(); } break;
+    case "about": if (act.getAttribute("aria-expanded") === "true") { builder.close(); } break;
     case "discard":
       leaving = true;
       window.location.reload();
@@ -1322,9 +1324,15 @@ function editor(root, data, bindMinis) {
 
 // --- every viewer ----------------------------------------------------------
 
-// The PATCH modulation_landing_component.js saveSetting makes, for About.
-function saveAboutOpen(open) {
-  fetch("/modulation/settings", {
+// The PATCH modulation_landing_component.js saveSetting makes: About's own
+// choices, remembered per viewer (ModulationSetting). One at a time, in the
+// order made: each merges into what the one before it wrote, so two boxes
+// set within one round trip both stay -- two at once would each write back
+// what they read, and a signed-out viewer's settings are a cookie, whose
+// last Set-Cookie wins.
+let saving = Promise.resolve();
+function saveSetting(body, failure) {
+  saving = saving.then(() => fetch("/modulation/settings", {
     method: "PATCH",
     headers: {
       "X-CSRF-Token": (document.querySelector('meta[name="csrf-token"]') || {}).content || "",
@@ -1332,12 +1340,232 @@ function saveAboutOpen(open) {
       Accept: "application/json",
     },
     credentials: "same-origin",
-    body: JSON.stringify({ creator_about_open: open }),
-  }).then((r) => {
+    body: JSON.stringify(body),
+  })).then((r) => {
     if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
-  }).catch(() => {
-    Notice.error("Could not save whether About is open; it will not be remembered. Reload the page and set it again.");
+  }).catch(() => Notice.error(failure));
+}
+
+const saveBox = (kind, box) => saveSetting({ creator_about_boxes: { [kind]: box } },
+  "Could not save how this About box is set; it will not be remembered. Reload the page and set it again.");
+
+// The boxes' pop: up from a little below, a touch small, settling with the
+// formant's tag-pop ease (_tokens.scss --mod-tag-pop-ease).
+const POP_EASE = "cubic-bezier(0.2, 1.4, 0.4, 1)";
+const POP_IN = [{ opacity: 0, transform: "translateY(10px) scale(0.96)" }, { opacity: 1, transform: "none" }];
+const POP_OUT = [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(6px) scale(0.96)" }];
+// The region's own grow, as the stylesheet's .modcreator-about transition.
+const ABOUT_MS = 280;
+
+// About: its button in the band panel's corner opens the region over the
+// panel, which grows from nothing and pushes the panel down, its open boxes
+// popping up one after another; closing runs it backwards. Each box opens
+// and closes on its chip or its x, the others sliding to share the row, and
+// is as tall as its viewer drags or keys its grip. Every choice is the
+// viewer's, remembered; the builder and a link to a section open About
+// without asking, and are not.
+function bindAbout(root, reduced) {
+  const about = root.querySelector("#modcreator-about");
+  if (!about) { return null; }
+  const button = root.querySelector("[data-cg-act='about']");
+  const boxes = about.querySelector("[data-cg-region='boxes']");
+  const chipOf = (kind) => about.querySelector(`.modcreator-about-chip[data-v="${kind}"]`);
+  const boxOf = (kind) => about.querySelector(`[data-cg-box="${kind}"]`);
+
+  // A box's height is its body's (the head and grip are drawn around it): as
+  // tall as its content until its viewer sets it. Its grip always says it,
+  // set or measured, once the box is drawn.
+  const bodyOf = (box) => box.querySelector(".modcreator-box-body");
+  const heightOf = (box) => bodyOf(box).offsetHeight;
+  function setHeight(box, h) {
+    bodyOf(box).style.height = h === null ? "" : `${h}px`;
+    box.querySelector(".modcreator-box-grip").setAttribute("aria-valuenow", String(h ?? heightOf(box)));
+  }
+  const sayHeights = () => [...boxes.children].filter((box) => !box.hidden && !bodyOf(box).style.height).forEach((box) => setHeight(box, null));
+
+  // A turn of About's motion: a later click takes over from an earlier one
+  // mid-way, and the earlier one's timers do nothing.
+  let turn = 0;
+  let pops = [];
+  const page = document.scrollingElement;
+  const hero = button.closest(".modcreator-hero");
+  function setAbout(open, animate) {
+    turn += 1;
+    const mine = turn;
+    const later = (ms, fn) => setTimeout(() => { if (turn === mine) { fn(); } }, ms);
+    pops.forEach((pop) => pop.cancel());
+    pops = [];
+    page.style.overflowAnchor = "";
+    button.setAttribute("aria-expanded", String(open));
+    const shown = [...boxes.children].filter((box) => !box.hidden);
+    if (open) {
+      // Opening pushes the panel down where its viewer sees it: the browser's
+      // scroll anchoring would hold the panel still on screen and grow the
+      // region up out of sight, so it is off until the region is open. A
+      // region whose place is above the screen is scrolled to first.
+      page.style.overflowAnchor = "none";
+      const top = about.hidden ? hero.getBoundingClientRect().top : about.getBoundingClientRect().top;
+      if (top < 0) { window.scrollBy({ top: top - 16, behavior: animate ? "smooth" : "instant" }); }
+    }
+    if (!animate) {
+      about.hidden = !open;
+      about.inert = false;
+      about.classList.remove("is-shut", "is-moving");
+      if (open) { sayHeights(); }
+      later(ABOUT_MS, () => { page.style.overflowAnchor = ""; });
+      return;
+    }
+    if (open) {
+      about.inert = false;
+      if (about.hidden) {
+        about.hidden = false;
+        about.classList.add("is-shut");
+      }
+      about.classList.add("is-moving");
+      // One forced reflow commits the shut row, so the grow runs from it.
+      void about.offsetHeight;
+      about.classList.remove("is-shut");
+      sayHeights();
+      pops = shown.map((box, i) => box.animate(POP_IN, { duration: 240, delay: 80 + (i * 50), easing: POP_EASE, fill: "backwards" }));
+      later(Math.max(ABOUT_MS, 80 + (50 * (shown.length - 1)) + 240), () => {
+        about.classList.remove("is-moving");
+        page.style.overflowAnchor = "";
+      });
+    } else {
+      about.inert = true;
+      about.classList.add("is-moving");
+      pops = shown.reverse().map((box, i) => box.animate(POP_OUT, { duration: 140, delay: i * 30, easing: "ease-in", fill: "forwards" }));
+      later(100, () => about.classList.add("is-shut"));
+      later(100 + ABOUT_MS, () => {
+        about.hidden = true;
+        about.inert = false;
+        about.classList.remove("is-shut", "is-moving");
+        pops.forEach((pop) => pop.cancel());
+        pops = [];
+      });
+    }
+  }
+
+  // A box closing pops out first, then the rest slide into its room; a click
+  // on its chip mid-way keeps it.
+  const leaving = new Map();
+  function setBox(kind, open) {
+    const box = boxOf(kind);
+    chipOf(kind).setAttribute("aria-pressed", String(open));
+    leaving.get(kind)?.cancel();
+    leaving.delete(kind);
+    if (open) {
+      if (!box.hidden) { return; }
+      const prev = captureRects(boxes);
+      box.hidden = false;
+      // A box that was hidden measured nowhere: it pops, the rest slide.
+      prev.delete(kind);
+      playFLIP(boxes, prev);
+      // The row's widths changed, and with them every content height.
+      sayHeights();
+      if (!reduced) { box.animate(POP_IN, { duration: 220, easing: POP_EASE }); }
+      return;
+    }
+    const shut = () => {
+      const prev = captureRects(boxes);
+      box.hidden = true;
+      box.getAnimations().forEach((a) => a.cancel());
+      playFLIP(boxes, prev);
+      sayHeights();
+    };
+    if (reduced) { shut(); return; }
+    const pop = box.animate(POP_OUT, { duration: 140, easing: "ease-in", fill: "forwards" });
+    leaving.set(kind, pop);
+    // A cancelled pop (the chip clicked again) rejects: the box stays.
+    pop.finished.then(() => { leaving.delete(kind); shut(); }, () => null);
+  }
+
+  root.addEventListener("click", (e) => {
+    const act = e.target.closest("[data-cg-act='about'], [data-cg-act='box']");
+    if (!act || !root.contains(act)) { return; }
+    if (act.dataset.cgAct === "about") {
+      const open = act.getAttribute("aria-expanded") !== "true";
+      setAbout(open, !reduced);
+      // Opened by key (a click with no clicks counted), the focus goes on to
+      // what it opened: the region is above its button, and Tab from the
+      // button would carry on down the page past it.
+      if (open && e.detail === 0) { about.querySelector(".modcreator-about-chip").focus({ preventScroll: true }); }
+      saveSetting({ creator_about_open: open },
+        "Could not save whether About is open; it will not be remembered. Reload the page and set it again.");
+      return;
+    }
+    const kind = act.dataset.v;
+    const open = chipOf(kind).getAttribute("aria-pressed") !== "true";
+    setBox(kind, open);
+    // A box closed by its own x hands the focus to its chip, to open it again.
+    if (!open && act.classList.contains("modcreator-box-x")) { chipOf(kind).focus(); }
+    saveBox(kind, { open });
   });
+
+  // The grip. Keys step a box and its height is saved once they stop; a drag
+  // or a reset after a key drops the key's pending save, which would write
+  // the stepped height back over it.
+  const keyed = new Map();
+  const unkey = (kind) => {
+    clearTimeout(keyed.get(kind));
+    keyed.delete(kind);
+  };
+
+  boxes.addEventListener("pointerdown", (e) => {
+    const grip = e.target.closest(".modcreator-box-grip");
+    if (!grip || e.button !== 0) { return; }
+    const box = grip.closest("[data-cg-box]");
+    unkey(box.dataset.cgBox);
+    const startY = e.clientY;
+    const startH = heightOf(box);
+    const before = bodyOf(box).style.height;
+    grip.setPointerCapture(e.pointerId);
+    box.classList.add("is-sizing");
+    const drag = (ev) => setHeight(box, clampHeight(startH + ev.clientY - startY));
+    const end = () => {
+      grip.removeEventListener("pointermove", drag);
+      grip.removeEventListener("pointerup", end);
+      grip.removeEventListener("pointercancel", end);
+      box.classList.remove("is-sizing");
+      if (bodyOf(box).style.height !== before) { saveBox(box.dataset.cgBox, { h: parseInt(bodyOf(box).style.height, 10) }); }
+    };
+    grip.addEventListener("pointermove", drag);
+    grip.addEventListener("pointerup", end);
+    grip.addEventListener("pointercancel", end);
+  });
+
+  boxes.addEventListener("dblclick", (e) => {
+    const box = e.target.closest(".modcreator-box-grip")?.closest("[data-cg-box]");
+    if (!box) { return; }
+    unkey(box.dataset.cgBox);
+    setHeight(box, null);
+    saveBox(box.dataset.cgBox, { h: null });
+  });
+
+  boxes.addEventListener("keydown", (e) => {
+    const box = e.target.closest(".modcreator-box-grip")?.closest("[data-cg-box]");
+    if (!box) { return; }
+    const h = keyHeight(e.key, e.shiftKey, heightOf(box));
+    if (h === undefined) { return; }
+    e.preventDefault();
+    setHeight(box, h);
+    const kind = box.dataset.cgBox;
+    unkey(kind);
+    keyed.set(kind, setTimeout(() => {
+      keyed.delete(kind);
+      saveBox(kind, { h });
+    }, 400));
+  });
+
+  // A box at its content's height grows and shrinks with it (an edit form
+  // opening, an image arriving): its grip says the height it has when reached.
+  boxes.addEventListener("focusin", (e) => {
+    const box = e.target.closest(".modcreator-box-grip")?.closest("[data-cg-box]");
+    if (box && !bodyOf(box).style.height) { setHeight(box, null); }
+  });
+  if (!about.hidden) { sayHeights(); }
+
+  return { about, setAbout, setBox: (kind) => { boxOf(kind).hidden = false; chipOf(kind).setAttribute("aria-pressed", "true"); } };
 }
 
 function initGallery(root) {
@@ -1351,45 +1579,19 @@ function initGallery(root) {
     stops = Array.from(root.querySelectorAll("[data-cg-mini]"), (mini) => cycleMini(mini, reduced));
   };
 
-  // About sits at the top of the band's panel; one box put away is listed
-  // above the rest, to bring back.
-  function listHidden() {
-    const away = Array.from(root.querySelectorAll("[data-cg-panel]")).filter((box) => box.hidden);
-    const strip = root.querySelector("[data-cg-region='hidden-panels']");
-    strip.hidden = !away.length;
-    strip.replaceChildren(...away.map((box) => el("button", { type: "button", class: "cg-btn cg-btn--sm", "data-cg-act": "show-panel", "data-v": box.dataset.cgPanel }, `Show ${box.dataset.cgTitle}`)));
-  }
+  // A private page closed to this viewer has no About.
+  const about = bindAbout(root, reduced);
 
-  root.addEventListener("click", (e) => {
-    const act = e.target.closest("[data-cg-act]");
-    if (!act || !root.contains(act)) { return; }
-    if (act.dataset.cgAct === "about") {
-      const about = root.querySelector("#modcreator-about");
-      about.hidden = !about.hidden;
-      act.setAttribute("aria-expanded", String(!about.hidden));
-      // The viewer's own choice is remembered (ModulationSetting
-      // creator_about_open); the builder and a link to a section open About
-      // without asking, and are not.
-      saveAboutOpen(!about.hidden);
-    } else if (act.dataset.cgAct === "hide-panel") {
-      act.closest("[data-cg-panel]").hidden = true;
-      listHidden();
-    } else if (act.dataset.cgAct === "show-panel") {
-      root.querySelector(`[data-cg-panel="${act.dataset.v}"]`).hidden = false;
-      listHidden();
-    }
-  });
-
-  // A form in a panel redirects back to its own section (edit#creator-characters):
-  // the panels open on it.
-  const about = root.querySelector("#modcreator-about");
+  // A form in a box redirects back to its own section (edit#creator-characters):
+  // About and the box open on it, at once.
   // The sections' ids are plain words: the hash is read as written, and a
   // malformed escape in a link names no section rather than stopping the page.
   const anchor = window.location.hash.length > 1 ? document.getElementById(window.location.hash.slice(1)) : null;
-  // A private page closed to this viewer has no About panel.
-  if (anchor && about?.contains(anchor)) {
-    about.hidden = false;
-    root.querySelector("[data-cg-act='about']").setAttribute("aria-expanded", "true");
+  // A link to About itself (its button's aria-controls) opens it alone.
+  if (anchor && about?.about.contains(anchor)) {
+    const box = anchor.closest("[data-cg-box]");
+    if (box) { about.setBox(box.dataset.cgBox); }
+    about.setAbout(true, false);
     anchor.scrollIntoView();
   }
 

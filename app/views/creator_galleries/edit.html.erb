@@ -121,6 +121,7 @@
         scan: settings["tuner_scan"],
         wheel: settings["wheel_scroll"].to_s.truthy?,
         about_open: settings["creator_about_open"].to_s.truthy?,
+        about_boxes: settings["creator_about_boxes"],
         panels: { "Who sees the posts" => audience, "Booru account and creator tags" => claims, "Character claims" => characters, "Blog messages" => blog }.compact) %>
 <% end %>
 <% content_for(:html_header) do %><% page_title "Edit #{@gallery.slug}" %><% end %>

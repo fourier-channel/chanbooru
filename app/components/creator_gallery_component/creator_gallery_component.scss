@@ -426,8 +426,10 @@ body:has(.modcreator) {
     &:hover { color: var(--mod-ink); border-color: var(--mod-ink-dim); }
   }
 
-  // About, at the top of the band's panel: its button in the panel's top
-  // right corner, its boxes under it, each one put away on demand.
+  // About: its button in the band panel's top right corner, its region
+  // over the panel. Opening, the region grows from nothing (its row from 0fr
+  // to 1fr), clipped only while it moves, and pushes the panel down; its
+  // boxes then pop up one after another (creator_gallery_component.js).
   .modcreator-about-btn {
     position: absolute; top: 10px; right: 10px; z-index: 3;
 
@@ -435,23 +437,65 @@ body:has(.modcreator) {
     &[aria-expanded="true"] svg { transform: rotate(180deg); }
   }
 
-  .modcreator-about { margin: 46px 0 14px; padding: 0 14px; }
+  .modcreator-about {
+    display: grid; grid-template-rows: 1fr;
+    transition: grid-template-rows 280ms cubic-bezier(0.2, 0, 0, 1);
 
-  .modcreator-about-hidden {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px;
-    font-size: 13px; color: var(--mod-ink-dim);
+    &[hidden] { display: none; }
+    &.is-shut { grid-template-rows: 0fr; }
+
+    // Clipped top and bottom only, so a popping box's settle is not cut at its sides.
+    &.is-moving > .modcreator-about-clip { overflow: visible clip; }
   }
 
-  .modcreator-boxes { display: flex; flex-wrap: wrap; gap: 16px; }
-  .modcreator-box { flex: 1 1 300px; min-width: 0; padding: 18px 22px 22px; border-radius: 14px; }
-  .modcreator-box--wide { flex-basis: 100%; }
+  .modcreator-about-clip { min-height: 0; }
+
+  // A chip a box: pressed, the box is open.
+  .modcreator-about-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+
+  .modcreator-about-chip[aria-pressed="false"] {
+    border-style: dashed; background: color-mix(in srgb, var(--mod-surface) 45%, transparent); color: var(--mod-ink-dim);
+  }
+
+  // The open boxes share the row: two are halves, three thirds; past what
+  // fits, they wrap and each row fills. Each box is as tall as its content
+  // or the height its viewer gave it, never stretched to a taller neighbour.
+  .modcreator-boxes { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+
+  .modcreator-box {
+    position: relative; display: flex; flex-direction: column; box-sizing: border-box;
+    flex: 1 1 0; min-width: min(100%, 260px); padding: 14px 20px 22px; border-radius: 14px;
+
+    &[hidden] { display: none; }
+  }
+
+  .modcreator-box-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
 
   // The edit page's own sections: the box's title names each, so the
   // audience panel's own heading goes, and no form is wider than its box.
-  .modcreator-box--wide > .modcreator-panel > h2:first-child { display: none; }
+  // Each is a form, too long for a third of the row: it takes at least half,
+  // so its text runs on lines, not down a column thousands of pixels tall.
+  .modcreator-box--wide { min-width: min(100%, 520px); }
+  .modcreator-box--wide .modcreator-box-body > .modcreator-panel > h2:first-child { display: none; }
   .modcreator-box--wide :is(textarea, input:not([type="radio"], [type="checkbox"])) { max-width: 100%; }
-  .modcreator-box-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .modcreator-box-head { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
   .modcreator-box-title { margin: 0; font-weight: 400; }
+  .modcreator-box-x { min-width: 36px; padding: 0; }
+
+  // The box's foot is its grip: drag it up or down, or arrow keys.
+  .modcreator-box-grip {
+    position: absolute; right: 0; bottom: 0; left: 0; height: 18px;
+    display: grid; place-items: center; border-radius: 0 0 14px 14px; cursor: ns-resize; touch-action: none; user-select: none;
+
+    &:focus-visible { outline-offset: -2px; }
+  }
+
+  .modcreator-box-grip-bar { width: 40px; height: 4px; border-radius: 2px; background: var(--mod-line-strong); }
+
+  .modcreator-box-grip:is(:hover, :focus-visible) .modcreator-box-grip-bar,
+  .modcreator-box.is-sizing .modcreator-box-grip-bar { background: var(--mod-active-fg); }
+
+  .modcreator-box.is-sizing { user-select: none; }
 
   .modcreator-bio { margin: 0; max-width: 70ch; font-size: 15px; line-height: 1.6; white-space: pre-line; }
 
@@ -480,7 +524,8 @@ body:has(.modcreator) {
   .modcreator-main { max-width: var(--cg-col); margin: 0 auto; padding: 32px var(--cg-gutter) 120px; }
 
   // --- the hero band ----------------------------------------------------
-  // One glass panel holds About, the band's head and the belt, kept tight.
+  // One glass panel holds About's button, the band's head and the belt,
+  // kept tight.
   .modcreator-hero { position: relative; padding: 16px 0 12px; border-radius: 22px; }
 
   // The head clears About's button, which sits in the panel's corner.
@@ -897,11 +942,11 @@ body:has(.modcreator) {
     // No room beside About's button: the head goes under it.
     .modcreator-hero { padding-top: 60px; }
     .modcreator-hero-head { padding: 0 var(--cg-gutter); }
-    .modcreator-about { margin-top: 0; }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .modcreator-ground-art, .modcreator-banner-art, .modcreator-mini, .modcreator-mini-item, .modcreator-mini-dot { transition: none; }
     .modcreator-mini-arrow { display: grid; }
+    .modcreator-about, .modcreator-about-btn svg { transition: none; }
   }
 }

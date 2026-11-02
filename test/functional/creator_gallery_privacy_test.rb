@@ -233,13 +233,15 @@ class CreatorGalleryPrivacyTest < ActionDispatch::IntegrationTest
     should "open About and leave the wheel to the page until the viewer changes them" do
       view(@owner)
       assert_select ".modcreator-hero > button.modcreator-about-btn[aria-expanded='true']"
-      assert_select ".modcreator-hero > #modcreator-about:not([hidden])"
+      assert_select ".modcreator-main > #modcreator-about:not([hidden])"
       assert_select ".modland:not(.is-wheel) .modland-wheel-toggle[aria-checked='false']"
 
-      ModulationSetting.record!(@owner, nil, "creator_about_open" => false, "wheel_scroll" => true)
+      ModulationSetting.record!(@owner, nil, "creator_about_open" => false, "wheel_scroll" => true, "creator_about_boxes" => { "bio" => { "open" => false }})
       view(@owner)
       assert_select ".modcreator-hero > button.modcreator-about-btn[aria-expanded='false']"
-      assert_select ".modcreator-hero > #modcreator-about[hidden]"
+      assert_select ".modcreator-main > #modcreator-about[hidden]"
+      assert_select "#modcreator-box-bio[hidden]"
+      assert_select ".modcreator-about-chips button[data-v='bio'][aria-pressed='false']"
       assert_select ".modland.is-wheel .modland-wheel-toggle[aria-checked='true']"
 
       reset!
@@ -250,15 +252,17 @@ class CreatorGalleryPrivacyTest < ActionDispatch::IntegrationTest
     end
 
     should "remember a signed-out visitor's choices in their session" do
-      patch modulation_settings_path, params: { creator_about_open: false, wheel_scroll: true }, as: :json
+      patch modulation_settings_path, params: { creator_about_open: false, wheel_scroll: true, creator_about_boxes: { bio: { h: 200 }}}, as: :json
       assert_response :success
       view
-      assert_select ".modcreator-hero > #modcreator-about[hidden]"
+      assert_select ".modcreator-main > #modcreator-about[hidden]"
+      assert_select "#modcreator-box-bio:not([hidden]) > .modcreator-box-body[style='height: 200px']"
       assert_select ".modland.is-wheel .modland-wheel-toggle[aria-checked='true']"
 
       get edit_creator_gallery_path(@gallery), headers: { "X-Fourier-Identity" => "@alice:41chan.net" }
       assert_response :success
       assert_select ".modcreator-hero > button.modcreator-about-btn[aria-expanded='false']"
+      assert_select "#modcreator-box-bio > .modcreator-box-body[style='height: 200px']"
       assert_select ".modland.is-wheel .modland-wheel-toggle[aria-checked='true']"
     end
   end
