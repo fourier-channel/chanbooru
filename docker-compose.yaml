@@ -239,9 +239,13 @@ services:
     # still logs its status line; the exception's stack trace is a debug line,
     # so it goes with them (rerun at the default to read one).
     command: ["-d=1", "http", "0.0.0.0", "5588", "/iqdb/data/iqdb.sqlite"]
+    # Fork: every service restarts on its own (danbooru.service only runs
+    # `up -d` and exits; test/unit/chanbooru_restart_policy_test.rb).
+    restart: unless-stopped
 
   redis:
     image: redis:6.2.24@sha256:71075871d0c318a0a835648a954e32d2b88d7b2a75c89a034ad0aa404e0319c9
+    restart: unless-stopped
 
   # Fork: stock postgres, not upstream's ghcr.io/danbooru/postgres:16.1 (stock 16.1
   # plus pgbackrest, which nothing here uses; backups are pg_dump). 16.15 opened
@@ -249,6 +253,7 @@ services:
   postgres:
     image: postgres:16.15-bookworm@sha256:e8a07d2c7579b038938cdba6c539e580e5001caf9ea203d397b5cc83e76bd938
     shm_size: 1gb
+    restart: unless-stopped
     environment:
       POSTGRES_USER: danbooru
       POSTGRES_HOST_AUTH_METHOD: trust
@@ -263,6 +268,7 @@ services:
   nginx:
     image: ${DANBOORU_IMAGE:-ghcr.io/danbooru/danbooru:production}
     command: ["openresty", "-e", "/dev/stderr"]
+    restart: unless-stopped
     environment:
       # The external port to listen on. You can set this to 80 if you have nothing else listening on port 80.
       DANBOORU_PORT: "${DANBOORU_PORT:-3000}"
