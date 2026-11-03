@@ -1,0 +1,542 @@
+# What chanbooru (the booru) holds about a person, and what the erase does to it.
+# Spec: fourier-basis docs/design/DATA_ERASURE.md sections 2, 4, 7.3, 8.
+# Inventory: docs/design/DATA_ERASURE_INVENTORY/booru.md (cited below as inv 5.x).
+# Production: 41chan, compose project in /opt/danbooru, database in the
+# danbooru-data docker volume (dumped nightly, scrubbed: coherence.backups).
+#
+# The account is INERT, not deleted (7.3): about 70 deferred foreign keys point
+# at users, so the row stays as the stand-in its content stays attributed to,
+# and every column that came from the person is overwritten or emptied.
+# Creator tags get an independent random pseudonym per tag (E4); 4chan_ names
+# stay and only the claim joining them to the account goes.
+
+adapter: script/erase
+
+stores:
+  # inv 5.1. The account row itself. Becomes the inert stand-in: every FK that
+  # points at it (content, history, bans) keeps pointing at it.
+  - id: booru.users
+    where: 41chan danbooru db, public.users
+    holds: [booru_user_id, booru_name, creator_tags, ip]
+    locate: id = subject.booru_user_id
+    residue: [coherence.backups]
+    fields:
+      id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/comment.rb:7", token: "User"}
+      name:
+        fate: INERT
+        how: "a random token, not user_<id> (derivable); unique and valid for UserNameValidator; no mapping stored"
+      bcrypt_password_hash:
+        fate: INERT
+        how: "bcrypt of a random secret nobody holds"
+      level:
+        fate: INERT
+        how: "Member; moderators and above are refused before T0 (7.3)"
+      is_deleted:
+        fate: INERT
+        how: "true; undelete! and any name restore refuse an erased row (7.3)"
+      bit_prefs:
+        fate: INERT
+        how: "every preference bit cleared; only is_banned survives"
+      is_banned:
+        fate: KEEP
+        reason: RULE
+        reader: "app/models/user.rb:224 unban! recomputes the ban bit from active bans"
+      created_at:
+        fate: INERT
+        how: "set to T0 (account age is the person's; ruling open, see report)"
+      updated_at:
+        fate: INERT
+        how: "set to T0"
+      time_zone:
+        fate: INERT
+        how: "column default (time zone can reveal location)"
+      comment_threshold:
+        fate: INERT
+        how: "column default"
+      default_image_size:
+        fate: INERT
+        how: "column default"
+      per_page:
+        fate: INERT
+        how: "column default"
+      theme:
+        fate: INERT
+        how: "column default"
+      upload_points:
+        fate: INERT
+        how: "column default"
+      post_upload_count:
+        fate: KEEP
+        reason: CONTENT
+        reader: "app/models/post.rb:97 counter_cache of the posts still attributed to the row"
+      post_update_count:
+        fate: KEEP
+        reason: CONTENT
+        reader: "app/models/post_version.rb:17 counter_cache of the kept post history"
+      note_update_count:
+        fate: KEEP
+        reason: CONTENT
+        reader: "app/models/note_version.rb:6 counter_cache of the kept note history"
+      favorite_count:
+        fate: INERT
+        how: "0, by destroying the favorites through the model (counter_cache)"
+      unread_dmail_count:
+        fate: INERT
+        how: "0, the held dmails are gone"
+      last_ip_addr: {fate: GONE}
+      last_logged_in_at: {fate: GONE}
+      last_forum_read_at: {fate: GONE}
+      inviter_id: {fate: GONE}
+      favorite_tags: {fate: GONE}
+      blacklisted_tags: {fate: GONE}
+      custom_style: {fate: GONE}
+      totp_secret: {fate: GONE}
+      backup_codes: {fate: GONE}
+
+  # inv 5.2-5.5, 8. Rows that are the person's alone: deleted at T0 through
+  # the model paths (counters stay right only that way, 7.3).
+  - id: booru.private-rows
+    where: 41chan danbooru db, the per-user tables named below
+    holds: [booru_user_id, booru_name, email, creator_tags, ip, user_agent, mxid]
+    locate: user_id / creator_id / owner_id = subject.booru_user_id
+    residue: [coherence.backups]
+    fields:
+      email_addresses.address: {fate: GONE}
+      email_addresses.normalized_address: {fate: GONE}
+      api_keys.key: {fate: GONE}
+      api_keys.permitted_ip_addresses: {fate: GONE}
+      api_keys.last_ip_address: {fate: GONE}
+      login_sessions.login_id: {fate: GONE}
+      login_sessions.session_id: {fate: GONE}
+      # user_events: every row, and the erase writes no fresh deletion event
+      # (UserDeletion does, with the request's IP and UA: inv 1).
+      user_events.ip_addr: {fate: GONE}
+      user_events.user_agent: {fate: GONE}
+      user_events.session_id: {fate: GONE}
+      user_events.metadata: {fate: GONE}
+      user_events.category: {fate: GONE}
+      user_name_change_requests.original_name: {fate: GONE}
+      user_name_change_requests.desired_name: {fate: GONE}
+      saved_searches.query: {fate: GONE}
+      saved_searches.labels: {fate: GONE}
+      forum_topic_visits.last_read_at: {fate: GONE}
+      modulation_settings.random_trails: {fate: GONE}
+      modulation_settings.view_prefs: {fate: GONE}
+      site_credentials.credential: {fate: GONE}
+      site_credentials.metadata: {fate: GONE}
+      user_perks.perk: {fate: GONE}
+      tag_grants.tag: {fate: GONE}
+      favorites.post_id: {fate: GONE}
+      post_votes.score: {fate: GONE}
+      comment_votes.score: {fate: GONE}
+      forum_post_votes.score: {fate: GONE}
+      reactions.reaction_id: {fate: GONE}
+      favorite_groups.private: {fate: GONE}
+      dmails.held_copies: {fate: GONE}
+      post_approvals.post_id: {fate: GONE}
+      post_disapprovals.reason: {fate: GONE}
+      # E6: reports the person filed are their data.
+      post_flags.filed: {fate: GONE}
+      post_appeals.filed: {fate: GONE}
+      moderation_reports.filed: {fate: GONE}
+      creator_group_memberships.member: {fate: GONE}
+      creator_join_requests.note: {fate: GONE}
+      creator_user_rules.about_subject: {fate: GONE}
+      uploads.referer_url: {fate: GONE}
+      upload_media_assets.page_url: {fate: GONE}
+      user_upgrades.transaction_id: {fate: GONE}
+      upgrade_codes.redeemer_id: {fate: GONE}
+
+  # inv 5.3. The OTHER party's copy of a dmail the person sent or received:
+  # theirs, so it stays; from/to point at the inert row.
+  - id: booru.dmails-others
+    where: 41chan danbooru db, public.dmails where owner_id <> subject
+    holds: [booru_user_id]
+    locate: (from_id or to_id) = subject.booru_user_id and owner_id <> subject.booru_user_id
+    residue: [coherence.backups]
+    fields:
+      from_id:
+        fate: KEEP
+        reason: OTHERS
+        reader: {at: "app/models/dmail.rb:16", token: "from"}
+      to_id:
+        fate: KEEP
+        reason: OTHERS
+        reader: {at: "app/models/dmail.rb:15", token: "to"}
+      title:
+        fate: KEEP
+        reason: OTHERS
+        reader: "app/models/dmail.rb:11 shown to the recipient"
+      body:
+        fate: KEEP
+        reason: OTHERS
+        reader: "app/models/dmail.rb:7 shown to the recipient"
+
+  # inv 5.3, 5.4. What the person posted to others: content, stays, attributed
+  # to the inert row (7.3, E2). The id columns already name that row.
+  - id: booru.content
+    where: 41chan danbooru db, comments, forum_*, favorite_groups (public), posts, uploads, post_replacements, news_updates, tag_aliases/implications, bulk_update_requests
+    holds: [booru_user_id]
+    locate: creator_id / updater_id / uploader_id / approver_id / user_id = subject.booru_user_id
+    residue: [coherence.backups]
+    fields:
+      comments.creator_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/comment.rb:7", token: "creator"}
+      comments.body:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/comment.rb:33", token: "body"}
+      forum_posts.creator_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/forum_post.rb:10", token: "creator"}
+      forum_posts.updater_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/forum_post.rb:11", token: "updater"}
+      forum_posts.body:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/forum_post.rb:8", token: "body"}
+      forum_topics.creator_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/forum_topic.rb:17", token: "creator"}
+      forum_topics.title:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/forum_topic.rb:31", token: "title"}
+      favorite_groups.creator_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/favorite_group.rb:8", token: "creator"}
+      favorite_groups.name:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/favorite_group.rb:12", token: "name"}
+      favorite_groups.post_ids:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/favorite_group.rb:19", token: "post_ids"}
+      posts.uploader_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/post.rb:97", token: "uploader"}
+      posts.approver_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/post.rb:96", token: "approver"}
+      uploads.uploader_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/upload.rb:23", token: "uploader"}
+      post_replacements.creator_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/post_replacement.rb:5", token: "creator"}
+      news_updates.creator_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/news_update.rb:4", token: "creator"}
+      tag_relationships.creator_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/tag_relationship.rb:16", token: "creator"}
+      tag_relationships.approver_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/tag_relationship.rb:17", token: "approver"}
+      tag_relationships.reason:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/tag_relationship.rb:14", token: "reason"}
+      bulk_update_requests.user_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/bulk_update_request.rb:33", token: "user"}
+      bulk_update_requests.script:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/bulk_update_request.rb:42", token: "script"}
+      bulk_update_requests.reason:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/bulk_update_request.rb:29", token: "reason"}
+
+  # inv 5.3, 5.4. Edit history of shared content: stays with the content,
+  # updater_id naming the inert row. Tag text inside it is booru.creator-tags.
+  - id: booru.history
+    where: 41chan danbooru db, post_versions, note_versions, pool_versions, wiki_page_versions, artist_versions, artist_commentary_versions, tag_versions
+    holds: [booru_user_id]
+    locate: updater_id = subject.booru_user_id
+    residue: [coherence.backups]
+    fields:
+      post_versions.updater_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/post_version.rb:110", token: "updater_id"}
+      note_versions.updater_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/note_version.rb:6", token: "updater"}
+      pool_versions.updater_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/pool_version.rb:124", token: "updater_id"}
+      wiki_page_versions.updater_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/wiki_page_version.rb:14", token: "updater"}
+      artist_versions.updater_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/artist_version.rb:13", token: "updater"}
+      artist_commentary_versions.updater_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/artist_commentary_version.rb:10", token: "updater"}
+      tag_versions.updater_id:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/tag_version.rb:19", token: "updater"}
+
+  # inv 5.2, 5.4; E6. Moderation records ABOUT the person: RULE, kept, a
+  # banned account's erase never lifts the ban. Free text by the person goes.
+  - id: booru.moderation
+    where: 41chan danbooru db, bans, user_feedback, mod_actions (subject = the user)
+    holds: [booru_user_id, booru_name]
+    locate: user_id = subject.booru_user_id; mod_actions subject_type 'User' and subject_id = it
+    residue: [coherence.backups]
+    fields:
+      bans.user_id:
+        fate: KEEP
+        reason: RULE
+        reader: {at: "app/models/ban.rb:64", token: "user_id"}
+      bans.reason:
+        fate: KEEP
+        reason: RULE
+        reader: {at: "app/models/ban.rb:20", token: "reason"}
+      bans.duration:
+        fate: KEEP
+        reason: RULE
+        reader: {at: "app/models/ban.rb:43", token: "duration"}
+      user_feedback.user_id:
+        fate: KEEP
+        reason: RULE
+        reader: {at: "app/models/user_feedback.rb:10", token: "user"}
+      user_feedback.category:
+        fate: KEEP
+        reason: RULE
+        reader: {at: "app/models/user_feedback.rb:14", token: "category"}
+      user_feedback.body:
+        fate: KEEP
+        reason: RULE
+        reader: {at: "app/models/user_feedback.rb:6", token: "body"}
+      mod_actions.subject_id:
+        fate: KEEP
+        reason: RULE
+        reader: {at: "app/models/mod_action.rb:63", token: "subject"}
+      mod_actions.description:
+        fate: INERT
+        how: "rewritten with every old and current name of the person replaced by the inert row's token (name-change rows carry both, user_name_change_request.rb)"
+
+  # inv 5.2, 5.4, 5.5, 10 Q3. Non-content rows the person wrote AS STAFF that
+  # must keep an author: repointed to one shared stand-in account (7.3).
+  - id: booru.staff-authored
+    where: 41chan danbooru db, ip_bans, user_feedback, tag_quarantines, landing_*, claims, perks, grants, harmonics, signup/upgrade codes
+    holds: [booru_user_id]
+    locate: "the author column = subject.booru_user_id (most have no FK: inv 6)"
+    residue: [coherence.backups]
+    fields:
+      ip_bans.creator_id: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+      user_feedback.creator_id: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+      tag_quarantines.flagged_by_id: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+      tag_quarantines.banished_by_id: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+      landing_categories.updated_by_id: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+      landing_settings.updated_by_id: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+      artist_claims.approver_id: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+      character_claims.approver_id: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+      user_perks.granted_by_id: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+      user_perks.revoked_by_id: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+      tag_grants.granted_by: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+      creator_gallery_harmonics.staff_hidden_by_id: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+      creator_harmonic_removals.removed_by_id: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+      signup_tokens.creator_id: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+      upgrade_codes.creator_id: {fate: INERT, how: "the shared erased-staff stand-in account's id"}
+
+  # inv 3, 5.4. A ban on an address is a rule a moderator set, never pruned
+  # (ip_data_pruner.rb:53), and the dump scrub keeps it (pgdump-scrub.sh:104).
+  - id: booru.ip-bans
+    where: 41chan danbooru db, public.ip_bans
+    holds: [ip]
+    locate: ip_addr >>= any address the person is known by at T0
+    residue: [coherence.backups]
+    fields:
+      ip_addr:
+        fate: KEEP
+        reason: RULE
+        reader: "app/models/ip_ban.rb:31 ip_matches, read by IpBan.hit! on signup"
+
+  # inv 5.5. The person's own creator gallery. The page stays as the home of
+  # their content under the pseudonym; what they wrote about themselves goes.
+  - id: booru.creator-galleries
+    where: 41chan danbooru db, creator_galleries, creator_gallery_messages, creator_gallery_harmonics
+    holds: [booru_user_id, mxid, localpart, display_name, creator_tags]
+    locate: user_id = subject.booru_user_id or matrix_id = subject.mxid
+    residue: [coherence.backups]
+    fields:
+      user_id: {fate: GONE}
+      title: {fate: GONE}
+      bio: {fate: GONE}
+      matrix_contact: {fate: GONE}
+      show_contact: {fate: GONE}
+      settings: {fate: GONE}
+      matrix_id:
+        fate: INERT
+        how: "follows the tag pseudonym (E4): @<pseudonym>:41chan.net, an mxid nobody holds"
+      slug:
+        fate: INERT
+        how: "the pseudonym's localpart; the gallery URL changes with it"
+      creator_gallery_messages.body:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/creator_gallery_message.rb:7", token: "body"}
+      creator_gallery_harmonics.url: {fate: GONE}
+      creator_gallery_harmonics.title: {fate: GONE}
+
+  # inv 5.6 "Creator TAGS"; E4. Every 41chan_/aichan_ tag of the person is
+  # renamed to an independent random pseudonym everywhere its NAME is stored.
+  # 4chan_ names stay; only the claim joining them to the account goes.
+  - id: booru.creator-tags
+    where: 41chan danbooru db, tags, posts, post_versions, tag_versions, artists, artist_urls, wiki_pages, claims, creator_tag_releases, creator_groups
+    holds: [creator_tags, localpart]
+    locate: the names the person's creator gallery and claims own (CreatorTagRelease.owned_names), 41chan_ and aichan_ only
+    residue: [coherence.backups]
+    fields:
+      tags.name: {fate: INERT, how: "41chan_<random> / aichan_<random>, independent per tag, through the tag-move machinery"}
+      posts.tag_string: {fate: INERT, how: "the same rename, through the tag-move machinery"}
+      post_versions.tags: {fate: INERT, how: "the same rename"}
+      post_versions.added_tags: {fate: INERT, how: "the same rename"}
+      post_versions.removed_tags: {fate: INERT, how: "the same rename"}
+      tag_versions.name: {fate: INERT, how: "the same rename"}
+      artists.name: {fate: INERT, how: "the same rename"}
+      artists.other_names: {fate: INERT, how: "the person's own names dropped, the pseudonym kept"}
+      artists.group_name: {fate: INERT, how: "the same rename"}
+      artist_urls.url: {fate: INERT, how: "urls that name the person dropped"}
+      wiki_pages.title: {fate: INERT, how: "the same rename"}
+      artist_claims.tag_name: {fate: INERT, how: "the same rename (41chan_/aichan_ claims)"}
+      character_claims.tag_name: {fate: INERT, how: "the same rename (41chan_/aichan_ claims)"}
+      character_claims.creator_slug: {fate: INERT, how: "the pseudonym's localpart"}
+      creator_tag_releases.tag_name: {fate: INERT, how: "the same rename"}
+      creator_groups.name: {fate: INERT, how: "41chan_<pseudonym>_tier_N"}
+      artist_claims.4chan_claim: {fate: GONE}
+      character_claims.4chan_claim: {fate: GONE}
+      artist_claims.note: {fate: GONE}
+      character_claims.note: {fate: GONE}
+
+  # inv 5.6. Matrix/Discord identity strings with NO user key: a user_id erase
+  # would miss them. E4: the mxid columns follow the tag; E5: prompts stay.
+  - id: booru.creator-identity
+    where: 41chan danbooru db, fourier_post_creators, fourier_generation_metadata, fourier_tag_sources, matrix_media
+    holds: [mxid, discord_id, booru_user_id]
+    locate: mxid / poster / uploader = subject.mxid (or discord:<subject.discord_id>); added_by = subject.booru_user_id
+    residue: [coherence.backups]
+    fields:
+      fourier_post_creators.mxid: {fate: INERT, how: "the tag pseudonym's mxid (E4)"}
+      fourier_generation_metadata.poster: {fate: INERT, how: "the tag pseudonym's mxid, or discord:<random> for a Discord poster (E4, E5)"}
+      fourier_generation_metadata.fields:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/fourier_generation_metadata.rb:140", token: "fields"}
+      fourier_tag_sources.tag:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/fourier_tag_source.rb:136", token: "tag:"}
+      fourier_tag_sources.added_by:
+        fate: KEEP
+        reason: CONTENT
+        reader: {at: "app/models/fourier_tag_source.rb:136", token: "added_by"}
+      # The placements feed rewrites this from Synapse (matrix_placements.rb:173
+      # `uploader = EXCLUDED.uploader`), and the mxid stays in Synapse (E2).
+      matrix_media.uploader: {fate: INERT, how: "the tag pseudonym's mxid; undone by the next placements snapshot until the feed maps it too"}
+
+  # inv 3. An IP-keyed cache: IpDataPruner deletes rows older than MAX_AGE,
+  # hourly. The dump scrub leaves its rows out (NOT NULL inet).
+  - id: booru.ip-geolocations
+    where: 41chan danbooru db, public.ip_geolocations
+    holds: [ip]
+    bound: 7d
+    evidence: "app/logical/ip_data_pruner.rb:56 MAX_AGE 6.days, run hourly: app/logical/danbooru_maintenance.rb:17 from config/initializers/clockwork.rb:18"
+    fields:
+      ip_addr: {fate: GONE}
+      network: {fate: GONE}
+      city: {fate: GONE}
+      latitude: {fate: GONE}
+      longitude: {fate: GONE}
+
+  # inv 3, 5.2. Retired upstream table, nothing writes it (0 rows on 41chan
+  # 2026-11-03); IpDataPruner deletes rows older than MAX_AGE.
+  - id: booru.user-sessions
+    where: 41chan danbooru db, public.user_sessions
+    holds: [ip, user_agent]
+    bound: 7d
+    evidence: "app/logical/ip_data_pruner.rb:56 MAX_AGE 6.days, run hourly: app/logical/danbooru_maintenance.rb:17 from config/initializers/clockwork.rb:18"
+    fields:
+      ip_addr: {fate: GONE}
+      user_agent: {fate: GONE}
+      session_id: {fate: GONE}
+
+  # inv 5.2. UNLOGGED; key embeds the user's cache key or an IP subnet.
+  # Pruned after an hour, hourly. pg_dump copies unlogged data, and `key` is
+  # not an address column, so the scrub does not empty it.
+  - id: booru.rate-limits
+    where: 41chan danbooru db, public.rate_limits
+    holds: [booru_user_id, ip]
+    bound: 2h
+    evidence: "app/models/rate_limit.rb:4 expired after 1.hour, PruneRateLimitsJob hourly: app/logical/danbooru_maintenance.rb:8"
+    residue: [coherence.backups]
+    fields:
+      key: {fate: GONE}
+
+  # inv 5.8. good_job rows carry User GlobalIDs, mailer args (addresses,
+  # names). PruneJobsJob destroys every row older than 3 days, HOURLY.
+  - id: booru.good-jobs
+    where: 41chan danbooru db, good_jobs and good_job_executions
+    holds: [booru_user_id, booru_name, email]
+    locate: serialized_params naming the subject's GlobalID or address
+    bound: 4d
+    evidence: "app/jobs/prune_jobs_job.rb:6 created_at older than 3.days destroyed, queued hourly by app/logical/danbooru_maintenance.rb:12"
+    residue: [coherence.backups]
+    fields:
+      serialized_params: {fate: GONE}
+      error: {fate: GONE}
+
+logs:
+  # inv 7. Redis (danbooru-redis-1, anonymous volume, not under a backup
+  # root). Every Rails.cache write passes expires_in; the longest is the
+  # password reveal at 24h, plus up to an hour before the RDB snapshot drops it.
+  - id: booru.redis-cache
+    where: 41chan container danbooru-redis-1, Rails.cache keys (similar-tags-for-user, post-count-for-user, gate3-viewer-rooms, creator-gallery-avatar, creator-hidden-tag-names, password_reveal)
+    holds: [booru_user_id, mxid, display_name, avatar_mxc, creator_tags]
+    bound: 25h
+    evidence: "config/danbooru_default_config.rb:178 password_reveal_ttl 24.hours, the longest TTL"
+
+  # inv 7. Rails log (stderr) and nginx access log, docker json-file on 41chan:
+  # "Delivering email to <address>" (email_delivery_logger.rb:9), request
+  # paths naming users and tags. No IP or UA (config/nginx.conf:45).
+  - id: booru.container-logs
+    where: 41chan /var/lib/docker/containers/*/*-json.log of danbooru-{danbooru,cron,jobs,nginx}-1
+    holds: [booru_user_id, booru_name, localpart, creator_tags, email, mxid]
+    bound: 6d
+    pruner: host-log-retention.timer
+
+paths:
+  # The compose checkout, its .env files and the prefix config: no person.
+  - {path: /opt/danbooru, holds: []}
+  # Code releases only (current -> releases/<sha>); media is /mnt/storage.
+  - {path: /srv/danbooru, holds: []}
