@@ -232,7 +232,13 @@ services:
     image: evazion/iqdb
     volumes:
       - "iqdb-data:/iqdb/data"
-    command: ["http", "0.0.0.0", "5588", "/iqdb/data/iqdb.sqlite"]
+    # Fork: -d=1 drops iqdb's debug lines, three of the five it printed for every
+    # image added (~3,900 an hour on the serving box, 2026-11-03). Its levels run
+    # 0 debug, 1 error, 2 warn, 3 info, and it prints every level >= -d, so 1 is
+    # the one value that keeps errors: 2 or 3 would hide them. A failed request
+    # still logs its status line; the exception's stack trace is a debug line,
+    # so it goes with them (rerun at the default to read one).
+    command: ["-d=1", "http", "0.0.0.0", "5588", "/iqdb/data/iqdb.sqlite"]
 
   redis:
     image: redis:6.2.24@sha256:71075871d0c318a0a835648a954e32d2b88d7b2a75c89a034ad0aa404e0319c9
@@ -321,7 +327,7 @@ services:
     # Fork: upstream's image rebuilt with its fixes (docker/archives), made on
     # the workstation and loaded here by bin/chanbooru-image; never pulled, so a
     # box that was not sent it refuses the deploy.
-    image: chanbooru-archives:bd0f74878133
+    image: chanbooru-archives:c05f4c65790e
     pull_policy: never
     environment:
       <<: *sqs-env

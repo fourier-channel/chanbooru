@@ -39,6 +39,15 @@ RUN R=/usr/local/lib/ruby \
  && rm -rf $R/gems/3.4.0/specifications/default/erb-4.0.4.gemspec $R/gems/3.4.0/gems/erb-4.0.4 \
       $R/3.4.0/erb.rb $R/3.4.0/erb $R/3.4.0/x86_64-linux/erb /usr/local/bin/erb \
  && gem uninstall -i $R/gems/3.4.0 net-imap -v 0.5.8 --executables --force
+# The processor's logger at WARN, its one edit to upstream's app. At the default
+# it logged every post and pool version it archived, the whole row as JSON:
+# ~1,800 lines an hour on the serving box (2026-11-03), a copy of what the
+# archive database holds. Its errors still print. The build fails if the line
+# has moved. smoke.sh checks the level.
+RUN F=/app/services/sqs_processor.rb \
+ && grep -qx 'LOGGER = Logger.new($stderr)' $F \
+ && sed -i 's/^LOGGER = Logger.new(\$stderr)$/LOGGER = Logger.new($stderr, level: Logger::WARN)/' $F \
+ && grep -qx 'LOGGER = Logger.new($stderr, level: Logger::WARN)' $F
 
 USER danbooru
 WORKDIR /app

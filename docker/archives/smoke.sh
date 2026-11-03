@@ -27,3 +27,6 @@ docker run --rm --network none "$1" ruby -e '
 # The old erb's files, not just its gemspec: without RubyGems a require finds
 # only the stdlib, which must no longer have one. And libexpat1 stays purged.
 docker run --rm --network none "$1" sh -c '! ruby --disable-gems -e "require \"erb\"" 2>/dev/null && ! dpkg -s libexpat1 >/dev/null 2>&1 && echo "archives smoke ok: no stdlib erb, no libexpat1"'
+# The processor logs at WARN (Dockerfile): every archived version at INFO was
+# ~1,800 lines an hour.
+docker run --rm --network none "$1" sh -c 'grep -qx "LOGGER = Logger.new(\$stderr, level: Logger::WARN)" services/sqs_processor.rb && echo "archives smoke ok: processor logs at WARN"'

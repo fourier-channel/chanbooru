@@ -3,6 +3,12 @@ GoodJob.retry_on_unhandled_error = false
 GoodJob.preserve_job_records = true
 Rails.application.config.good_job.smaller_number_is_higher_priority = true
 
+# Fork: no second logger on stdout. bin/good_job adds one at DEBUG unless told
+# not to, which logged every LISTEN/NOTIFY payload: ~3,400 lines an hour on the
+# serving box (measured 2026-11-03). Errors still reach Rails.logger, which is
+# GoodJob.logger, at the app's own level.
+GoodJob::CLI.log_to_stdout = false
+
 # Called when a background job raises an unhandled exception. Only called for background jobs run with `perform_later`,
 # not foreground jobs run with `perform_now`.
 GoodJob.on_thread_error = lambda do |exception|
