@@ -150,9 +150,38 @@ class ApplicationRecord < ActiveRecord::Base
   end
 
   concerning :ApiMethods do
+    included do
+      # True if this record is included in an API response but the user isn't allowed to see it.
+      attr_accessor :hidden_from_api
+    end
+
     class_methods do
       def available_includes
         []
+      end
+
+      # Mark the records included in an API response that the user isn't allowed to see, so they're left out of the
+      # response. Uses one `visible` query per model instead of checking each record separately.
+      #
+      # @param records [Array<ApplicationRecord>] The records being returned.
+      # @param includes [Array<Symbol, Hash>] The included associations, as returned by ParameterBuilder#includes_parameters.
+      # @param user [User] The current user.
+      def hide_invisible_includes!(records, includes, user)
+        included_records(records, includes).group_by(&:class).each do |model, children|
+          next if model.visible(user).to_sql == model.all.to_sql # Skip models the user can see everything of.
+
+          visible_ids = model.visible(user).where(id: children.map(&:id)).pluck(:id).to_set
+          children.each { it.hidden_from_api = !it.id.in?(visible_ids) }
+        end
+      end
+
+      # @return [Array<ApplicationRecord>] All the preloaded records in the given (possibly nested) includes.
+      def included_records(records, includes)
+        includes.flat_map do |include|
+          name, nested = include.is_a?(Hash) ? include.first : [include, []]
+          children = records.flat_map { Array.wrap(it.association(name).target) if it.class.reflect_on_association(name) }.compact
+          children + included_records(children, nested)
+        end
       end
 
       def multiple_includes
@@ -245,10 +274,16 @@ class ApplicationRecord < ActiveRecord::Base
     # ?only=children[...] named every child, a tag's consequent_aliases every
     # alias, and a wiki page's dtext_links[embedded_post] every post it
     # embeds, past the embeds its own page draws.
+    #
+    # And, upstream's rule, any nested record outside its model's
+    # visible(viewer) (hide_invisible_includes!): a mod-only forum topic's
+    # posts, a deleted forum post's body.
     private def serializable_add_includes(options = {})
       viewer = CurrentUser.user
       hidden = lambda do |record|
-        if record.is_a?(Post)
+        if record.hidden_from_api # not visible(viewer) (hide_invisible_includes!)
+          true
+        elsif record.is_a?(Post)
           record.hidden_from?(viewer)
         else
           (record.is_a?(Tag) || record.is_a?(NamesTags)) && record.hidden_by_post_from?(viewer)
