@@ -524,4 +524,14 @@ class MediaFileWebmTest < ActiveSupport::TestCase
       }, file.metadata.to_h)
     end
   end
+
+  context "a WebM file with fake dimensions in the container metadata" do
+    # A copy of test-512x512.webm with the dimensions changed to 16x16 with `mkvpropedit --edit track:v1 --set pixel-width=16 --set pixel-height=16`.
+    should "not be supported" do
+      file = MediaFile.open("test/files/webm/test-512x512-fake-dimensions.webm")
+
+      assert_equal([512, 512], file.dimensions)
+      assert_equal(false, file.is_supported?)
+    end
+  end
 end

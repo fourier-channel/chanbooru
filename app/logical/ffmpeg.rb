@@ -8,8 +8,9 @@ class FFmpeg
 
   class Error < StandardError; end
 
-  # The maximum number of packets in a single stream. Reading the full metadata for each frame and packet uses about
-  # 4.4KB of memory per frame, so this limits it to a few hundred MB. 100k frames is about 28 minutes at 60 FPS.
+  # The maximum number of packets in all streams combined. Reading the full metadata for each frame and packet uses
+  # about 5KB of memory per frame, so this limits it to about 500MB. 100k packets is about 12 minutes of 60 FPS video
+  # with audio.
   MAX_PACKET_COUNT = 100_000
 
   # The maximum width and height of video preview images. This is the size of the largest preview generated for videos.
@@ -36,9 +37,12 @@ class FFmpeg
     # https://ffmpeg.org/ffmpeg-filters.html#thumbnail
     # "-vf 'select=eq(n\\,0)+eq(key\\,1)+gt(scene\\,0.015),loop=loop=-1:size=2,trim=start_frame=1' -frames:v 1 -f image2"
     #
+    # The `scale=iw*sar:ih` corrects for a non-square pixel aspect ratio (PAR), to match #display_dimensions; it's a
+    # no-op when the PAR is 1:1 (the vast majority of videos).
+    #
     # The frames are scaled down to fit within 720x720 (the largest preview size) before `thumbnail`, because it keeps
     # 300 frames in memory to pick the best one. At full size, this would take several GB for a 4K video.
-    filters = "scale=#{PREVIEW_SIZE}:#{PREVIEW_SIZE}:force_original_aspect_ratio=decrease:flags=lanczos,thumbnail=300"
+    filters = "scale=iw*sar:ih,scale=#{PREVIEW_SIZE}:#{PREVIEW_SIZE}:force_original_aspect_ratio=decrease:flags=lanczos,thumbnail=300"
     FFmpeg.shell!("ffmpeg -i #{file.path.shellescape} -vf #{filters} -frames:v 1 -y #{vp.path.shellescape}")
 
     MediaFile.open(vp)
@@ -66,15 +70,36 @@ class FFmpeg
     { error: e.message.strip }.with_indifferent_access
   end
 
-  # Count the packets in the largest stream without decoding the file or reading the metadata for each packet. This
-  # is fast and uses little memory, even for files with millions of packets.
+  # Count the packets in all streams without decoding the file or reading the metadata for each packet. This is fast
+  # and uses little memory, even for files with millions of packets. This counts all streams, not just the largest one,
+  # because the full metadata includes every stream, so a file with many streams could otherwise get around the limit.
   #
   # @return [Integer] The number of packets, or 0 if reading the file failed.
   memoize def packet_count
     output = FFmpeg.shell!("ffprobe -v quiet -count_packets -show_entries stream=nb_read_packets -print_format json #{file.path.shellescape}")
-    output.parse_json.to_h["streams"].to_a.map { it["nb_read_packets"].to_i }.max.to_i
+    output.parse_json.to_h["streams"].to_a.sum { it["nb_read_packets"].to_i }
   rescue Error
     0
+  end
+
+  # The largest width and height of the frames in the first video stream, as they're displayed. The width is scaled by
+  # the sample aspect ratio for anamorphic videos with non-square pixels.
+  #
+  # This comes from the decoded frames, not the container or stream metadata, because those can be changed to anything
+  # without changing the actual video. It's the largest frame because videos can change resolution partway through.
+  #
+  # @return [Array<(Integer, Integer)>, nil] The width and height, or nil if there are no video frames.
+  def display_dimensions
+    frames = video_stream[:frames].to_a
+    return nil if frames.empty?
+
+    widths = frames.map do |frame|
+      num, den = frame[:sample_aspect_ratio].to_s.split(":").map(&:to_i)
+      sar = (num.to_i > 0 && den.to_i > 0) ? Rational(num, den) : 1
+      (frame[:width].to_i * sar).round
+    end
+
+    [widths.max, frames.map { it[:height].to_i }.max]
   end
 
   def width

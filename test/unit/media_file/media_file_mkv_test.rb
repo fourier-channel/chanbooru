@@ -68,4 +68,11 @@ class MediaFileWebmTest < ActiveSupport::TestCase
       }, file.metadata.to_h)
     end
   end
+
+  # Three copies of the 10-frame video stream from test-512x512.webm, made with `ffmpeg -i test-512x512.webm -map 0:v -map 0:v -map 0:v -c copy`.
+  context "an MKV file with multiple video streams" do
+    should "count the packets in all streams" do
+      assert_equal(30, FFmpeg.new(MediaFile.open("test/files/mkv/test-512x512-3-video-streams.mkv")).packet_count)
+    end
+  end
 end
