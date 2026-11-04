@@ -422,6 +422,23 @@ class MediaFileUgoiraTest < ActiveSupport::TestCase
     end
   end
 
+  context "Conversion of a large ugoira" do
+    should "not limit encoding to the default command timeout" do
+      Dir.mktmpdir do |dir|
+        # Random noise is slow to encode, so encoding these frames takes about 7s.
+        frames = 30.times.map do |i|
+          Vips::Image.gaussnoise(960, 540, mean: 128, sigma: 40).jpegsave("#{dir}/#{i}.jpg")
+          Pathname("#{dir}/#{i}.jpg")
+        end
+
+        stub_const(ExternalCommand, :TIMEOUT, 2.seconds) do
+          video = MediaFile::Ugoira.new(frames, frame_delays: [100] * 30).convert
+          assert_equal(30, video.frame_count)
+        end
+      end
+    end
+  end
+
   context "Conversion of a ugoira" do
     should "not fail when converting two ugoiras concurrently" do
       a = Thread.new { MediaFile.open("test/files/ugoira/ugoira-95239241-danbooru.zip").convert }
