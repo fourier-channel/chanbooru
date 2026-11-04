@@ -498,7 +498,7 @@ class AutocompleteService
   def cache_publicly?
     return false if current_user.present? && !current_user.is_anonymous?
 
-    if type == :tag_query && parsed_query.tag_names.one?
+    if type == :tag_query && parsed_query.tag_names.one? && !metatag&.name&.in?(%w[favgroup ordfavgroup search])
       true
     elsif type.in?(%i[tag artist wiki_page pool emoji opensearch])
       true
