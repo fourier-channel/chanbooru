@@ -378,18 +378,19 @@ class MediaAsset < ApplicationRecord
       def validate_media_file!(media_file, uploader)
         if !media_file.mime_type.to_s.in?(FILE_MIME_TYPES)
           raise Error, "File is not an image or video"
-        elsif !media_file.is_supported?
-          raise Error, "File type is not supported"
-        elsif media_file.is_corrupt?
-          raise Error, "File is corrupt"
+        # Check the size and dimensions before `is_supported?` and `is_corrupt?`, which decode the whole file.
         elsif media_file.file_size > MAX_FILE_SIZE
           raise Error, "File size too large (size: #{media_file.file_size.to_fs(:human_size)}; max size: #{MAX_FILE_SIZE.to_fs(:human_size)})"
         elsif media_file.resolution > MAX_IMAGE_RESOLUTION
           raise Error, "Image resolution is too large (resolution: #{(media_file.resolution / 1_000_000.0).round(1)} megapixels (#{media_file.width}x#{media_file.height}); max: #{MAX_IMAGE_RESOLUTION / 1_000_000} megapixels)"
-        elsif media_file.width > MAX_IMAGE_WIDTH
+        elsif media_file.width.to_i > MAX_IMAGE_WIDTH
           raise Error, "Image width is too large (width: #{media_file.width}; max width: #{MAX_IMAGE_WIDTH})"
-        elsif media_file.height > MAX_IMAGE_HEIGHT
+        elsif media_file.height.to_i > MAX_IMAGE_HEIGHT
           raise Error, "Image height is too large (height: #{media_file.height}; max height: #{MAX_IMAGE_HEIGHT})"
+        elsif !media_file.is_supported?
+          raise Error, "File type is not supported"
+        elsif media_file.is_corrupt?
+          raise Error, "File is corrupt"
         elsif media_file.duration.to_i > Danbooru.config.max_video_duration.to_i && !uploader.is_admin?
           raise Error, "Duration must be less than #{Danbooru.config.max_video_duration} seconds"
         end
