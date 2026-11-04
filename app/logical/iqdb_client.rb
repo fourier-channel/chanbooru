@@ -35,9 +35,14 @@ class IqdbClient
       elsif target_url.present?
         file = download_file(target_url)
       elsif post_id.present?
-        # Fork: a post or asset the searcher may not see is "not found", as a
-        # missing one is -- IQDB took any id and searched with its image.
-        file = Post.find_visible!(post_id, user).file(:"180x180")
+        # Fork: a post or asset the searcher may not see, or whose image they
+        # may not see (Post#visible?: banned, safe mode, level), is "not
+        # found", as a missing one is -- IQDB took any id and searched with its
+        # image. The asset's policy asks both.
+        post = Post.find_visible!(post_id, user)
+        raise ActiveRecord::RecordNotFound unless post.visible?(user)
+
+        file = post.file(:"180x180")
       elsif media_asset_id.present?
         media_asset = MediaAsset.find(media_asset_id)
         raise ActiveRecord::RecordNotFound unless Pundit.policy!(user, media_asset).can_see_image?
