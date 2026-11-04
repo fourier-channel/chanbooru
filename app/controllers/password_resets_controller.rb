@@ -47,7 +47,7 @@ class PasswordResetsController < ApplicationController
       @user = PasswordReveal.new.peek(params[:reveal])
       render(@user ? "reveal" : "reveal_gone", status: @user ? :ok : :not_found)
     else
-      @user = authorize User.find_signed!(params.dig(:user, :signed_id), purpose: :password_reset), policy_class: PasswordResetPolicy
+      @user = authorize User.find_by_token_for!(:password_reset, params.dig(:user, :signed_id)), policy_class: PasswordResetPolicy
     end
   end
 
@@ -83,7 +83,7 @@ class PasswordResetsController < ApplicationController
       return
     end
 
-    @user = authorize User.find_signed!(params.dig(:user, :signed_id), purpose: :password_reset), policy_class: PasswordResetPolicy
+    @user = authorize User.find_by_token_for!(:password_reset, params.dig(:user, :signed_id)), policy_class: PasswordResetPolicy
 
     success = @user.reset_password(
       new_password: params.dig(:user, :password),
