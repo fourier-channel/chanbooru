@@ -380,10 +380,11 @@ module Danbooru
       40_000
     end
 
-    # Maximum duration of an video in seconds.
+    # Maximum duration of a non-admin's video in seconds. Ten minutes outside
+    # tests, upstream's 2:20 in them (test/unit/fourier_video_duration_test.rb
+    # says what was measured).
     def max_video_duration
-      # 2:20m
-      140
+      Rails.env.test? ? 140 : 600
     end
 
     # How long pending posts stay in the modqueue before being deleted.

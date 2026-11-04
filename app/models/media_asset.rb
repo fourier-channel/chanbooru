@@ -29,7 +29,6 @@ class MediaAsset < ApplicationRecord
   FILE_KEY_LENGTH = 9
   VARIANTS = %i[180x180 360x360 720x720 sample full original]
   MAX_FILE_SIZE = Danbooru.config.max_file_size.to_i
-  MAX_VIDEO_DURATION = Danbooru.config.max_video_duration.to_i
   MAX_IMAGE_RESOLUTION = Danbooru.config.max_image_resolution
   MAX_IMAGE_WIDTH = Danbooru.config.max_image_width
   MAX_IMAGE_HEIGHT = Danbooru.config.max_image_height
@@ -380,8 +379,8 @@ class MediaAsset < ApplicationRecord
           raise Error, "Image width is too large (width: #{media_file.width}; max width: #{MAX_IMAGE_WIDTH})"
         elsif media_file.height > MAX_IMAGE_HEIGHT
           raise Error, "Image height is too large (height: #{media_file.height}; max height: #{MAX_IMAGE_HEIGHT})"
-        elsif media_file.duration.to_i > MAX_VIDEO_DURATION && !uploader.is_admin?
-          raise Error, "Duration must be less than #{MAX_VIDEO_DURATION} seconds"
+        elsif media_file.duration.to_i > Danbooru.config.max_video_duration.to_i && !uploader.is_admin?
+          raise Error, "Duration must be less than #{Danbooru.config.max_video_duration} seconds"
         end
       end
     end
