@@ -1296,7 +1296,7 @@ class Post < ApplicationRecord
         when "note"
           note_matches(value)
         when "comment"
-          comment_matches(value)
+          comment_matches(value, current_user)
         when "search"
           saved_search_matches(value, current_user)
         when "pool"
@@ -1549,8 +1549,8 @@ class Post < ApplicationRecord
         where(notes: Note.where_text_matches(:body, query))
       end
 
-      def comment_matches(query)
-        where(comments: Comment.where_text_matches(:body, query))
+      def comment_matches(query, current_user)
+        where(comments: Comment.visible_for_search(:body, current_user).where_text_matches(:body, query))
       end
 
       def saved_search_matches(label, current_user = User.anonymous)
