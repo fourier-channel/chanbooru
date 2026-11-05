@@ -362,7 +362,7 @@ class CreatorGalleryLayout
       placed = [*banner_id, *backgrounds, *bands.drop(1).flat_map(&:last)].compact.to_set
       view_ids = views.to_a.map { |view| whole(view["post_id"]) }
       problems += view_ids.compact.uniq.reject { |id| placed.include?(id) }.map do |id|
-        "Post ##{id}'s view cannot be saved: this Save puts the post on no miniband, banner or harmonic background, where views are drawn. Put it on one, or leave its view out."
+        "Post ##{id}'s view cannot be saved: this Save puts the post on no miniband, banner or channel background, where views are drawn. Put it on one, or leave its view out."
       end
       problems << "A view's post must be a post id. Send each view with the post_id of a post on the page." if view_ids.any?(nil)
       problems += view_ids.compact.tally.select { |_, n| n > 1 }.map { |id, n| "Post ##{id} has #{n} views. Send one view per post." }

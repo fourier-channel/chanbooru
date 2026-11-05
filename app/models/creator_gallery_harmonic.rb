@@ -175,9 +175,9 @@ class CreatorGalleryHarmonic < ApplicationRecord
   # as a sentence naming the fix; nil for a counting card.
   def owner_notice(removed, number)
     if staff_hidden?
-      "Harmonic #{number} was hidden by site staff#{": #{staff_hidden_reason}" if staff_hidden_reason.present?}. It is not shown on your page."
+      "Channel #{number} was hidden by site staff#{": #{staff_hidden_reason}" if staff_hidden_reason.present?}. It is not shown on your page."
     elsif site_entry.nil?
-      "Harmonic #{number}'s site was taken off the Tuner's list, so it is not shown and does not count. Its card comes back if the site does."
+      "Channel #{number}'s site was taken off the Tuner's list, so it is not shown and does not count. Its card comes back if the site does."
     elsif removed.include?(url)
       self.class.sentence(:link_removed, url: url.delete_prefix("https://"))
     end

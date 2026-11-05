@@ -435,7 +435,7 @@ function editor(root, data, bindMinis) {
       const h = draft.harmonics[i];
       // eslint-disable-next-line no-use-before-define -- the builder is drawn before the view editor is defined
       editView(h.background_post_id, {
-        what: "The harmonic's picture",
+        what: "The channel's picture",
         frame,
         paint: (view) => frame()?.querySelector(".cg-hm-img")?.setAttribute("style", pictureStyle({ ...draftCard(h, i).picture, view })),
         kept: () => {

@@ -96,7 +96,7 @@ class Admin::UsersControllerTest < ActionDispatch::IntegrationTest
       should "be shown with a form to an admin, and not to a moderator" do
         get_auth edit_admin_user_path(@user), @admin
         assert_select "#user-perks form", count: 1
-        assert_select "#user-perks", text: /Creator Tuner harmonics\s+5/
+        assert_select "#user-perks", text: /Creator Tuner channels\s+5/
 
         get_auth edit_admin_user_path(@user), @mod
         assert_select "#user-perks", count: 0
@@ -106,13 +106,13 @@ class Admin::UsersControllerTest < ActionDispatch::IntegrationTest
         put_auth admin_user_path(@user), @admin, params: { perk: { key: "creator_harmonic_cap", value: "9", expires_at: "2030-01-31" }}
 
         assert_redirected_to(edit_admin_user_path(@user))
-        assert_equal("Granted: Creator Tuner harmonics 9 until 2030-01-31.", flash[:notice])
+        assert_equal("Granted: Creator Tuner channels 9 until 2030-01-31.", flash[:notice])
         assert_equal([9, Time.zone.parse("2030-01-31")], @user.user_perks.active.pick(:value, :expires_at))
         assert_equal("user_perk_grant", ModAction.last.category)
 
         put_auth admin_user_path(@user), @admin, params: { perk: { key: "creator_harmonic_cap", revoke: "1" }}
 
-        assert_equal("Revoked: Creator Tuner harmonics is 5 again.", flash[:notice])
+        assert_equal("Revoked: Creator Tuner channels is 5 again.", flash[:notice])
         assert_equal(5, @user.reload.perk_value(:creator_harmonic_cap))
         assert_equal("user_perk_revoke", ModAction.last.category)
       end

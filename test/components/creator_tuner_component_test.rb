@@ -83,7 +83,7 @@ class CreatorTunerComponentTest < ViewComponent::TestCase
 
       assert_css("section.cg-tuner--b[data-scan='false'] .cg-tuner-panel .cg-tuner-slot a.cg-hm", count: 1)
       assert_css(".cg-tuner-pip", count: 2)
-      assert_css(".cg-tuner-pip[aria-current='true'][aria-label='Harmonic 1 of 2: Daily sketches']")
+      assert_css(".cg-tuner-pip[aria-current='true'][aria-label='Channel 1 of 2: Daily sketches']")
       assert_css("[data-cg-step='-1'], [data-cg-step='1']", count: 2)
       assert_equal("false", page.find("[data-cg-scan]")["aria-pressed"])
       assert_no_css(".cg-tuner-knob, .cg-tuner-station, canvas", visible: :all)

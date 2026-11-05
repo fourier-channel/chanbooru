@@ -70,36 +70,36 @@ test("each harmonic's problems come in Save's order, numbered, a site to ask for
   const found = model.problems([harmonic(), harmonic({ url: "http://x.com/maple" }), harmonic({ url: "https://example.org/me", title: "" })],
     { stored: new Map(), removed: new Set(), stale: () => false, cap: 5 });
   assert.deepEqual(found, [
-    { n: 2, text: "Harmonic 2's link uses http://. Use the https:// address of the same page.", ask: null },
-    { n: 3, text: "Harmonic 3's link is to example.org, which is not on the Tuner's list yet. Ask for it to be added, or link a site that is on the list.", ask: "example.org" },
-    { n: 3, text: "Harmonic 3's title is empty. Give it a title of up to 48 characters.", ask: null },
+    { n: 2, text: "Channel 2's link uses http://. Use the https:// address of the same page.", ask: null },
+    { n: 3, text: "Channel 3's link is to example.org, which is not on the Tuner's list yet. Ask for it to be added, or link a site that is on the list.", ask: "example.org" },
+    { n: 3, text: "Channel 3's title is empty. Give it a title of up to 48 characters.", ask: null },
   ]);
 });
 
 test("the words, places and background settings name what they allow", () => {
   assert.deepEqual(listed([harmonic({ title: "t".repeat(49), subtitle: "s".repeat(81), cta: "buy", places: { ...CORNER, host: undefined } })]), [
-    "Harmonic 1's title is 49 characters long. Shorten it to 48 or fewer.",
-    "Harmonic 1's subtitle is 81 characters long. Shorten it to 80 or fewer.",
-    "Harmonic 1's button word \"buy\" is not one of: visit, follow, download, view_model, support, join, commission. Pick one of those, or none.",
-    "Harmonic 1's host place \"\" is not one of: tl, tc, tr, ml, mc, mr, bl, bc, br. Pick one of those.",
+    "Channel 1's title is 49 characters long. Shorten it to 48 or fewer.",
+    "Channel 1's subtitle is 81 characters long. Shorten it to 80 or fewer.",
+    "Channel 1's button word \"buy\" is not one of: visit, follow, download, view_model, support, join, commission. Pick one of those, or none.",
+    "Channel 1's host place \"\" is not one of: tl, tc, tr, ml, mc, mr, bl, bc, br. Pick one of those.",
   ]);
   assert.deepEqual(listed([harmonic({ title: "\u{1F341}".repeat(48) })]), []);
-  assert.deepEqual(listed([picture({ background_gradient: "2" })]), ["Harmonic 1 has both a picture and a gradient for its background. Pick one."]);
-  assert.deepEqual(listed([harmonic({ background_gradient: "7" })]), ["Harmonic 1's gradient \"7\" is not one of: 1 (Sea), 2 (Ember), 3 (Violet). Pick one of those."]);
+  assert.deepEqual(listed([picture({ background_gradient: "2" })]), ["Channel 1 has both a picture and a gradient for its background. Pick one."]);
+  assert.deepEqual(listed([harmonic({ background_gradient: "7" })]), ["Channel 1's gradient \"7\" is not one of: 1 (Sea), 2 (Ember), 3 (Violet). Pick one of those."]);
   assert.deepEqual(listed([picture({ zoom: 250, shade: "" })]), [
-    "Harmonic 1's zoom is 250; it runs from 100 to 200. Set it within that.",
-    "Harmonic 1's shade is empty; it runs from 0 to 85. Set it within that.",
+    "Channel 1's zoom is 250; it runs from 100 to 200. Set it within that.",
+    "Channel 1's shade is empty; it runs from 0 to 85. Set it within that.",
   ]);
-  assert.deepEqual(listed([picture({ shade: 20 })]), ["Harmonic 1's shade is 20%; over a picture it is at least 35%, so its words stay readable. Set it to 35 or more."]);
+  assert.deepEqual(listed([picture({ shade: 20 })]), ["Channel 1's shade is 20%; over a picture it is at least 35%, so its words stay readable. Set it to 35 or more."]);
   assert.deepEqual(listed([picture({ shade: 0 })], { stale: (entry) => entry.background_post_id === 5 }), [
-    "Harmonic 1's background is no longer one of your showable posts. Pick another, or a gradient.",
-    "Harmonic 1's shade is 0%; over a picture it is at least 35%, so its words stay readable. Set it to 35 or more.",
+    "Channel 1's background is no longer one of your showable posts. Pick another, or a gradient.",
+    "Channel 1's shade is 0%; over a picture it is at least 35%, so its words stay readable. Set it to 35 or more.",
   ]);
 });
 
 test("a host that would be cut short at the smallest size", () => {
   assert.deepEqual(listed([harmonic({ places: { ...CORNER, mark: "bc", host: "br" } })]), [
-    "Harmonic 1's link host (civitai.com) shares its row with a centre and a side element, and at the smallest size it would be cut short. Move the host or one of the others to another row.",
+    "Channel 1's link host (civitai.com) shares its row with a centre and a side element, and at the smallest size it would be cut short. Move the host or one of the others to another row.",
   ]);
   assert.deepEqual(listed([harmonic({ url: "https://x.com/maple", places: { ...CORNER, mark: "bc", host: "br" } })]), []);
 });
@@ -107,22 +107,22 @@ test("a host that would be cut short at the smallest size", () => {
 test("the list's own rules: one page a link, one support link, the cap, the rows kept", () => {
   assert.deepEqual(model.problems([harmonic(), harmonic({ url: "https://ko-fi.com/maple" }), harmonic({ url: "https://civitai.com/user/maple/" }), harmonic({ url: "https://patreon.com/maple" })],
     { stored: new Map(), removed: new Set(), stale: () => false, cap: 5 }).map(({ n, text }) => [n, text]), [
-    [3, "Harmonics 1 and 3 link to the same page. Remove one of them."],
-    [4, "Harmonic 4 links to Patreon, a support site, and harmonic 2 already links to Ko-fi. A gallery carries one support link: change or remove one of the two."],
+    [3, "Channels 1 and 3 link to the same page. Remove one of them."],
+    [4, "Channel 4 links to Patreon, a support site, and channel 2 already links to Ko-fi. A gallery carries one support link: change or remove one of the two."],
   ]);
 
   const urls = ["https://civitai.com/user/maple", "https://x.com/maple", "https://bsky.app/profile/maple.bsky.social", "https://pixiv.net/users/1", "https://deviantart.com/maple", "https://instagram.com/maple"];
   const six = urls.map((url) => harmonic({ url }));
-  assert.deepEqual(listed(six), ["This gallery has 6 harmonics and holds 5. Remove one."]);
+  assert.deepEqual(listed(six), ["This gallery has 6 channels and holds 5. Remove one."]);
   assert.deepEqual(listed([...six.slice(0, 5), { ...six[5], shown: false }]), []);
   assert.deepEqual(listed(six, { cap: 6 }), []);
-  assert.deepEqual(listed(six, { cap: 3 }), ["This gallery has 6 harmonics and holds 3. Remove 3."]);
+  assert.deepEqual(listed(six, { cap: 3 }), ["This gallery has 6 channels and holds 3. Remove 3."]);
 
   assert.deepEqual(listed(Array.from({ length: 31 }, (_, i) => harmonic({ url: `https://x.com/maple${i}`, shown: false }))),
-    ["This gallery lists 31 harmonics, counting hidden ones, and keeps 30. Remove one."]);
+    ["This gallery lists 31 channels, counting hidden ones, and keeps 30. Remove one."]);
   const hidden = new Map([[9, { url: "https://x.com/dusk", host: "x.com", site: "x", staff_hidden: true }]]);
   assert.deepEqual(listed(Array.from({ length: 30 }, (_, i) => harmonic({ url: `https://x.com/maple${i}`, shown: false })), { stored: hidden }),
-    ["This gallery lists 31 harmonics, counting hidden ones, and keeps 30. Remove one."]);
+    ["This gallery lists 31 channels, counting hidden ones, and keeps 30. Remove one."]);
 });
 
 test("stored rows: unknown ids, staff-hidden rows, removed links, a site that left the list", () => {
@@ -132,15 +132,15 @@ test("stored rows: unknown ids, staff-hidden rows, removed links, a site that le
     [3, { url: "https://civitai.com/user/maple", host: "civitai.com", site: "civitai", staff_hidden: false }],
   ]);
   const removed = new Set([fingerprint("https://civitai.com/user/maple")]);
-  assert.deepEqual(listed([harmonic({ id: 44 })], { stored }), ["Harmonic 1 is not one of this gallery's harmonics. Reload the page and build it again."]);
+  assert.deepEqual(listed([harmonic({ id: 44 })], { stored }), ["Channel 1 is not one of this gallery's channels. Reload the page and build it again."]);
   assert.deepEqual(listed([harmonic({ id: 3, url: "https://x.com/maple" }), harmonic({ id: "3" })], { stored }),
-    ["Harmonics 1 and 2 are the same harmonic, listed twice. Reload the page and build the list again."]);
+    ["Channels 1 and 2 are the same channel, listed twice. Reload the page and build the list again."]);
   // A staff-hidden row is not the owner's: whatever the list says of it is not checked.
   assert.deepEqual(listed([harmonic({ id: "1", url: "http://bad", title: "" })], { stored }), []);
   // Unchanged, a link to a site off the list stands, and does not count.
   assert.deepEqual(listed([harmonic({ id: 2, url: "https://myspace.com/maple" }), ...Array.from({ length: 5 }, (_, i) => harmonic({ url: `https://x.com/m${i}` }))], { stored }), []);
   assert.deepEqual(listed([harmonic({ id: 2, url: "https://myspace.com/other" })], { stored }),
-    ["Harmonic 1's link is to myspace.com, which is not on the Tuner's list yet. Ask for it to be added, or link a site that is on the list."]);
+    ["Channel 1's link is to myspace.com, which is not on the Tuner's list yet. Ask for it to be added, or link a site that is on the list."]);
   assert.deepEqual(listed([harmonic({ id: 3 })], { stored, removed }),
     ["That link (civitai.com/user/maple) was removed by site staff and cannot be added to any page. Remove it from your list, or write to staff if you think this was a mistake."]);
 });
@@ -171,9 +171,9 @@ test("spaces, blanks and numbers are read as the server reads them", () => {
   assert.equal(strip("\u0000 Maple\t\u00a0"), "Maple\t\u00a0");
   assert.deepEqual(listed([harmonic({ title: "\u00a0" })]), []);
   assert.deepEqual(listed([harmonic({ title: `\u0000${"t".repeat(48)}` })]), []);
-  assert.deepEqual(listed([harmonic({ title: `\ufeff${"t".repeat(48)}` })]), ["Harmonic 1's title is 49 characters long. Shorten it to 48 or fewer."]);
+  assert.deepEqual(listed([harmonic({ title: `\ufeff${"t".repeat(48)}` })]), ["Channel 1's title is 49 characters long. Shorten it to 48 or fewer."]);
   assert.deepEqual(listed([harmonic({ cta: "\u0085" })]), []);
   assert.deepEqual(listed([picture({ zoom: "1_50" })]), []);
-  assert.deepEqual(listed([picture({ zoom: "\u00a0150" })]), ["Harmonic 1's zoom is \u00a0150; it runs from 100 to 200. Set it within that."]);
+  assert.deepEqual(listed([picture({ zoom: "\u00a0150" })]), ["Channel 1's zoom is \u00a0150; it runs from 100 to 200. Set it within that."]);
   assert.deepEqual(listed([harmonic({ id: " 3\n" })], { stored: new Map([[3, { url: "https://civitai.com/user/maple", host: "civitai.com", site: "civitai", staff_hidden: false }]]) }), []);
 });

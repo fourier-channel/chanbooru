@@ -600,12 +600,12 @@ export function tunerSection(placement, cards, { logos = {}, shadeFloor = 35, ad
   const start = ring ?? 0;
   // A station is [its name, its letter, its bundled logo]: the logo is the
   // mark, the letter stands in for a site with none.
-  const stations = [...cards.map((card) => [`${card.name}: ${card.title}`, card.name.charAt(0).toUpperCase(), card.logo && logos[card.logo]]), ...(add ? [["Add a harmonic", "+", null]] : [])];
+  const stations = [...cards.map((card) => [`${card.name}: ${card.title}`, card.name.charAt(0).toUpperCase(), card.logo && logos[card.logo]]), ...(add ? [["Add a channel", "+", null]] : [])];
   const n = stations.length;
   const tiles = [
     ...cards.map((card, i) => harmonicCard(card, { hidden: i !== start, ring: i === ring, logos, shadeFloor })),
-    ...(add ? [el("button", { type: "button", class: "cg-hm cg-hm--add", hidden: cards.length !== start, "data-cg-add": true, "aria-label": "Add a harmonic" },
-      el("span", { class: "cg-hm-add" }, el("b", { "aria-hidden": "true" }, "+"), "Add a harmonic"))] : []),
+    ...(add ? [el("button", { type: "button", class: "cg-hm cg-hm--add", hidden: cards.length !== start, "data-cg-add": true, "aria-label": "Add a channel" },
+      el("span", { class: "cg-hm-add" }, el("b", { "aria-hidden": "true" }, "+"), "Add a channel"))] : []),
   ];
   const scan = () => el("button", { type: "button", class: "cg-tuner-scan", "data-cg-scan": true, "aria-pressed": "false" }, "Scan");
   const section = el("section", { class: `cg-tuner cg-tuner--${placement.toLowerCase()}`, "aria-label": "Tuner", "data-cg-tuner": placement, "data-scan": "false" });
@@ -625,13 +625,13 @@ export function tunerSection(placement, cards, { logos = {}, shadeFloor = 35, ad
     section.append(
       el("div", { class: "cg-tuner-panel" }, el("div", { class: "cg-tuner-slot" }, ...tiles)),
       el("div", { class: "cg-tuner-controls" },
-        el("button", { type: "button", class: "cg-tuner-step", "data-cg-step": -1, "aria-label": "Previous harmonic" }, "\u2039"),
+        el("button", { type: "button", class: "cg-tuner-step", "data-cg-step": -1, "aria-label": "Previous channel" }, "\u2039"),
         ...stations.map(([station], i) => el("button", {
           type: "button", class: "cg-tuner-pip", "data-cg-pip": i, "aria-current": String(i === start),
-          "aria-label": i < cards.length ? `Harmonic ${i + 1} of ${cards.length}: ${cards[i].title}` : station,
+          "aria-label": i < cards.length ? `Channel ${i + 1} of ${cards.length}: ${cards[i].title}` : station,
         })),
         scan(),
-        el("button", { type: "button", class: "cg-tuner-step", "data-cg-step": 1, "aria-label": "Next harmonic" }, "\u203a")));
+        el("button", { type: "button", class: "cg-tuner-step", "data-cg-step": 1, "aria-label": "Next channel" }, "\u203a")));
   }
   return section;
 }

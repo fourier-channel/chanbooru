@@ -324,15 +324,15 @@ class CreatorGalleriesController < ApplicationController
   # the page, not the harmonic: /mod_actions links every subject, and a
   # harmonic has no page of its own.
   def hide_harmonic(id, hide:)
-    raise User::PrivilegeError, "Only an admin can hide or show a harmonic." unless CurrentUser.user.is_admin?
+    raise User::PrivilegeError, "Only an admin can hide or show a channel." unless CurrentUser.user.is_admin?
 
     notice = @gallery.with_lock do
       harmonic = @gallery.creator_gallery_harmonics.find_by(id: id)
       reason = params[:reason].to_s.strip
       if harmonic.nil?
-        "This page has no harmonic #{id}. Reload the page and pick it again."
+        "This page has no channel #{id}. Reload the page and pick it again."
       elsif hide == harmonic.staff_hidden?
-        hide ? "That harmonic is already hidden." : "That harmonic is not hidden."
+        hide ? "That channel is already hidden." : "That channel is not hidden."
       elsif hide
         harmonic.update!(staff_hidden_at: Time.zone.now, staff_hidden_by: CurrentUser.user, staff_hidden_reason: reason.presence)
         # Two pages hiding one link at once both find no row to lock; the
@@ -340,14 +340,14 @@ class CreatorGalleriesController < ApplicationController
         CreatorHarmonicRemoval.create_or_find_by!(url: harmonic.url.downcase) do |removal|
           removal.assign_attributes(removed_by: CurrentUser.user, reason: reason, source_harmonic_id: harmonic.id)
         end.lock!
-        ModAction.log("hid the harmonic #{harmonic.url} on the creator page #{@gallery.matrix_id}#{": #{reason}" if reason.present?}",
+        ModAction.log("hid the channel #{harmonic.url} on the creator page #{@gallery.matrix_id}#{": #{reason}" if reason.present?}",
                       :creator_harmonic_hide, subject: @gallery, user: CurrentUser.user)
         "Hidden. #{harmonic.url} is on the removals list: no page can carry it until it is shown again."
       else
         harmonic.update!(staff_hidden_at: nil, staff_hidden_by: nil, staff_hidden_reason: nil)
         removal = CreatorHarmonicRemoval.lock.find_by(url: harmonic.url.downcase)
         still = CreatorGalleryHarmonic.where.not(staff_hidden_at: nil).where("lower(url) = ?", harmonic.url.downcase).order(:staff_hidden_at).first
-        ModAction.log("showed the harmonic #{harmonic.url} on the creator page #{@gallery.matrix_id} again", :creator_harmonic_unhide, subject: @gallery, user: CurrentUser.user)
+        ModAction.log("showed the channel #{harmonic.url} on the creator page #{@gallery.matrix_id} again", :creator_harmonic_unhide, subject: @gallery, user: CurrentUser.user)
         if still
           removal&.update!(source_harmonic_id: still.id)
           "Shown again. #{harmonic.url} stays on the removals list: another page's copy of it is still hidden."

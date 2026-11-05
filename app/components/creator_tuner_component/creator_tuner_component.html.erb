@@ -37,12 +37,12 @@
       </div>
     </div>
     <div class="cg-tuner-controls">
-      <button type="button" class="cg-tuner-step" data-cg-step="-1" aria-label="Previous harmonic">&#x2039;</button>
+      <button type="button" class="cg-tuner-step" data-cg-step="-1" aria-label="Previous channel">&#x2039;</button>
       <% cards.each_with_index do |card, i| %>
-        <button type="button" class="cg-tuner-pip" data-cg-pip="<%= i %>" aria-label="Harmonic <%= i + 1 %> of <%= cards.size %>: <%= card[:title] %>"<%= raw(' aria-current="true"') if i.zero? %>></button>
+        <button type="button" class="cg-tuner-pip" data-cg-pip="<%= i %>" aria-label="Channel <%= i + 1 %> of <%= cards.size %>: <%= card[:title] %>"<%= raw(' aria-current="true"') if i.zero? %>></button>
       <% end %>
       <button type="button" class="cg-tuner-scan" data-cg-scan aria-pressed="<%= scan != false %>" title="Scan: the Tuner moves on by itself. Your choice, remembered.">Scan</button>
-      <button type="button" class="cg-tuner-step" data-cg-step="1" aria-label="Next harmonic">&#x203a;</button>
+      <button type="button" class="cg-tuner-step" data-cg-step="1" aria-label="Next channel">&#x203a;</button>
     </div>
   <% end %>
 <% end %>

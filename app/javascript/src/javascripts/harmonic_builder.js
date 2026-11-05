@@ -114,7 +114,7 @@ export function harmonicBuilder(anchor, ctx) {
     ctx.fill(live.ask, ...(ask ? askBox(ask) : []));
     live.problems.replaceChildren(mine.length
       ? el("ul", {}, ...mine.map((problem) => el("li", {}, problem.text)))
-      : el("p", { class: "cg-note" }, "No problems. Save would accept this harmonic."));
+      : el("p", { class: "cg-note" }, "No problems. Save would accept this channel."));
     [["title", live.titleCount], ["subtitle", live.subtitleCount]].forEach(([key, node]) => {
       const n = length(current[key]);
       node.textContent = `${n} / ${limits[key]}`;
@@ -136,7 +136,7 @@ export function harmonicBuilder(anchor, ctx) {
     live.redo = el("button", { type: "button", class: "cg-btn cg-btn--sm", "data-cg-act": "hb-redo", title: "Redo (Ctrl-Shift-Z)" }, "Redo");
     return el("div", { class: "cg-hb-head" },
       el("div", { class: "cg-hb-heading" },
-        el("h3", { tabindex: -1 }, `Building harmonic ${index + 1} of ${list.length}`),
+        el("h3", { tabindex: -1 }, `Building channel ${index + 1} of ${list.length}`),
         el("div", { class: "cg-seg", role: "group", "aria-label": "Where the Tuner sits" }, ...Object.entries(PREVIEWS).map(([v, [name]]) => el("button", {
           type: "button", "data-cg-act": "hb-placement", "data-v": v, "aria-pressed": String(placement === v), "aria-label": name, title: name,
         }, v))),
@@ -262,7 +262,7 @@ export function harmonicBuilder(anchor, ctx) {
 
   function moderation(current, locked) {
     const token = document.querySelector("meta[name='csrf-token']")?.content ?? "";
-    live.modNote = el("p", { class: "cg-note" }, current.id ? "Save or discard first: hiding reloads the page." : "Save it first: only a saved harmonic can be hidden.");
+    live.modNote = el("p", { class: "cg-note" }, current.id ? "Save or discard first: hiding reloads the page." : "Save it first: only a saved channel can be hidden.");
     live.mod = el("form", { method: "post", action: ctx.saveUrl, class: "cg-hb-mod" },
       el("input", { type: "hidden", name: "_method", value: "patch" }),
       el("input", { type: "hidden", name: "authenticity_token", value: token }),
@@ -292,7 +292,7 @@ export function harmonicBuilder(anchor, ctx) {
     // control, and the heading takes it when that is gone or disabled.
     const held = anchor.contains(document.activeElement);
     live = {};
-    ctx.fill(anchor, el("section", { class: "cg-hb cg-glass", "data-cg-build": true, "aria-label": "Harmonic builder" },
+    ctx.fill(anchor, el("section", { class: "cg-hb cg-glass", "data-cg-build": true, "aria-label": "Channel builder" },
       head(list),
       el("div", { class: "cg-hb-grid" },
         stageColumn(),

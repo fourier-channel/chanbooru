@@ -341,7 +341,7 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
         patch creator_gallery_path(@gallery), params: { layout: @look.merge(harmonics: [@harmonic.merge(url: "https://example.org/alice")]) }, headers: @alice, as: :json
 
         assert_response 422
-        assert_equal(["Harmonic 1's link is to example.org, which is not on the Tuner's list yet. Ask for it to be added, or link a site that is on the list."],
+        assert_equal(["Channel 1's link is to example.org, which is not on the Tuner's list yet. Ask for it to be added, or link a site that is on the list."],
                      response.parsed_body["problems"])
       end
 
@@ -356,14 +356,14 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
         row.reload
         assert_equal([admin, "impersonation"], [row.staff_hidden_by, row.staff_hidden_reason])
         assert_equal([["https://civitai.com/user/alice", admin.id, row.id]], CreatorHarmonicRemoval.pluck(:url, :removed_by_id, :source_harmonic_id))
-        assert_equal("hid the harmonic https://civitai.com/user/Alice on the creator page @alice:41chan.net: impersonation", ModAction.last.description)
+        assert_equal("hid the channel https://civitai.com/user/Alice on the creator page @alice:41chan.net: impersonation", ModAction.last.description)
         assert_equal(["creator_harmonic_hide", @gallery], [ModAction.last.category, ModAction.last.subject])
         # The owner's editor checks against the removals by fingerprint alone.
         get edit_creator_gallery_path(@gallery), headers: @alice
         assert_equal([CreatorHarmonicRemoval.fingerprint("https://civitai.com/user/alice")], JSON.parse(css_select("[data-creator-gallery]").first["data-editor"])["removed"])
 
         put_auth creator_gallery_path(@gallery), admin, params: { harmonic_hide: row.id }
-        assert_equal("That harmonic is already hidden.", flash[:notice])
+        assert_equal("That channel is already hidden.", flash[:notice])
 
         put_auth creator_gallery_path(@gallery), admin, params: { harmonic_unhide: row.id }
         assert_nil(row.reload.staff_hidden_at)

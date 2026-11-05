@@ -77,7 +77,7 @@ class CreatorGalleryHarmonicTest < ActiveSupport::TestCase
       @harmonic.update!(staff_hidden_at: Time.zone.now, staff_hidden_reason: "spam")
 
       assert_not(@harmonic.counts?(Set.new))
-      assert_equal("Harmonic 2 was hidden by site staff: spam. It is not shown on your page.", @harmonic.owner_notice(Set.new, 2))
+      assert_equal("Channel 2 was hidden by site staff: spam. It is not shown on your page.", @harmonic.owner_notice(Set.new, 2))
     end
 
     should "stop counting while its site is off the list, and keep its row" do

@@ -630,8 +630,8 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
     end
 
     should "refuse a view of a post this Save does not put where views are drawn, of no post id, or two of one post" do
-      assert_equal(["Post ##{@posts[5].id}'s view cannot be saved: this Save puts the post on no miniband, banner or harmonic background, where views are drawn. Put it on one, or leave its view out.",
-                    "Post #99999999's view cannot be saved: this Save puts the post on no miniband, banner or harmonic background, where views are drawn. Put it on one, or leave its view out.",
+      assert_equal(["Post ##{@posts[5].id}'s view cannot be saved: this Save puts the post on no miniband, banner or channel background, where views are drawn. Put it on one, or leave its view out.",
+                    "Post #99999999's view cannot be saved: this Save puts the post on no miniband, banner or channel background, where views are drawn. Put it on one, or leave its view out.",
                     "A view's post must be a post id. Send each view with the post_id of a post on the page.",
                     "Post ##{@posts[0].id} has 2 views. Send one view per post."],
                    save_look("views" => [view_of(@posts[5]), { "post_id" => 99_999_999 }, view_of(@posts[1], "post_id" => "first"), view_of(@posts[0]), view_of(@posts[0], "x" => 0)]))

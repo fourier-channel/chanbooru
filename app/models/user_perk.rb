@@ -15,7 +15,7 @@
 # read it.
 class UserPerk < ApplicationRecord
   PERKS = {
-    "creator_harmonic_cap" => { default: 5, max: 25, label: "Creator Tuner harmonics" },
+    "creator_harmonic_cap" => { default: 5, max: 25, label: "Creator Tuner channels" },
   }.freeze
   SOURCES = %w[admin paid].freeze
 

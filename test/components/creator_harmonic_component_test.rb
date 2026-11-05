@@ -127,8 +127,8 @@ class CreatorHarmonicComponentTest < ViewComponent::TestCase
       assert_css("a.cg-hm.cg-hm--off")
       assert_no_css("a.cg-hm--amber")
 
-      render_card(counts: false, notice: "Harmonic 1's background is no longer one of your posts.")
-      assert_css("a.cg-hm.cg-hm--off.cg-hm--amber[title=\"Harmonic 1's background is no longer one of your posts.\"]")
+      render_card(counts: false, notice: "Channel 1's background is no longer one of your posts.")
+      assert_css("a.cg-hm.cg-hm--off.cg-hm--amber[title=\"Channel 1's background is no longer one of your posts.\"]")
     end
 
     should "be out of sight and the tab order when it is not the card the Tuner shows" do
