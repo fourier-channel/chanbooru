@@ -8,6 +8,24 @@ class IqdbQueriesControllerTest < ActionDispatch::IntegrationTest
     end
 
     context "show action" do
+      should "be rate limited" do
+        Danbooru.config.stubs(:rate_limits_enabled?).returns(true)
+        create(:rate_limit, action: "iqdb_queries:show", key: @user.cache_key, limited: true)
+
+        get_auth iqdb_queries_path, @user, params: { post_id: @post.id }
+
+        assert_response 429
+      end
+
+      should "rate limit the create action" do
+        Danbooru.config.stubs(:rate_limits_enabled?).returns(true)
+        create(:rate_limit, action: "iqdb_queries:create", key: @user.cache_key, limited: true)
+
+        post_auth iqdb_queries_path(format: :json), @user, params: { search: { post_id: @post.id }}
+
+        assert_response 429
+      end
+
       context "with a url parameter" do
         should "use the URL as-is for an image URL" do
           mock_iqdb_matches([{ post_id: @post.id, score: 95.0 }])
