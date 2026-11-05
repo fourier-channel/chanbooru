@@ -23,7 +23,7 @@ class RelatedTagsController < ApplicationController
 
     # Fork: cached publicly only with the current quarantine generation
     # (`tv`, see AutocompleteController); otherwise a minute, privately.
-    if request.format.js? && response.cache_control.blank? && params[:user_tags].blank?
+    if !request.format.html? && response.cache_control.blank? && params[:user_tags].blank?
       if params[:tv].to_s == TagQuarantine.names_generation
         expires_in @query.cache_duration, public: @query.cache_publicly?
       else
