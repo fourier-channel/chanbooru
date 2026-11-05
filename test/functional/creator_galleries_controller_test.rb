@@ -9,7 +9,7 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
            "(the canon copy is fourier-basis ops/hetzner/danbooru/creator_prefixes.yml)"
 
   def edit_as(user, headers: @maple_header, **params)
-    get_auth edit_creator_gallery_path(@gallery), user, headers: headers, params: params
+    get_auth edit_creator_gallery_path(@gallery, view: "identity"), user, headers: headers, params: params
     assert_response :success
   end
 
@@ -526,7 +526,7 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
         CreatorPrefixes.stubs(:config).raises(CreatorPrefixes::ConfigError, BROKEN)
 
         edit_as(@maple)
-        assert_match(/Creator tags cannot be claimed right now: the creator-prefix list is broken; the server log says what is wrong\. The site owner fixes the list, then try again/, response.body)
+        assert_match(/Creator names cannot be claimed right now: the creator-prefix list is broken; the server log says what is wrong\. The site owner fixes the list, then try again/, response.body)
         assert_no_match(%r{/srv|EACCES|chmod|fourier-basis}, response.body)
       end
 

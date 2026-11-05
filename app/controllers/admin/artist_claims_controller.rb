@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
 module Admin
-  # The creator-claim queue: who says a creator tag is theirs, and an admin's
-  # answer (design CREATOR_VISIBILITY Q6, ruled 2026-10-07: admins approve).
+  # The creator-claim queue: the names a creator asked for by review, and an
+  # admin's answer (operator, 2026-11-05: a direct match of the page's Matrix
+  # name is approved as it is filed and never waits here; every other name is
+  # an admin's to decide, filed with the creator's note in a
+  # CreatorClaimRequest).
   #
   # Both answers go through the model's own verbs, ArtistClaim#approve! and
   # #reject!, which refuse anyone but an admin and write the admin-only mod
@@ -19,19 +22,27 @@ module Admin
 
     def index
       authorize ArtistClaim
-      @pending = ArtistClaim.pending.includes(:artist, creator_gallery: :user).order(:created_at, :id)
+      @pending = ArtistClaim.pending.includes(:artist, :creator_claim_request, creator_gallery: :user).order(:created_at, :id).to_a
+      # The tickets: one per request, a claim from before requests by its page.
+      @tickets = @pending.group_by { |claim| [claim.creator_gallery, claim.creator_claim_request] }
+      names = @pending.map(&:tag_name).uniq
+      @post_counts = Tag.where(name: names).pluck(:name, :post_count).to_h
+      # Who else holds or asks for each name, so two creators asking for one
+      # name are seen side by side.
+      @others = ArtistClaim.where(tag_name: names, status: [ArtistClaim::APPROVED, ArtistClaim::PENDING]).includes(:creator_gallery).group_by(&:tag_name)
       @decided = ArtistClaim.where.not(status: ArtistClaim::PENDING).includes(:approver, creator_gallery: :user)
                             .order(decided_at: :desc, id: :desc).limit(50)
       @character_pending = CharacterClaim.pending.includes(creator_gallery: :user).order(:created_at, :id).to_a
       @character_decided = CharacterClaim.where.not(status: CharacterClaim::PENDING).includes(:approver, creator_gallery: :user)
                                          .order(decided_at: :desc, id: :desc).limit(50).to_a
-      # Why each waiting claim was not approved when filed -- the history the
-      # name already carries (posts, a wiki page, an alias into it) -- so the
-      # admin sees what to look at. Up to three queries per waiting claim.
-      @character_waits = @character_pending.to_h { |claim| [claim.id, claim.history] }
+      # What approving each waiting claim takes up -- the history the name
+      # already carries (posts, a wiki page, an alias into it) -- so the admin
+      # sees what to look at. A claim waits here only when approving it at
+      # filing failed (CharacterClaim#file!). Up to three queries per claim.
+      @character_carries = @character_pending.to_h { |claim| [claim.id, claim.history] }
       # The rule as it stands NOW, per pending claim: the list is live, so a
       # claim valid when filed may not be at approval (approve! re-checks too).
-      @refusals = @pending.to_h { |claim| [claim.id, ArtistClaim.refusal(claim.tag_name, claim.creator_gallery.matrix_id)] }
+      @refusals = @pending.to_h { |claim| [claim.id, ArtistClaim.refusal(claim.tag_name, claim.creator_gallery.matrix_id, by_review: claim.by_review?)] }
       @character_refusals = character_refusals
     rescue CreatorPrefixes::ConfigError => e
       @refusals = @character_refusals = nil
@@ -83,7 +94,7 @@ module Admin
       standing = CharacterClaim.where(id: approved.map(&:id)).standing.map(&:id)
       tags = Tag.where(name: approved.map(&:tag_name)).pluck(:name)
       (@character_pending + approved).to_h do |claim|
-        why = CharacterClaim.refusal(claim.tag_name, claim.slug)
+        why = claim.rule_refusal
         why ||= "the tag #{claim.tag_name} no longer exists" if claim.approved? && tags.exclude?(claim.tag_name)
         why ||= "no longer stands" if claim.approved? && standing.exclude?(claim.id)
         [claim.id, why]

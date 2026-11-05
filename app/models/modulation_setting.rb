@@ -38,7 +38,7 @@ class ModulationSetting < ApplicationRecord
   # always reloads after an auth action, so there is no preference to keep.
   # Dropped from the key list rather than defaulted to true, so a stored
   # `false` from before the ruling cannot come back and disable the reload.
-  PANEL_KEYS = %w[image_cap tags_expanded gallery_sort gallery_view gallery_show_deleted session_bar_open hero_band tuner_scan wheel_scroll creator_about_open creator_about_boxes].freeze
+  PANEL_KEYS = %w[image_cap tags_expanded gallery_sort gallery_view gallery_show_deleted session_bar_open hero_band tuner_scan wheel_scroll creator_about_open creator_about_boxes tours].freeze
 
   SESSION_KEY = :modulation_settings
 
@@ -51,6 +51,12 @@ class ModulationSetting < ApplicationRecord
   ABOUT_BOX_KIND = /\A[a-z0-9-]{1,40}\z/
   ABOUT_BOX_HEIGHTS = 80..2000
   ABOUT_BOX_LIMIT = 16
+
+  # The Creator Identity dashboard's two tours, independent of each other
+  # (operator, 2026-11-05), and how each one ended. A tour with no entry has
+  # not been seen and starts by itself; forgetting the entry is the replay.
+  TOURS = %w[creator_name oc].freeze
+  TOUR_ENDS = %w[done skipped].freeze
 
   validates :image_cap, inclusion: { in: IMAGE_CAPS }
   validates :gallery_view, inclusion: { in: GALLERY_VIEWS }
@@ -77,6 +83,9 @@ class ModulationSetting < ApplicationRecord
       # {"bio" => {"open" => false, "h" => 320}}. A box with no entry is open
       # at its content's height.
       "creator_about_boxes" => {},
+      # Each Creator Identity tour as the viewer ended it, by tour
+      # (operator, 2026-11-05): {"creator_name" => "done", "oc" => "skipped"}.
+      "tours" => {},
     }
   end
 
@@ -97,6 +106,7 @@ class ModulationSetting < ApplicationRecord
   def self.record!(user, session, changes)
     clean = {}
     clean["creator_about_boxes"] = about_boxes(for_viewer(user, session)["creator_about_boxes"], changes["creator_about_boxes"]) unless changes["creator_about_boxes"].nil?
+    clean["tours"] = tours(for_viewer(user, session)["tours"], changes["tours"]) unless changes["tours"].nil?
     cap = changes["image_cap"].presence
     clean["image_cap"] = cap if IMAGE_CAPS.include?(cap)
     clean["tags_expanded"] = changes["tags_expanded"].to_s.truthy? unless changes["tags_expanded"].nil?
@@ -151,5 +161,19 @@ class ModulationSetting < ApplicationRecord
     end
     refuse.call("would keep #{merged.size} boxes, more than #{ABOUT_BOX_LIMIT}") if merged.size > ABOUT_BOX_LIMIT
     merged
+  end
+
+  # The viewer's tours with a change merged in, tour by tour: a tour given
+  # nil is forgotten, so it plays again.
+  def self.tours(stored, change)
+    refuse = ->(what) { raise Refused, "tours #{what}. It takes {\"creator_name\": \"done\"}: a tour (#{TOURS.join(" or ")}) with #{TOUR_ENDS.join(" or ")}, or null to play it again." }
+    refuse.call("is not an object of tours") unless change.is_a?(Hash)
+    change.reduce(stored.to_h) do |ends, (tour, ended)|
+      refuse.call("names #{tour.to_s.first(40).inspect}, which is not a tour") unless TOURS.include?(tour.to_s)
+      next ends.except(tour.to_s) if ended.nil?
+      refuse.call("ends #{tour} with #{ended.to_s.first(40).inspect}") unless TOUR_ENDS.include?(ended)
+
+      ends.merge(tour.to_s => ended)
+    end
   end
 end

@@ -372,6 +372,24 @@ body:has(.modcreator) {
     &:hover, &:focus-visible { opacity: 1; background: color-mix(in srgb, var(--mod-surface) 75%, transparent); color: var(--mod-ink); }
   }
 
+  // Beside the pencil, the same glass: the Identity dashboard.
+  .modcreator-identity-btn {
+    position: absolute; top: 16px; right: calc(var(--cg-gutter) + 60px); z-index: 3;
+    display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: 24px;
+    background: color-mix(in srgb, var(--mod-surface) 45%, transparent);
+    border: 1px solid color-mix(in srgb, var(--mod-ink) 18%, transparent);
+    backdrop-filter: blur(10px); color: var(--mod-ink); opacity: 0.7; font-size: 14px; white-space: nowrap;
+    box-shadow: 0 10px 30px -8px rgb(0 0 0 / 70%);
+    transition: opacity 0.2s, background-color 0.15s;
+
+    &:hover, &:focus-visible { opacity: 1; background: color-mix(in srgb, var(--mod-surface) 75%, transparent); color: var(--mod-ink); }
+  }
+
+  @media (max-width: 560px) {
+    .modcreator-identity-btn { width: 48px; padding: 0; justify-content: center; }
+    .modcreator-identity-btn-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  }
+
   .modcreator-private { flex: 1 1 280px; margin: 0; padding-bottom: 6px; font-size: 18px; color: var(--mod-ink-dim); }
 
   .modcreator-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-bottom: 6px; }
@@ -937,7 +955,7 @@ body:has(.modcreator) {
     // The Skywave Dial fills the banner's middle, too wide to leave the
     // pencil a corner: it waits under the dial, at the banner's foot, across
     // from the avatar.
-    .modcreator-head--sky :is(.modcreator-edit-btn, .modcreator-banner-view) { top: calc(var(--cg-sky) - 40px); }
+    .modcreator-head--sky :is(.modcreator-edit-btn, .modcreator-identity-btn, .modcreator-banner-view) { top: calc(var(--cg-sky) - 40px); }
 
     // No room beside About's button: the head goes under it.
     .modcreator-hero { padding-top: 60px; }

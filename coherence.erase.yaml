@@ -125,6 +125,7 @@ stores:
       forum_topic_visits.last_read_at: {fate: GONE}
       modulation_settings.random_trails: {fate: GONE}
       modulation_settings.view_prefs: {fate: GONE}
+      modulation_settings.tours: {fate: GONE}
       site_credentials.credential: {fate: GONE}
       site_credentials.metadata: {fate: GONE}
       user_perks.perk: {fate: GONE}
@@ -385,7 +386,7 @@ stores:
   # inv 5.5. The person's own creator gallery. The page stays as the home of
   # their content under the pseudonym; what they wrote about themselves goes.
   - id: booru.creator-galleries
-    where: 41chan danbooru db, creator_galleries, creator_gallery_messages, creator_gallery_harmonics
+    where: 41chan danbooru db, creator_galleries, creator_gallery_messages, creator_gallery_harmonics, creator_claim_requests
     holds: [booru_user_id, mxid, localpart, display_name, creator_tags]
     locate: user_id = subject.booru_user_id or matrix_id = subject.mxid
     residue: [coherence.backups]
@@ -408,6 +409,8 @@ stores:
         reader: {at: "app/models/creator_gallery_message.rb:7", token: "body"}
       creator_gallery_harmonics.url: {fate: GONE}
       creator_gallery_harmonics.title: {fate: GONE}
+      # What the creator wrote to an admin when asking for names by review.
+      creator_claim_requests.note: {fate: GONE}
 
   # inv 5.6 "Creator TAGS"; E4. Every 41chan_/aichan_ tag of the person is
   # renamed to an independent random pseudonym everywhere its NAME is stored.

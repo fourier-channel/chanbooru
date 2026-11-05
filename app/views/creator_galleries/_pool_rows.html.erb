@@ -1,0 +1,20 @@
+<%# The Claim Pool's rows (CreatorClaimRequest.pool): each name with what
+    sending it would do. A direct match and a name a link brought start
+    ticked; a name the search found waits for the creator's tick; an
+    unavailable one shows, greyed, with why. Also the answer to the page's
+    search script (fragment=pool), which adds these rows to the pool. %>
+<% rows.each do |row| %>
+  <li class="creator-pool-row creator-pool-<%= row.outcome %>" data-name="<%= row.name %>" data-outcome="<%= row.outcome %>">
+    <label>
+      <%= check_box_tag "claim_tag[]", row.name, row.outcome == CreatorClaimRequest::IMMEDIATE || asked.include?(row.name),
+            id: nil, disabled: row.outcome == CreatorClaimRequest::REFUSED %>
+      <span class="creator-pool-name"><%= row.name %></span>
+      <span class="creator-pool-label">
+        <% if row.outcome == CreatorClaimRequest::IMMEDIATE %>available for immediate claim
+        <% elsif row.outcome == CreatorClaimRequest::REQUESTED %>an admin reviews it
+        <% else %>unavailable: <%= row.reason %>
+        <% end %>
+      </span>
+    </label>
+  </li>
+<% end %>

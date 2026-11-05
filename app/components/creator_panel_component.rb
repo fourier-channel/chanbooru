@@ -31,15 +31,19 @@ class CreatorPanelComponent < ApplicationComponent
   DECIDED_LIMIT = 50
   POSTS_PER_PAGE = 50
 
-  attr_reader :gallery, :viewer, :refusal, :member_q, :page, :panel_post_id, :open_group
+  attr_reader :gallery, :viewer, :refusal, :member_q, :page, :panel_post_id, :open_group, :home
 
   # @param refusal [String, nil] why this viewer may not use the panel (the
   #   controller's panel_refusal), nil when they may
   # @param place [Hash] where the creator is in the panel, from the URL:
   #   post_id (the one-post editor), audience_page, member_q (the name box)
   #   and open_group (the group the last write was on)
-  def initialize(gallery:, viewer:, refusal:, place: {})
+  # @param home [Hash] the URL params of the page the panel sits on (the
+  #   Identity dashboard's view=identity, popout=1), kept by every link,
+  #   search and write so each answer comes back there
+  def initialize(gallery:, viewer:, refusal:, place: {}, home: {})
     super
+    @home = home
     @gallery = gallery
     @viewer = viewer
     @refusal = refusal
@@ -49,7 +53,13 @@ class CreatorPanelComponent < ApplicationComponent
     @open_group = place[:open_group].to_i
   end
 
-  def path = helpers.creator_gallery_path(gallery)
+  def path = helpers.creator_gallery_path(gallery, **home)
+
+  # This page again, at `place`.
+  def here(**place) = helpers.edit_creator_gallery_path(gallery, **home, **place)
+
+  # A GET form drops its action's query string, so it carries `home` itself.
+  def home_fields = safe_join(home.map { |key, value| helpers.hidden_field_tag(key, value, id: nil) })
 
   def admin_acting? = viewer.is_admin? && gallery.user_id != viewer.id
 

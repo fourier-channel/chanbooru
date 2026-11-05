@@ -1,95 +1,8 @@
 <%# The edit page is the gallery itself with options on everything
-    (CreatorGalleryComponent, editing). The sections below keep their own
-    forms and routes; they descend from the header with the page's other
-    panels, each under its box's title. %>
+    (CreatorGalleryComponent, editing). The creator's names, characters and
+    who sees their posts live on the Identity dashboard (view=identity), one
+    button away in the editor's bar; the blog stays here, a panel of the page. %>
 <% content_for(:content) do %>
-  <%# --- who sees the creator's posts: the panel the claim is the key to (CREATOR_VISIBILITY, 2026-10-09) --- %>
-  <% audience = capture do %>
-    <%= render CreatorPanelComponent.new(gallery: @gallery, viewer: CurrentUser.user, refusal: @panel_refusal,
-          place: { post_id: params[:post_id], audience_page: params[:audience_page], member_q: params[:member_q], open_group: params[:open_group] }) %>
-  <% end %>
-
-  <%# --- booru account and creator claims (CREATOR_VISIBILITY, 2026-10-07) --- %>
-  <% claims = capture do %>
-    <section id="creator-claims">
-      <% if @gallery.user %>
-        <p>Linked to the booru account <%= link_to_user @gallery.user %>.</p>
-        <% if CurrentUser.user.is_admin? %>
-          <%# An admin's correction (logged, admins only): a page made before 2026-10-07 may carry the admin's own account. %>
-          <%= button_to "Unlink from #{@gallery.user.name}", creator_gallery_path(@gallery), method: :patch,
-                params: { unlink_account: 1 }, data: { confirm: "Unlink this page from #{@gallery.user.name}? Its owner can then link their own account." } %>
-        <% end %>
-      <% elsif @signed_in_owner %>
-        <p>This page is not linked to a booru account yet. Claims and control over your posts need one.</p>
-        <%= button_to "Link this page to my booru account (#{CurrentUser.user.name})", creator_gallery_path(@gallery),
-              method: :patch, params: { link_account: 1 }, class: "button-primary" %>
-      <% else %>
-        <p class="fineprint">Not linked to a booru account. Sign in to the booru while signed in with this page's Matrix identity to link it.</p>
-      <% end %>
-
-      <% if @claims.any? %>
-        <ul>
-          <% @claims.each do |claim| %>
-            <li><%= claim.tag_name %> - <%= claim.status %><%= " (#{claim.note})" if claim.rejected? && claim.note.present? %></li>
-          <% end %>
-        </ul>
-      <% end %>
-
-      <% @claim_offers.each do |tag| %>
-        <%= form_with url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-inline-form" do %>
-          <%= hidden_field_tag :claim_tag, tag %>
-          <button type="submit" class="button-primary">Claim <%= tag %></button>
-        <% end %>
-      <% end %>
-      <p class="fineprint">
-        A creator tag under another site's prefix is yours to claim when it matches your Matrix name once the prefix
-        is taken off. An admin reviews every claim. Your 41chan_ tag needs no claim.
-      </p>
-    </section>
-  <% end %>
-
-  <%# --- original characters: the creator's own, <name>_(<slug>) (CharacterClaim, 2026-10-11) --- %>
-  <% characters = capture do %>
-    <section id="creator-characters">
-      <% if @character_claims.any? %>
-        <ul class="modcreator-character-claims">
-          <% @character_claims.each do |claim| %>
-            <li>
-              <%= link_to claim.tag_name, wiki_page_path(claim.tag_name) %> - <%= claim.status %><%= " (#{claim.note})" if claim.note.present? %>
-              <% if claim.approved? && @signed_in_owner && @gallery.user_id == CurrentUser.user.id %>
-                <%= form_with url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-inline-form",
-                      data: { confirm: "Release #{claim.tag_name}? Its wiki page opens to everyone's edits again; the tag and the page stay." } do %>
-                  <%= hidden_field_tag :release_character, claim.id %>
-                  <button type="submit" class="button-outline-danger">Release</button>
-                <% end %>
-              <% end %>
-            </li>
-          <% end %>
-        </ul>
-      <% end %>
-
-      <% if @signed_in_owner && @gallery.user_id == CurrentUser.user.id %>
-        <%= form_with url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-inline-form modcreator-character-form" do %>
-          <label for="claim_character">Claim a character</label>
-          <span class="modcreator-character-name">
-            <%= text_field_tag :claim_character, nil, placeholder: "name", required: true, autocomplete: "off", size: nil %><span class="modcreator-character-slug">_(<%= @gallery.slug %>)</span>
-          </span>
-          <button type="submit" class="button-primary">Claim</button>
-        <% end %>
-        <p class="fineprint">
-          An original character's tag is its name with your name in brackets: maple becomes maple_(<%= @gallery.slug %>).
-          A name nobody has used yet (no posts, no wiki page, no alias) is yours at once; one that has been used waits for an
-          admin. Once it is yours, only you and admins edit its wiki page and only an admin changes its category. Anyone can
-          still tag posts with it, fan art included.
-        </p>
-      <% elsif @signed_in_owner %>
-        <p class="fineprint">Link this page to your booru account (above) to claim your original characters.</p>
-      <% else %>
-        <p class="fineprint">Read-only here: the creator files and releases their claims. Claims that wait are decided in <%= link_to "the claims queue", admin_artist_claims_path(anchor: "character-claims") %>.</p>
-      <% end %>
-    </section>
-  <% end if @signed_in_owner || CurrentUser.user.is_admin? %>
-
   <%# --- blog messages --- %>
   <% blog = capture do %>
     <section id="creator-messages">
@@ -122,6 +35,6 @@
         wheel: settings["wheel_scroll"].to_s.truthy?,
         about_open: settings["creator_about_open"].to_s.truthy?,
         about_boxes: settings["creator_about_boxes"],
-        panels: { "Who sees the posts" => audience, "Booru account and creator tags" => claims, "Character claims" => characters, "Blog messages" => blog }.compact) %>
+        panels: { "Blog messages" => blog }) %>
 <% end %>
 <% content_for(:html_header) do %><% page_title "Edit #{@gallery.slug}" %><% end %>

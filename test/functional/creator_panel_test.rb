@@ -134,7 +134,7 @@ class CreatorPanelTest < ActionDispatch::IntegrationTest
     should "be open to an admin, logged under the admin's name where moderators cannot read it" do
       panel(@admin, "default_audience", headers: {}, audience: "private")
 
-      assert_redirected_to(edit_creator_gallery_path(@gallery, anchor: "creator-panel-default"))
+      assert_redirected_to(edit_creator_gallery_path(@gallery, view: "identity", anchor: "creator-panel-default"))
       assert_equal("private", @gallery.reload.default_audience)
       entry = ModAction.where(category: "creator_audience_update").last
 
@@ -285,7 +285,7 @@ class CreatorPanelTest < ActionDispatch::IntegrationTest
     should "set one post differently and send it back to the default" do
       panel(@maple, "post_audience", post_id: @post.id, audience: "private")
 
-      assert_redirected_to(edit_creator_gallery_path(@gallery, post_id: @post.id, anchor: "creator-panel-posts"))
+      assert_redirected_to(edit_creator_gallery_path(@gallery, view: "identity", post_id: @post.id, anchor: "creator-panel-posts"))
       get_auth post_path(@post), @stranger
       assert_response(404)
       panel(@maple, "post_audience", post_id: @post.id, audience: "inherit")
@@ -448,15 +448,15 @@ class CreatorPanelTest < ActionDispatch::IntegrationTest
         "group_requests" => { open_to_requests: "0" }}.each do |act, params|
         panel(@maple, act, group_id: @tier.id, **params)
 
-        assert_redirected_to(edit_creator_gallery_path(@gallery, open_group: @tier.id, anchor: "creator-panel-group-#{@tier.id}"), act)
+        assert_redirected_to(edit_creator_gallery_path(@gallery, view: "identity", open_group: @tier.id, anchor: "creator-panel-group-#{@tier.id}"), act)
       end
       panel(@maple, "add_member", group_id: @tier.id, user_name: "nobody_here")
 
-      assert_redirected_to(edit_creator_gallery_path(@gallery, open_group: @tier.id, anchor: "creator-panel-group-#{@tier.id}"))
+      assert_redirected_to(edit_creator_gallery_path(@gallery, view: "identity", open_group: @tier.id, anchor: "creator-panel-group-#{@tier.id}"))
       panel(@maple, "make_group", suffix: "friends")
       made = CreatorGroup.find_by!(name: "41chan_maple_friends")
 
-      assert_redirected_to(edit_creator_gallery_path(@gallery, open_group: made.id, anchor: "creator-panel-group-#{made.id}"))
+      assert_redirected_to(edit_creator_gallery_path(@gallery, view: "identity", open_group: made.id, anchor: "creator-panel-group-#{made.id}"))
     end
   end
 

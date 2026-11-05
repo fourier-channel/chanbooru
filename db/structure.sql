@@ -201,7 +201,9 @@ CREATE TABLE public.artist_claims (
     note text DEFAULT ''::text NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
-    tag_name character varying
+    tag_name character varying,
+    creator_claim_request_id bigint,
+    by_review boolean DEFAULT false NOT NULL
 );
 
 
@@ -623,6 +625,38 @@ CREATE SEQUENCE public.creator_audience_groups_id_seq
 --
 
 ALTER SEQUENCE public.creator_audience_groups_id_seq OWNED BY public.creator_audience_groups.id;
+
+
+--
+-- Name: creator_claim_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.creator_claim_requests (
+    id bigint NOT NULL,
+    creator_gallery_id bigint NOT NULL,
+    note text DEFAULT ''::text NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: creator_claim_requests_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.creator_claim_requests_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_claim_requests_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.creator_claim_requests_id_seq OWNED BY public.creator_claim_requests.id;
 
 
 --
@@ -2050,7 +2084,8 @@ CREATE TABLE public.modulation_settings (
     tuner_scan boolean,
     wheel_scroll boolean DEFAULT false NOT NULL,
     creator_about_open boolean DEFAULT true NOT NULL,
-    creator_about_boxes jsonb DEFAULT '{}'::jsonb NOT NULL
+    creator_about_boxes jsonb DEFAULT '{}'::jsonb NOT NULL,
+    tours jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 
@@ -3892,6 +3927,13 @@ ALTER TABLE ONLY public.creator_audience_groups ALTER COLUMN id SET DEFAULT next
 
 
 --
+-- Name: creator_claim_requests id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_claim_requests ALTER COLUMN id SET DEFAULT nextval('public.creator_claim_requests_id_seq'::regclass);
+
+
+--
 -- Name: creator_galleries id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -4519,6 +4561,14 @@ ALTER TABLE ONLY public.comments
 
 ALTER TABLE ONLY public.creator_audience_groups
     ADD CONSTRAINT creator_audience_groups_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: creator_claim_requests creator_claim_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_claim_requests
+    ADD CONSTRAINT creator_claim_requests_pkey PRIMARY KEY (id);
 
 
 --
@@ -5218,6 +5268,13 @@ CREATE INDEX index_artist_claims_on_artist_id_and_status ON public.artist_claims
 
 
 --
+-- Name: index_artist_claims_on_creator_claim_request_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_artist_claims_on_creator_claim_request_id ON public.artist_claims USING btree (creator_claim_request_id);
+
+
+--
 -- Name: index_artist_claims_on_creator_gallery_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5712,6 +5769,13 @@ CREATE UNIQUE INDEX index_creator_audience_groups_one_per_default ON public.crea
 --
 
 CREATE UNIQUE INDEX index_creator_audience_groups_one_per_post ON public.creator_audience_groups USING btree (creator_group_id, post_id) WHERE (post_id IS NOT NULL);
+
+
+--
+-- Name: index_creator_claim_requests_on_creator_gallery_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_creator_claim_requests_on_creator_gallery_id ON public.creator_claim_requests USING btree (creator_gallery_id);
 
 
 --
@@ -8557,6 +8621,14 @@ ALTER TABLE ONLY public.creator_audience_groups
 
 
 --
+-- Name: creator_claim_requests fk_rails_25dc61e4f4; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.creator_claim_requests
+    ADD CONSTRAINT fk_rails_25dc61e4f4 FOREIGN KEY (creator_gallery_id) REFERENCES public.creator_galleries(id);
+
+
+--
 -- Name: post_appeals fk_rails_2794bb6745; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9133,6 +9205,14 @@ ALTER TABLE ONLY public.creator_post_audiences
 
 
 --
+-- Name: artist_claims fk_rails_a4946982b0; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.artist_claims
+    ADD CONSTRAINT fk_rails_a4946982b0 FOREIGN KEY (creator_claim_request_id) REFERENCES public.creator_claim_requests(id);
+
+
+--
 -- Name: creator_join_requests fk_rails_a844598521; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9467,6 +9547,8 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261105000002'),
+('20261105000001'),
 ('20261102000001'),
 ('20261101000003'),
 ('20261101000002'),

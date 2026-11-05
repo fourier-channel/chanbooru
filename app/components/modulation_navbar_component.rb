@@ -102,7 +102,7 @@ class ModulationNavbarComponent < NavbarComponent
     # request, so this is how they hear. Shown only while something waits,
     # like Claims; never asked for a signed-out viewer.
     if !current_user.is_anonymous? && pending_join_requests.any?
-      list << { label: "Requests", href: main_app.edit_creator_gallery_path(pending_join_requests.keys.first, anchor: "creator-panel-requests"),
+      list << { label: "Requests", href: main_app.edit_creator_gallery_path(pending_join_requests.keys.first, view: "identity", anchor: "creator-panel-requests"),
                 category: "meta", count: pending_join_requests.values.sum }
     end
 

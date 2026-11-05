@@ -95,6 +95,32 @@ class ModulationSettingTest < ActiveSupport::TestCase
       end
     end
 
+    # Operator, 2026-11-05: the Creator Identity dashboard's two tours are
+    # independent; each can be skipped and played again later.
+    context "tours" do
+      should "default to none seen" do
+        assert_equal({}, ModulationSetting.for_viewer(@user)["tours"])
+        assert_includes(ModulationSetting::PANEL_KEYS, "tours")
+      end
+
+      should "keep each tour's end apart, and forget one on nil so it plays again" do
+        ModulationSetting.record!(@user, nil, "tours" => { "creator_name" => "skipped" })
+        ModulationSetting.record!(@user, nil, "tours" => { "oc" => "done" })
+        assert_equal({ "creator_name" => "skipped", "oc" => "done" }, ModulationSetting.find_by!(user_id: @user.id).tours)
+
+        ModulationSetting.record!(@user, nil, "tours" => { "creator_name" => nil })
+        assert_equal({ "oc" => "done" }, ModulationSetting.for_viewer(@user)["tours"])
+      end
+
+      should "refuse a tour or an end it does not know, and write nothing" do
+        [{ "blog" => "done" }, { "oc" => "halfway" }, { "oc" => { "state" => "done" } }, "done"].each do |change|
+          error = assert_raises(ModulationSetting::Refused, change.inspect) { ModulationSetting.record!(@user, nil, "tours" => change) }
+          assert_match(/null to play it again/, error.message)
+        end
+        assert_not(ModulationSetting.exists?(user_id: @user.id))
+      end
+    end
+
     # Operator, 2026-11-02: each About box opened, closed and resized per
     # viewer, one choice for every gallery. A box the viewer never touched is
     # open at its content's height, so nothing is stored for it.

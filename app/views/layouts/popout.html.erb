@@ -1,0 +1,29 @@
+<%# A window of the site's own with no menus: the Creator Identity dashboard
+    popped out (creator_galleries/identity, 2026-11-05). The blank layout's
+    shape, with the body the default layout gives every page, because the
+    site's look and the viewer's preset are keyed on that body
+    (body[data-preset]); the blank layout's bare body would draw the dashboard
+    in the browser's light defaults. %>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <% if modulation? %>
+    <meta name="color-scheme" content="dark">
+  <% end %>
+  <title><%= page_title %></title>
+  <link rel="icon" href="/favicon.ico" sizes="16x16" type="image/x-icon">
+  <link rel="icon" href="/favicon.svg" sizes="any" type="image/svg+xml">
+  <meta name="robots" content="noindex">
+  <%= csrf_meta_tag %>
+  <%= raw Danbooru.config.custom_html_header_content %>
+  <%= javascript_pack_tag "application", defer: false %>
+  <%= stylesheet_pack_tag "application" %>
+  <%= yield :html_header %>
+</head>
+<%= tag.body **body_attributes(CurrentUser.user, params, @current_item, @exception) do %>
+  <div id="page">
+    <%= yield :layout %>
+  </div>
+<% end %>
+</html>

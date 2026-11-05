@@ -26,19 +26,30 @@ class CharacterClaimFilingTest < ActionDispatch::IntegrationTest
     should "complete a bare name, approve a clean one at once, and say so" do
       file_claim(@saber, "maple")
 
-      assert_redirected_to edit_creator_gallery_path(@gallery, anchor: "creator-characters")
+      assert_redirected_to edit_creator_gallery_path(@gallery, view: "identity", anchor: "creator-characters")
       claim = CharacterClaim.sole
       assert_equal(["maple_(saber)", @gallery], [claim.tag_name, claim.creator_gallery])
       assert(claim.approved?)
       assert_match(/maple_\(saber\) is yours now/, flash[:notice])
     end
 
-    should "leave a name with history pending, and say why" do
+    # Operator, 2026-11-05: the name in brackets is the creator's own, so a
+    # name with history is approved too; what it carried goes to the log.
+    should "approve a name with history at once, and log what it carried" do
       as(@admin) { create(:post, tag_string: "maple_(saber)") }
       file_claim(@saber, "maple")
 
+      assert(CharacterClaim.sole.approved?)
+      assert_match(/maple_\(saber\) is yours now/, flash[:notice])
+      assert_match(/it is on 1 post/, ModAction.last.description)
+    end
+
+    should "say why a claim waits when approving it fails" do
+      CharacterClaim.any_instance.stubs(:take_effect!).raises(ActiveRecord::RecordInvalid.new(CharacterClaim.new))
+      file_claim(@saber, "maple")
+
       assert(CharacterClaim.sole.pending?)
-      assert_match(/An admin will review it: it is on 1 post/, flash[:notice])
+      assert_match(/maple_\(saber\) filed, and waits for an admin: it could not be approved automatically/, flash[:notice])
     end
 
     should "say why a name is refused, and leave no claim and no tag behind" do
@@ -110,21 +121,21 @@ class CharacterClaimFilingTest < ActionDispatch::IntegrationTest
     end
   end
 
-  context "the edit page's Characters section" do
+  context "the identity dashboard's Characters box" do
     should "offer the owner a claim field with their name fixed, and a Release button per approved claim" do
       file_claim(@saber, "maple")
-      get_auth edit_creator_gallery_path(@gallery), @saber, headers: SABER
+      get_auth edit_creator_gallery_path(@gallery, view: "identity"), @saber, headers: SABER
 
       assert_response :success
       assert_select "section#creator-characters input[name='claim_character']", count: 1
       assert_select "section#creator-characters", text: /_\(saber\)/
-      assert_select "section#creator-characters li", text: /maple_\(saber\).*approved/m
+      assert_select "section#creator-characters li", text: /maple_\(saber\).*yours/m
       assert_select "section#creator-characters input[name='release_character'][value='#{CharacterClaim.sole.id}']", count: 1
     end
 
     should "show an admin the claims read-only, with the queue" do
       file_claim(@saber, "maple")
-      get_auth edit_creator_gallery_path(@gallery), @admin
+      get_auth edit_creator_gallery_path(@gallery, view: "identity"), @admin
 
       assert_response :success
       assert_select "section#creator-characters li", text: /maple_\(saber\)/

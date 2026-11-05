@@ -19,7 +19,7 @@ class CreatorGalleryLinkingTest < ActionDispatch::IntegrationTest
   end
 
   def link_form_count
-    css_select("form[action='#{creator_gallery_path(@gallery)}'] input[name='link_account']").size
+    css_select("form[action='#{creator_gallery_path(@gallery, view: "identity")}'] input[name='link_account']").size
   end
 
   context "making a gallery" do
@@ -66,8 +66,8 @@ class CreatorGalleryLinkingTest < ActionDispatch::IntegrationTest
       @gallery = CreatorGallery.create!(slug: "dave", matrix_id: "@dave:41chan.net")
     end
 
-    should "be offered on the edit page to the verified owner who is signed in" do
-      get_auth edit_creator_gallery_path(@gallery), @dave, headers: DAVE
+    should "be offered on the identity dashboard to the verified owner who is signed in" do
+      get_auth edit_creator_gallery_path(@gallery, view: "identity"), @dave, headers: DAVE
 
       assert_response :success
       assert_equal(1, link_form_count)
@@ -76,7 +76,7 @@ class CreatorGalleryLinkingTest < ActionDispatch::IntegrationTest
     should "link it to the owner's account" do
       link(@dave, headers: DAVE)
 
-      assert_redirected_to edit_creator_gallery_path(@gallery)
+      assert_redirected_to edit_creator_gallery_path(@gallery, view: "identity", anchor: "creator-account")
       assert_equal(@dave.id, @gallery.reload.user_id)
     end
 
@@ -106,7 +106,7 @@ class CreatorGalleryLinkingTest < ActionDispatch::IntegrationTest
     # banned account is refused it as it is refused a claim.
     should "be forbidden to a banned account, and not offered to it" do
       banned = create(:banned_user)
-      get_auth edit_creator_gallery_path(@gallery), banned, headers: DAVE
+      get_auth edit_creator_gallery_path(@gallery, view: "identity"), banned, headers: DAVE
       assert_equal(0, link_form_count)
 
       link(banned, headers: DAVE)
@@ -137,13 +137,13 @@ class CreatorGalleryLinkingTest < ActionDispatch::IntegrationTest
     should "not be re-linked to another account, and say what to do instead" do
       link(@dave, headers: DAVE)
 
-      assert_redirected_to edit_creator_gallery_path(@gallery)
+      assert_redirected_to edit_creator_gallery_path(@gallery, view: "identity", anchor: "creator-account")
       assert_match(/already linked.*admin.*unlink/i, flash[:notice])
       assert_equal(@other.id, @gallery.reload.user_id)
     end
 
     should "not offer the link on the edit page" do
-      get_auth edit_creator_gallery_path(@gallery), @dave, headers: DAVE
+      get_auth edit_creator_gallery_path(@gallery, view: "identity"), @dave, headers: DAVE
 
       assert_equal(0, link_form_count)
     end
@@ -151,11 +151,11 @@ class CreatorGalleryLinkingTest < ActionDispatch::IntegrationTest
     # The remedy the refusal above names: an admin clears the link, logged for
     # admins, and the owner then links their own account.
     should "be unlinked by an admin, logged for admins only, and then linkable by its owner" do
-      get_auth edit_creator_gallery_path(@gallery), @admin
-      assert_select "form[action='#{creator_gallery_path(@gallery)}'] input[name='unlink_account']", count: 1
+      get_auth edit_creator_gallery_path(@gallery, view: "identity"), @admin
+      assert_select "form[action='#{creator_gallery_path(@gallery, view: "identity")}'] input[name='unlink_account']", count: 1
 
       put_auth creator_gallery_path(@gallery), @admin, params: { unlink_account: "1" }
-      assert_redirected_to edit_creator_gallery_path(@gallery)
+      assert_redirected_to edit_creator_gallery_path(@gallery, view: "identity", anchor: "creator-account")
       assert_nil(@gallery.reload.user_id)
 
       action = ModAction.sole
@@ -169,7 +169,7 @@ class CreatorGalleryLinkingTest < ActionDispatch::IntegrationTest
 
     should "not be unlinked by its owner, a moderator or the linked account" do
       [[@dave, DAVE], [create(:moderator_user), {}], [@other, DAVE]].each do |user, headers|
-        get_auth edit_creator_gallery_path(@gallery), user, headers: headers
+        get_auth edit_creator_gallery_path(@gallery, view: "identity"), user, headers: headers
         assert_select "input[name='unlink_account']", count: 0
 
         put_auth creator_gallery_path(@gallery), user, params: { unlink_account: "1" }, headers: headers

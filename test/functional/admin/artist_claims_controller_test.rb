@@ -33,8 +33,35 @@ class Admin::ArtistClaimsControllerTest < ActionDispatch::IntegrationTest
 
       assert_response :success
       assert_select "#artist-claims tr#artist-claim-#{@claim.id}", text: /4chan_maple/
-      assert_select "#artist-claims tr#artist-claim-#{@claim.id}", text: /@maple:41chan\.net/
+      assert_select "#artist-claims #creator-claim-gallery-#{@gallery.id} .creator-claim-ticket-head", text: /@maple:41chan\.net/
       assert_select "#artist-claims tr#artist-claim-#{@claim.id} form[action='#{approve_admin_artist_claim_path(@claim)}']", count: 1
+    end
+
+    # Operator, 2026-11-05: the ticket shows who is asking -- their booru
+    # name, Matrix id, account level -- and their note, over every name they
+    # asked for at once, and who else holds or asks for each.
+    should "show one ticket per request, with who asks, their note, and who else wants each name" do
+      as(@admin) do
+        create(:tag, name: "4chan_maple_alt", category: TagCategory::ARTIST, post_count: 2)
+        create(:tag, name: "4chan_shared", category: TagCategory::ARTIST, post_count: 2)
+      end
+      results = CreatorClaimRequest.file!(gallery: @gallery, user: @maple, names: %w[4chan_maple_alt 4chan_shared], note: "I post as these on /aco/")
+      assert_equal([CreatorClaimRequest::REQUESTED] * 2, results.map(&:outcome))
+      rival = CreatorGallery.create!(slug: "rival", matrix_id: "@rival:41chan.net", user: create(:user))
+      CreatorClaimRequest.file!(gallery: rival, user: rival.user, names: %w[4chan_shared])
+      request = CreatorClaimRequest.find_by!(creator_gallery: @gallery)
+
+      get_auth admin_artist_claims_path, @admin
+
+      assert_response :success
+      ticket = "#artist-claims tbody#creator-claim-request-#{request.id}"
+      assert_select "#{ticket} .creator-claim-ticket-head", text: /#{@maple.name}/
+      assert_select "#{ticket} .creator-claim-ticket-head", text: /@maple:41chan\.net/
+      assert_select "#{ticket} .creator-claim-level", text: @maple.level_string
+      assert_select "#{ticket} .creator-claim-note", text: "I post as these on /aco/"
+      assert_select "#{ticket} tr[id^='artist-claim-']", count: 2
+      shared = request.artist_claims.find_by!(tag_name: "4chan_shared")
+      assert_select "#{ticket} tr#artist-claim-#{shared.id}", text: /@rival\s*also asks/
     end
   end
 
@@ -132,8 +159,10 @@ class Admin::ArtistClaimsControllerTest < ActionDispatch::IntegrationTest
   context "original character claims" do
     setup do
       as(@admin) { create(:post, tag_string: "pine_(maple)") }
+      # Pending, as a claim is when approving it at filing failed
+      # (CharacterClaim#file!): filed, it is approved at once.
       @character = CharacterClaim.prepare(@gallery, @maple, "pine").first
-      @character.file!
+      @character.save!
     end
 
     should "be listed in their own table, pending first, with the rule as it stands" do
@@ -141,7 +170,7 @@ class Admin::ArtistClaimsControllerTest < ActionDispatch::IntegrationTest
 
       assert_response :success
       assert_select "#character-claims tr#character-claim-#{@character.id}", text: /pine_\(maple\).*pending.*rule holds/m
-      assert_select "#character-claims tr#character-claim-#{@character.id} .character-claim-waits", text: "waits because it is on 1 post"
+      assert_select "#character-claims tr#character-claim-#{@character.id} .character-claim-carries", text: "approving it takes up what the name carries: it is on 1 post"
       assert_select "#character-claims tr#character-claim-#{@character.id} form[action='#{approve_admin_artist_claim_path(@character, kind: "character")}']", count: 1
     end
 

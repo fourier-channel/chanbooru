@@ -2,6 +2,13 @@
   <section class="modcreator-edit-page">
     <h1>Claim your creator page</h1>
     <p class="modcreator-hint">Your page is bound to your Matrix identity; only you (or an admin) can edit it.</p>
+    <ol class="modcreator-hint">
+      <li>Create your page here. It is bound to the Matrix account you are signed in with.</li>
+      <li>Link it to your booru account: your page's Identity dashboard opens next, and its first button does it.</li>
+      <li>Claim your creator names. A 4chan_ or aichan_ name that is your Matrix name is yours at once; for any other, send a request with a note and an admin reviews it.</li>
+      <li>Create your original characters' tags, and choose who sees your posts.</li>
+    </ol>
+    <p class="modcreator-hint">Fourier walks you through each step the first time. Skip her tour whenever you like, and replay it from the dashboard later.</p>
     <%= form_with model: @gallery, url: creator_galleries_path, method: :post, class: "modcreator-form" do |f| %>
       <% if CurrentUser.user.is_admin? %>
         <label>Matrix ID (admin) <%= f.text_field :matrix_id, placeholder: "@user:41chan.net" %></label>

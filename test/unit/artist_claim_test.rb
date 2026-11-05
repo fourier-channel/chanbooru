@@ -325,6 +325,55 @@ class ArtistClaimTest < ActiveSupport::TestCase
       assert(victim.reload.pending?)
     end
 
+    # Operator, 2026-11-05: a direct match is approved as it is filed; any
+    # other name is filed by review, and an admin decides it.
+    context "filed by review" do
+      setup do
+        @rival = create(:artist, name: "4chan_rival")
+      end
+
+      should "not be refused by the stripped-name rule" do
+        assert(ArtistClaim.new(artist: @rival, creator_gallery: @gallery, by_review: true).valid?)
+      end
+
+      should "still refuse the master prefix and an unlocked tag" do
+        assert_match(/needs no claim/, ArtistClaim.refusal("41chan_rival", @gallery.matrix_id, by_review: true))
+        assert_match(/not a locked creator tag/, ArtistClaim.refusal("some_painter", @gallery.matrix_id, by_review: true))
+      end
+
+      should "be filed on a held tag, and refused when an admin approves it" do
+        ArtistClaim.create!(artist: @rival, creator_gallery: gallery_for(create(:user), "@rival:41chan.net")).approve!(by: @admin)
+        claim = ArtistClaim.create!(artist: @rival, creator_gallery: @gallery, by_review: true)
+
+        error = assert_raises(ActiveRecord::RecordInvalid) { claim.approve!(by: @admin) }
+        assert_includes(error.message, "already has an approved claim")
+      end
+
+      should "stand once approved, as a direct match does" do
+        ArtistClaim.create!(artist: @rival, creator_gallery: @gallery, by_review: true).approve!(by: @admin)
+
+        assert_includes(ArtistClaim.standing, ["4chan_rival", @gallery.id])
+        assert(ArtistClaim.owner?(@user, @rival))
+      end
+
+      should "never be approved by file_direct!" do
+        claim = ArtistClaim.new(artist: @rival, creator_gallery: @gallery, by_review: true)
+
+        assert_raises(ArgumentError) { claim.file_direct! }
+        assert(claim.new_record?)
+      end
+    end
+
+    should "approve a direct match as it is filed, by the system account" do
+      claim = ArtistClaim.new(artist: @artist, creator_gallery: @gallery)
+      claim.file_direct!
+
+      assert(claim.reload.approved?)
+      assert_equal(User.system, claim.approver)
+      assert(ArtistClaim.owner?(@user, @artist))
+      assert_equal("artist_claim_approve", ModAction.last.category)
+    end
+
     # The one check behind every "Claim" button and the filing itself, so an
     # offer never leads to a refusal.
     context "the filing check" do

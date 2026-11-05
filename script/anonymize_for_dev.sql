@@ -128,6 +128,7 @@ creator_gallery_posts: band=keep
 creator_group_memberships: source=keep
 creator_groups: name=derive
 creator_harmonic_removals: url=fill reason=fill
+creator_claim_requests: note=fill
 creator_join_requests: status=keep note=fill
 creator_post_audiences: audience=keep
 creator_tag_releases: tag_name=map note=fill
@@ -158,7 +159,7 @@ media_assets: md5=keep file_ext=keep file_key=keep pixel_hash=keep
 media_metadata: metadata=derive
 mod_actions: description=derive subject_type=keep
 moderation_reports: model_type=keep reason=fill
-modulation_settings: image_cap=keep gallery_sort=keep gallery_view=keep random_trails=blank creator_about_boxes=keep
+modulation_settings: image_cap=keep gallery_sort=keep gallery_view=keep random_trails=blank creator_about_boxes=keep tours=keep
 news_updates: message=fill
 note_versions: body=fill
 notes: body=fill
@@ -770,6 +771,7 @@ UPDATE creator_gallery_harmonics SET url = 'https://example.invalid/harmonic-' |
        subtitle = left(pg_temp.fill(subtitle, 'Harmonic subtitle ' || id), 80), staff_hidden_reason = pg_temp.fill(staff_hidden_reason, 'Hide reason ' || id);
 UPDATE creator_harmonic_removals SET url = 'https://example.invalid/removal-' || id, reason = pg_temp.fill(reason, 'Removal reason ' || id);
 UPDATE creator_join_requests SET note = pg_temp.fill(note, 'Join request note ' || id);
+UPDATE creator_claim_requests SET note = pg_temp.fill(note, 'Claim request note ' || id);
 UPDATE character_claims SET tag_name = pg_temp.tm(tag_name), creator_slug = pg_temp.nm(creator_slug), note = pg_temp.fill(note, 'Claim note ' || id);
 UPDATE artist_claims SET tag_name = pg_temp.tm(tag_name), note = pg_temp.fill(note, 'Claim note ' || id);
 UPDATE creator_tag_releases SET tag_name = pg_temp.tm(tag_name), note = pg_temp.fill(note, 'Release note ' || id);

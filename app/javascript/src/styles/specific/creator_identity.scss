@@ -1,0 +1,294 @@
+// The Creator Identity dashboard (creator_galleries/identity.html.erb) and
+// Fourier's tours over it (creator_identity.js). Her bubbles are the sign-in
+// pages' own (synapse-deploy mas/templates/components/fourier.css.html), so
+// she looks the same on every surface she guides. Nothing here moves the page
+// about: the tour is a dock fixed over it, and a lit step is an outline.
+
+// The script shows what it drives by clearing [hidden]; a class that sets a
+// display must not show it first.
+#creator-identity [hidden],
+.creator-identity-tour[hidden] {
+  display: none;
+}
+
+.creator-identity {
+  max-width: 56rem;
+
+  h2 { margin: 0 0 0.4rem; }
+  h3 { margin: 0.9rem 0 0.4rem; }
+
+  .fineprint { color: var(--mod-ink-dim); }
+}
+
+// Popped out: the page alone in a narrow window.
+.creator-identity-popout {
+  max-width: none;
+  padding: 16px;
+}
+
+.creator-identity-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  margin-bottom: 0.8rem;
+
+  h1 { margin: 0; }
+}
+
+.creator-identity-slug { color: var(--mod-ink-dim); font-weight: normal; }
+
+.creator-identity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.creator-identity-popped {
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--mod-line-strong);
+  border-radius: var(--mod-radius);
+  background: var(--mod-surface-2);
+
+  .button-link {
+    appearance: none;
+    border: 0;
+    padding: 0;
+    background: none;
+    color: var(--link-color);
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+}
+
+.creator-identity-help ol { margin: 0.3rem 0 0 1.2rem; list-style: decimal; }
+
+.creator-identity-box {
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--mod-line);
+  border-radius: var(--mod-radius);
+  background: var(--mod-surface-2);
+}
+
+.creator-identity-list {
+  list-style: none;
+  margin: 0.4rem 0;
+  padding: 0;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem 0.7rem;
+    padding: 0.25rem 0;
+  }
+}
+
+.creator-pool-name { font-family: var(--mod-mono); }
+
+.creator-identity-status,
+.creator-pool-label { color: var(--mod-ink-dim); font-size: 0.9em; }
+.creator-identity-status-approved { color: var(--mod-ok-fg); }
+.creator-identity-status-pending { color: var(--mod-pending-fg); }
+.creator-identity-status-rejected { color: var(--mod-warn-fg); }
+
+.creator-identity-inline { display: inline; }
+
+.creator-pool-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin: 0.6rem 0;
+
+  label { width: 100%; }
+  input[type="search"] { flex: 1 1 14rem; min-width: 0; }
+}
+
+.creator-pool-status { min-height: 2.8em; margin: 0; }
+
+.creator-pool-form {
+  label[for="claim_note"] { display: block; margin-top: 0.6rem; }
+
+  textarea {
+    width: 100%;
+    max-width: 40rem;
+  }
+
+  button[type="submit"] { margin-top: 0.5rem; }
+}
+
+.creator-pool {
+  list-style: none;
+  margin: 0.3rem 0;
+  padding: 0;
+}
+
+.creator-pool-row label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.6rem;
+  padding: 0.3rem 0;
+  cursor: pointer;
+}
+
+.creator-pool-immediate .creator-pool-label { color: var(--mod-ok-fg); }
+
+// Known to exist, not to be had: shown, and plainly not usable.
+.creator-pool-refused label {
+  color: var(--mod-ink-faint);
+  cursor: not-allowed;
+}
+
+.creator-character-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin-top: 0.8rem;
+
+  label { width: 100%; }
+}
+
+.creator-character-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-family: var(--mod-mono);
+
+  input[type="text"] { width: 12rem; }
+}
+
+// The part of the page a tour step is about.
+#creator-identity [data-identity-lit] {
+  outline: 2px solid var(--mod-accent);
+  outline-offset: 4px;
+  border-radius: var(--mod-radius-sm);
+}
+
+.creator-identity-dialog {
+  max-width: min(28rem, calc(100vw - 32px));
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--mod-line-strong);
+  border-radius: var(--mod-radius);
+  background: var(--mod-surface-2);
+  color: var(--mod-ink);
+
+  &::backdrop { background: rgb(0 0 0 / 55%); }
+
+  p { margin: 0 0 0.6rem; }
+}
+
+.creator-identity-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+// --- the tour: Fourier in a dock over the page's corner ---
+
+.creator-identity-tour {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(420px, calc(100vw - 32px));
+  padding: 14px;
+  border: 1px solid var(--mod-line-strong);
+  border-radius: var(--mod-radius);
+  background: var(--mod-surface);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 45%);
+}
+
+.creator-identity-tour-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+// Her bubbles, the sign-in pages' fc-* rules.
+.fc-say {
+  --fc-av: 52px;
+  --fc-gutter: 64px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding-left: var(--fc-gutter);
+  text-align: left;
+}
+
+.fc-line {
+  position: relative;
+  max-width: 100%;
+
+  &:last-child { min-height: var(--fc-av); }
+}
+
+.fc-av {
+  position: absolute;
+  top: 0;
+  left: calc(-1 * var(--fc-gutter));
+  display: grid;
+  place-items: center;
+  width: var(--fc-av);
+  height: var(--fc-av);
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--mod-surface-2);
+  box-shadow: 0 0 0 2px var(--mod-accent);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.fc-bubble {
+  position: relative;
+  margin: 0;
+  padding: 10px 13px;
+  border: 1px solid var(--mod-line-strong);
+  border-radius: var(--mod-radius);
+  background: var(--mod-surface-2);
+  color: var(--mod-ink);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.fc-line[data-speaks] .fc-bubble::before,
+.fc-line[data-speaks] .fc-bubble::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+}
+
+.fc-line[data-speaks] .fc-bubble::before {
+  left: -11px;
+  border-right: 11px solid var(--mod-line-strong);
+}
+
+.fc-line[data-speaks] .fc-bubble::after {
+  left: -9px;
+  border-right: 11px solid var(--mod-surface-2);
+}
+
+.fc-say[data-fc-play] .fc-line,
+.fc-say[data-fc-play] .fc-av {
+  transition: opacity 220ms ease-out, transform 220ms ease-out;
+}
+
+.fc-say[data-fc-play] .fc-av { transition-property: opacity; }
+.fc-say [data-fc-pending] { opacity: 0; }
+.fc-say .fc-line[data-fc-pending] { transform: translateY(6px); }

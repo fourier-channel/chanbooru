@@ -121,14 +121,29 @@ class CreatorPrefixVisibilityTest < ActionDispatch::IntegrationTest
     # a signed-out visitor -- its gallery query skipped the implicit filters.
     should "not show a hidden post to a visitor or a member, and show it to an admin" do
       [nil, @member].each do |user|
-        user ? get_auth(artist_path(@artist), user) : (reset!; get(artist_path(@artist)))
-        assert_response :success
-        assert_select "article#post_#{@hidden.id}", false, "artist page, #{user&.name || "anonymous"}"
         user ? get_auth(wiki_page_path(@wiki), user) : (reset!; get(wiki_page_path(@wiki)))
         assert_select "article#post_#{@hidden.id}", false, "wiki page, #{user&.name || "anonymous"}"
       end
       get_auth artist_path(@artist), @admin
       assert_select "article#post_#{@hidden.id}"
+    end
+
+    # 2026-11-05: the entry itself names the creator, as the tag index row
+    # does, and a claim filed by review leaves one with no tag behind it
+    # (CreatorClaimRequest) -- so it answers as the tag index does.
+    should "keep the artist entry from a visitor and a member, by id, in the index and by a tagless name" do
+      as(@admin) { @tagless = create(:artist, name: "aichan_ghost") }
+      [nil, @member].each do |user|
+        who = user&.name || "anonymous"
+        user ? get_auth(artist_path(@artist), user) : (reset!; get(artist_path(@artist)))
+        assert_response 404, who
+        user ? get_auth(artists_path(format: :json), user, params: { search: { name_matches: "aichan_*" } }) : (reset!; get(artists_path(format: :json), params: { search: { name_matches: "aichan_*" } }))
+        assert_empty response.parsed_body.pluck("name"), who
+        assert(@tagless.hidden_by_post_from?(user || User.anonymous), who)
+      end
+      get_auth artists_path(format: :json), @admin, params: { search: { name_matches: "aichan_*" } }
+      assert_equal %w[aichan_alice aichan_ghost], response.parsed_body.pluck("name").sort
+      assert_not(@tagless.hidden_by_post_from?(@admin))
     end
   end
 

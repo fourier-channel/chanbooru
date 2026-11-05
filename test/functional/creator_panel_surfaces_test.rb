@@ -44,7 +44,7 @@ class CreatorPanelSurfacesTest < ActionDispatch::IntegrationTest
       get_auth posts_path(preset: "modulation"), @maple
 
       assert_response :success
-      assert_select "#top.modnav a.modnav-pill[href='#{edit_creator_gallery_path(@gallery, anchor: "creator-panel-requests")}']", text: /Requests/
+      assert_select "#top.modnav a.modnav-pill[href='#{edit_creator_gallery_path(@gallery, view: "identity", anchor: "creator-panel-requests")}']", text: /Requests/
       assert_select "#top.modnav a.modnav-pill", text: /Requests\s*2/
     end
 
@@ -79,7 +79,7 @@ class CreatorPanelSurfacesTest < ActionDispatch::IntegrationTest
       audience = audience_for(@maple)
 
       assert_equal([{ "words" => "Not chosen yet (acts as Everyone) (your default)",
-                      "href" => edit_creator_gallery_path(@gallery, post_id: @post.id, anchor: "creator-panel-posts") }], audience)
+                      "href" => edit_creator_gallery_path(@gallery, view: "identity", post_id: @post.id, anchor: "creator-panel-posts") }], audience)
     end
 
     should "tell an admin the post's own setting, with its groups" do

@@ -518,7 +518,7 @@ class ModulationPostComponent < ApplicationComponent
       listed = names.select { |gid, pid, _, _| gid == gallery.id && pid == (own ? post.id : nil) }.map { |*, name, tier| CreatorGroup.label(name, tier) }
       whose = (gallery.user_id == viewer.id) ? "your default" : "#{gallery.title.presence || gallery.slug}'s default"
       words = CreatorGallery.audience_words(own || gallery.default_audience, listed)
-      { words: "#{words} (#{own ? "post setting" : whose})", href: routes.edit_creator_gallery_path(gallery, post_id: post.id, anchor: "creator-panel-posts") }
+      { words: "#{words} (#{own ? "post setting" : whose})", href: routes.edit_creator_gallery_path(gallery, view: "identity", post_id: post.id, anchor: "creator-panel-posts") }
     end
   end
 

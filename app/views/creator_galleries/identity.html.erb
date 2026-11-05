@@ -1,0 +1,223 @@
+<%# THE IDENTITY DASHBOARD (edit?view=identity; operator, 2026-11-05): the
+    creator's names, their original characters and who sees their posts, in
+    one place, under one "Manage Creator Identity" button. Every write is a
+    plain form to PATCH creators/:slug and comes back here (identity_home),
+    popped out or not. The page's script (creator_identity.js) adds the
+    Pop out window, the search that grows the Claim Pool in place, and
+    Fourier's tours; without it every form still works. %>
+<%# Fourier's portrait (data-portrait) is the one copy every surface reads,
+    the sign-in pages' included (fourier-domain, 2026-11-05). %>
+<% claimant = @claimant %>
+<% linkable = @signed_in_owner && @gallery.user.nil? %>
+<% body = capture do %>
+  <div id="creator-identity" class="creator-identity<%= " creator-identity-popout" if popout? %>"
+       data-gallery="<%= @gallery.slug %>"
+       data-popout="<%= popout? %>"
+       data-claimant="<%= claimant %>"
+       data-linkable="<%= linkable %>"
+       data-ready="<%= @held_characters.any? || @ready_characters.any? %>"
+       data-portrait="https://41chan.net/fourier-chan/avatar.png"
+       data-tour-creator-name="<%= @tours["creator_name"] %>"
+       data-tour-oc="<%= @tours["oc"] %>"
+       data-direct-match="<%= @pool.any? { |row| row.outcome == CreatorClaimRequest::IMMEDIATE } %>"
+       data-popout-url="<%= edit_creator_gallery_path(@gallery, view: "identity", popout: "1") %>"
+       data-home-url="<%= edit_creator_gallery_path(@gallery, view: "identity") %>">
+    <header class="creator-identity-head">
+      <h1>Creator identity <span class="creator-identity-slug">@<%= @gallery.slug %></span></h1>
+      <nav class="creator-identity-actions" aria-label="Dashboard">
+        <%= link_to "Gallery", creator_gallery_path(@gallery), class: "button-outline-primary button-sm", data: { identity_main_link: true } %>
+        <%= link_to "Edit the gallery", edit_creator_gallery_path(@gallery), class: "button-outline-primary button-sm", data: { identity_main_link: true } %>
+        <% if popout? %>
+          <button type="button" class="button-outline-primary button-sm" data-identity-dock hidden>Back to the main window</button>
+        <% else %>
+          <button type="button" class="button-outline-primary button-sm" data-identity-popout hidden>Pop out</button>
+        <% end %>
+        <%= link_to "Refresh", edit_creator_gallery_path(@gallery, **identity_home), class: "button-outline-primary button-sm", data: { identity_refresh: true } %>
+        <% if claimant || linkable %>
+          <button type="button" class="button-outline-primary button-sm" data-identity-tour="creator_name" hidden>Tour: creator names</button>
+          <button type="button" class="button-outline-primary button-sm" data-identity-tour="oc" hidden>Tour: original characters</button>
+        <% end %>
+      </nav>
+    </header>
+
+    <% if popout? %>
+      <%= render NoticeComponent.new(flash[:notice]) %>
+    <% end %>
+
+    <p class="creator-identity-popped" data-identity-popped hidden>
+      This dashboard is open in its own window. <button type="button" class="button-link" data-identity-bring-back>Bring it back here</button>
+      or <%= link_to "refresh this page", edit_creator_gallery_path(@gallery, view: "identity"), data: { identity_refresh: true } %>.
+    </p>
+
+    <section class="creator-identity-help" id="creator-identity-help">
+      <p>Three things are yours to manage here:</p>
+      <ol>
+        <li><strong>Your creator names.</strong> The names your posts carry on other sites (4chan_, aichan_). The ones that match your Matrix name are yours at once; for any other, find it, tick it, and send the request with a note. An admin reviews it.</li>
+        <li><strong>Your original characters.</strong> A character's tag is its name with yours in brackets, like maple_(<%= @gallery.slug %>). Create one here and use it straight away.</li>
+        <li><strong>Who sees your posts.</strong> Everyone, the members of your groups, or only you, with exceptions per person and per post.</li>
+      </ol>
+    </section>
+
+    <%# --- the booru account: the key to everything below (CREATOR_VISIBILITY, 2026-10-07) --- %>
+    <section class="creator-identity-box" id="creator-account">
+      <h2>Booru account</h2>
+      <% if @gallery.user %>
+        <p>Linked to the booru account <%= link_to_user @gallery.user %>.</p>
+        <% if CurrentUser.user.is_admin? %>
+          <%# An admin's correction (logged, admins only): a page made before 2026-10-07 may carry the admin's own account. %>
+          <%= button_to "Unlink from #{@gallery.user.name}", creator_gallery_path(@gallery, **identity_home), method: :patch,
+                params: { unlink_account: 1 }, data: { confirm: "Unlink this page from #{@gallery.user.name}? Its owner can then link their own account." } %>
+        <% end %>
+      <% elsif @signed_in_owner %>
+        <p>This page is not linked to a booru account yet. Your names, your characters and control over your posts need one.</p>
+        <%= button_to "Link this page to my booru account (#{CurrentUser.user.name})", creator_gallery_path(@gallery, **identity_home),
+              method: :patch, params: { link_account: 1 }, class: "button-primary", data: { identity_step: "link" } %>
+      <% else %>
+        <p class="fineprint">Not linked to a booru account. Sign in to the booru while signed in with this page's Matrix identity to link it.</p>
+      <% end %>
+    </section>
+
+    <%# --- creator names: the Claim Pool (CreatorClaimRequest, 2026-11-05) --- %>
+    <section class="creator-identity-box" id="creator-claims">
+      <h2>Your creator names</h2>
+      <p class="fineprint">
+        Your 41chan_ name needs no claim. A 4chan_ or aichan_ name that is your Matrix name with the prefix in front
+        is yours the moment you send it. Any other name goes to an admin with your note; the answer shows here.
+      </p>
+
+      <% if @claims.any? %>
+        <ul class="creator-identity-list" data-identity-step="claims">
+          <% @claims.each do |claim| %>
+            <li>
+              <span class="creator-pool-name"><%= claim.tag_name %></span>
+              <span class="creator-identity-status creator-identity-status-<%= claim.status %>">
+                <% if claim.approved? %>yours<% elsif claim.pending? %>an admin reviews it<% else %>refused<%= ": #{claim.note}" if claim.note.present? %><% end %>
+              </span>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+
+      <% if claimant %>
+        <%= form_with url: edit_creator_gallery_path(@gallery), method: :get, local: true, class: "creator-pool-search",
+              data: { identity_search: true, identity_step: "search" } do %>
+          <%= hidden_field_tag :view, "identity", id: nil %>
+          <%= hidden_field_tag :popout, "1", id: nil if popout? %>
+          <% @asked.each do |name| %><%= hidden_field_tag "pool[]", name, id: nil %><% end %>
+          <label for="creator_q">Find a creator name</label>
+          <%= search_field_tag :creator_q, @creator_q, placeholder: "a name, or part of one", autocomplete: "off", minlength: 2 %>
+          <button type="submit" class="button-outline-primary">Search</button>
+        <% end %>
+        <%# The search script's answer; its room is kept, so nothing below moves. %>
+        <p class="fineprint creator-pool-status" role="status" data-identity-search-status></p>
+
+        <%= form_with url: creator_gallery_path(@gallery, **identity_home), method: :patch, local: true, class: "creator-pool-form",
+              data: { identity_pool_form: true } do %>
+          <%= hidden_field_tag "claim_tag[]", "", id: nil %>
+          <h3 id="creator-pool-title">Claim Pool</h3>
+          <ul class="creator-pool" aria-labelledby="creator-pool-title" data-identity-pool data-identity-step="pool">
+            <%= render "creator_galleries/pool_rows", rows: @pool, asked: @asked %>
+          </ul>
+          <p class="fineprint creator-pool-empty" data-identity-pool-empty <%= "hidden" if @pool.any? %>>
+            Nothing in the pool yet. Search for the names your posts carry, then tick the ones that are yours.
+          </p>
+          <label for="claim_note">A note for the admin (optional)</label>
+          <%= text_area_tag :claim_note, nil, rows: 3, maxlength: 2000, data: { identity_step: "note" },
+                placeholder: "Where you post as these names, or anything that shows they are yours" %>
+          <button type="submit" class="button-primary" data-identity-step="send">Send</button>
+        <% end %>
+      <% elsif @signed_in_owner %>
+        <p class="fineprint">Link this page to your booru account (above) to claim your creator names.</p>
+      <% else %>
+        <p class="fineprint">Read-only here: the creator files their claims. Requests are decided in <%= link_to "the claims queue", admin_artist_claims_path %>.</p>
+      <% end %>
+    </section>
+
+    <%# --- original characters: <name>_(<a name of the creator's>) (CharacterClaim, 2026-10-11) --- %>
+    <section class="creator-identity-box" id="creator-characters">
+      <h2>Your original characters</h2>
+      <p class="fineprint">
+        An original character's tag is its name with your name in brackets: maple becomes maple_(<%= @gallery.slug %>).
+        Once it is yours, only you and admins edit its wiki page. Anyone can still tag posts with it, fan art included.
+      </p>
+
+      <% if @character_claims.any? %>
+        <ul class="creator-identity-list">
+          <% @character_claims.each do |claim| %>
+            <li>
+              <%= link_to claim.tag_name, wiki_page_path(claim.tag_name), class: "creator-pool-name" %>
+              <span class="creator-identity-status creator-identity-status-<%= claim.status %>">
+                <% if claim.approved? %>yours<% elsif claim.pending? %>an admin reviews it<% else %><%= claim.status %><% end %><%= " (#{claim.note})" if claim.note.present? && !claim.approved? %>
+              </span>
+              <% if claim.approved? && claimant %>
+                <%= form_with url: creator_gallery_path(@gallery, **identity_home), method: :patch, local: true, class: "creator-identity-inline",
+                      data: { confirm: "Release #{claim.tag_name}? Its wiki page opens to everyone's edits again; the tag and the page stay." } do %>
+                  <%= hidden_field_tag :release_character, claim.id, id: nil %>
+                  <button type="submit" class="button-outline-danger button-sm" aria-label="Release <%= claim.tag_name %>">Release</button>
+                <% end %>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+
+      <% if claimant %>
+        <% if @held_characters.any? || @ready_characters.any? %>
+          <h3>Waiting for you</h3>
+          <ul class="creator-identity-list" data-identity-step="ready">
+            <% @held_characters.each do |claim| %>
+              <li>
+                <span class="creator-pool-name"><%= claim.tag_name %></span>
+                <span class="creator-pool-label">available for immediate claim (held for <%= claim.creator_slug %>)</span>
+                <%= form_with url: creator_gallery_path(@gallery, **identity_home), method: :patch, local: true, class: "creator-identity-inline" do %>
+                  <%= hidden_field_tag :take_up_character, claim.id, id: nil %>
+                  <button type="submit" class="button-primary button-sm" aria-label="Claim <%= claim.tag_name %>">Claim</button>
+                <% end %>
+              </li>
+            <% end %>
+            <% @ready_characters.each do |name| %>
+              <li>
+                <span class="creator-pool-name"><%= name %></span>
+                <span class="creator-pool-label">available for immediate claim</span>
+                <%= form_with url: creator_gallery_path(@gallery, **identity_home), method: :patch, local: true, class: "creator-identity-inline" do %>
+                  <%= hidden_field_tag :claim_character, name, id: nil %>
+                  <button type="submit" class="button-primary button-sm" aria-label="Claim <%= name %>">Claim</button>
+                <% end %>
+              </li>
+            <% end %>
+          </ul>
+        <% end %>
+
+        <%= form_with url: creator_gallery_path(@gallery, **identity_home), method: :patch, local: true, class: "creator-character-form",
+              data: { identity_step: "create" } do %>
+          <label for="claim_character">Create a character</label>
+          <span class="creator-character-name">
+            <%= text_field_tag :claim_character, nil, placeholder: "name", required: true, autocomplete: "off", size: nil %><span>_(</span><% if @character_qualifiers.many? %><%= select_tag :character_qualifier, options_for_select(@character_qualifiers, @gallery.slug), "aria-label": "Whose name goes in the brackets" %><% else %><span><%= @gallery.slug %></span><% end %><span>)</span>
+          </span>
+          <button type="submit" class="button-primary">Create</button>
+        <% end %>
+        <p class="fineprint">
+          A name under one of your own names is yours as you create it, and you can tag posts with it at once. When a
+          name cannot be taken, the answer says why and what to do instead.
+        </p>
+      <% elsif @signed_in_owner %>
+        <p class="fineprint">Link this page to your booru account (above) to claim your original characters.</p>
+      <% else %>
+        <p class="fineprint">Read-only here: the creator files and releases their claims. Claims that wait are decided in <%= link_to "the claims queue", admin_artist_claims_path(anchor: "character-claims") %>.</p>
+      <% end %>
+    </section>
+
+    <%# --- who sees the creator's posts: the panel the claim is the key to (CREATOR_VISIBILITY, 2026-10-09) --- %>
+    <section class="creator-identity-box" id="creator-visibility">
+      <h2>Who sees your posts</h2>
+      <%= render CreatorPanelComponent.new(gallery: @gallery, viewer: CurrentUser.user, refusal: @panel_refusal, home: identity_home,
+            place: { post_id: params[:post_id], audience_page: params[:audience_page], member_q: params[:member_q], open_group: params[:open_group] }) %>
+    </section>
+  </div>
+<% end %>
+<% if popout? %>
+  <%= body %>
+<% else %>
+  <% content_for(:content) { body } %>
+<% end %>
+<% content_for(:html_header) do %><% page_title "Creator identity: #{@gallery.slug}" %><% end %>

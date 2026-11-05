@@ -13,47 +13,82 @@
     </p>
 
     <h2 class="mb-2">Waiting</h2>
+    <%# One ticket per request (CreatorClaimRequest, 2026-11-05): who is asking --
+        their booru account and its standing, their Matrix identity, their note --
+        over the names they asked for together, each decided on its own. A claim
+        filed before requests existed is its creator page's own ticket. %>
     <%# Each table scrolls inside its own box, so a phone scrolls the table and not the page. %>
     <div class="overflow-auto mb-8">
     <table id="artist-claims" class="striped w-full">
       <thead>
-        <tr><th>Tag</th><th>Matrix account</th><th>Booru account</th><th>Filed</th><th>Rule now</th><th></th></tr>
+        <tr><th>Tag</th><th>Posts</th><th>Also wanted by</th><th>Filed</th><th>Rule now</th><th></th></tr>
       </thead>
-      <tbody>
-        <% @pending.each do |claim| %>
-          <tr id="artist-claim-<%= claim.id %>">
-            <td><%= link_to claim.tag_name, artist_path(claim.artist) %></td>
-            <td><%= link_to claim.creator_gallery.matrix_id, creator_gallery_path(claim.creator_gallery) %></td>
-            <td>
-              <% if claim.claimant %>
-                <%= link_to_user claim.claimant %>
-              <% else %>
-                <span class="fineprint">not linked</span>
+      <% @tickets.each do |(gallery, request), claims| %>
+        <tbody class="creator-claim-ticket" id="<%= request ? "creator-claim-request-#{request.id}" : "creator-claim-gallery-#{gallery.id}" %>">
+          <tr class="creator-claim-ticket-head">
+            <th colspan="6" class="text-left font-normal">
+              <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <% user = gallery.user %>
+                <% if user %>
+                  <span>Booru account <%= link_to_user user %></span>
+                  <span class="creator-claim-level"><%= user.level_string %></span>
+                  <span>joined <%= time_ago_in_words_tagged(user.created_at) %></span>
+                  <span><%= pluralize(user.post_upload_count, "upload") %></span>
+                  <% if user.is_banned? %><span class="creator-claim-banned">banned</span><% end %>
+                <% else %>
+                  <span class="fineprint">no booru account linked</span>
+                <% end %>
+                <span>Matrix <%= link_to gallery.matrix_id, creator_gallery_path(gallery) %></span>
+                <span class="fineprint"><%= pluralize(claims.size, "name") %> asked for</span>
+              </div>
+              <% if request&.note.present? %>
+                <p class="creator-claim-note whitespace-pre-wrap break-words mt-1"><%= request.note %></p>
+              <% elsif request %>
+                <p class="fineprint mt-1">No note.</p>
               <% end %>
-            </td>
-            <td><%= time_ago_in_words_tagged(claim.created_at) %></td>
-            <td>
-              <% if @refusals.nil? %>
-                <span class="fineprint">cannot check</span>
-              <% elsif @refusals[claim.id] %>
-                <span class="fineprint"><%= @refusals[claim.id] %></span>
-              <% else %>
-                holds
-              <% end %>
-            </td>
-            <td class="space-y-2">
-              <%= button_to "Approve", approve_admin_artist_claim_path(claim), method: :post, class: "button-primary" %>
-              <%= form_with url: reject_admin_artist_claim_path(claim), method: :post, class: "flex items-center gap-2" do |f| %>
-                <%= f.text_field :note, placeholder: "why (shown to admins)" %>
-                <%= f.submit "Reject", class: "button-outline-danger" %>
-              <% end %>
-            </td>
+            </th>
           </tr>
-        <% end %>
-        <% if @pending.empty? %>
-          <tr><td colspan="6" class="fineprint">Nothing waiting.</td></tr>
-        <% end %>
-      </tbody>
+          <% claims.each do |claim| %>
+            <tr id="artist-claim-<%= claim.id %>">
+              <td><%= link_to claim.tag_name, artist_path(claim.artist) %></td>
+              <td><%= link_to @post_counts[claim.tag_name].to_i, posts_path(tags: claim.tag_name) %></td>
+              <td>
+                <% others = @others[claim.tag_name].to_a.reject { |other| other.creator_gallery_id == claim.creator_gallery_id } %>
+                <% if others.any? %>
+                  <% others.each do |other| %>
+                    <div class="creator-claim-other">
+                      <%= link_to "@#{other.creator_gallery.slug}", creator_gallery_path(other.creator_gallery) %>
+                      <span class="fineprint"><%= other.approved? ? "holds it" : "also asks" %></span>
+                    </div>
+                  <% end %>
+                <% else %>
+                  <span class="fineprint">nobody</span>
+                <% end %>
+              </td>
+              <td><%= time_ago_in_words_tagged(claim.created_at) %></td>
+              <td>
+                <% if @refusals.nil? %>
+                  <span class="fineprint">cannot check</span>
+                <% elsif @refusals[claim.id] %>
+                  <span class="fineprint"><%= @refusals[claim.id] %></span>
+                <% else %>
+                  holds
+                <% end %>
+              </td>
+              <td class="space-y-2">
+                <%= button_to "Approve", approve_admin_artist_claim_path(claim), method: :post, class: "button-primary" %>
+                <%= form_with url: reject_admin_artist_claim_path(claim), method: :post, class: "flex items-center gap-2" do |f| %>
+                  <%= f.text_field :note, placeholder: "why (shown to the creator)" %>
+                  <%= f.submit "Reject", class: "button-outline-danger" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      <% end %>
+      <% if @tickets.empty? %>
+        <tbody><tr><td colspan="6" class="fineprint">Nothing waiting.</td></tr></tbody>
+      <% end %>
     </table>
     </div>
 
@@ -133,8 +168,8 @@
               <% else %>
                 rule holds
               <% end %>
-              <% if claim.pending? && @character_waits[claim.id].present? %>
-                <div class="character-claim-waits fineprint">waits because <%= @character_waits[claim.id].to_sentence %></div>
+              <% if claim.pending? && @character_carries[claim.id].present? %>
+                <div class="character-claim-carries fineprint">approving it takes up what the name carries: <%= @character_carries[claim.id].to_sentence %></div>
               <% end %>
             </td>
             <td class="space-y-2">

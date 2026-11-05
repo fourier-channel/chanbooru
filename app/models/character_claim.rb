@@ -3,10 +3,13 @@
 # A creator's claim on an original character's tag: who says the character is
 # theirs, and whether it stands (OC ownership, operator rulings 2026-10-11).
 #
-# WHAT MAY BE CLAIMED. <name>_(<slug>), where <slug> is the claiming gallery's
-# own -- its verified Matrix localpart (FourierTagSource::ORIGINAL_CHARACTER,
-# "<name>_(<creator>) is THE OC tag") -- so nobody claims under another
-# creator's name. Never a name under a listed creator prefix (those are
+# WHAT MAY BE CLAIMED. <name>_(<q>), where <q> is the claiming gallery's own
+# slug -- its verified Matrix localpart (FourierTagSource::ORIGINAL_CHARACTER,
+# "<name>_(<creator>) is THE OC tag") -- or one of the creator names the
+# gallery holds by a standing ArtistClaim, its prefix stripped (operator,
+# 2026-11-05: "if the currently tagged character's creator matches their
+# usernames"), so nobody claims under another creator's name. A creator name
+# that is another gallery's slug is that gallery's (creator_names). Never a name under a listed creator prefix (those are
 # creator tags), never an invalid tag name, never a tag filed as anything but
 # general or character, never an alias antecedent. Checked when filed, again
 # when approved, and again at every use (`standing`).
@@ -20,12 +23,15 @@
 # posts: CreatorControl, CreatorTagRelease and ArtistPolicy never read it, and
 # the tag stays one anyone may put on a post, fan art included.
 #
-# DECIDED (Q2): approved on filing when the name is clean -- the tag absent or
-# empty, no live wiki page, no alias either way -- because the qualifier is
-# the filer's verified name and a clean name takes nothing from anyone;
-# otherwise an admin decides in /admin/artist_claims. On approval the tag is
-# created or re-filed as a character and made to imply the copyright tag
-# `original` (Q4), and both stay after a release or a withdrawal.
+# DECIDED (operator, 2026-11-05): approved on filing, posts, wiki page and
+# aliases included, because the name in brackets is the creator's own; what
+# the name already carried is written into the mod log entry (history). A
+# claim waits for an admin in /admin/artist_claims only when approving it
+# failed (the tag could not be re-filed, say), its note saying why. A name in
+# someone else's brackets is never claimable, so there is nothing to review.
+# On approval the tag is created or re-filed as a character and made to imply
+# the copyright tag `original` (Q4), and both stay after a release or a
+# withdrawal.
 #
 # MOVED ONTO (operator, 2026-10-12: "Many of these characters belong to other
 # creators, I'll just be the first one to post them" -- the poster is not the
@@ -36,7 +42,8 @@
 # decided by the approver of the move (take_up_on_move!). Never the poster,
 # never the mover. With no gallery named <q> yet the claim is HELD for that
 # slug (creator_slug, no gallery) and approved, as that same approver, the
-# moment such a gallery is made (take_up_held!). A target the name rule
+# moment such a gallery is made (take_up_held!), or the moment a gallery
+# holding that creator name takes it up (take_up!). A target the name rule
 # refuses refuses the move itself, before anything moves (move_refusal):
 # a move that silently conferred nothing would break the rule.
 #
@@ -136,11 +143,11 @@ class CharacterClaim < ApplicationRecord
   end
 
   # The claim rule, stated once: may the creator `slug` (a gallery's, or the
-  # one a claim is held for) claim `tag_name`? nil when it may, otherwise a
-  # sentence that names the fix.
-  def self.refusal(tag_name, slug, entries = CreatorPrefixes.entries)
+  # one a claim is held for), whose other names are `also`, claim `tag_name`?
+  # nil when it may, otherwise a sentence that names the fix.
+  def self.refusal(tag_name, slug, entries = CreatorPrefixes.entries, also: [])
     name = tag_name.to_s
-    reason = name_refusal(name, slug, entries)
+    reason = name_refusal(name, slug, entries, also: also)
     return reason if reason
 
     probe = Tag.new(name: name)
@@ -156,17 +163,19 @@ class CharacterClaim < ApplicationRecord
   end
 
   # The part of the rule that needs no database: the shape, the creator's own
-  # name in brackets, not a qualifier the booru reserves, and no creator
-  # prefix. `standing` asks it again at every use, against the list as it is
-  # then; FourierTagSource asks it at post time, where the fix is to name the
-  # character (`fix: "name it"`) rather than to claim it.
-  def self.name_refusal(name, slug, entries, fix: "claim")
+  # name in brackets (the slug, or one of `also`, its creator names), not a
+  # qualifier the booru reserves, and no creator prefix. `standing` asks it
+  # again at every use, against the list as it is then; FourierTagSource asks
+  # it at post time, where the fix is to name the character (`fix: "name it"`)
+  # rather than to claim it.
+  def self.name_refusal(name, slug, entries, fix: "claim", also: [])
     fix_as = (fix == "claim") ? "claim it as" : fix
     match = FourierTagSource::ORIGINAL_CHARACTER.match(name)
     base = match ? match[1] : name.sub(/_?\(.*\z/, "").delete("()").presence || "<name>"
     wanted = "#{base}_(#{slug})"
     return "#{name} is not an original character's tag: #{fix_as} #{wanted}, your name in brackets" if match.nil?
-    return "#{name} names #{match[2]}: #{fix} #{wanted}" unless slug.present? && match[2].casecmp?(slug)
+    own = [slug, *also].compact_blank.any? { |q| match[2].casecmp?(q) }
+    return "#{name} names #{match[2]}: #{fix} #{wanted}" unless own
 
     if RESERVED_QUALIFIERS.include?(match[2].downcase)
       return "#{name} cannot be an original character's tag: the booru gives every tag ending _(#{match[2].downcase}) a meaning of its own " \
@@ -184,13 +193,53 @@ class CharacterClaim < ApplicationRecord
   # broken file never switches a creator's wiki off. Every reader asks this.
   #
   # @return [Array<Standing>]
+  #
+  # A claim under one of its gallery's creator names asks for those names,
+  # once per gallery: two queries more, and only for such claims.
   def self.standing(entries = CreatorPrefixes.visibility_config[:entries])
     aliased = TagAlias.active.where("tag_aliases.antecedent_name = character_claims.tag_name")
+    names = Hash.new { |memo, gallery_id| memo[gallery_id] = creator_names(gallery_id, entries) }
     approved.joins(:creator_gallery).where.not(aliased.arel.exists)
             .pluck(:id, :tag_name, "creator_galleries.id", "creator_galleries.slug", "creator_galleries.title", "creator_galleries.user_id",
                    "creator_galleries.page_private", "creator_galleries.show_contact")
             .map { |row| Standing.new(*row) }
-            .select { |claim| name_refusal(claim.tag_name, claim.slug, entries).nil? }
+            .select { |claim| name_refusal(claim.tag_name, claim.slug, entries).nil? || name_refusal(claim.tag_name, claim.slug, entries, also: names[claim.gallery_id]).nil? }
+  end
+
+  # The names besides its slug that the gallery `gallery_id` may put in an
+  # original character's brackets: each creator tag it holds by a standing
+  # ArtistClaim, its prefix stripped (4chan_maple -> maple). Never another
+  # gallery's slug: that name is that creator's, whose page made it theirs,
+  # and the one a move hands ownership to (take_up_on_move!).
+  def self.creator_names(gallery_id, entries = CreatorPrefixes.entries)
+    return [] if gallery_id.nil?
+
+    names = ArtistClaim.where(creator_gallery_id: gallery_id).standing(entries).map do |tag, _|
+      tag.delete_prefix(entries.find { |e| tag.start_with?(e.prefix) }.prefix)
+    end.uniq
+    names - CreatorGallery.where.not(id: gallery_id).where(slug: names).pluck(:slug)
+  end
+
+  # The claims HELD for one of this gallery's creator names, which its
+  # creator may take up at once ("reserved for them", operator, 2026-11-05).
+  def self.held_for(gallery) = held.where(creator_slug: creator_names(gallery.id))
+
+  # Character tags already on posts under one of `gallery`'s own names --
+  # <name>_(<slug>), or <name>_(<a creator name it holds>) -- that no claim
+  # holds, awaits or reserves: its creator's to claim at once ("if the
+  # currently tagged character's creator matches their usernames", operator,
+  # 2026-11-05). Only those `user` may see and the claim rule takes, most
+  # used first.
+  #
+  # @return [Array<String>]
+  def self.ready_for(gallery, user, limit: 50)
+    qualifiers = [gallery.slug, *creator_names(gallery.id)].compact_blank.uniq
+    patterns = qualifiers.map { |q| "%#{sanitize_sql_like("_(#{q})")}" }
+    names = Tag.visible_to(user).nonempty.where(category: [TagCategory::GENERAL, TagCategory::CHARACTER])
+               .where(Array.new(patterns.size, "tags.name LIKE ?").join(" OR "), *patterns)
+               .where.not(name: where(status: [PENDING, APPROVED, HELD]).select(:tag_name))
+               .order(post_count: :desc, name: :asc).limit(limit).pluck(:name)
+    names.select { |name| refusal(name, gallery.slug, also: qualifiers - [gallery.slug]).nil? }
   end
 
   # Standing claims on these names, [] without a query for names no claim
@@ -219,17 +268,18 @@ class CharacterClaim < ApplicationRecord
     end
   end
 
-  # File this claim, approving it at once when its name is clean (Q2).
+  # File this claim and approve it at once (operator, 2026-11-05): the name
+  # in brackets is the creator's own. What the name already carried goes
+  # into the log entry, for the admins who read it.
   #
   # @return [Array<String>] why it waits for an admin; [] when it was approved
   def file!
     transaction do
       save!
-      waits = history
-      next waits if waits.any?
-
+      carried = history
+      how = "automatically: the name in brackets is the creator's own#{" (#{carried.to_sentence})" if carried.any?}"
       begin
-        transaction(requires_new: true) { take_effect!(User.system, "automatically: the name was unused (no posts, no wiki page, no alias)") }
+        transaction(requires_new: true) { take_effect!(User.system, how) }
         []
       rescue ActiveRecord::RecordInvalid => e
         # Said, not swallowed: the claim waits, and the answer names why.
@@ -240,8 +290,9 @@ class CharacterClaim < ApplicationRecord
     end
   end
 
-  # What the name already carries, each a reason an admin should look first;
-  # [] for a clean name. Its post count includes deleted posts.
+  # What the name already carries -- posts, a live wiki page, aliases into
+  # it -- for the log entry and the admin queue; [] for a clean name. Its
+  # post count includes deleted posts.
   def history
     tag = Tag.find_by_name(tag_name)
     [
@@ -392,6 +443,34 @@ class CharacterClaim < ApplicationRecord
     end
   end
 
+  # Take up a claim held for one of `gallery`'s creator names: its linked,
+  # unbanned account only, approved as the approver of the move that made
+  # the hold, as take_up_held! does for a gallery of the held name.
+  def take_up!(gallery, by:)
+    unless by.present? && !by.is_banned? && gallery.user_id == by.id
+      raise User::PrivilegeError, "Only the creator this character is held for can take it up, signed in to the booru account linked to their page."
+    end
+
+    transaction do
+      lock!
+      unless held? && CharacterClaim.creator_names(gallery.id).include?(creator_slug)
+        errors.add(:base, "#{tag_name} is not held for one of @#{gallery.slug}'s creator names (it may already be taken up). Reload the page")
+        raise ActiveRecord::RecordInvalid, self
+      end
+
+      update!(status: PENDING, creator_gallery: gallery)
+      take_effect!(approver || User.system, "#{note}; taken up by @#{gallery.slug}, whose creator name is #{creator_slug}")
+    end
+  end
+
+  # Why the claim rule refuses this claim now, nil when it does not: with
+  # its gallery's creator names when its brackets are not the slug.
+  def rule_refusal
+    qualifier = FourierTagSource::ORIGINAL_CHARACTER.match(tag_name.to_s)&.[](2)
+    also = (creator_gallery_id && qualifier && !qualifier.casecmp?(slug.to_s)) ? CharacterClaim.creator_names(creator_gallery_id) : []
+    CharacterClaim.refusal(tag_name, slug, also: also)
+  end
+
   # The approval and everything it does, in the caller's transaction: the tag
   # as a character implying `original` (establish_character!), the decision,
   # the log entry.
@@ -453,7 +532,7 @@ class CharacterClaim < ApplicationRecord
 
   # A broken prefix list refuses the claim rather than passing it.
   def tag_is_claimable_by_gallery
-    reason = CharacterClaim.refusal(tag_name, slug)
+    reason = rule_refusal
     errors.add(:base, reason) if reason
   rescue CreatorPrefixes::ConfigError => e
     # Fork: words only, as move_refusal: this reaches a bulk update

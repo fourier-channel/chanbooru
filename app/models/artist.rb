@@ -361,6 +361,29 @@ class Artist < ApplicationRecord
   include BanMethods
   extend SearchMethods
 
+  # Fork: an entry under a creator prefix hidden from `user`
+  # (CreatorPrefixes.hidden_for?) is withheld as the tag index row is --
+  # by its name, not its tag, since a claim filed by review leaves an entry
+  # with no tag behind it (CreatorClaimRequest). The `_` after the prefix is
+  # any one character, so the bare prefix is not a creator name here either.
+  def self.visible(user)
+    ctx = CreatorPrefixes.hidden_context(user)
+    return super if ctx[:prefixes].empty?
+
+    hidden = ctx[:prefixes].map { |entry| arel_table[:name].matches("#{sanitize_sql_like(entry.prefix)}_%", nil, true) }.reduce(:or)
+    kept = ctx[:released] | ctx[:owned]
+    hidden = hidden.and(arel_table[:name].not_in(kept.to_a)) if kept.any?
+    super.where.not(hidden)
+  end
+
+  def hidden_by_post_from?(user)
+    super || CreatorPrefixes.hidden_for?(name, user)
+  end
+
+  def refuses_write_from?(user)
+    super || CreatorPrefixes.hidden_for?(name, user)
+  end
+
   def self.model_restriction(table)
     super.where(table[:is_deleted].eq(false))
   end

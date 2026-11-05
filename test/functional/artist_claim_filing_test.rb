@@ -5,11 +5,12 @@ require "test_helper"
 # Filing a claim on a creator tag (design CREATOR_VISIBILITY section 9, ruled
 # 2026-10-07). Only the person the claim would be FOR can file it: signed in to
 # the booru, carrying the verified Matrix identity of a gallery linked to that
-# same booru account. Offered from the artist page and from the gallery's own
-# edit page, and offered only where it could succeed -- one check
-# (ArtistClaim.prepare) decides both, so the button and the refusal cannot
+# same booru account. Offered from the artist page and in the Identity
+# dashboard's Claim Pool, and offered only where it could succeed -- one check
+# (CreatorClaimRequest.judge) decides both, so the link and the refusal cannot
 # disagree. Filing rides the gallery's own update route (PATCH creators/:slug),
-# as the routes ruling of 2026-09-24 asks.
+# as the routes ruling of 2026-09-24 asks. A direct match of the page's Matrix
+# name is approved as it is filed (operator, 2026-11-05).
 class ArtistClaimFilingTest < ActionDispatch::IntegrationTest
   MAPLE = { "X-Fourier-Identity" => "@maple:41chan.net" }.freeze
 
@@ -17,26 +18,30 @@ class ArtistClaimFilingTest < ActionDispatch::IntegrationTest
     @maple = create(:user)
     @admin = create(:admin_user)
     @gallery = CreatorGallery.create!(slug: "maple", matrix_id: "@maple:41chan.net", user: @maple)
+    # A creator name is claimed once it is on a post.
+    as(@admin) { create(:tag, name: "4chan_maple", category: TagCategory::ARTIST, post_count: 1) }
     @artist = as(@admin) { create(:artist, name: "4chan_maple") }
     # A creator tag with posts and no Artist entry: the tunnel files creator
     # tags as artist tags and makes no entry for them.
-    as(@admin) { create(:tag, name: "aichan_maple", category: TagCategory::ARTIST) }
+    as(@admin) { create(:tag, name: "aichan_maple", category: TagCategory::ARTIST, post_count: 1) }
   end
 
   def file_claim(user, tag_name, headers: MAPLE)
-    put_auth creator_gallery_path(@gallery), user, params: { claim_tag: tag_name }, headers: headers
+    put_auth creator_gallery_path(@gallery), user, params: { claim_tag: [tag_name] }, headers: headers
   end
+
+  def dashboard = get_auth(edit_creator_gallery_path(@gallery, view: "identity"), @maple, headers: MAPLE)
 
   def claim_link_count(artist, user, headers: {}, gallery: @gallery)
     get_auth artist_path(artist), user, headers: headers
     assert_response :success
-    css_select("a[href='#{creator_gallery_path(gallery, claim_tag: artist.name)}']").size
+    css_select("a[href='#{edit_creator_gallery_path(gallery, view: "identity", pool: [artist.name], anchor: "creator-claims")}']").size
   end
 
   context "the artist page" do
-    should "offer 'Claim this creator' to the verified, linked owner" do
+    should "offer 'Claim this creator' to the verified, linked owner, opening the Claim Pool with it ticked" do
       assert_equal 1, claim_link_count(@artist, @maple, headers: MAPLE)
-      assert_select "a[data-method='patch']", text: "Claim this creator"
+      assert_select "a[href*='view=identity']", text: "Claim this creator"
     end
 
     should "not offer it without the verified identity, to another account, or for someone else's tag" do
@@ -78,43 +83,43 @@ class ArtistClaimFilingTest < ActionDispatch::IntegrationTest
       assert_equal 1, ArtistClaim.count
     end
 
-    should "file a pending claim keyed on the tag" do
+    should "approve a direct match at once, keyed on the tag" do
       file_claim(@maple, "4chan_maple")
 
       assert_response :redirect
       claim = ArtistClaim.sole
       assert_equal(["4chan_maple", @artist, @gallery], [claim.tag_name, claim.artist, claim.creator_gallery])
-      assert(claim.pending?)
-      assert_match(/an admin/i, flash[:notice])
+      assert(claim.approved?)
+      assert_match(/4chan_maple is yours now/, flash[:notice])
     end
   end
 
-  context "the gallery's edit page" do
-    should "list the creator tags its owner could claim, with a button for each" do
-      get_auth edit_creator_gallery_path(@gallery), @maple, headers: MAPLE
+  context "the Identity dashboard's Claim Pool" do
+    should "list the creator names its owner could claim, ticked, in one form" do
+      dashboard
 
       assert_response :success
-      assert_select "#creator-claims form[action='#{creator_gallery_path(@gallery)}'] input[name='claim_tag']", count: 2
-      assert_select "#creator-claims input[name='claim_tag'][value='4chan_maple']", count: 1
-      assert_select "#creator-claims input[name='claim_tag'][value='aichan_maple']", count: 1
+      assert_select "#creator-claims form[action='#{creator_gallery_path(@gallery, view: "identity")}'] input[name='claim_tag[]'][checked]", count: 2
+      assert_select "#creator-claims input[name='claim_tag[]'][value='4chan_maple']", count: 1
+      assert_select "#creator-claims input[name='claim_tag[]'][value='aichan_maple']", count: 1
     end
 
-    should "show a claim already filed by its status instead of a button" do
-      ArtistClaim.create!(artist: @artist, creator_gallery: @gallery)
-      get_auth edit_creator_gallery_path(@gallery), @maple, headers: MAPLE
+    should "show a claim already filed by its status instead of a tick box" do
+      ArtistClaim.create!(artist: @artist, creator_gallery: @gallery, by_review: true)
+      dashboard
 
-      assert_select "#creator-claims input[name='claim_tag'][value='4chan_maple']", count: 0
-      assert_select "#creator-claims", text: /4chan_maple.*pending/m
+      assert_select "#creator-claims input[name='claim_tag[]'][value='4chan_maple']", count: 0
+      assert_select "#creator-claims", text: /4chan_maple.*an admin reviews it/m
     end
 
     # A tag that exists as a general tag with posts cannot get an Artist
-    # entry, so a claim on it cannot be filed -- and is not offered.
-    should "not offer a tag no Artist entry could be made for" do
+    # entry, so a claim on it cannot be filed -- and is shown, unusable.
+    should "show a tag no Artist entry could be made for as unusable" do
       as(@admin) { Tag.find_by_name("aichan_maple").update!(category: TagCategory::GENERAL, post_count: 3, updater: @admin) }
-      get_auth edit_creator_gallery_path(@gallery), @maple, headers: MAPLE
+      dashboard
 
-      assert_select "#creator-claims input[name='claim_tag'][value='aichan_maple']", count: 0
-      assert_select "#creator-claims input[name='claim_tag'][value='4chan_maple']", count: 1
+      assert_select "#creator-claims li[data-outcome='refused'] input[name='claim_tag[]'][value='aichan_maple'][disabled]", count: 1
+      assert_select "#creator-claims input[name='claim_tag[]'][value='4chan_maple']:not([disabled])", count: 1
     end
 
     should "make the Artist entry when the tag has none, the way /artists does" do
@@ -132,7 +137,7 @@ class ArtistClaimFilingTest < ActionDispatch::IntegrationTest
       assert_response 403
 
       reset!
-      put creator_gallery_path(@gallery), params: { claim_tag: "4chan_maple" }, headers: MAPLE
+      put creator_gallery_path(@gallery), params: { claim_tag: ["4chan_maple"] }, headers: MAPLE
       assert_response 403
 
       file_claim(create(:user), "4chan_maple")
@@ -165,19 +170,19 @@ class ArtistClaimFilingTest < ActionDispatch::IntegrationTest
     # skips CSRF protection, so it never stands in for the claimant's session.
     should "be forbidden on an API-key request" do
       key = create(:api_key, user: @maple)
-      put creator_gallery_path(@gallery, login: @maple.name, api_key: key.key), params: { claim_tag: "4chan_maple" }, headers: MAPLE
+      put creator_gallery_path(@gallery, login: @maple.name, api_key: key.key), params: { claim_tag: ["4chan_maple"] }, headers: MAPLE
 
       assert_response 403
       assert_equal 0, ArtistClaim.count
     end
 
     should "say why, and leave no claim and no stray Artist, for a tag the rule refuses" do
-      file_claim(@maple, "aichan_rival")
+      file_claim(@maple, "4chan_rival")
 
       assert_response :redirect
-      assert_match(/identical to the claimant's Matrix name/, flash[:notice])
+      assert_match(/Not filed, 4chan_rival: nothing is posted under 4chan_rival yet/, flash[:notice])
       assert_equal 0, ArtistClaim.count
-      assert_nil Artist.find_by(name: "aichan_rival")
+      assert_nil Artist.find_by(name: "4chan_rival")
     end
   end
 end

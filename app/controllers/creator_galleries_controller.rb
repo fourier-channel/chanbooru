@@ -17,11 +17,12 @@
 #
 # CLAIMS. Filing an ArtistClaim on a creator tag for the page's linked account
 # is that account's act alone, under that verified identity: the claim is the
-# creator's word. An admin decides it (Admin::ArtistClaimsController).
-# The same holds for a claim on an original character, <name>_(<slug>)
-# (CharacterClaim, ruled 2026-10-11): filed and released by the linked
-# account under that verified identity, approved on filing when the name is
-# clean and by an admin otherwise.
+# creator's word. Who decides it (operator, 2026-11-05): a direct match of
+# the page's Matrix name is approved as it is filed; every other name goes to
+# an admin (Admin::ArtistClaimsController) in one CreatorClaimRequest with the
+# creator's note. The same account files and releases a claim on an original
+# character, <name>_(<qualifier>) (CharacterClaim): the qualifier is the
+# page's slug or a creator name it holds, and the claim is approved on filing.
 #
 # ONE ROUTE. Linking, unlinking and filing a claim are explicit acts on the
 # gallery, so they ride its own update route (PATCH creators/:slug with
@@ -155,34 +156,18 @@ class CreatorGalleriesController < ApplicationController
   # The page in edit mode: the same layout, drawn as the curator sees it, with
   # the tags the bands may use. As json (edit.json?tags=a+b, the same route),
   # the posts a band with those tags may choose from.
+  #
+  # With view=identity, the creator's Identity dashboard instead (identity).
   def edit
     skip_authorization
+    return identity if params[:view] == "identity" && !request.format.json?
+
     @layout = CreatorGalleryLayout.new(@gallery)
     return render(json: @layout.candidates(params[:tags].to_s.split, CurrentUser.user)) if request.format.json?
 
     @draw = @layout.draw(CurrentUser.user, manager: true)
     @palette = @layout.palette(CurrentUser.user)
     @avatar = @layout.avatar(CurrentUser.user)
-    @panel_refusal = panel_refusal
-    @claims = @gallery.artist_claims.order(created_at: :desc, id: :desc)
-    @character_claims = @gallery.character_claims.order(created_at: :desc, id: :desc)
-    @signed_in_owner = owner_signed_in?
-    # The creator tags this page may claim: one per non-master prefix in the
-    # live list, named for the page's Matrix localpart, among tags that exist.
-    # Offered to the linked account only, and only where the model would take
-    # the claim -- the button and the refusal cannot disagree.
-    localpart = ArtistClaim.localpart(@gallery.matrix_id).to_s.downcase
-    tags = @signed_in_owner ? CreatorPrefixes.entries.reject { |e| ArtistClaim.master?(e) }.map { |e| "#{e.prefix}#{localpart}" } : []
-    @claim_offers = tags.select do |tag|
-      (Artist.exists?(name: tag) || Tag.exists?(name: tag)) && ArtistClaim.prepare(@gallery, CurrentUser.user, tag).second.nil?
-    end
-  rescue CreatorPrefixes::ConfigError => e
-    # Fork: words only (BUR review 2026-10-19). What is wrong with the list
-    # -- a path on the server, an errno, the fix's command -- goes to the
-    # log, never onto the creator's page.
-    Rails.logger.error("creator page @#{@gallery.slug}: claim offers not shown, the creator-prefix list is broken: #{e.message}")
-    @claim_offers = []
-    flash.now[:notice] = "Creator tags cannot be claimed right now: the creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again"
   end
 
   # Claim your page. A non-admin may only create the gallery for their own
@@ -203,7 +188,8 @@ class CreatorGalleriesController < ApplicationController
     @gallery = CreatorGallery.new(gallery_params)
     @gallery.assign_attributes(matrix_id: mxid, slug: slug_from(mxid), user_id: verified.present? ? CurrentUser.user.id : nil)
     if @gallery.save
-      redirect_to creator_gallery_path(@gallery)
+      # Straight to the creator's names, where the creator-name tour starts.
+      redirect_to edit_creator_gallery_path(@gallery, view: "identity")
     else
       render :new, status: 422
     end
@@ -218,8 +204,9 @@ class CreatorGalleriesController < ApplicationController
     return unlink_account if params[:unlink_account].present?
     return hide_harmonic(params[:harmonic_hide], hide: true) if params[:harmonic_hide].present?
     return hide_harmonic(params[:harmonic_unhide], hide: false) if params[:harmonic_unhide].present?
-    return file_claim(params[:claim_tag]) if params[:claim_tag].present?
+    return file_claim(params[:claim_tag]) if params.key?(:claim_tag)
     return file_character_claim(params[:claim_character]) if params.key?(:claim_character)
+    return take_up_character(params[:take_up_character]) if params[:take_up_character].present?
     return release_character_claim(params[:release_character]) if params[:release_character].present?
     return panel_write if params[:panel].present?
     return save_layout if params[:layout].present?
@@ -273,6 +260,61 @@ class CreatorGalleriesController < ApplicationController
 
   private
 
+  # THE IDENTITY DASHBOARD (edit?view=identity; operator, 2026-11-05): the
+  # creator's names, their original characters and who sees their posts, in
+  # one place. The Claim Pool starts with the page's direct-name
+  # counterparts, adds what the creator searched for (creator_q) and any name
+  # a link brought (pool[]), each labelled by what filing it would do
+  # (CreatorClaimRequest.pool). With fragment=pool, only the rows the search
+  # found, for the page's script to add to the pool it shows. With popout=1,
+  # the page alone, for a window of its own.
+  #
+  # Read-only to anyone but the claimant: the verified owner signed in as the
+  # page's linked, unbanned account.
+  def identity
+    user = CurrentUser.user
+    @signed_in_owner = owner_signed_in?
+    @claimant = @signed_in_owner && @gallery.user_id == user.id
+    @panel_refusal = panel_refusal
+    @claims = @gallery.artist_claims.order(created_at: :desc, id: :desc)
+    @character_claims = @gallery.character_claims.order(created_at: :desc, id: :desc)
+    @tours = ModulationSetting.for_viewer(user, session)["tours"].to_h
+    @creator_q = params[:creator_q].to_s.strip
+    @asked = Array(params[:pool]).map { |name| Artist.normalize_name(name.to_s) }.compact_blank.first(CreatorClaimRequest::MAX_NAMES)
+    @pool = @held_characters = @ready_characters = []
+    @character_qualifiers = [@gallery.slug]
+    if @claimant
+      found = CreatorClaimRequest.search(user, @creator_q)
+      return render(partial: "creator_galleries/pool_rows", locals: { rows: CreatorClaimRequest.pool(@gallery, user, found), asked: [] }) if params[:fragment] == "pool"
+
+      @pool = CreatorClaimRequest.pool(@gallery, user, CreatorClaimRequest.counterparts(@gallery) + @asked + found)
+      @held_characters = CharacterClaim.held_for(@gallery).order(:tag_name).to_a
+      @ready_characters = CharacterClaim.ready_for(@gallery, user)
+      @character_qualifiers = [@gallery.slug, *CharacterClaim.creator_names(@gallery.id)].uniq
+    end
+    render :identity, layout: popout? ? "popout" : "sidebar"
+  rescue CreatorPrefixes::ConfigError => e
+    # Fork: words only (BUR review 2026-10-19). What is wrong with the list
+    # -- a path on the server, an errno, the fix's command -- goes to the
+    # log, never onto the creator's page.
+    Rails.logger.error("creator page @#{@gallery.slug}: Claim Pool not shown, the creator-prefix list is broken: #{e.message}")
+    @pool = @held_characters = @ready_characters = []
+    flash.now[:notice] = "Creator names cannot be claimed right now: the creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again"
+    render :identity, layout: popout? ? "popout" : "sidebar"
+  end
+
+  # The dashboard in a window of its own (its Pop out button) is drawn bare,
+  # and every answer from it comes back bare.
+  def popout? = params[:popout] == "1"
+  helper_method :popout?
+
+  # Where the dashboard is, as URL params: every write from it comes back
+  # there, popped out or not.
+  def identity_home = popout? ? { view: "identity", popout: "1" } : { view: "identity" }
+  helper_method :identity_home
+
+  def identity_path(**place) = edit_creator_gallery_path(@gallery, **identity_home, **place)
+
   # --- account link and creator claims (reached through update) ---
 
   # Link this page to the signed-in booru account of its verified owner. An
@@ -291,7 +333,7 @@ class CreatorGalleriesController < ApplicationController
         "Linked to your booru account, #{CurrentUser.user.name}."
       end
     end
-    redirect_to edit_creator_gallery_path(@gallery), notice: notice
+    redirect_to identity_path(anchor: "creator-account"), notice: notice
   end
 
   # Clear the page's booru account: an admin's correction, logged where only
@@ -310,7 +352,7 @@ class CreatorGalleriesController < ApplicationController
         "Unlinked from #{linked.name}. The page's owner can now link their own account here."
       end
     end
-    redirect_to edit_creator_gallery_path(@gallery), notice: notice
+    redirect_to identity_path(anchor: "creator-account"), notice: notice
   end
 
   # Hide one of this page's harmonics, or show it again: an admin's act
@@ -360,40 +402,50 @@ class CreatorGalleriesController < ApplicationController
     redirect_to edit_creator_gallery_path(@gallery), notice: notice
   end
 
-  # File a claim on a creator tag for this page's linked account, making the
-  # Artist entry when the tag has none, as /artists would, in the same save:
-  # a refused claim leaves no entry behind. ArtistClaim.prepare decides, the
-  # same check that put the button on the page; its words are the answer.
-  def file_claim(tag_name)
+  # The Claim Pool's one action: every ticked name (claim_tag[]) with the
+  # creator's note, for this page's linked account (CreatorClaimRequest.file!,
+  # which says what became of each). A direct match is theirs at once; the
+  # rest go to an admin in one request.
+  def file_claim(names)
     require_owner_signed_in!
     raise User::PrivilegeError, "Link this page to your booru account before claiming a creator tag." if @gallery.user_id != CurrentUser.user.id
 
-    claim, refusal = ArtistClaim.prepare(@gallery, CurrentUser.user, tag_name)
-    return redirect_back_or_to(edit_creator_gallery_path(@gallery), notice: "Not filed: #{refusal}") if refusal
+    names = Array(names).compact_blank
+    return redirect_to(identity_path(anchor: "creator-claims"), notice: "Nothing filed: tick at least one name in the Claim Pool, then send.") if names.empty?
 
-    ArtistClaim.transaction do
-      claim.artist.save! if claim.artist.new_record?
-      claim.save!
+    begin
+      results = CreatorClaimRequest.file!(gallery: @gallery, user: CurrentUser.user, names: names, note: params[:claim_note].to_s)
+    rescue CreatorClaimRequest::TooManyNames => e
+      return redirect_to(identity_path(anchor: "creator-claims"), notice: "Nothing filed: #{e.message}.")
     end
-    redirect_back_or_to edit_creator_gallery_path(@gallery), notice: "Claim on #{claim.tag_name} filed. An admin will review it."
-  rescue ActiveRecord::RecordInvalid => e # a race with another filing, between the check and the save
-    redirect_back_or_to edit_creator_gallery_path(@gallery), notice: "Not filed: #{e.record.errors.full_messages.join("; ")}"
+    by = results.group_by(&:outcome)
+    notice = [
+      ("#{by[CreatorClaimRequest::IMMEDIATE].map(&:name).to_sentence} #{(by[CreatorClaimRequest::IMMEDIATE].size == 1) ? "is" : "are"} yours now." if by[CreatorClaimRequest::IMMEDIATE]),
+      ("Asked for #{by[CreatorClaimRequest::REQUESTED].map(&:name).to_sentence}: an admin reviews the request, and the answer shows here." if by[CreatorClaimRequest::REQUESTED]),
+      *Array(by[CreatorClaimRequest::REFUSED]).map { |result| "Not filed, #{result.name}: #{result.reason}." },
+    ].compact.join(" ")
+    redirect_to identity_path(anchor: "creator-claims"), notice: notice
   end
 
   # File a claim on an original character for this page's linked account:
   # CharacterClaim.prepare completes a bare name with the page's slug and
-  # decides, and CharacterClaim#file! approves a clean name at once. The tag
-  # is made at approval, so a refused or waiting claim leaves none behind.
+  # decides, and CharacterClaim#file! approves it at once. The tag is made at
+  # approval, so a refused or waiting claim leaves none behind.
+  #
+  # character_qualifier: which of the creator's names goes in the brackets
+  # of a bare name (the page's slug when absent).
   def file_character_claim(input)
     require_character_claimant!
+    qualifier = params[:character_qualifier].to_s.strip
+    input = "#{input.to_s.strip}_(#{qualifier})" if qualifier.present? && !input.to_s.strip.end_with?(")")
     claim, refusal = CharacterClaim.prepare(@gallery, CurrentUser.user, input)
     return redirect_to(characters_path, notice: "Not filed: #{refusal}") if refusal
 
     waits = claim.file!
     if waits.empty?
-      redirect_to characters_path, notice: "Claim on #{claim.tag_name} approved: the name was unused, so #{claim.tag_name} is yours now. Its wiki page is yours to write."
+      redirect_to characters_path, notice: "Claim on #{claim.tag_name} approved: #{claim.tag_name} is yours now. Its wiki page is yours to write."
     else
-      redirect_to characters_path, notice: "Claim on #{claim.tag_name} filed. An admin will review it: #{waits.to_sentence}."
+      redirect_to characters_path, notice: "Claim on #{claim.tag_name} filed, and waits for an admin: #{waits.to_sentence}."
     end
   rescue ActiveRecord::RecordInvalid => e # a race with another filing, between the check and the save
     redirect_to characters_path, notice: "Not filed: #{e.record.errors.full_messages.join("; ")}"
@@ -412,6 +464,19 @@ class CreatorGalleriesController < ApplicationController
     redirect_to characters_path, notice: "Released #{claim.tag_name}: its wiki page is open to everyone's edits again. The tag and its page stay."
   end
 
+  # Take up a character held for one of this page's creator names ("reserved
+  # for them", operator, 2026-11-05): CharacterClaim#take_up! approves it.
+  def take_up_character(id)
+    require_character_claimant!
+    claim = CharacterClaim.held_for(@gallery).find_by(id: id)
+    return redirect_to(characters_path, notice: "That character is not held for one of your names (it may already be taken up). Reload this page.") if claim.nil?
+
+    claim.take_up!(@gallery, by: CurrentUser.user)
+    redirect_to characters_path, notice: "#{claim.tag_name} is yours now. Its wiki page is yours to write."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to characters_path, notice: "Not taken up: #{e.record.errors.full_messages.join("; ")}"
+  end
+
   # Filing and releasing are the creator's acts alone: the verified identity,
   # signed in as the page's linked, unbanned booru account. No admin override.
   def require_character_claimant!
@@ -422,7 +487,7 @@ class CreatorGalleriesController < ApplicationController
                                 "to my booru account\" on this page, signed in to the booru as yourself."
   end
 
-  def characters_path = edit_creator_gallery_path(@gallery, anchor: "creator-characters")
+  def characters_path = identity_path(anchor: "creator-characters")
 
   # THE EDITOR'S SAVE (PATCH creators/:slug, JSON carrying `layout`): the
   # look, every band's posts and the Page fields at once, or nothing and
@@ -556,7 +621,7 @@ class CreatorGalleriesController < ApplicationController
   # Back to the block the act answers on, or to the one group left open.
   def panel_redirect(act, place, notice)
     anchor = place[:open_group] ? "creator-panel-group-#{place[:open_group]}" : PANEL_ACTS.fetch(act)
-    redirect_to edit_creator_gallery_path(@gallery, **place, anchor: anchor), notice: notice
+    redirect_to identity_path(**place, anchor: anchor), notice: notice
   end
 
   def panel_default_audience

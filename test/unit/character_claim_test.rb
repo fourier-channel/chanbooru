@@ -3,9 +3,8 @@
 require "test_helper"
 
 # A creator's claim on an original character's tag (OC ownership, ruled
-# 2026-10-11): the tag is <name>_(<the creator's own slug>), kept by name,
-# approved on filing when the name is clean and by an admin otherwise, and
-# every decision logged. It confers rights over the character's wiki page and
+# 2026-10-11): the tag is <name>_(<the creator's own name>), kept by name,
+# approved on filing (operator, 2026-11-05), and every decision logged. It confers rights over the character's wiki page and
 # category, never over who sees posts.
 class CharacterClaimTest < ActiveSupport::TestCase
   def gallery_for(user, slug)
@@ -155,22 +154,30 @@ class CharacterClaimTest < ActiveSupport::TestCase
       assert_match(/automatically/, action.description)
     end
 
-    should "wait for an admin when the tag has posts, a wiki page or an alias, and say which" do
+    # Operator, 2026-11-05: the name in brackets is the creator's own, so a
+    # name already in use is theirs at once too; the log says what it carried.
+    should "approve at once a name with posts, a wiki page or an alias, and log what it carried" do
+      as(@admin) { create(:post, tag_string: "maple_(saber)") }
+      as(@admin) { create(:wiki_page, title: "pine_(saber)") }
+      create(:tag_alias, antecedent_name: "fir_(other)", consequent_name: "fir_(saber)")
+
+      { "maple" => "it is on 1 post", "pine" => "it has a wiki page", "fir" => "fir_(other) is aliased to it" }.each do |name, carried|
+        claim = CharacterClaim.prepare(@gallery, @saber, name).first
+
+        assert_equal([], claim.file!, name)
+        assert(claim.reload.approved?, name)
+        assert_includes(ModAction.where(category: "character_claim_approve").last.description, "(#{carried})", name)
+      end
+      assert(Tag.find_by_name("maple_(saber)").character?, "the posted tag is re-filed as a character")
+    end
+
+    should "wait for an admin when approving it fails, saying why" do
+      Tag.any_instance.stubs(:update).returns(false)
       as(@admin) { create(:post, tag_string: "maple_(saber)") }
       claim = CharacterClaim.prepare(@gallery, @saber, "maple").first
-      assert_equal(["it is on 1 post"], claim.file!)
+
+      assert_match(/could not be approved automatically: .*could not be re-filed as a character/, claim.file!.sole)
       assert(claim.reload.pending?)
-
-      as(@admin) { create(:wiki_page, title: "pine_(saber)") }
-      claim = CharacterClaim.prepare(@gallery, @saber, "pine").first
-      assert_equal(["it has a wiki page"], claim.file!)
-
-      create(:tag_alias, antecedent_name: "fir_(other)", consequent_name: "fir_(saber)")
-      claim = CharacterClaim.prepare(@gallery, @saber, "fir").first
-      assert_equal(["fir_(other) is aliased to it"], claim.file!)
-
-      assert_equal(0, ModAction.where(category: "character_claim_approve").count)
-      assert_nil(Tag.find_by_name("pine_(saber)"), "a pending claim creates no tag")
     end
 
     should "tell a creator re-filing a character they already hold, in one sentence, that it is theirs" do
@@ -181,8 +188,7 @@ class CharacterClaimTest < ActiveSupport::TestCase
     end
 
     should "allow one open claim per gallery per tag" do
-      as(@admin) { create(:post, tag_string: "maple_(saber)") }
-      CharacterClaim.prepare(@gallery, @saber, "maple").first.file!
+      CharacterClaim.prepare(@gallery, @saber, "maple").first.save!
 
       again = CharacterClaim.new(creator_gallery: @gallery, tag_name: "maple_(saber)")
       assert_not(again.valid?)
@@ -190,11 +196,13 @@ class CharacterClaimTest < ActiveSupport::TestCase
     end
   end
 
+  # A pending claim: one whose automatic approval failed, or a held one its
+  # gallery could not approve when it came (take_up_held!).
   context "deciding" do
     setup do
       as(@admin) { create(:post, tag_string: "maple_(saber)") }
       @claim = CharacterClaim.prepare(@gallery, @saber, "maple").first
-      @claim.file!
+      @claim.save!
     end
 
     should "refuse an approval or rejection by anyone but an admin" do
@@ -235,7 +243,7 @@ class CharacterClaimTest < ActiveSupport::TestCase
       assert(@claim.reload.rejected?)
 
       other = CharacterClaim.prepare(@gallery, @saber, "maple").first
-      other.file!
+      other.save!
       other.approve!(by: @admin)
       other.reject!(by: @admin, note: "approval withdrawn")
 
@@ -346,6 +354,69 @@ class CharacterClaimTest < ActiveSupport::TestCase
 
         assert(CharacterClaim.claimed?(["maple_(saber)"]))
       end
+    end
+  end
+
+  # Operator, 2026-11-05: "if the currently tagged character's creator
+  # matches their usernames, it also says available for immediate claim".
+  context "under one of the gallery's creator names" do
+    setup do
+      @maple = ArtistClaim.create!(artist: create(:artist, name: "4chan_maple"), creator_gallery: @gallery, by_review: true)
+      @maple.approve!(by: @admin)
+    end
+
+    should "be claimable, and stand, while the creator name does" do
+      claim, refusal = CharacterClaim.prepare(@gallery, @saber, "pine_(maple)")
+
+      assert_nil(refusal)
+      assert_equal([], claim.file!)
+      assert(CharacterClaim.claimed?(["pine_(maple)"]))
+
+      @maple.reject!(by: @admin, note: "approval withdrawn")
+      assert_not(CharacterClaim.claimed?(["pine_(maple)"]), "the creator name gone, the character no longer stands")
+    end
+
+    should "not be a name a claim is pending on, or someone else's" do
+      ArtistClaim.create!(artist: create(:artist, name: "4chan_fern"), creator_gallery: @gallery, by_review: true)
+
+      assert_match(/pine_\(fern\) names fern: claim pine_\(saber\)/, CharacterClaim.prepare(@gallery, @saber, "pine_(fern)").second)
+      assert_match(/names maple/, CharacterClaim.prepare(gallery_for(create(:user), "bob"), User.last, "pine_(maple)").second)
+    end
+
+    should "give way to a gallery whose slug it is" do
+      gallery_for(create(:user), "maple")
+
+      assert_equal([], CharacterClaim.creator_names(@gallery.id))
+      assert_match(/names maple/, CharacterClaim.prepare(@gallery, @saber, "pine_(maple)").second)
+    end
+
+    should "let the creator take up a character held for that name" do
+      held = CharacterClaim.create!(tag_name: "kayla_(maple)", creator_slug: "maple", status: CharacterClaim::HELD, approver: @admin, note: "held for @maple")
+
+      assert_equal([held], CharacterClaim.held_for(@gallery).to_a)
+      assert_raises(User::PrivilegeError) { held.take_up!(@gallery, by: create(:user)) }
+
+      held.take_up!(@gallery, by: @saber)
+      assert_equal([CharacterClaim::APPROVED, @gallery.id, @admin.id], [held.reload.status, held.creator_gallery_id, held.approver_id])
+      assert(CharacterClaim.claimed?(["kayla_(maple)"]))
+      assert_match(/taken up by @saber, whose creator name is maple/, ModAction.where(category: "character_claim_approve").last.description)
+      assert_raises(ActiveRecord::RecordInvalid) { held.take_up!(@gallery, by: @saber) }
+    end
+
+    # The Identity dashboard's "available for immediate claim" list.
+    should "offer the characters already tagged under the creator's names that nobody claims" do
+      as(@admin) do
+        create(:post, tag_string: "pine_(maple) fern_(saber) rose_(bob) oak_(maple) rock_(maple)")
+        create(:post, tag_string: "pine_(maple)")
+      end
+      Tag.find_by_name("rock_(maple)").update!(category: TagCategory::COPYRIGHT, updater: @admin)
+      CharacterClaim.create!(tag_name: "oak_(maple)", creator_slug: "maple", status: CharacterClaim::HELD, approver: @admin)
+
+      ready = CharacterClaim.ready_for(@gallery, @saber)
+
+      assert_equal(%w[pine_(maple) fern_(saber)], ready, "most used first; never another creator's, a held one or one the rule refuses")
+      CharacterClaim.prepare(@gallery, @saber, "pine_(maple)").first.file!
+      assert_equal(["fern_(saber)"], CharacterClaim.ready_for(@gallery, @saber), "a claimed name leaves the list")
     end
   end
 end

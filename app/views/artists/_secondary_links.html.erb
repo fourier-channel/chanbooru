@@ -15,13 +15,15 @@
     <%= subnav_link_to "History", artist_versions_path(:search => {:artist_id => @artist.id}) %>
     <%# fourier: "Claim this creator" (CREATOR_VISIBILITY section 9, 2026-10-07).
         Offered only to the signed-in account linked to the gallery of the
-        request's VERIFIED Matrix identity, and only when ArtistClaim.prepare --
-        the check the filing itself makes -- would take it, so the link never
-        leads to a refusal. Filed through the gallery's own update route. %>
+        request's VERIFIED Matrix identity, and only when filing it would not
+        be refused (CreatorClaimRequest.judge, the check the filing itself
+        makes), so the link never leads to a refusal. It opens the Identity
+        dashboard with the name ticked in the Claim Pool (operator,
+        2026-11-05): the creator sends it from there, with a note. %>
     <% verified_mxid = FourierIdentity.current(request) %>
     <% claim_gallery = verified_mxid && !CurrentUser.user.is_anonymous? && CreatorGallery.where(user_id: CurrentUser.user.id).find_by("lower(matrix_id) = ?", verified_mxid.downcase) %>
-    <% if claim_gallery && ArtistClaim.prepare(claim_gallery, CurrentUser.user, @artist.name).second.nil? %>
-      <%= subnav_link_to "Claim this creator", creator_gallery_path(claim_gallery, claim_tag: @artist.name), method: :patch %>
+    <% if claim_gallery && CreatorClaimRequest.judge(claim_gallery, CurrentUser.user, @artist.name).second != CreatorClaimRequest::REFUSED %>
+      <%= subnav_link_to "Claim this creator", edit_creator_gallery_path(claim_gallery, view: "identity", pool: [@artist.name], anchor: "creator-claims") %>
     <% end %>
     <% if current_page?(action: :edit) && policy(@artist).update? %>
       <% if @artist.is_deleted? %>

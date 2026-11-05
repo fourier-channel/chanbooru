@@ -121,10 +121,11 @@
         <p class="fineprint">No one is waiting. People can ask to join only groups you open to requests.</p>
       <% end %>
       <% if groups.any? %>
-        <%= form_with url: helpers.edit_creator_gallery_path(gallery, anchor: "creator-panel-groups"), method: :get, class: "modcreator-panel-inline" do %>
+        <%= form_with url: here(anchor: "creator-panel-groups"), method: :get, class: "modcreator-panel-inline" do %>
+          <%= home_fields %>
           <label>Find someone by name <input type="search" name="member_q" value="<%= member_q %>"></label>
           <button type="submit">Find</button>
-          <% if member_q.present? %><%= link_to "Clear search", helpers.edit_creator_gallery_path(gallery, anchor: "creator-panel-groups") %><% end %>
+          <% if member_q.present? %><%= link_to "Clear search", here(anchor: "creator-panel-groups") %><% end %>
         <% end %>
       <% end %>
       <% groups.each do |group| %>
@@ -224,10 +225,11 @@
     <div id="creator-panel-people" class="modcreator-panel-block">
       <h3>People you let in or keep out</h3>
       <% if creator_wide_rules.size >= CreatorPanelComponent::MEMBER_LIMIT || post_rules.size >= CreatorPanelComponent::MEMBER_LIMIT || member_q.present? %>
-        <%= form_with url: helpers.edit_creator_gallery_path(gallery, anchor: "creator-panel-people"), method: :get, class: "modcreator-panel-inline" do %>
+        <%= form_with url: here(anchor: "creator-panel-people"), method: :get, class: "modcreator-panel-inline" do %>
+          <%= home_fields %>
           <label>Find someone by name <input type="search" name="member_q" value="<%= member_q %>"></label>
           <button type="submit">Find</button>
-          <% if member_q.present? %><%= link_to "Clear search", helpers.edit_creator_gallery_path(gallery, anchor: "creator-panel-people") %><% end %>
+          <% if member_q.present? %><%= link_to "Clear search", here(anchor: "creator-panel-people") %><% end %>
         <% end %>
       <% end %>
       <% rules = creator_wide_rules + post_rules %>
@@ -238,7 +240,7 @@
             set": the settings it filtered out still apply (second repair,
             2026-10-09). %>
         <% if listed.empty? && member_q.present? %>
-          <p class="fineprint">Nobody matching "<%= member_q %>". <%= link_to "Clear search", helpers.edit_creator_gallery_path(gallery, anchor: "creator-panel-people") %></p>
+          <p class="fineprint">Nobody matching "<%= member_q %>". <%= link_to "Clear search", here(anchor: "creator-panel-people") %></p>
         <% elsif listed.empty? %>
           <p class="fineprint">Nobody.</p>
         <% else %>
@@ -290,7 +292,8 @@
     <%# --- 5. posts set differently (Q4) --- %>
     <div id="creator-panel-posts" class="modcreator-panel-block">
       <h3>Posts set differently</h3>
-      <%= form_with url: helpers.edit_creator_gallery_path(gallery, anchor: "creator-panel-posts"), method: :get, class: "modcreator-panel-inline" do %>
+      <%= form_with url: here(anchor: "creator-panel-posts"), method: :get, class: "modcreator-panel-inline" do %>
+        <%= home_fields %>
         <label>Set one post differently: post # <input type="number" name="post_id" min="1" value="<%= panel_post_id %>" required></label>
         <button type="submit">Open</button>
       <% end %>
@@ -353,7 +356,7 @@
               <% else %>
                 - <%= audience_words(row.audience, names) %>
               <% end %>
-              <%= link_to "Change", helpers.edit_creator_gallery_path(gallery, post_id: row.post_id, anchor: "creator-panel-posts") %>
+              <%= link_to "Change", here(post_id: row.post_id, anchor: "creator-panel-posts") %>
               <%= form_with url: path, method: :patch, class: "modcreator-panel-inline" do %>
                 <%= hidden_field_tag :panel, "post_audience", id: nil %>
                 <%= hidden_field_tag :post_id, row.post_id, id: nil %>
@@ -365,9 +368,9 @@
         </ul>
         <% if last_page > 1 %>
           <p class="modcreator-panel-pages">
-            <% if page > 1 %><%= link_to "< newer", helpers.edit_creator_gallery_path(gallery, audience_page: page - 1, anchor: "creator-panel-posts") %><% end %>
+            <% if page > 1 %><%= link_to "< newer", here(audience_page: page - 1, anchor: "creator-panel-posts") %><% end %>
             page <%= page %> of <%= last_page %>
-            <% if page < last_page %><%= link_to "older >", helpers.edit_creator_gallery_path(gallery, audience_page: page + 1, anchor: "creator-panel-posts") %><% end %>
+            <% if page < last_page %><%= link_to "older >", here(audience_page: page + 1, anchor: "creator-panel-posts") %><% end %>
           </p>
         <% end %>
       <% else %>

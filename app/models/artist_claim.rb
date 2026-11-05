@@ -27,19 +27,22 @@
 #   - only a tag the LIVE creator-prefix list locks (CreatorPrefixes). An
 #     unlocked tag is one any member can put on any post, so a claim on it
 #     would hand its holder whatever posts somebody chose to tag;
-#   - only by the gallery whose verified Matrix localpart the tag strips to:
-#     <prefix>X is claimable by @X:... "only if they are identical once the
-#     prefix is stripped";
 #   - never under the MASTER prefix (the one whose provenance is Matrix, today
 #     41chan_): "41chan_<self> needs no claim" -- CreatorControl gives it to
 #     the Matrix account it names directly.
 # Checked when the claim is filed and again when it is approved, against the
-# list as it is at that moment. The rule is a precondition, not proof: an admin
-# still decides.
+# list as it is at that moment.
 #
-# DECIDED BY AN ADMIN (Q6), and logged. approve!/reject! refuse anyone else and
-# write an admin-only ModAction. Dual-callable: the queue and any later
-# automation call the same two verbs.
+# WHO DECIDES (operator, 2026-11-05). A DIRECT MATCH -- <prefix>X filed by the
+# gallery whose verified Matrix localpart is X, "identical once the prefix is
+# stripped" -- is approved the moment it is filed (file_direct!), "available
+# for immediate claim": the verified name is the proof. Any other name is
+# filed BY REVIEW, in a CreatorClaimRequest with the creator's note, and an
+# admin decides it; once approved it confers what a direct match does, and the
+# stripped-name rule is not asked of it again (refusal, by_review:). Both
+# decisions are logged: approve!/reject! refuse anyone but an admin and write
+# an admin-only ModAction, and file_direct! writes the same entry as the
+# system account.
 class ArtistClaim < ApplicationRecord
   # The quarantine's name half (NamesTags, TagQuarantine): rows naming a
   # flagged or banished tag are withheld from the viewers its name is.
@@ -62,9 +65,11 @@ class ArtistClaim < ApplicationRecord
   validates :tag_name, presence: true
   validate :tag_name_unchanged
   validate :tag_is_claimable_by_gallery, on: %i[create approve]
-  validate :one_approved_claim_per_tag, if: :approved_or_new?
-  validate :one_approved_claim_per_artist_row, if: :approved_or_new?
+  validate :one_approved_claim_per_tag, if: :approved_or_direct_new?
+  validate :one_approved_claim_per_artist_row, if: :approved_or_direct_new?
   validate :one_open_claim_per_gallery, on: :create
+
+  belongs_to :creator_claim_request, optional: true
 
   scope :approved, -> { where(status: APPROVED) }
   scope :pending, -> { where(status: PENDING) }
@@ -115,22 +120,23 @@ class ArtistClaim < ApplicationRecord
   # refuses tag edits meanwhile. Every reader of a claim asks this one method
   # (CreatorControl, CreatorTagRelease, owner?), so they cannot disagree.
   def self.standing(entries = CreatorPrefixes.visibility_config[:entries])
-    approved.joins(:creator_gallery).pluck(:tag_name, "creator_galleries.id", "creator_galleries.matrix_id")
-            .select { |tag, _, mxid| refusal(tag, mxid, entries).nil? }
-            .map { |tag, gallery_id, _| [tag, gallery_id] }
+    approved.joins(:creator_gallery).pluck(:tag_name, "creator_galleries.id", "creator_galleries.matrix_id", :by_review)
+            .select { |tag, _, mxid, by_review| refusal(tag, mxid, entries, by_review: by_review).nil? }
+            .map { |tag, gallery_id, _, _| [tag, gallery_id] }
   end
 
   # A claim by `gallery` on `tag_name`, filed by `user`, ready to save -- with
   # a new Artist entry when the tag has none, as /artists would make one --
   # and the reason it cannot be filed, nil when it can. The one check behind
   # every "Claim" button (artist page, gallery edit page) and the filing
-  # itself, so an offer never leads to a refusal.
+  # itself, so an offer never leads to a refusal. by_review: a claim an admin
+  # is to decide, which the stripped-name rule does not refuse.
   #
   # @return [Array(ArtistClaim, String|nil)]
-  def self.prepare(gallery, user, tag_name)
+  def self.prepare(gallery, user, tag_name, by_review: false)
     name = Artist.normalize_name(tag_name.to_s)
     artist = Artist.find_by(name: name) || Artist.new(name: name)
-    claim = new(artist: artist, creator_gallery: gallery)
+    claim = new(artist: artist, creator_gallery: gallery, by_review: by_review)
     if user.nil? || user.is_anonymous? || gallery&.user_id != user.id
       refusal = "Link this page to your booru account before claiming a creator tag"
     elsif user.is_banned?
@@ -146,13 +152,15 @@ class ArtistClaim < ApplicationRecord
   # The claim rule, stated once: is `tag_name` claimable by the Matrix account
   # `matrix_id` under the prefix list `entries`? nil when it is, otherwise the
   # reason it is not. CreatorControl asks it again every time a claim is used.
-  def self.refusal(tag_name, matrix_id, entries = CreatorPrefixes.entries)
+  # by_review: an admin decides, so the stripped-name match is not required.
+  def self.refusal(tag_name, matrix_id, entries = CreatorPrefixes.entries, by_review: false)
     name = tag_name.to_s
     entry = entries.find { |e| name.start_with?(e.prefix) && name.length > e.prefix.length }
     return "#{name} is not a locked creator tag: only a tag under a listed creator prefix can be claimed" if entry.nil?
 
     stripped = name.delete_prefix(entry.prefix)
     return "#{name} needs no claim: a #{entry.prefix} tag belongs to the Matrix account it names" if master?(entry)
+    return nil if by_review
 
     localpart = localpart(matrix_id)
     return nil if localpart.present? && localpart.casecmp?(stripped)
@@ -167,6 +175,20 @@ class ArtistClaim < ApplicationRecord
 
   # "@maple:41chan.net" -> "maple"
   def self.localpart(matrix_id) = matrix_id.to_s[/\A@([^:]+):/, 1]
+
+  # A direct match approved as it is filed (operator, 2026-11-05), by the
+  # system account, in the mod log as an admin's approval is. Refuses a claim
+  # filed by review: that one is an admin's to decide.
+  def file_direct!
+    raise ArgumentError, "a claim filed by review is decided by an admin" if by_review?
+
+    transaction do
+      assign_attributes(status: APPROVED, approver: User.system, decided_at: Time.zone.now)
+      save!
+      ModAction.log("approved the claim of #{creator_gallery.matrix_id} on creator tag #{tag_name} automatically: a direct match of the Matrix name",
+                    :artist_claim_approve, subject: artist, user: User.system)
+    end
+  end
 
   # The decision and its log entry are one write: an approval nobody can
   # find in the mod log is the thing the log exists to rule out.
@@ -214,7 +236,7 @@ class ArtistClaim < ApplicationRecord
   # the gallery was made -- never against anything the request says. A broken
   # prefix list refuses the claim rather than passing it.
   def tag_is_claimable_by_gallery
-    reason = ArtistClaim.refusal(tag_name, creator_gallery&.matrix_id)
+    reason = ArtistClaim.refusal(tag_name, creator_gallery&.matrix_id, by_review: by_review?)
     errors.add(:base, reason) if reason
   rescue CreatorPrefixes::ConfigError => e
     # Fork: words only, as CharacterClaim's refusal: what is wrong with the
@@ -224,7 +246,11 @@ class ArtistClaim < ApplicationRecord
     errors.add(:base, "claims cannot be checked while the creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again")
   end
 
-  def approved_or_new? = approved? || new_record?
+  # A claim filed by review is filed even on a tag someone holds: the admin
+  # sees who holds it and decides, and approving it is refused while they do.
+  # Refused at filing it would answer, for a name hidden from the filer,
+  # whether that name exists (CreatorClaimRequest.file!).
+  def approved_or_direct_new? = approved? || (new_record? && !by_review?)
 
   # Belt to the database index's braces. The index refuses the write; this
   # produces a readable error instead of a constraint violation. Also asked

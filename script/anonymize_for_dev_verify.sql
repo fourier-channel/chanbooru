@@ -194,7 +194,7 @@ BEGIN
                            'post_appeals', 'post_approvals', 'post_disapprovals', 'post_replacements', 'notes', 'note_versions',
                            'mod_actions', 'bans', 'user_feedback', 'saved_searches', 'creator_galleries', 'creator_groups',
                            'creator_group_memberships', 'creator_gallery_posts', 'creator_post_audiences', 'creator_user_rules',
-                           'creator_join_requests', 'creator_audience_groups', 'creator_gallery_messages', 'creator_tag_releases',
+                           'creator_join_requests', 'creator_claim_requests', 'creator_audience_groups', 'creator_gallery_messages', 'creator_tag_releases',
                            'creator_gallery_harmonics', 'creator_harmonic_removals', 'user_perks',
                            'artist_claims', 'character_claims', 'tag_grants', 'tag_quarantines', 'landing_categories', 'landing_settings',
                            'modulation_settings', 'fourier_post_creators', 'post_mxcs', 'artist_commentaries', 'artist_commentary_versions',
