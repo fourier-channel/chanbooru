@@ -153,7 +153,7 @@ class SessionLoader
     return if user.is_anonymous?
 
     user.with_lock do
-      LoginSession.where(login_id: session[:login_id]).update_all(status: :logged_out, last_seen_at: Time.now.utc.inspect) if session[:login_id].present?
+      LoginSession.active.where(login_id: session[:login_id]).update_all(status: :logged_out, last_seen_at: Time.now.utc.inspect) if session[:login_id].present?
       UserEvent.create_from_request!(user, :logout, request)
 
       # The WHOLE session, not three keys out of it (operator ruling
@@ -259,17 +259,18 @@ class SessionLoader
     user = User.find_by_id(session[:user_id])
     return if user.nil?
 
-    if user.is_deleted?
-      logout(user)
-    elsif session[:login_id].present? && LoginSession.inactive.exists?(login_id: session[:login_id])
-      # Fork: a login that is no longer active is over -- logged out, or
-      # revoked by a password reset from the server (PasswordReveal) or an
-      # account deletion. Upstream marks the row and nothing reads it, and the
-      # cookie store keeps the whole session in the cookie, so a copy taken
-      # before the logout or the reset went on working. Nothing legitimate
-      # sends an inactive login: logout empties the session it ends. The
-      # cookie's session is emptied; the row keeps saying how it ended.
+    # A cookie whose login is not one of this user's active logins is over --
+    # logged out, revoked by a password change or reset (PasswordReveal
+    # included), by enabling 2FA or by an account deletion, or a cookie from
+    # before login sessions, which has none. The cookie store keeps the whole
+    # session in the cookie, so a copy taken before the logout or the reset
+    # would otherwise go on working. Fork: the cookie's WHOLE session is
+    # emptied, as logout empties it (upstream deletes the three login keys);
+    # the row keeps saying how it ended.
+    if !user.login_sessions.active.exists?(login_id: session[:login_id])
       request.reset_session
+    elsif user.is_deleted?
+      logout(user)
     else
       CurrentUser.user = user
     end
