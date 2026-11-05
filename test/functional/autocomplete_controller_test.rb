@@ -171,6 +171,18 @@ class AutocompleteControllerTest < ActionDispatch::IntegrationTest
         assert_not_equal(true, response.cache_control[:public])
       end
 
+      should "not publicly cache user completions in a query with one tag" do
+        create(:user, name: "albert", post_upload_count: 100)
+        create(:user, name: "alfred", post_upload_count: 1)
+
+        # Fork: signed out, with the current `tv`, since a signed-in answer is never public.
+        get autocomplete_index_path(search: { query: "touhou user:al", type: "tag_query" }, tv: TagQuarantine.names_generation)
+
+        assert_response :success
+        assert_equal(["user:albert", "user:alfred"], response.parsed_body.css("li").pluck("data-autocomplete-value").sort)
+        assert_not_equal(true, response.cache_control[:public])
+      end
+
       should "publicly cache metatag completions that don't depend on the user in a query with one tag" do
         get autocomplete_index_path(search: { query: "touhou rating:g", type: "tag_query" }, tv: TagQuarantine.names_generation)
 

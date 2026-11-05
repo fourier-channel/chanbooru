@@ -30,6 +30,12 @@ class AutocompleteService
 
   TAG_PREFIXES = TagCategory.mapping.keys.map { |prefix| "#{prefix}:" }
 
+  # Metatags that complete usernames. The results depend on the current user, because the current user is listed first.
+  USER_METATAGS = %i[user approver commenter comm noter noteupdater commentaryupdater artcomm fav ordfav ordvote appealer flagger upvote downvote]
+
+  # Metatags whose completions are private to the current user.
+  PRIVATE_METATAGS = %i[favgroup ordfavgroup search]
+
   attr_reader :query, :type, :limit, :current_user, :enabled
   alias_method :enabled?, :enabled
 
@@ -326,8 +332,7 @@ class AutocompleteService
   # @return [Array<Hash>] the autocomplete results
   def autocomplete_metatag(metatag, value)
     results = case metatag.to_sym
-    when :user, :approver, :commenter, :comm, :noter, :noteupdater, :commentaryupdater,
-         :artcomm, :fav, :ordfav, :ordvote, :appealer, :flagger, :upvote, :downvote
+    when *USER_METATAGS
       autocomplete_user(value)
     when :pool, :ordpool
       autocomplete_pool(value)
@@ -498,7 +503,7 @@ class AutocompleteService
   def cache_publicly?
     return false if current_user.present? && !current_user.is_anonymous?
 
-    if type == :tag_query && parsed_query.tag_names.one? && !metatag&.name&.in?(%w[favgroup ordfavgroup search])
+    if type == :tag_query && parsed_query.tag_names.one? && !metatag&.name&.to_sym&.in?(USER_METATAGS + PRIVATE_METATAGS)
       true
     elsif type.in?(%i[tag artist wiki_page pool emoji opensearch])
       true
