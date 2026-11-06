@@ -2,12 +2,26 @@ require "test_helper"
 require "zip"
 
 class MediaFileUgoiraTest < ActiveSupport::TestCase
+  def create_ugoira_zip(file, frame_count: 2, compression_method: Zip::Entry::STORED)
+    Zip::File.open(file.path, create: true, suppress_extra_fields: true) do |zip|
+      frames = frame_count.times.map { |n| { file: "#{"%06d" % n}.jpg", delay: 100 } }
+      zip.get_output_stream(Zip::Entry.new(zip, "animation.json", compression_method: Zip::Entry::STORED)) { |f| f.write(frames.to_json) }
+
+      frames.each do |frame|
+        zip.get_output_stream(Zip::Entry.new(zip, frame[:file], compression_method:)) { |f| f.write(File.binread("test/files/jpg/test.jpg")) }
+      end
+    end
+
+    file.reopen(file.path, "rb")
+  end
+
   context "Previews" do
     should "be generated properly" do
       should_generate_previews(
         "ugoira",
         failures: [
           "test/files/ugoira/invalid_ugoira.zip",
+          "test/files/ugoira/ugoira-compressed.zip",
         ],
       )
     end
@@ -406,6 +420,33 @@ class MediaFileUgoiraTest < ActiveSupport::TestCase
 
         MediaFile::Ugoira.open(file.path, frame_delays: [100, 100]) do |ugoira|
           assert_equal("zip64 format is not supported", ugoira.error)
+        end
+      end
+    end
+  end
+
+  context "a ugoira zip with an invalid structure" do
+    should "be rejected without extracting a compressed file" do
+      Danbooru::Tempfile.create(["danbooru-ugoira-", ".zip"]) do |file|
+        create_ugoira_zip(file, compression_method: Zip::Entry::DEFLATED)
+        Danbooru::Archive.any_instance.expects(:extract!).never
+
+        MediaFile.open(file) do |ugoira|
+          assert_kind_of(MediaFile::Ugoira, ugoira)
+          assert_equal("ugoira must not be compressed", ugoira.error)
+          assert_raises(MediaFile::Ugoira::Error) { ugoira.dimensions }
+        end
+      end
+    end
+
+    should "be rejected without extracting a file with too many frames" do
+      Danbooru::Tempfile.create(["danbooru-ugoira-", ".zip"]) do |file|
+        create_ugoira_zip(file, frame_count: MediaFile::Ugoira::MAX_FRAME_COUNT + 1)
+        Danbooru::Archive.any_instance.expects(:extract!).never
+
+        MediaFile.open(file) do |ugoira|
+          assert_equal("cannot have more than #{MediaFile::Ugoira::MAX_FRAME_COUNT} frames", ugoira.error)
+          assert_raises(MediaFile::Ugoira::Error) { ugoira.frames }
         end
       end
     end
