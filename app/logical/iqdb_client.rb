@@ -128,6 +128,8 @@ class IqdbClient
     # @param file [File] the image to search
     def query_file(file, limit: 20)
       media_file = MediaFile.open(file)
+      MediaAsset.validate_media_file!(media_file, CurrentUser.user)
+
       preview = media_file.preview!(180, 180)
       file = HTTP::FormData::File.new(preview)
       request(:post, "query", form: { file: file }, params: { limit: limit })

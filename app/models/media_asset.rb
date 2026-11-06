@@ -402,6 +402,8 @@ class MediaAsset < ApplicationRecord
         elsif media_file.duration.to_i > Danbooru.config.max_video_duration.to_i && !uploader.is_admin?
           raise Error, "Duration must be less than #{Danbooru.config.max_video_duration} seconds"
         end
+      rescue MediaFile::Ugoira::Error => e
+        raise Error, e.message
       end
     end
 
