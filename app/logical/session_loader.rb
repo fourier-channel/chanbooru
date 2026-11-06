@@ -266,6 +266,8 @@ class SessionLoader
     user = User.find_by_id(session[:user_id])
     return if user.nil?
 
+    login_session = user.login_sessions.active.find_by(login_id: session[:login_id])
+
     # A cookie whose login is not one of this user's active logins is over --
     # logged out, revoked by a password change or reset (PasswordReveal
     # included), by enabling 2FA or by an account deletion, or a cookie from
@@ -274,12 +276,13 @@ class SessionLoader
     # would otherwise go on working. Fork: the cookie's WHOLE session is
     # emptied, as logout empties it (upstream deletes the three login keys);
     # the row keeps saying how it ended.
-    if !user.login_sessions.active.exists?(login_id: session[:login_id])
+    if login_session.nil?
       request.reset_session
     elsif user.is_deleted?
       logout(user)
     else
       CurrentUser.user = user
+      login_session.update!(last_seen_at: Time.zone.now) if !login_session.last_seen_at&.after?(1.hour.ago)
     end
   end
 
