@@ -28,7 +28,7 @@ class DText
   # before rendering a collection of DText messages (e.g. comments or forum posts) to do all database lookups in one batch.
   #
   # @param [Array<String>] a list of DText strings
-  # @return [Hash<Symbol, ActiveRecord::Relation>] The set of wiki pages, tags, artists, posts, and media assets.
+  # @return [Hash<Symbol, Hash>] The referenced wiki pages, tags, artists, posts, media assets, and tag requests, indexed by title, name, or id.
   #
   # Fork: for `user`. An alias, implication or BUR naming a tag whose name is
   # hidden from them (TagQuarantine, NamesTags) is not loaded, so its embed
@@ -51,11 +51,15 @@ class DText
     references[:wiki_pages].uniq!
     references[:wiki_pages] -= TagQuarantine.hidden_names_for(user)
 
-    wiki_pages = WikiPage.where(title: references[:wiki_pages])
-    tags = Tag.where(name: references[:wiki_pages])
-    artists = Artist.where(name: references[:wiki_pages])
-    media_assets = MediaAsset.where(id: references[:media_assets])
-    posts = Post.includes(:media_asset).where(id: references[:posts])
+    wiki_pages = WikiPage.where(title: references[:wiki_pages]).index_by(&:title)
+    tags = Tag.where(name: references[:wiki_pages]).index_by(&:name)
+    artists = Artist.where(name: references[:wiki_pages]).index_by(&:name)
+    media_assets = MediaAsset.where(id: references[:media_assets]).index_by(&:id)
+    posts = Post.includes(:media_asset).where(id: references[:posts]).index_by(&:id)
+
+    tag_aliases = tag_aliases.index_by(&:id)
+    tag_implications = tag_implications.index_by(&:id)
+    bulk_update_requests = bulk_update_requests.index_by(&:id)
 
     { wiki_pages:, tags:, artists:, media_assets:, posts:, tag_aliases:, tag_implications:, bulk_update_requests: }
   end
@@ -93,7 +97,7 @@ class DText
   # database records needed to render this piece of DText. This is used to batch together database lookups when
   # rendering a collection of DText messages on a page (e.g. comments or forum posts).
   #
-  # @param references [Hash<Symbol, Array<ActiveRecord::Base>] The database records needed to render this DText.
+  # @param references [Hash<Symbol, Hash>] The database records needed to render this DText, as returned by `DText.preprocess`.
   # @param current_user [User] The user viewing the DText (used for determining visibility of media embeds).
   # @return [String, nil] The HTML output
   def format_text(references: DText.preprocess([dtext]), current_user: User.anonymous)
@@ -110,7 +114,7 @@ class DText
     past_page = current_user.can_browse_freely? ? "Embeds past the first #{page} are not drawn: a page holds #{page} at most." : "Embeds past the first #{page} are for a full account."
     fragment.css("media-embed").each_with_index do |node, i|
       shown = i < page
-      replace_media_embed!(node, posts: shown ? references[:posts] : [], media_assets: shown ? references[:media_assets] : [], current_user:)
+      replace_media_embed!(node, posts: shown ? references[:posts] : {}, media_assets: shown ? references[:media_assets] : {}, current_user:)
       node.at_css(".media-embed-caption")&.content = past_page unless shown
     end
 
@@ -141,9 +145,9 @@ class DText
     name = path[%r!/wiki_pages/(.*)\z!i, 1]
     name = CGI.unescape(name)
     name = WikiPage.normalize_title(name)
-    wiki = wiki_pages.find { it.title == name }
-    tag = tags.find { it.name == name }
-    artist = artists.find { it.name == name }
+    wiki = wiki_pages[name]
+    tag = tags[name]
+    artist = artists[name]
 
     if tag.present?
       node["class"] += " tag-type-#{tag.category}"
@@ -196,10 +200,10 @@ class DText
     caption = node.inner_html.presence
 
     if type == "post"
-      asset = posts.find { it.id == id }&.media_asset
+      asset = posts[id]&.media_asset
       href = Routes.post_path(id)
     else
-      asset = media_assets.find { it.id == id }
+      asset = media_assets[id]
       href = Routes.media_asset_path(id)
     end
 
@@ -232,11 +236,11 @@ class DText
 
     case type
     when "tag-alias"
-      request = tag_aliases.find { it.id == id }
+      request = tag_aliases[id]
     when "tag-implication"
-      request = tag_implications.find { it.id == id }
+      request = tag_implications[id]
     when "bulk-update-request"
-      request = bulk_update_requests.find { it.id == id }
+      request = bulk_update_requests[id]
     end
 
     body = case request
