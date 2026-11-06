@@ -46,7 +46,7 @@ class MediaAssetQuery
         ai_tag = AITag.named(tag_name).where_numeric_matches(:score, score_range.to_s)
         relation.where(ai_tag.where(AITag.arel_table[:media_asset_id].eq(relation.arel_table[foreign_key])).arel.exists)
       in :metatag
-        metatag_matches(node.name, node.value, relation)
+        metatag_matches(node.name, node.value, relation, viewer)
       in :wildcard
         relation.none
       in :not
@@ -65,7 +65,18 @@ class MediaAssetQuery
     end
   end
 
-  def metatag_matches(name, value, relation)
+  def metatag_matches(name, value, relation, viewer)
+    # Only allow exact hash matches for non-moderators (see Post.metatag_matches).
+    # Fork: a nil viewer is the site's own check, which sees all (#search).
+    if name.in?(%w[md5 pixelhash]) && viewer && !viewer.is_moderator?
+      exact = begin
+        RangeParser.parse(value, :md5) in [:eq | :in, _]
+      rescue RangeParser::ParseError
+        false
+      end
+      return relation.none unless exact
+    end
+
     case name
     when "id"
       relation.attribute_matches(value, :id)

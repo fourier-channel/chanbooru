@@ -623,7 +623,7 @@ class MediaAsset < ApplicationRecord
 
     # @param tags [String] The AI tag query.
     def ai_tags_match?(tags)
-      MediaAsset.where(id: id).ai_tags_match(tags).exists?
+      MediaAsset.where(id: id).ai_tags_match(tags, current_user: User.system).exists?
     end
   end
 
