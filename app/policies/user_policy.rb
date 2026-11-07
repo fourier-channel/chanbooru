@@ -26,6 +26,8 @@ class UserPolicy < ApplicationPolicy
   def create?
     return false unless user.is_anonymous?
     return true if Danbooru.config.enable_signup?
+    # Fork: set by UserSignup from the verified identity only (UserSignup#matrix_id).
+    return true if record.respond_to?(:matrix_id) && record.matrix_id.present?
 
     record.respond_to?(:signup_token_record) && record.signup_token_record&.usable? ? true : false
   end

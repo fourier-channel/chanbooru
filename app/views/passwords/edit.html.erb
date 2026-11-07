@@ -6,11 +6,11 @@
       <h1 class="pb-4">Change Password</h1>
 
       <% if @user.totp.present? %>
-        <p class="w-full">Enter your current password and the 6-digit code from your authenticator app to change your password.</p>
+        <p class="w-full">Enter <%= "your current password and" unless @user.matrix_verified?(request) %> the 6-digit code from your authenticator app to change your password.</p>
       <% end %>
 
       <%= edit_form_for(@user, url: user_password_path(@user), html: { class: "w-full stacked-form stacked-hints", "data-validate-form": "true" }) do |f| %>
-        <% if @user == CurrentUser.user %>
+        <% if @user == CurrentUser.user && !@user.matrix_verified?(request) %>
           <%= f.input :current_password, as: :password, input_html: { autocomplete: "current-password" }, hint: link_to("Forgot password?", password_reset_path) %>
         <% end %>
 

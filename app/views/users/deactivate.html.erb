@@ -38,13 +38,24 @@
           <p>If you just want to change your username, you can <%= link_to "change your name here", change_name_user_path(@user) %>.</p>
 
           <p>
-            Enter your password below to deactivate your account. This cannot be
+            <% if !@user.matrix_verified?(request) %>
+              Enter your password below to deactivate your account. This cannot be
+            <% elsif @user.totp.present? %>
+              Enter the 6-digit code from your authenticator app below to deactivate your account. This cannot be
+            <% else %>
+              Deactivating your account cannot be
+            <% end %>
             undone. Your account cannot be recovered after it is deactivated.
           </p>
         </div>
 
         <%= edit_form_for(:user, url: user_path(@user), method: :delete) do |f| %>
-          <%= f.input :password, as: :password, input_html: { autofocus: true, autocomplete: "current-password" }, hint: link_to("Forgot password?", password_reset_path).html_safe %>
+          <%# Fork: a Matrix-linked account is confirmed by its Matrix sign-in (User#matrix_verified?), and its 2FA code if it has 2FA. %>
+          <% if !@user.matrix_verified?(request) %>
+            <%= f.input :password, as: :password, input_html: { autofocus: true, autocomplete: "current-password" }, hint: link_to("Forgot password?", password_reset_path).html_safe %>
+          <% elsif @user.totp.present? %>
+            <%= f.input :verification_code, placeholder: "123456", required: true, minlength: 6, maxlength: User::BACKUP_CODE_LENGTH, pattern: '\d+', input_html: { value: nil, autofocus: true, autocomplete: "one-time-code" }, hint: "Lost your phone? You can enter a backup code instead." %>
+          <% end %>
           <%= f.submit "Deactivate account", class: "button-danger", "data-confirm": "Are you sure you want to deactivate your account? This cannot be undone" %>
         <% end %>
       <% else %>

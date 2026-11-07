@@ -14,6 +14,7 @@
               <p><%= link_to "Change your name", change_name_user_path(@user) %></p>
             </div>
 
+            <% unless Danbooru.config.retired_sections.include?("emails") %>
             <div class="input">
               <label>Email</label>
               <p>
@@ -30,6 +31,7 @@
                 <% end %>
               </p>
             </div>
+            <% end %>
 
             <%= f.input :theme, collection: User.themes.keys, include_blank: false, hint: "The site's colorscheme (light mode or dark mode)." %>
             <%= f.input :enable_safe_mode, as: :boolean, wrapper: "stacked-toggle-switch", label: "Safe mode", hint: "Show only safe images. Hide sensitive, questionable and explicit images." %>

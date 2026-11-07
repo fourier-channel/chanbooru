@@ -193,6 +193,8 @@
       to make sure they haven't been hacked and that it's not someone else trying to steal their account.</p>
 
       <div class="space-y-2">
+        <%# Fork: 41chan keeps no email addresses (operator, 2026-11-07), so neither card that needs one is shown. %>
+        <% unless Danbooru.config.retired_sections.include?("emails") %>
         <div class="card-outlined p-2 flex items-center justify-between gap-4">
           <div class="space-y-1">
             <div class="font-bold">Change email address</div>
@@ -226,6 +228,7 @@
 
           <%= link_to "Send backup code", confirm_recover_user_backup_codes_path(user_id: @user.id), class: "button-primary h-fit", disabled: @user.backup_codes.blank? || @user.email_address.blank? %>
         </div>
+        <% end %>
       </div>
     <% end %>
   </div>

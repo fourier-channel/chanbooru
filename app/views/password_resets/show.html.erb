@@ -6,15 +6,12 @@
     <div class="card mt-8 p-4 max-w-480px mx-auto flex flex-col items-center">
       <h1 class="pb-4">Reset Password</h1>
 
-      <p class="w-full">Enter your username or email address to be emailed a link to reset your password.</p>
+      <%# Fork: 41chan keeps no email addresses (operator, 2026-11-07), so no reset link can be emailed. %>
+      <p class="w-full">41chan keeps no email addresses, so a reset link can't be emailed to you.</p>
 
-      <p class="w-full">If your account doesn't have a working email address, then you can't reset your password.</p>
+      <p class="w-full">If your booru account came with your 41chan Matrix account, or you have linked the two, open the booru while you're signed in to Matrix: you're signed in here too, and <strong>Settings &rarr; Change password</strong> takes a new password without the old one.</p>
 
-      <%= edit_form_for(:user, url: password_reset_path, action: :post, html: { class: "w-full stacked-form stacked-hints", "data-validate-form": "true" }) do |f| %>
-        <%= f.input :name, label: "Name or Email", input_html: { "data-autocomplete": "user" } %>
-        <%= captcha_tag class: "mb-4", action: :password_reset %>
-        <%= f.submit "Reset password", class: "button-primary", disabled: true %>
-      <% end %>
+      <p class="w-full">Otherwise, ask an administrator in the 41chan chat. They can send you a one-time link that shows you a new password, once.</p>
     </div>
   </div>
 </div>

@@ -61,7 +61,20 @@ module SessionObservation
       authenticated_at: epoch(session[:last_authenticated_at]),
       current_session: (current && { digest: digest(current.login_id), seen_at: current.last_seen_at&.to_i }),
       previous_session: (previous && { digest: digest(previous.login_id), status: previous.status, ended_at: previous.updated_at.to_i }),
+      account: (signed_in ? nil : matrix_account(request)),
     }
+  end
+
+  # Fork: signed in to Matrix and not to the booru, the booru account that goes
+  # with the Matrix username and why it is not signed in, in MatrixAccount's
+  # states ("linked" here means signed out of it). Technetium's Manage Session
+  # links the way on from it (operator, 2026-11-07).
+  def self.matrix_account(request)
+    mxid = FourierIdentity.current(request)
+    return nil if mxid.blank? || !Danbooru.config.matrix_accounts_from_identity?
+
+    account = MatrixAccount.new(request, mxid)
+    { state: account.state, name: account.linked_user&.name || account.localpart, reason: account.name_error }
   end
 
   def self.matrix(request)

@@ -98,7 +98,19 @@ function initPanel(root) {
 
     fetch(cfg.statusUrl, { headers: { Accept: "application/json" }, credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d && d.linked) { markLinked(d.matrix_id); } })
+      .then((d) => {
+        if (!d || !d.linked) { return; }
+        const wasLinked = root.classList.contains("is-linked");
+        markLinked(d.matrix_id);
+        if (wasLinked) { return; }
+        // The request that saw the Matrix sign-in finish also signed in its
+        // booru account, made under the Matrix username on a first visit
+        // (MatrixAccount): signing in is done, so go where it was going. When
+        // no account could be signed in, the page is drawn again to say why --
+        // that text is the server's, never a second copy kept here. Only on
+        // the change to linked: a page drawn linked is already that page.
+        if (d.signed_in) { window.location.assign(cfg.doneUrl); } else { window.location.reload(); }
+      })
       .catch(() => {
         // A failed poll is not a failed login -- the next tick asks again, and
         // watch() gives up on its own at cfg.pollCeilingMs. Reporting each

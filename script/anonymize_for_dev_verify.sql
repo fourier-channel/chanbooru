@@ -475,7 +475,7 @@ SELECT 'name', n FROM (
   UNION SELECT lower(slug) FROM creator_galleries UNION SELECT lower(creator_slug) FROM character_claims
   UNION SELECT lower(substring(v FROM '^@([^:]+):')) FROM (SELECT matrix_id AS v FROM creator_galleries UNION SELECT matrix_contact FROM creator_galleries
                                                       UNION SELECT mxid FROM fourier_post_creators UNION SELECT uploader FROM matrix_media
-                                                      UNION SELECT poster FROM fourier_generation_metadata) m
+                                                      UNION SELECT poster FROM fourier_generation_metadata UNION SELECT matrix_id FROM users) m
   UNION SELECT regexp_replace(lower(t), (SELECT pseud_any FROM anon_v_re), '') FROM (
           SELECT name AS t FROM tags UNION SELECT name FROM tag_versions UNION SELECT antecedent_name FROM tag_aliases
           UNION SELECT consequent_name FROM tag_aliases UNION SELECT name FROM artists UNION SELECT title FROM wiki_pages
@@ -487,7 +487,7 @@ WHERE n IS NOT NULL AND n <> '' AND n !~ '^user_[0-9]+$' AND n NOT IN (SELECT na
 INSERT INTO anon_snapshot.ledger (kind, value)
 SELECT 'mxid', lower(v) FROM (SELECT matrix_id AS v FROM creator_galleries UNION SELECT matrix_contact FROM creator_galleries
                               UNION SELECT mxid FROM fourier_post_creators UNION SELECT uploader FROM matrix_media
-                              UNION SELECT poster FROM fourier_generation_metadata) m
+                              UNION SELECT poster FROM fourier_generation_metadata UNION SELECT matrix_id FROM users) m
  WHERE v ~ '^@[^:]+:' AND lower(substring(v FROM '^@([^:]+):')) NOT IN (SELECT name FROM anon_v_keep);
 INSERT INTO anon_snapshot.ledger (kind, value)
 SELECT DISTINCT 'creator_tag', lower(t) FROM (

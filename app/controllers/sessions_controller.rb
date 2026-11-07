@@ -17,6 +17,21 @@ class SessionsController < ApplicationController
     # `url` field for the rest of the flow. Nothing else has to know.
     @url = login_done_path if params[:popup].present?
 
+    # Fork: "Continue as" / "Create your booru account" on the Matrix panel.
+    # Signing out while signed in to Matrix keeps the viewer signed out of the
+    # booru (#destroy); this lifts that, and the request it redirects to signs
+    # in the Matrix identity's account (SessionLoader#load_matrix_account).
+    # An account with two-factor sign-in is not signed in by Matrix alone, so
+    # its code is asked here, in place of its password (which is random when
+    # the account was made for the Matrix ID, MatrixAccount#create).
+    if params[:matrix].present?
+      session.delete(:matrix_signed_out)
+      matrix_id = FourierIdentity.current(request)
+      @user = User.find_by(matrix_id: matrix_id.downcase) if matrix_id.present? && CurrentUser.user.is_anonymous?
+      return render :confirm_totp if @user&.totp.present? && @user.matrix_verified?(request)
+      return redirect_to @url
+    end
+
     if params[:signed_login_event].present? && @session.authorize_login_event!(params[:signed_login_event])
       notice = "New location verified. Login again to continue"
     end
@@ -33,6 +48,7 @@ class SessionsController < ApplicationController
     if @user&.totp.present?
       render :confirm_totp
     elsif @user
+      link_matrix_account
       redirect_to @url
     else
       render :new, status: 401
@@ -66,6 +82,7 @@ class SessionsController < ApplicationController
     @session = authorize SessionLoader.new(request)
 
     if @session.verify_totp!(@user, params.dig(:totp, :code))
+      link_matrix_account
       redirect_to @url
     else
       @user.totp.errors.add(:code, "is incorrect")
@@ -76,6 +93,11 @@ class SessionsController < ApplicationController
   def destroy
     @session = authorize SessionLoader.new(request)
     @session.logout(CurrentUser.user)
+    # Fork: otherwise the next request would sign the Matrix identity's
+    # account straight back in (SessionLoader#load_matrix_account). Set after
+    # the logout, which empties the session.
+    matrix_id = FourierIdentity.current(request)
+    session[:matrix_signed_out] = matrix_id.downcase if matrix_id.present?
     redirect_to root_path, notice: "You are now logged out", status: 303
   end
 
@@ -101,6 +123,16 @@ class SessionsController < ApplicationController
   end
 
   private
+
+  # Fork: link the account just signed in to the viewer's Matrix ID, when they
+  # ticked the box on the login page (MatrixAccount#link_signed_in). Carried
+  # through the 2FA step by confirm_totp.
+  def link_matrix_account
+    matrix_id = FourierIdentity.current(request)
+    return unless matrix_id.present? && (params.dig(:session, :link_matrix) || params.dig(:totp, :link_matrix)).to_s.truthy?
+
+    MatrixAccount.new(request, matrix_id).link_signed_in(@user)
+  end
 
   # A popup login is identified by where it is GOING, not by a flag threaded
   # through two separate forms. /login/done is only ever a popup's destination.

@@ -7,7 +7,7 @@ class UserNameChangeRequest < ApplicationRecord
 
   validate :not_limited, on: :create
   validates :original_name, presence: true
-  validates :desired_name, presence: true, user_name: true, on: :create, unless: :is_deletion
+  validates :desired_name, presence: true, user_name: true, matrix_username: true, on: :create, unless: :is_deletion
 
   after_create :update_name!
   after_create :create_mod_action

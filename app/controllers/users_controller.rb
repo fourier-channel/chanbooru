@@ -31,7 +31,7 @@ class UsersController < ApplicationController
   end
 
   def new
-    @user = authorize User.new
+    @user = authorize User.new(matrix_id: UserSignup.new(request).matrix_id)
     @url = params.dig(:user, :url).presence || params[:url].presence || root_path
     respond_with(@user)
   end
@@ -137,7 +137,7 @@ class UsersController < ApplicationController
   def destroy
     @user = authorize User.find(params[:id])
 
-    user_deletion = UserDeletion.new(user: @user, deleter: CurrentUser.user, password: params.dig(:user, :password), request: request)
+    user_deletion = UserDeletion.new(user: @user, deleter: CurrentUser.user, password: params.dig(:user, :password), verification_code: params.dig(:user, :verification_code), request: request)
     user_deletion.delete!
 
     if user_deletion.errors.none?

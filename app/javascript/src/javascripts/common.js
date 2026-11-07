@@ -22,12 +22,6 @@ $(function() {
     e.preventDefault();
   });
 
-  $("#hide-verify-account-notice").on("click.danbooru", function(e) {
-    $("#verify-account-notice").hide();
-    Cookie.put('hide_verify_account_notice', '1', 3 * 24 * 60 * 60);
-    e.preventDefault();
-  });
-
   $.widget("ui.dialog", $.ui.dialog, {
     options: {
       classes: { "ui-dialog-content": "thin-scrollbar", }

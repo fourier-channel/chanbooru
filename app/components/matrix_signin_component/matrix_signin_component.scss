@@ -54,6 +54,21 @@
     color: var(--mod-ink, var(--text-color));
   }
 
+  .mxsign-account {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--mod-ink-dim, var(--muted-text-color));
+
+    strong { color: var(--mod-ink, var(--text-color)); }
+  }
+
+  .mxsign-continue {
+    display: block;
+    margin-top: 0.4rem;
+    color: var(--mod-accent, var(--link-color));
+  }
+
   // --- the framed attempt -------------------------------------------------
   .mxsign-frame-wrap {
     border: 1px solid var(--mod-line, var(--default-border-color));

@@ -193,7 +193,7 @@ user_feedback: category=keep body=fill
 user_name_change_requests: original_name=map desired_name=map
 user_perks: perk=keep source=keep
 user_upgrades: transaction_id=purge
-users: name=map default_image_size=keep favorite_tags=map blacklisted_tags=map time_zone=blank bcrypt_password_hash=derive custom_style=null last_ip_addr=null totp_secret=null backup_codes=null
+users: name=map default_image_size=keep favorite_tags=map blacklisted_tags=map time_zone=blank bcrypt_password_hash=derive custom_style=null last_ip_addr=null totp_secret=null backup_codes=null matrix_id=map
 wiki_page_versions: title=map body=fill other_names=blank
 user_sessions: ip_addr=purge session_id=purge user_agent=purge
 wiki_pages: title=map body=fill other_names=blank
@@ -297,7 +297,8 @@ CREATE TEMP TABLE anon_mxid_src ON COMMIT DROP AS
   UNION SELECT matrix_contact FROM creator_galleries WHERE matrix_contact ~ '^@[^:[:space:]]+:[^[:space:]]+$'
   UNION SELECT mxid FROM fourier_post_creators
   UNION SELECT DISTINCT uploader FROM matrix_media WHERE uploader <> ''
-  UNION SELECT poster FROM fourier_generation_metadata WHERE poster LIKE '@%';
+  UNION SELECT poster FROM fourier_generation_metadata WHERE poster LIKE '@%'
+  UNION SELECT matrix_id FROM users WHERE matrix_id IS NOT NULL;
 
 -- Every string that names a tag, from every column that carries tag names.
 -- Big columns contribute only creator-prefixed tokens.
@@ -854,6 +855,7 @@ UPDATE users u
                                      ELSE encode(gen_random_bytes(24), 'hex') END || '--', 'sha1'), 'hex'), gen_salt('bf', 10)),
        totp_secret = NULL,
        backup_codes = NULL,
+       matrix_id = pg_temp.mx(u.matrix_id),
        last_ip_addr = NULL,
        custom_style = NULL,
        time_zone = 'Eastern Time (US & Canada)',

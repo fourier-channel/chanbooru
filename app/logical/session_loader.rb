@@ -124,7 +124,7 @@ class SessionLoader
   # @param password [String] The user's password.
   # @param verification_code [String] The user's 6-digit 2FA code, or their 8-digit backup code (if they have 2FA enabled).
   def reauthenticate(user, password, verification_code = nil)
-    if !user.authenticate_password(password) # wrong password
+    if !user.authenticate_password(password) && !user.matrix_verified?(request) # wrong password
       UserEvent.create_from_request!(user, :failed_reauthenticate, request)
       errors.add(:password, "is incorrect")
       false
@@ -188,6 +188,8 @@ class SessionLoader
     elsif session[:user_id]
       load_session_user
     end
+
+    load_matrix_account if !has_api_authentication? && Danbooru.config.matrix_accounts_from_identity?
 
     set_statement_timeout
     update_last_logged_in_at
@@ -265,6 +267,44 @@ class SessionLoader
       request.reset_session
     else
       CurrentUser.user = user
+    end
+  end
+
+  # Fork: the booru account of the viewer's verified Matrix identity, made and
+  # signed in on the first request that carries one (MatrixAccount).
+  #
+  # - Signed in to the account linked to this identity: nothing to do.
+  # - Signed in to an account linked to ANOTHER identity: someone else signed
+  #   in to Matrix in this browser, so that session ends and this identity's
+  #   account takes its place.
+  # - Signed in to an unlinked account: it stays signed in and unlinked; it is
+  #   linked only when its owner asks, signing in (SessionsController#create).
+  # - Signed out: the linked account is signed in, or made and signed in --
+  #   unless the viewer signed out of it while signed in to Matrix
+  #   (SessionsController#destroy), which this respects until they ask to
+  #   continue from the login page, or the account has two-factor sign-in: its
+  #   owner asked for a second factor, and a Matrix sign-in is only one, so
+  #   continuing asks for the code (SessionsController#new).
+  #
+  # No identity changes nothing: a booru session outlives a Matrix sign-out.
+  def load_matrix_account
+    matrix_id = FourierIdentity.current(request)&.downcase
+    return if matrix_id.blank?
+
+    user = CurrentUser.user
+
+    if !user.is_anonymous? && user.matrix_id.present? && user.matrix_id != matrix_id
+      logout(user)
+      user = CurrentUser.user = User.anonymous
+    end
+
+    if user.is_anonymous? && session[:matrix_signed_out] != matrix_id
+      account = MatrixAccount.new(request, matrix_id)
+      found = account.linked_user || account.create
+      return if found.nil? || found.is_deleted? || found.totp.present?
+
+      login_user(found, :login) unless session[:user_id] == found.id
+      CurrentUser.user = found
     end
   end
 

@@ -12,6 +12,11 @@ class EmailAddress < ApplicationRecord
   validates :normalized_address, presence: true, uniqueness: true
   validates :user_id, uniqueness: true
   validate :validate_deliverable, on: :deliverable
+  # Fork: 41chan keeps no email addresses (operator, 2026-11-07). Signup asks
+  # for none and the section is retired; this refuses the ways left, which the
+  # retired section does not close: the Owner (exempt from it), User's nested
+  # attributes, a console.
+  validate { errors.add(:base, "can't be saved: 41chan keeps no email addresses") if Danbooru.config.retired_sections.include?("emails") }
 
   after_destroy :create_mod_action
   after_save :create_mod_action, if: :saved_change_to_address?

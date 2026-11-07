@@ -270,6 +270,22 @@ module Danbooru
       true
     end
 
+    # Every verified Matrix identity gets a booru account of the same name,
+    # made and signed in on its first booru request (MatrixAccount; operator,
+    # 2026-11-07). Off under test, where the inherited suite sends identities
+    # for other reasons and asserts the anonymous viewer it gets;
+    # matrix_account_test stubs it on.
+    def matrix_accounts_from_identity?
+      !Rails.env.test?
+    end
+
+    # The host whose connections may carry X-Fourier-Identity: the reverse
+    # proxy that sets it from a verified session (FourierIdentity). nil trusts
+    # any peer, which development and the tests use to send it by hand.
+    def fourier_identity_proxy
+      Rails.env.production? ? "nginx" : nil
+    end
+
     # The first experience a viewer gets: the Modulation skin.
     def default_experience_preset
       Rails.env.test? ? "historical" : "modulation"
@@ -299,6 +315,7 @@ module Danbooru
         media_metadata
         metrics
         jobs
+        emails
       ]
     end
 

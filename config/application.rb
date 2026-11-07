@@ -80,7 +80,7 @@ module Danbooru
     # request param containing the word 'password' etc.
     #
     # https://guides.rubyonrails.org/configuring.html#config-filter-parameters
-    config.filter_parameters += [:password, :api_key, :secret, :ip_addr, :address, :email_verification_key, :signed_id] if !Rails.env.local?
+    config.filter_parameters += [:password, :api_key, :secret, :ip_addr, :address, :email_verification_key, :signed_id, :email] if !Rails.env.local?
     # Fork: the one-time password link's token (?reveal=, PasswordReveal) opens
     # a password for whoever holds it, so it is filtered in every environment
     # (a dev box runs on a copy of real accounts): as its own parameter, and

@@ -8,12 +8,24 @@
     links this account to the rest of 41chan, and the booru account itself. The
     Matrix panel runs its flow without navigating this page, so arriving here to
     sign in with one does not throw away a half-filled form for the other. %>
+<% matrix_id = FourierIdentity.current(request) %>
+<% account = MatrixAccount.new(request, matrix_id) if matrix_id && CurrentUser.user.is_anonymous? && Danbooru.config.matrix_accounts_from_identity? %>
+<%# Fork: the account holding the Matrix username is linked to the Matrix ID
+    only when its owner asks, here (SessionsController#link_matrix_account). %>
+<% link_matrix = capture do %>
+  <% if account&.state == "taken" %>
+    <label class="mb-4 flex items-center gap-2">
+      <%= check_box_tag "session[link_matrix]", "1", false %>
+      Link this account to your Matrix ID, <%= account.matrix_id %>
+    </label>
+  <% end %>
+<% end %>
 <% if modulation? %>
   <div id="c-sessions" class="modlogin">
     <h1 class="modlogin-title">Sign in</h1>
 
     <div class="modlogin-panels">
-      <%= render MatrixSigninComponent.new(matrix_id: FourierIdentity.current(request)) %>
+      <%= render MatrixSigninComponent.new(matrix_id: matrix_id, account: account, url: @url) %>
 
       <section class="modlogin-booru">
         <div class="modlogin-head">
@@ -22,8 +34,9 @@
 
         <%= edit_form_for(@session, as: :session, url: session_path, html: { class: "modlogin-form stacked-form stacked-hints", "data-validate-form": "true" }) do |f| %>
           <%= f.input :url, as: :hidden, input_html: { value: @url } %>
-          <%= f.input :name, label: "Name or Email", input_html: { autofocus: true, autocapitalize: "none", value: params.dig(:session, :name) } %>
+          <%= f.input :name, label: "Name", input_html: { autofocus: true, autocapitalize: "none", value: params.dig(:session, :name) } %>
           <%= f.input :password, hint: link_to("Forgot password?", password_reset_path), input_html: { autocomplete: "current-password" } %>
+          <%= link_matrix %>
           <%= captcha_tag class: "mb-4", action: :login %>
           <%= f.submit "Login", class: "button-primary" %>
         <% end %>
@@ -42,8 +55,9 @@
 
       <%= edit_form_for(@session, as: :session, url: session_path, html: { class: "w-full stacked-form stacked-hints", "data-validate-form": "true" }) do |f| %>
         <%= f.input :url, as: :hidden, input_html: { value: @url } %>
-        <%= f.input :name, label: "Name or Email", input_html: { autofocus: true, autocapitalize: "none", value: params.dig(:session, :name) } %>
+        <%= f.input :name, label: "Name", input_html: { autofocus: true, autocapitalize: "none", value: params.dig(:session, :name) } %>
         <%= f.input :password, hint: link_to("Forgot password?", password_reset_path), input_html: { autocomplete: "current-password" } %>
+        <%= link_matrix %>
         <%= captcha_tag class: "mb-4", action: :login %>
         <%= f.submit "Login", class: "button-primary" %>
       <% end %>

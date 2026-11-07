@@ -23,22 +23,34 @@ class MatrixSigninComponent < ApplicationComponent
   # to the server until the tab closes.
   POLL_CEILING_MS = 5 * 60 * 1_000
 
-  attr_reader :matrix_id, :heading
+  attr_reader :matrix_id, :heading, :account, :url
 
   # @param matrix_id [String, nil] the already-verified MXID, if this request
   #   carried one. Present means the panel opens in its linked state and never
   #   starts the flow at all.
-  def initialize(matrix_id: nil, heading: "Matrix")
+  # @param account [MatrixAccount, nil] that MXID's booru account, given when
+  #   the viewer is signed in to Matrix and NOT to the booru. That happens when
+  #   they signed out of the booru, or when no account could be made under their
+  #   Matrix username; the panel says which, and what to do (operator,
+  #   2026-11-07: the fallback for the account made on the first booru visit).
+  # @param url [String] where signing in goes on to
+  def initialize(matrix_id: nil, heading: "Matrix", account: nil, url: nil)
     super
     @matrix_id = matrix_id.presence
     @heading = heading
+    @account = account
+    @url = url
   end
 
   def linked?
     matrix_id.present?
   end
 
-
+  # Lifts the sign-out and signs the Matrix identity's account in
+  # (SessionsController#new).
+  def continue_url
+    login_path(matrix: 1, url: url)
+  end
 
   def login_url
     "/fourier/login"
@@ -55,6 +67,7 @@ class MatrixSigninComponent < ApplicationComponent
       logoutUrl: logout_url,
       pollIntervalMs: POLL_INTERVAL_MS,
       pollCeilingMs: POLL_CEILING_MS,
+      doneUrl: url || root_path,
     }
   end
 end

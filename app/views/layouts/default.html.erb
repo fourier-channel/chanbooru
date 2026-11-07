@@ -91,17 +91,6 @@
   <% end %>
 
   <div id="page" class="relative flex-1 mx-8 mt-4 sm:mx-2 sm:mt-2">
-    <% if CurrentUser.user.is_restricted? && (params[:controller] == "users" || cookies[:hide_verify_account_notice].blank?) %>
-      <div class="notice notice-info notice-large" id="verify-account-notice">
-        <h2>Your account is restricted.</h2>
-        <div>
-          You must verify your account because you signed up from a proxy or a VPN.
-          <%= link_to "Verify your account now", main_app.verify_user_email_path(CurrentUser.user) %>.
-        </div>
-        <div><%= link_to "Close this", "#", id: "hide-verify-account-notice" %></div>
-      </div>
-    <% end %>
-
     <% if CurrentUser.user.is_approver? && !CurrentUser.user.has_2fa? && controller_name != "totp" && !Rails.env.development? %>
       <div class="notice notice-error notice-large">
         <h2>2FA Required</h2>

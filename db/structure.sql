@@ -3346,7 +3346,8 @@ CREATE TABLE public.users (
     upload_points integer NOT NULL,
     is_deleted boolean DEFAULT false NOT NULL,
     totp_secret character varying,
-    backup_codes integer[]
+    backup_codes integer[],
+    matrix_id character varying
 );
 
 
@@ -8382,6 +8383,13 @@ CREATE INDEX index_users_on_last_ip_addr ON public.users USING btree (last_ip_ad
 
 
 --
+-- Name: index_users_on_matrix_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_users_on_matrix_id ON public.users USING btree (matrix_id) WHERE (matrix_id IS NOT NULL);
+
+
+--
 -- Name: index_users_on_name; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9548,6 +9556,8 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261107000003'),
+('20261107000002'),
 ('20261107000001'),
 ('20261105000002'),
 ('20261105000001'),

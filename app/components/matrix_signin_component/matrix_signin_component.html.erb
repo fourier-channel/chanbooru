@@ -8,6 +8,31 @@
 
   <div class="mxsign-linked" data-region="linked" <%= "hidden" unless linked? %>>
     <p class="mxsign-id" data-region="id"><%= matrix_id %></p>
+    <% if account %>
+      <p class="mxsign-account">
+        <% case account.state %>
+        <% when "linked" %>
+          You signed out of your booru account, <strong><%= account.linked_user.name %></strong>.
+          <%= link_to "Continue as #{account.linked_user.name}", continue_url, class: "mxsign-continue" %>
+        <% when "two_factor" %>
+          Your booru account, <strong><%= account.linked_user.name %></strong>, has two-factor sign-in, so Matrix
+          does not sign it in alone.
+          <%= link_to "Continue as #{account.linked_user.name} with your two-factor code", continue_url, class: "mxsign-continue" %>
+        <% when "deleted" %>
+          Your booru account was deactivated by the site staff, so Matrix does not sign you in to it. If you want it
+          back, ask an administrator in the 41chan chat.
+        <% when "available" %>
+          <%= link_to "Create your booru account with the same name as your Matrix username, #{account.localpart}", continue_url, class: "mxsign-continue" %>
+        <% when "taken" %>
+          The booru name <strong><%= account.localpart %></strong> belongs to an existing account.
+          If it is yours, sign in to it with its password beside this and tick the box to link it to your Matrix ID.
+          If it is not, <%= link_to "create your booru account with another name", new_user_path(url: url) %>.
+        <% when "invalid" %>
+          Your Matrix username can't be a booru name: it <%= account.name_error %>.
+          <%= link_to "Create your booru account with another name", new_user_path(url: url), class: "mxsign-continue" %>.
+        <% end %>
+      </p>
+    <% end %>
     <button type="button" class="mxsign-signout" data-act="logout">Sign out of Matrix</button>
   </div>
 

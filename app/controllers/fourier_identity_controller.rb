@@ -11,13 +11,16 @@
 # origin "am I linked yet", which works identically for both paths and couples
 # to nothing.
 #
-# Read-only, and it discloses only what the caller's own request already proves.
+# It discloses only what the caller's own request already proves.
 class FourierIdentityController < ApplicationController
   respond_to :json
 
   def show
     skip_authorization
     mxid = FourierIdentity.current(request)
-    render json: { linked: mxid.present?, matrix_id: mxid }, status: :ok
+    # signed_in: a verified identity signs its booru account in on the same
+    # request (SessionLoader#load_matrix_account), so the poll that sees the
+    # Matrix sign-in finish is also the one that started the booru session.
+    render json: { linked: mxid.present?, matrix_id: mxid, signed_in: !CurrentUser.user.is_anonymous? }, status: 200
   end
 end

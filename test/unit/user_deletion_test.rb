@@ -74,6 +74,14 @@ class UserDeletionTest < ActiveSupport::TestCase
       @deletion = UserDeletion.new(user: @user, password: "password", request: @request)
     end
 
+    # Fork: at once, not in DeleteUserJob, so the Matrix account can have a new
+    # booru account under the name (MatrixAccount) instead of a deleted one.
+    should "unlink the Matrix ID" do
+      @user.update_columns(matrix_id: "@foo:41chan.net") # rubocop:disable Rails/SkipsModelValidations
+      @deletion.delete!
+      assert_nil(@user.reload.matrix_id)
+    end
+
     # A lock guards against an accidental removal, not against deleting the
     # account: the reset runs outside the :blocklist validation context.
     should "clear a blocklist that holds locked blocks" do

@@ -140,7 +140,7 @@ class User < ApplicationRecord
   validates :blacklisted_tags, visible_string: { allow_empty: true }, length: { maximum: 100_000 }, if: :blacklisted_tags_changed?
   validates :favorite_tags, visible_string: { allow_empty: true }, length: { maximum: 10_000 }, if: :favorite_tags_changed?
   validates :custom_style, visible_string: { allow_empty: true }, length: { maximum: 40_000 }, if: :custom_style_changed?
-  validates :name, user_name: true, on: :create
+  validates :name, user_name: true, matrix_username: true, on: :create
   validates :password, length: { minimum: 5 }, if: ->(rec) { rec.new_record? || rec.password.present? }
   validates :default_image_size, inclusion: { in: %w[large original] }
   validates :per_page, inclusion: { in: (1..MAX_PER_PAGE) }
@@ -360,7 +360,7 @@ class User < ApplicationRecord
     end
 
     def change_password(current_password:, new_password:, password_confirmation:, verification_code:, request:)
-      if !authenticate_password(current_password)
+      if !authenticate_password(current_password) && !matrix_verified?(request)
         UserEvent.create_from_request!(self, :failed_reauthenticate, request)
         errors.add(:current_password, "is incorrect")
         false
@@ -389,6 +389,19 @@ class User < ApplicationRecord
     def authenticate_password(password)
       return false if is_deleted?
       BCrypt::Password.new(bcrypt_password_hash) == hash_password(password) && self
+    end
+
+    # Fork: whether this request's verified Matrix identity is the one linked
+    # to this account. An account made on a first Matrix visit has a random
+    # password nobody was told (MatrixAccount#create), so where the booru asks
+    # for the password to confirm it is you -- changing it, deleting the
+    # account, reauthenticating -- the Matrix sign-in that made the account
+    # answers instead. A second factor is still asked for where one is set.
+    #
+    # @param request the HTTP request
+    # @return [Boolean]
+    def matrix_verified?(request)
+      !is_deleted? && matrix_id.present? && request.present? && Danbooru.config.matrix_accounts_from_identity? && FourierIdentity.matches?(request, matrix_id)
     end
 
     def hash_password(password)

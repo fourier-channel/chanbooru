@@ -8,6 +8,13 @@ class PasswordResetsControllerTest < ActionDispatch::IntegrationTest
         assert_response :success
       end
 
+      should "say no reset link can be emailed, and ask for no name or email" do
+        get password_reset_path
+
+        assert_select "p", text: /keeps no email addresses/
+        assert_select "#a-show form", count: 0
+      end
+
       should "redirect to the profile page for a logged-in user" do
         get_auth password_reset_path, create(:user)
 

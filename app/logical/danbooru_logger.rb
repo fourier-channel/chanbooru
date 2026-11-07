@@ -84,7 +84,7 @@ class DanbooruLogger
   def self.cookie_params(cookies)
     # XXX see also ApplicationHelper#cookie_data_attributes
     cookies.slice(*%w[
-      news-ticker hide_upgrade_account_notice hide_verify_account_notice
+      news-ticker hide_upgrade_account_notice
       hide_dmail_notice dab show-relationship-previews post_preview_size
       post_preview_show_votes
     ])

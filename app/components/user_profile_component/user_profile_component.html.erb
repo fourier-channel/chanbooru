@@ -49,7 +49,7 @@
           </tr>
         <% end %>
 
-        <% if policy(user.email_address).show? %>
+        <% if policy(user.email_address).show? && !Danbooru.config.retired_sections.include?("emails") %>
           <tr class="user-email-address">
             <th>Email Address</th>
             <td>

@@ -7,7 +7,7 @@
 class UserDeletion
   include ActiveModel::Validations
 
-  attr_reader :user, :deleter, :password, :request
+  attr_reader :user, :deleter, :password, :verification_code, :request
 
   validate :validate_deletion
 
@@ -16,11 +16,14 @@ class UserDeletion
   # @param user [User] the user to delete
   # @param deleter [User] the user performing the deletion
   # @param password [String] the user's password (for confirmation)
+  # @param verification_code [String] the 2FA code or a backup code, asked of a
+  #   2FA account whose Matrix sign-in stands in for its password
   # @param request the HTTP request (for logging the deletion in the user event log)
-  def initialize(user:, deleter: user, password: nil, request: nil)
+  def initialize(user:, deleter: user, password: nil, verification_code: nil, request: nil)
     @user = user
     @deleter = deleter
     @password = password
+    @verification_code = verification_code
     @request = request
   end
 
@@ -38,6 +41,14 @@ class UserDeletion
       if user == deleter
         UserEvent.create_from_request!(user, :user_deletion, request)
         SessionLoader.new(request).logout(user)
+        # Fork: the deleted account's name and Matrix link are gone, so the
+        # next request would make a new account under the Matrix username and
+        # sign it in (SessionLoader#load_matrix_account), undoing the deletion
+        # the viewer just asked for. Held back as a sign-out is, until they
+        # ask for a new account from the login page. Set after the logout,
+        # which empties the session.
+        matrix_id = Danbooru.config.matrix_accounts_from_identity? && FourierIdentity.current(request)
+        request.session[:matrix_signed_out] = matrix_id.downcase if matrix_id.present?
       else
         ModAction.log("deleted user ##{user.id}", :user_delete, subject: user, user: deleter)
       end
@@ -102,8 +113,14 @@ class UserDeletion
     user.save!
   end
 
+  # Fork: deleting your own account unlinks it now with the name, not later
+  # with the settings (DeleteUserJob), so the Matrix account can have a new
+  # booru account under that name (MatrixAccount) rather than meet a deleted
+  # one. An account the site staff delete keeps the link: otherwise the next
+  # request would make a new account under the freed name, and #undelete!
+  # could not give the name back.
   def reset_password
-    user.update!(is_deleted: true, password: SecureRandom.hex(16))
+    user.update!(is_deleted: true, password: SecureRandom.hex(16), matrix_id: (user.matrix_id unless user == deleter))
   end
 
   def rename
@@ -112,7 +129,13 @@ class UserDeletion
 
   def validate_deletion
     if user == deleter
-      if !user.authenticate_password(password)
+      # Fork: the Matrix sign-in stands in for the password, not for a second
+      # factor, as in SessionLoader#reauthenticate.
+      if user.matrix_verified?(request) && user.totp.present?
+        if !user.totp.verify(verification_code) && !user.verify_backup_code!(verification_code)
+          errors.add(:base, "Two-factor code is incorrect: enter the 6-digit code from your authenticator app, or a backup code")
+        end
+      elsif !user.authenticate_password(password) && !user.matrix_verified?(request)
         errors.add(:base, "Password is incorrect")
       end
 

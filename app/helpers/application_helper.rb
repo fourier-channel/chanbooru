@@ -6,7 +6,7 @@ module ApplicationHelper
   ] + User::ACTIVE_BOOLEAN_ATTRIBUTES + User::Roles.map { |role| :"is_#{role}?" }
 
   COOKIE_DATA_ATTRIBUTES = %i[
-    news-ticker hide_upgrade_account_notice hide_verify_account_notice
+    news-ticker hide_upgrade_account_notice
     hide_dmail_notice dab show-relationship-previews post_preview_size
     post_preview_show_votes
   ]

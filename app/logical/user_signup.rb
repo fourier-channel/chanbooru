@@ -24,11 +24,32 @@ class UserSignup
       name: params[:user][:name],
       password: params[:user][:password],
       password_confirmation: params[:user][:password_confirmation],
-      email_address_attributes: { address: params.dig(:user, :email_address, :address) },
+      # Fork: no email where the emails section is retired (41chan keeps none).
+      email_address_attributes: (Danbooru.config.retired_sections.include?("emails") ? {} : { address: params.dig(:user, :email_address, :address) }),
+      matrix_id: matrix_id,
       # Not persisted. The policy reads it to decide whether this signup is
       # permitted at all; see User#signup_token_record.
       signup_token: params.dig(:user, :signup_token),
     )
+  end
+
+  # Fork: the verified Matrix ID this account is made for, when the viewer has
+  # one and no account is linked to it yet. Usually that account was made
+  # already, under the Matrix username (MatrixAccount); this is the account of
+  # a viewer whose Matrix username was taken or not a usable name, who chose
+  # another one here. Taken from the verified identity, never from a param.
+  # UserPolicy#create? lets it in without an invite code: Matrix sign-in is
+  # the invitation.
+  #
+  # @return [String, nil]
+  memoize def matrix_id
+    return nil unless Danbooru.config.matrix_accounts_from_identity?
+
+    identity = FourierIdentity.current(request)
+    return nil if identity.blank?
+
+    account = MatrixAccount.new(request, identity)
+    account.matrix_id if account.linked_user.nil?
   end
 
   # Returns true if the new account should be restricted. Signups from local

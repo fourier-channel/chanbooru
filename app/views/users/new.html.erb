@@ -36,14 +36,21 @@
             the open path (test) is unchanged. `required` is a courtesy to the
             browser; the decision is UserPolicy#create?, server side, and a POST
             without this field is refused whatever the form says. %>
-        <% if !Danbooru.config.enable_signup? && Danbooru.config.signup_requires_token? %>
+        <%# Signed in to Matrix with no booru account yet: the Matrix sign-in is
+            the invitation, and the account is linked to it (UserSignup#matrix_id). %>
+        <% if @user.matrix_id.present? %>
+          <p class="fineprint">This account is linked to your Matrix ID, <strong><%= @user.matrix_id %></strong>.</p>
+        <% elsif !Danbooru.config.enable_signup? && Danbooru.config.signup_requires_token? %>
           <%= f.input :signup_token, as: :string, label: "Invite code", required: true,
                 input_html: { value: @user.signup_token, autocapitalize: "none", autocomplete: "off" },
                 hint: "41chan is invite-only. Ask whoever sent you here for a code." %>
         <% end %>
         <%= f.input :name, as: :string, label: "Username", input_html: { autocapitalize: "none", minlength: UserNameValidator::MIN_LENGTH, maxlength: UserNameValidator::MAX_LENGTH }, required: true %>
-        <%= f.simple_fields_for(@user.email_address || @user.build_email_address) do |fa| %>
-          <%= fa.input :address, label: "Email", required: false, as: :email, input_html: { value: fa.object.address, pattern: Danbooru::EmailAddress::EMAIL_REGEX, placeholder: "your.name@example.com" }, hint: "Optional" %>
+        <%# Fork: 41chan keeps no email addresses; the field goes with the section. %>
+        <% unless Danbooru.config.retired_sections.include?("emails") %>
+          <%= f.simple_fields_for(@user.email_address || @user.build_email_address) do |fa| %>
+            <%= fa.input :address, label: "Email", required: false, as: :email, input_html: { value: fa.object.address, pattern: Danbooru::EmailAddress::EMAIL_REGEX, placeholder: "your.name@example.com" }, hint: "Optional" %>
+          <% end %>
         <% end %>
         <%= f.input :password, input_html: { value: @user.password, autocomplete: "new-password" }, required: true %>
         <%= f.input :password_confirmation, label: "Confirm password", input_html: { value: @user.password_confirmation, autocomplete: "new-password" }, required: true %>

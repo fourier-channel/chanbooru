@@ -10,6 +10,10 @@
       <%= edit_form_for(@user.totp, url: verify_totp_session_path, method: "post", html: { class: "w-full stacked-form stacked-hints", "data-validate-form": "true" }) do |f| %>
         <%= f.input :user_id, as: :hidden, input_html: { value: @user.signed_id(purpose: :verify_totp, expires_in: 10.minutes) } %>
         <%= f.input :url, as: :hidden, input_html: { value: @url } %>
+        <%# Fork: the login page's "link this account to your Matrix ID" box, carried past the code (SessionsController#link_matrix_account). %>
+        <% if params.dig(:session, :link_matrix).to_s.truthy? || params.dig(:totp, :link_matrix).to_s.truthy? %>
+          <%= f.input :link_matrix, as: :hidden, input_html: { value: "1" } %>
+        <% end %>
         <%= f.input :code, placeholder: "123456", required: true, minlength: 6, maxlength: User::BACKUP_CODE_LENGTH, pattern: '\d+', input_html: { autofocus: true, value: nil }, hint: "Lost your phone? You can enter a backup code instead." %>
         <%= f.submit "Continue", class: "button-primary" %>
       <% end %>
