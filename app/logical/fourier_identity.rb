@@ -59,11 +59,12 @@ module FourierIdentity
 
     # Not silent: a proxy name that resolves to nothing turns every Matrix
     # sign-in away, and a header from elsewhere is someone trying one. The
-    # identity itself is not logged.
+    # identity itself is not logged. Logged as errors, because production
+    # keeps nothing below :error (Danbooru.config.log_level).
     if @proxy_addresses.empty?
-      Rails.logger.warn("fourier identity: the proxy #{proxy.inspect} resolves to no address, so no request's X-Fourier-Identity is honoured; fourier_identity_proxy must name the reverse proxy's compose service")
+      Rails.logger.error("fourier identity: the proxy #{proxy.inspect} resolves to no address, so no request's X-Fourier-Identity is honoured; fourier_identity_proxy must name the reverse proxy's compose service")
     else
-      Rails.logger.warn("fourier identity: ignored X-Fourier-Identity from #{peer}, which is not the proxy #{proxy.inspect} (#{@proxy_addresses.join(", ")}); if the reverse proxy is not #{proxy.inspect}, set fourier_identity_proxy to its compose service")
+      Rails.logger.error("fourier identity: ignored X-Fourier-Identity from #{peer}, which is not the proxy #{proxy.inspect} (#{@proxy_addresses.join(", ")}); if the reverse proxy is not #{proxy.inspect}, set fourier_identity_proxy to its compose service")
     end
     false
   end

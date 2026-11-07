@@ -328,8 +328,8 @@ class MatrixAccountTest < ActionDispatch::IntegrationTest
     should "be ignored from any other peer, and say so without the identity" do
       Danbooru.config.stubs(:fourier_identity_proxy).returns("proxy.test")
       Resolv.stubs(:getaddresses).with("proxy.test").returns(["10.9.9.9"])
-      Rails.logger.stubs(:warn)
-      Rails.logger.expects(:warn).with { |line| line.include?("not the proxy \"proxy.test\"") && line.exclude?("alice") }.at_least_once
+      Rails.logger.stubs(:error)
+      Rails.logger.expects(:error).with { |line| line.include?("not the proxy \"proxy.test\"") && line.exclude?("alice") }.at_least_once
 
       assert_no_difference("User.count") do
         get fourier_identity_path(format: :json), headers: identity("@alice:41chan.net")
@@ -341,8 +341,8 @@ class MatrixAccountTest < ActionDispatch::IntegrationTest
     should "be judged once a request, however often it is read" do
       Danbooru.config.stubs(:fourier_identity_proxy).returns("proxy.test")
       Resolv.expects(:getaddresses).with("proxy.test").once.returns(["10.9.9.9"])
-      Rails.logger.stubs(:warn)
-      Rails.logger.expects(:warn).with { |line| line.include?("not the proxy") }.once
+      Rails.logger.stubs(:error)
+      Rails.logger.expects(:error).with { |line| line.include?("not the proxy") }.once
 
       get login_path(preset: "modulation"), headers: identity("@alice:41chan.net")
       assert_response :success
@@ -351,8 +351,8 @@ class MatrixAccountTest < ActionDispatch::IntegrationTest
     should "say so when the proxy's name resolves to nothing" do
       Danbooru.config.stubs(:fourier_identity_proxy).returns("proxy.test")
       Resolv.stubs(:getaddresses).with("proxy.test").returns([])
-      Rails.logger.stubs(:warn)
-      Rails.logger.expects(:warn).with { |line| line.include?("resolves to no address") && line.include?("fourier_identity_proxy") }.at_least_once
+      Rails.logger.stubs(:error)
+      Rails.logger.expects(:error).with { |line| line.include?("resolves to no address") && line.include?("fourier_identity_proxy") }.at_least_once
 
       get fourier_identity_path(format: :json), headers: identity("@alice:41chan.net")
       assert_nil(session[:user_id])
@@ -509,8 +509,8 @@ class MatrixAccountTest < ActionDispatch::IntegrationTest
 
     should "be refused when the homeserver cannot say, and the log says what to fix" do
       Danbooru::Http.any_instance.stubs(:get).returns(stub(code: 401))
-      Rails.logger.stubs(:warn)
-      Rails.logger.expects(:warn).with { |line| line.include?("HTTP 401") && line.include?("DANBOORU_FOURIER_MATRIX_PROFILE_TOKEN") && line.exclude?("syt_reader") }
+      Rails.logger.stubs(:error)
+      Rails.logger.expects(:error).with { |line| line.include?("HTTP 401") && line.include?("DANBOORU_FOURIER_MATRIX_PROFILE_TOKEN") && line.exclude?("syt_reader") }
 
       assert_no_difference("User.count") do
         post users_path, headers: identity("@x=y:41chan.net"), params: { user: { name: "bob", password: "hunter22", password_confirmation: "hunter22" }}

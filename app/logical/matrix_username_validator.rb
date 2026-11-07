@@ -8,7 +8,8 @@
 #
 # The homeserver is asked, through its profile API: 404 means no such Matrix
 # account. Any other answer refuses the name, because a name that cannot be
-# checked cannot be handed out safely, and the log says what to fix. Names are
+# checked cannot be handed out safely, and the log says what to fix, as an
+# error, the lowest level production keeps (Danbooru.config.log_level). Names are
 # compared lowercased, as booru names are. A name no Matrix username can be
 # (one with CJK in it) is never asked about, nor one already refused for
 # another reason.
@@ -44,7 +45,7 @@ class MatrixUsernameValidator < ActiveModel::EachValidator
       else
         remedy = "check that fourier_media_origin reaches the homeserver's client API"
       end
-      Rails.logger.warn("matrix username check: could not ask the homeserver whether a name is a Matrix username (#{code ? "HTTP #{code}" : "not configured"}); every new name it is asked about is refused until #{remedy}")
+      Rails.logger.error("matrix username check: could not ask the homeserver whether a name is a Matrix username (#{code ? "HTTP #{code}" : "not configured"}); every new name it is asked about is refused until #{remedy}")
       rec.errors.add(attr, "can't be checked against 41chan Matrix usernames right now, so it can't be given out: try again in a few minutes, and if it keeps failing, tell the site staff that the Matrix username check is down")
     end
   end
