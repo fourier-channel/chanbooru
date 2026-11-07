@@ -292,6 +292,15 @@ class LandingShowcaseTest < ActiveSupport::TestCase
       assert_equal({ name: "pill artist", tag: "pill_artist" }, slide[:creator].slice(:name, :tag))
     end
 
+    # The creator page's banner spans the window; the 850px sample stretched
+    # across it came out pixelated (operator, 2026-11-07).
+    should "carry the original as an image's full-size picture" do
+      post = as(create(:user)) { create(:post, source: BOARD, tag_string: "scenery") }
+
+      slide = LandingShowcase.new(viewer: User.anonymous).categories.find { it[:key] == "new" }[:slides].sole
+      assert_equal post.file_url, slide[:full]
+    end
+
     should "be the uploader, with no tag, when the post names no artist" do
       post = as(create(:user)) { create(:post, source: BOARD, tag_string: "scenery") }
 

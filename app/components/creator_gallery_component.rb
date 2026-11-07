@@ -134,10 +134,16 @@ class CreatorGalleryComponent < ApplicationComponent
     slide.slice(:id, :tags, :rating, :flags, :score, :uploader_id)
   end
 
-  # The banner's picture: the sample for an image, the preview for anything
+  # A miniband's picture: the sample for an image, the preview for anything
   # else (a video's sample is the video).
   def picture(slide)
     (slide[:kind] == "image") ? slide[:src] : slide[:thumb]
+  end
+
+  # The banner's picture, on both layers: full size, since the banner spans
+  # the window (LandingShowcase#full_url).
+  def banner_picture(slide)
+    slide[:full] || picture(slide)
   end
 
   # The look as CSS variables: the ground's blur and dim, the parallax's

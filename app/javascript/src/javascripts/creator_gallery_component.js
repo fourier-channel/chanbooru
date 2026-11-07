@@ -27,10 +27,14 @@ import { clampHeight, keyHeight } from "./creator_about_model";
 
 const label = (name) => name.replaceAll("_", " ");
 
-// The banner's picture: the sample for an image, the preview for anything
+// A miniband's picture: the sample for an image, the preview for anything
 // else (CreatorGalleryComponent#picture). A slide with no small variant has
 // only its src (LandingShowcase#thumb_url).
 const picture = (slide) => (slide.kind === "image" ? slide.src : slide.thumb || slide.src);
+
+// The banner's picture, on both layers: full size, since the banner spans the
+// window (CreatorGalleryComponent#banner_picture).
+const bannerPicture = (slide) => slide.full || picture(slide);
 
 const pillClass = (category) => {
   if (["artist", "copyright", "character"].includes(category)) { return `mod-pill mod-pill--cat mod-pill--cat-${category}`; }
@@ -795,7 +799,7 @@ function editor(root, data, bindMinis) {
     layers.forEach((layer) => {
       const kind = layer.classList.contains("modcreator-ground") ? "ground" : "banner";
       layer.querySelector(`.modcreator-${kind}-art`).replaceWith(slide ?
-        el("img", { class: `modcreator-${kind}-art`, src: picture(slide), alt: "" }) :
+        el("img", { class: `modcreator-${kind}-art`, src: bannerPicture(slide), alt: "" }) :
         el("span", { class: `modcreator-${kind}-art modcreator-${kind}-art--none` }));
       Object.keys(marks({})).forEach((name) => layer.removeAttribute(name));
       layer.classList.remove("mod-blacklist-target", "blacklisted-active", "blacklisted-hidden");

@@ -120,6 +120,15 @@ class LandingShowcase
       # them was tens of times the bytes needed to draw them, and it showed as
       # thumbnails arriving late. The focused cell still gets the sample.
       thumb: thumb_url(post),
+      # The full-size picture, for a slide drawn wider than the sample: the
+      # creator page's banner and the ground behind it span the whole window,
+      # and an 850px sample stretched across that came out pixelated
+      # (operator, 2026-11-07). nil when there is none, and the caller draws
+      # what it drew before. On every slide, not only the banner's: the editor
+      # knows a post by the first slide it is handed for it, hero slides first
+      # (CreatorGalleryComponent#editor_data), so a banner post that is also
+      # in the hero band is known by its hero slide.
+      full: full_url(post),
       w: post.image_width,
       h: post.image_height,
       # Videos are real posts and belong in the showcase, but they are not
@@ -409,6 +418,17 @@ class LandingShowcase
 
   def media_url(post)
     post.large_file_url
+  rescue StandardError
+    nil
+  end
+
+  # The original for an image. A video's original is the video, which an
+  # <img> cannot draw, so its largest still.
+  def full_url(post)
+    return post.file_url if post.is_image?
+    return nil unless post.media_asset.has_variant?(:"720x720")
+
+    post.media_asset.variant(:"720x720").file_url
   rescue StandardError
     nil
   end

@@ -94,6 +94,18 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
     assert_no_css(".modcreator-ground.mod-blacklist-target", visible: :all)
   end
 
+  should "draw the banner full size on both layers, and a miniband from the sample" do
+    minis = [{ tag: { name: "sky", category: "general" }, slides: [slide(3, "sky").merge(full: "/original/3.jpg")] },
+             { tag: nil, slides: [] }, { tag: nil, slides: [] }]
+    with_request_url "/creators/maple" do
+      render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: @maple, avatar: avatar, can_edit: false, scan: nil,
+                                                draw: draw(banner: slide(9, "sky").merge(full: "/original/9.jpg"), minis: minis)))
+    end
+    assert_css("img.modcreator-ground-art[src='/original/9.jpg']", visible: :all)
+    assert_css("img.modcreator-banner-art[src='/original/9.jpg']", visible: :all)
+    assert_css("img.modcreator-mini-img[src='/sample/3.jpg']", visible: :all)
+  end
+
   should "carry each post's applied view: the ground's and banner's with the parallax, a miniband picture's on its img" do
     view = { flip_h: true, flip_v: false, x: 0, y: -50, scale: 900, stretch: 1000 }
     minis = [{ tag: { name: "sky", category: "general" }, slides: [slide(3, "sky").merge(view: view), slide(4, "sky").merge(view: nil)] },

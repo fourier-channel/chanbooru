@@ -11,7 +11,7 @@
   <% banner = draw[:banner] %>
   <%= tag.div(class: ["modcreator-ground", ("mod-blacklist-target" if banner)], style: depth_style, aria: { hidden: true }, data: { cg_depth: "", **(banner ? marks(banner) : {}) }) do %>
     <% if banner %>
-      <img class="modcreator-ground-art" src="<%= picture(banner) %>" alt="">
+      <img class="modcreator-ground-art" src="<%= banner_picture(banner) %>" alt="">
     <% else %>
       <span class="modcreator-ground-art modcreator-ground-art--none"></span>
     <% end %>
@@ -141,7 +141,7 @@
   <%= tag.header(class: ["modcreator-head", ("modcreator-head--dial" if tuner == "A"), ("modcreator-head--sky" if tuner == "B")], data: { cg_region: "head" }) do %>
     <%= tag.div(class: ["modcreator-banner", ("mod-blacklist-target" if banner)], style: depth_style, aria: { hidden: true }, data: { cg_depth: "", **(banner ? marks(banner) : {}) }) do %>
       <% if banner %>
-        <img class="modcreator-banner-art" src="<%= picture(banner) %>" alt="">
+        <img class="modcreator-banner-art" src="<%= banner_picture(banner) %>" alt="">
       <% else %>
         <span class="modcreator-banner-art modcreator-banner-art--none"></span>
       <% end %>
