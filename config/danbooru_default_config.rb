@@ -316,6 +316,7 @@ module Danbooru
         metrics
         jobs
         emails
+        dmcas
       ]
     end
 

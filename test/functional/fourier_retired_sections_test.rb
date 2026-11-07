@@ -26,6 +26,7 @@ class FourierRetiredSectionsTest < ActionDispatch::IntegrationTest
     notes note_versions
     media_assets ai_tags
     media_metadata metrics jobs
+    dmcas
   ].freeze
 
   def retire!
@@ -113,6 +114,29 @@ class FourierRetiredSectionsTest < ActionDispatch::IntegrationTest
           assert_response 404, "expected #{path} to 404 for #{viewer&.name || "anonymous"}"
         end
       end
+    end
+
+    # dmcas (operator, 2026-11-07): the form is not needed for now, and it
+    # collected an email address. Its submission is the same section, so a
+    # POST straight to it is shut too, and the site map stops linking it.
+    should "404 the DMCA form and its submission for anyone but the owner, and drop it from the site map" do
+      owner = create(:owner_user)
+      [nil, create(:user), create(:admin_user)].each do |viewer|
+        viewer ? get_auth(dmca_path, viewer) : get(dmca_path)
+        assert_response 404, "expected the DMCA form to 404 for #{viewer&.level_string || "anonymous"}"
+      end
+
+      assert_no_difference("Dmail.count") do
+        post_auth dmca_path, create(:user), params: { dmca: { name: "a", email: "a@example.com", signature: "a" }}
+      end
+      assert_response 404
+
+      get_auth site_map_path, create(:user)
+      assert_response :success
+      assert_no_match(/href="#{Regexp.escape(dmca_path)}"/, response.body)
+
+      get_auth dmca_path, owner
+      assert_response :success
     end
   end
 

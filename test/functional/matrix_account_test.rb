@@ -88,6 +88,20 @@ class MatrixAccountTest < ActionDispatch::IntegrationTest
       assert_equal(1, UserEvent.where(user: user, category: "login").count)
     end
 
+    # Staff sign in the same way (operator, 2026-11-07: "It's no different for
+    # them"). Rank is never consulted; two-factor sign-in is the one thing that
+    # asks for more, at any rank (the two-factor context below).
+    should "sign in a staff account the same way, at every rank" do
+      [:moderator_user, :admin_user, :owner_user].each_with_index do |factory, i|
+        user = create(factory, matrix_id: "@staff#{i}:41chan.net")
+        reset!
+
+        get fourier_identity_path(format: :json), headers: identity("@staff#{i}:41chan.net")
+
+        assert_equal(user.id, session[:user_id], "expected #{factory} to be signed in by Matrix")
+      end
+    end
+
     should "not sign in a deleted account, nor make another under its old name" do
       create(:user, name: "gone", matrix_id: "@alice:41chan.net", is_deleted: true)
 
