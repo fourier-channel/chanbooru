@@ -385,7 +385,7 @@ body:has(.modcreator) {
     &:hover, &:focus-visible { opacity: 1; background: color-mix(in srgb, var(--mod-surface) 75%, transparent); color: var(--mod-ink); }
   }
 
-  @media (max-width: 560px) {
+  @media (width <= 560px) {
     .modcreator-identity-btn { width: 48px; padding: 0; justify-content: center; }
     .modcreator-identity-btn-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   }
@@ -665,7 +665,7 @@ body:has(.modcreator) {
     &:disabled { opacity: 0.35; cursor: not-allowed; }
   }
 
-  // A miniband post's View, under its moves: set on the miniband itself.
+  // A post's View, under its moves: it fits the post to the band's frame.
   .modcreator-strip-view {
     min-height: 28px; padding: 0; border: 1px solid var(--mod-line); border-radius: var(--mod-radius-sm);
     background: var(--mod-surface-2); font-size: 13px; cursor: pointer;
@@ -879,7 +879,8 @@ body:has(.modcreator) {
   // the box is where the view draws the picture, its handles scale (corners)
   // and stretch (edges), and its bar flips, resets and ends. Nothing in it
   // moves on its own.
-  .modcreator-viewer { position: fixed; z-index: 75; touch-action: none; }
+  // Over a fit, and so over the miniband's window it is opened from.
+  .modcreator-viewer { position: fixed; z-index: 85; touch-action: none; }
 
   .modcreator-viewer-box {
     position: absolute; cursor: move;
@@ -914,14 +915,27 @@ body:has(.modcreator) {
   // follows the hand at once.
   &.is-viewing [data-cg-depth] { --px: 0 !important; --py: 0 !important; }
 
-  &.is-viewing :is(.modcreator-ground-art, .modcreator-banner-art, .modcreator-mini-img, .cg-hm-img) { transition: none; }
+  &.is-viewing :is(.modcreator-ground-art, .modcreator-banner-art, .cg-hm-img) { transition: none; }
 
-  // A miniband shows the post being set alone, over its cycle's own styles.
-  .modcreator-mini:has(.is-view-target) {
-    .modcreator-mini-item { opacity: 0 !important; transition: none !important; }
-    .modcreator-mini-item.is-view-target { opacity: 1 !important; transform: none !important; z-index: 4 !important; }
-    .modcreator-mini-arrow, .modcreator-mini-label, .modcreator-edit-ui { visibility: hidden; }
+  // A post fitted to its band's frame (fit() in the script), over the strip
+  // it was put on: the frame is the band's shape (--fit-r, width over
+  // height) as large as the window allows, and the viewer's box and bar lie
+  // on it, the bar in the panel's foot.
+  .modcreator-fit {
+    position: fixed; inset: 0; z-index: 82; display: flex; flex-direction: column; align-items: center; gap: 12px;
+    width: fit-content; height: fit-content; margin: auto; padding: 16px 16px 64px;
+    border-radius: 16px; border: 1px solid var(--mod-line); background: var(--mod-surface);
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 45%), 0 30px 80px -20px rgb(0 0 0 / 90%);
+
+    .cg-note { max-width: 46ch; margin: 0; text-align: center; }
   }
+
+  .modcreator-fit-frame {
+    width: min(calc(94vw - 32px), calc(min(56vh, 460px) * var(--fit-r))); aspect-ratio: var(--fit-r);
+    overflow: hidden; border-radius: var(--mod-radius); background: var(--mod-surface-2);
+  }
+
+  .modcreator-fit-img { width: 100%; height: 100%; object-fit: cover; display: block; transform: var(--cg-view, none); }
 
   // --- past the browsing tier's page ---------------------------------------
   // The notice, then empty cards, so the gallery reads as long as it is.

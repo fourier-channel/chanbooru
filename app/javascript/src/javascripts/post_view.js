@@ -1,6 +1,8 @@
 // A POST'S APPLIED VIEW (operator, 2026-11-01, item 8): how a creator moved,
 // scaled, stretched or flipped one picture on their page. The server keeps it
-// per gallery and post (CreatorGalleryPostView) and draws it; this module is
+// per gallery, place and post (CreatorGalleryPostView: the banner, the hero
+// band's thumbnails, a miniband, a channel's picture -- each a frame of its
+// own shape, operator 2026-11-07) and draws it; this module is
 // the editor's half -- the same ranges, the same style strings (both held to
 // test/fixtures/files/post_views.json), and the pure editing maths.
 //
@@ -51,16 +53,36 @@ export function isIdentity(view) {
 // A number as the server prints it (Ruby's shortest form, no ".0").
 const css = (n) => String(n);
 
+// The view's pan in percent and its scale across and down, null for the
+// identity.
+function parts(view) {
+  const v = { ...IDENTITY, ...(view || {}) };
+  if (Object.keys(IDENTITY).every((key) => v[key] === IDENTITY[key])) {
+    return null;
+  }
+  return {
+    x: css(v.x / 10),
+    y: css(v.y / 10),
+    across: css((v.scale * v.stretch / 1000000) * (v.flip_h ? -1 : 1)),
+    down: css((v.scale / 1000) * (v.flip_v ? -1 : 1)),
+  };
+}
+
 // The view as a CSS transform about the picture's centre, "" for the identity
 // (CreatorGalleryPostView.transform).
 export function transform(view) {
-  const v = { ...IDENTITY, ...(view || {}) };
-  if (Object.keys(IDENTITY).every((key) => v[key] === IDENTITY[key])) {
-    return "";
-  }
-  const across = (v.scale * v.stretch / 1000000) * (v.flip_h ? -1 : 1);
-  const down = (v.scale / 1000) * (v.flip_v ? -1 : 1);
-  return `translate(${css(v.x / 10)}%, ${css(v.y / 10)}%) scale(${css(across)}, ${css(down)})`;
+  const p = parts(view);
+  return p ? `translate(${p.x}%, ${p.y}%) scale(${p.across}, ${p.down})` : "";
+}
+
+// The view on a hero band thumbnail (modulation_landing_component.js), as
+// the cell's --cv-translate and --cv-scale, null for the identity: the same
+// pan and scale, as the picture's own translate and scale properties, since
+// the belt's flight owns its transform. The pan is in the clip's container
+// units: in flight the picture is laid out at its own size, not the frame's.
+export function cellView(view) {
+  const p = parts(view);
+  return p && { "--cv-translate": `${p.x}cqw ${p.y}cqh`, "--cv-scale": `${p.across} ${p.down}` };
 }
 
 // The --cg-view variable a banner, ground or miniband image composes.
@@ -155,16 +177,20 @@ export function resize(view, handle, px, py, frame) {
 }
 
 // The editor's list of views, the draft's `views` (CreatorGalleryLayout#views):
-// one entry per post, sorted by post, none the identity.
+// one entry per place and post, sorted by place and then post, none the
+// identity.
 
-// `id`'s view in `views`, the identity without one.
-export function viewIn(views, id) {
-  return views.find((entry) => entry.post_id === id) || IDENTITY;
+// `id`'s view in `place`, the identity without one.
+export function viewIn(views, place, id) {
+  return views.find((entry) => entry.place === place && entry.post_id === id) || IDENTITY;
 }
 
-// `views` with `id`'s view set to `view` (clamped, in the server's field
-// order), or taken out for the identity; the list given is left as it was.
-export function putView(views, id, view) {
-  const rest = views.filter((entry) => entry.post_id !== id);
-  return isIdentity(view) ? rest : [...rest, { post_id: id, ...clamp(view) }].sort((a, b) => a.post_id - b.post_id);
+const byPlaceAndPost = (a, b) => (a.place === b.place ? a.post_id - b.post_id : (a.place < b.place ? -1 : 1));
+
+// `views` with `id`'s view in `place` set to `view` (clamped, in the server's
+// field order), or taken out for the identity; the list given is left as it
+// was.
+export function putView(views, place, id, view) {
+  const rest = views.filter((entry) => entry.place !== place || entry.post_id !== id);
+  return isIdentity(view) ? rest : [...rest, { place, post_id: id, ...clamp(view) }].sort(byPlaceAndPost);
 }

@@ -797,7 +797,8 @@ CREATE TABLE public.creator_gallery_post_views (
     scale smallint DEFAULT 1000 NOT NULL,
     stretch smallint DEFAULT 1000 NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
-    updated_at timestamp(6) without time zone NOT NULL
+    updated_at timestamp(6) without time zone NOT NULL,
+    place character varying NOT NULL
 );
 
 
@@ -5835,10 +5836,10 @@ CREATE INDEX index_creator_gallery_messages_on_creator_gallery_id ON public.crea
 
 
 --
--- Name: index_creator_gallery_post_views_on_gallery_and_post; Type: INDEX; Schema: public; Owner: -
+-- Name: index_creator_gallery_post_views_on_gallery_place_and_post; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX index_creator_gallery_post_views_on_gallery_and_post ON public.creator_gallery_post_views USING btree (creator_gallery_id, post_id);
+CREATE UNIQUE INDEX index_creator_gallery_post_views_on_gallery_place_and_post ON public.creator_gallery_post_views USING btree (creator_gallery_id, place, post_id);
 
 
 --
@@ -9547,6 +9548,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261107000001'),
 ('20261105000002'),
 ('20261105000001'),
 ('20261102000001'),

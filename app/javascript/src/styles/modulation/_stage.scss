@@ -365,6 +365,23 @@
       img, video, .mod-image { object-fit: contain; }
     }
 
+    // A creator's framing (modulation_landing_component.js buildCell): the
+    // picture's own translate and scale, which compose with the transform
+    // the flight runs. The pan is in the clip's units, so the clip is a
+    // size container. The focus shows the whole picture; the framing eases
+    // out as a cell grows into it and back as it leaves. A failed picture's
+    // error card is not the creator's picture, so it is drawn unframed.
+    &.has-view > .mod-cell-clip { container-type: size; }
+
+    &.has-view .mod-image {
+      transition: translate 850ms ease, scale 850ms ease;
+    }
+
+    &.has-view:not(.is-focus, .is-failed) .mod-image {
+      translate: var(--cv-translate);
+      scale: var(--cv-scale);
+    }
+
     // The one arriving next, either side. Green while it travels; the
     // flight's tint (below) is what turns it orange as it lands.
     &.is-incoming { border-color: var(--mod-belt-incoming); }

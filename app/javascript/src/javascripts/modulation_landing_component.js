@@ -1,6 +1,7 @@
 import Notice from "./notice";
 import { WHEEL_IDLE, wheelStep } from "./fourier_wheel_step";
 import CreatorLamps from "./creator_lamps";
+import { cellView } from "./post_view";
 
 // The landing carousel, built on the post view's stage.
 //
@@ -376,6 +377,17 @@ function initLanding(root) {
     }
 
     if (slide.src && !failed.has(String(slide.id))) { clip.appendChild(mediaEl(slide)); } else { cell.classList.add("is-failed"); }
+
+    // A creator's framing of the picture in their hero band's thumbnails
+    // (CreatorGalleryLayout#draw, operator 2026-11-07). Vars on the cell,
+    // because landing and flight rewrite the picture's own style; the
+    // stylesheet draws them on every rank but the focus, which shows the
+    // whole picture.
+    const view = cellView(slide.view);
+    if (view) {
+      cell.classList.add("has-view");
+      Object.entries(view).forEach(([name, value]) => cell.style.setProperty(name, value));
+    }
 
     // The label's text is its own box so it can keep its proportions while
     // the strip behind it stretches with the cell.
@@ -1015,11 +1027,13 @@ function initLanding(root) {
         // card is cropped like any other picture.
         const cover = media.classList.contains("mod-blog-cover") || !to.focus;
         let fitted = null;
+        let framed = null;
         let fittedR = 0;
         const fit = () => {
           const r = aspectOf(media, cell.slide, W / H);
           if (fitted && Math.abs(r - fittedR) < 0.001) { return; }
           if (fitted) { fitted.cancel(); }
+          if (framed) { framed.cancel(); }
           fittedR = r;
           const fitW = (w, h) => (cover ? Math.max(w, h * r) : Math.min(w, h * r));
           const pw = fitW(W, H);
@@ -1029,8 +1043,16 @@ function initLanding(root) {
             const u = fitW(cx(e) * W, cy(e) * H) / pw;
             return `scale(${u / cx(e)}, ${u / cy(e)})`;
           }), SIZE_EASE);
+          // A creator's framing (has-view) moves and scales this rectangle, so
+          // what lies past the box would come into view in flight: it is
+          // cropped to the rectangle the box crops at rest, as the fit drew it.
+          framed = cover && cell.classList.contains("has-view") ? run(media, Array.from({ length: SAMPLES + 1 }, (_, n) => {
+            const e = n / SAMPLES;
+            const u = fitW(cx(e) * W, cy(e) * H) / pw;
+            return { offset: e, clipPath: `inset(${(ph - ((cy(e) * H) / u)) / 2}px ${(pw - ((cx(e) * W) / u)) / 2}px)` };
+          }), SIZE_EASE) : null;
           // A refit happens later in the move; it joins the move's own clock.
-          if (flight.clock && flight.clock.startTime !== null) { fitted.startTime = flight.clock.startTime; }
+          if (flight.clock && flight.clock.startTime !== null) { [fitted, framed].forEach((a) => { if (a) { a.startTime = flight.clock.startTime; } }); }
         };
         fit();
         // A picture that fails in flight becomes an error card of another shape

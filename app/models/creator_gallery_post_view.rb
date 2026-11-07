@@ -1,10 +1,14 @@
 # frozen_string_literal: true
 
 # A post's APPLIED VIEW on one creator's page (operator, 2026-11-01): how the
-# creator moved, scaled, stretched or flipped that picture, saved per gallery
-# and post so it re-applies the next time the post is chosen, until they
-# Reset it. No row is the identity, so saving the identity deletes the row.
+# creator moved, scaled, stretched or flipped that picture, saved per gallery,
+# place and post so it re-applies the next time the post is chosen there,
+# until they Reset it. No row is the identity, so saving the identity deletes
+# the row.
 #
+# place:          the frame it is fitted to (operator, 2026-11-07): the
+#                 banner, the hero band's thumbnails, a miniband or a
+#                 channel's picture. Each is a frame of its own shape.
 # flip_h, flip_v: mirrored across the vertical / horizontal axis.
 # x, y:           pan, in permille of the frame's width / height.
 # scale:          milli, on top of the cover fit.
@@ -14,10 +18,12 @@
 class CreatorGalleryPostView < ApplicationRecord
   LIMITS = { x: -1000..1000, y: -1000..1000, scale: 200..4000, stretch: 500..2000 }.freeze
   IDENTITY = { flip_h: false, flip_v: false, x: 0, y: 0, scale: 1000, stretch: 1000 }.freeze
+  PLACES = %w[banner hero mini channel].freeze
 
   belongs_to :creator_gallery
 
-  validates :post_id, presence: true, uniqueness: { scope: :creator_gallery_id }
+  validates :post_id, presence: true, uniqueness: { scope: [:creator_gallery_id, :place] }
+  validates :place, inclusion: { in: PLACES, message: "must be one of #{PLACES.join(", ")}" }
   validates :flip_h, :flip_v, inclusion: { in: [true, false], message: "must be on or off" }
   LIMITS.each do |field, range|
     validates field, numericality: { only_integer: true, in: range, message: "must be a whole number between #{range.min} and #{range.max}" }

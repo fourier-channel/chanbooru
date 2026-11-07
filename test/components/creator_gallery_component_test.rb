@@ -391,7 +391,8 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
       [["hero", @stored[0]], ["hero", @stored[1]], ["mini1", @stored[2]]].each_with_index do |(band, post), i|
         @gallery.creator_gallery_posts.create!(band: band, post: post, position: i)
       end
-      @gallery.creator_gallery_post_views.create!(post_id: @stored[2].id, flip_h: true, flip_v: false, x: 0, y: -50, scale: 900, stretch: 1000)
+      @gallery.creator_gallery_post_views.create!(place: "mini", post_id: @stored[2].id, flip_h: true, flip_v: false, x: 0, y: -50, scale: 900, stretch: 1000)
+      @gallery.creator_gallery_post_views.create!(place: "hero", post_id: @stored[0].id, x: 120)
       with_request_url "/creators/maple" do
         render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: @maple, avatar: avatar, can_edit: true, editing: true, scan: nil,
                                                   draw: draw(banner: slide(9, "sky")), palette: palette, panels: panels))
@@ -412,10 +413,11 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
       assert_equal("/creators/maple", data["saveUrl"])
     end
 
-    should "start the editor from the saved views, to re-apply each when its post is chosen" do
+    should "start the editor from the saved views by place, to re-apply each when its post is put there" do
       data = JSON.parse(page.find("[data-editor]")["data-editor"])
 
-      assert_equal([{ "post_id" => @stored[2].id, "flip_h" => true, "flip_v" => false, "x" => 0, "y" => -50, "scale" => 900, "stretch" => 1000 }],
+      assert_equal([{ "place" => "hero", "post_id" => @stored[0].id, "flip_h" => false, "flip_v" => false, "x" => 120, "y" => 0, "scale" => 1000, "stretch" => 1000 },
+                    { "place" => "mini", "post_id" => @stored[2].id, "flip_h" => true, "flip_v" => false, "x" => 0, "y" => -50, "scale" => 900, "stretch" => 1000 }],
                    data["draft"]["views"])
     end
 

@@ -3,15 +3,16 @@
 require "test_helper"
 
 # A post's applied view on one creator's page (operator 2026-11-01, item 8):
-# flips, a pan, a scale and a stretch, saved per gallery and post so the view
-# re-applies the next time that post is chosen. No row is the identity.
+# flips, a pan, a scale and a stretch, saved per gallery, place and post so the
+# view re-applies the next time that post is put in that place. No row is the
+# identity.
 class CreatorGalleryPostViewTest < ActiveSupport::TestCase
   # The style cases post_view.js's test reads too, so the editor and the page
   # cannot draw one view two ways.
   FIXTURE = JSON.parse(Rails.root.join("test/fixtures/files/post_views.json").read)
 
   def view(**attrs)
-    CreatorGalleryPostView.new(creator_gallery: @gallery, post_id: @post.id, **attrs)
+    CreatorGalleryPostView.new(creator_gallery: @gallery, post_id: @post.id, place: "banner", **attrs)
   end
 
   context "A post view" do
@@ -59,7 +60,7 @@ class CreatorGalleryPostViewTest < ActiveSupport::TestCase
       assert_predicate(v.errors[:flip_h], :present?)
     end
 
-    should "be one row per gallery and post" do
+    should "be one row per gallery, place and post" do
       view.save!
       second = view(x: 10)
 
@@ -67,9 +68,26 @@ class CreatorGalleryPostViewTest < ActiveSupport::TestCase
       assert_raises(ActiveRecord::RecordNotUnique) { second.save!(validate: false) }
     end
 
+    should "keep a view of the same post in every place, each its own" do
+      CreatorGalleryPostView::PLACES.each_with_index { |place, i| view(place: place, x: i).save! }
+
+      assert_equal(CreatorGalleryPostView::PLACES.sort, @gallery.creator_gallery_post_views.pluck(:place).sort)
+      assert_equal([0, 1, 2, 3], @gallery.creator_gallery_post_views.order(:x).pluck(:x))
+    end
+
+    should "refuse a place a view is not drawn in, naming the places" do
+      [nil, "", "footer"].each do |place|
+        v = view(place: place)
+
+        assert_not(v.valid?, "place #{place.inspect} was accepted")
+        assert_equal(["must be one of banner, hero, mini, channel"], v.errors[:place])
+      end
+      assert_raises(ActiveRecord::NotNullViolation) { view(place: nil).save!(validate: false) }
+    end
+
     should "let another gallery keep its own view of the same post" do
       view.save!
-      other = CreatorGalleryPostView.new(creator_gallery: create(:creator_gallery), post_id: @post.id, x: 10)
+      other = CreatorGalleryPostView.new(creator_gallery: create(:creator_gallery), post_id: @post.id, place: "banner", x: 10)
 
       assert_predicate(other, :valid?)
       other.save!

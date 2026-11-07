@@ -108,27 +108,29 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
       assert_equal(300, response.parsed_body["cap"])
     end
 
-    # A post's applied view (item 8): saved with the look for the posts it
-    # puts where views are drawn, kept per post, and drawn to a signed-out
-    # visitor as the creator left it.
-    should "save the views the look sends, and leave them when a Save sends none" do
-      views = [{ post_id: @posts[0].id, flip_h: true, flip_v: false, x: 120, y: -50, scale: 900, stretch: 1100 },
-               { post_id: @posts[2].id, flip_h: false, flip_v: true, x: 0, y: 0, scale: 1000, stretch: 1000 }]
+    # A post's applied view (item 8), per place: saved with the look for the
+    # posts it puts in each place, kept per place and post, and drawn to a
+    # signed-out visitor as the creator left it.
+    should "save the views the look sends, each in its place, and leave them when a Save sends none" do
+      views = [{ place: "banner", post_id: @posts[0].id, flip_h: true, flip_v: false, x: 120, y: -50, scale: 900, stretch: 1100 },
+               { place: "mini", post_id: @posts[2].id, flip_h: false, flip_v: true, x: 0, y: 0, scale: 1000, stretch: 1000 },
+               { place: "hero", post_id: @posts[2].id, flip_h: false, flip_v: false, x: 0, y: 300, scale: 1500, stretch: 1000 }]
       patch creator_gallery_path(@gallery), params: { layout: @look.merge(views: views) }, headers: @alice, as: :json
 
       assert_response :success
-      assert_equal([[@posts[0].id, true, false, 120, -50, 900, 1100], [@posts[2].id, false, true, 0, 0, 1000, 1000]],
-                   @gallery.creator_gallery_post_views.order(:post_id).pluck(:post_id, :flip_h, :flip_v, :x, :y, :scale, :stretch))
+      assert_equal([["banner", @posts[0].id, true, false, 120, -50, 900, 1100], ["hero", @posts[2].id, false, false, 0, 300, 1500, 1000],
+                    ["mini", @posts[2].id, false, true, 0, 0, 1000, 1000]],
+                   @gallery.creator_gallery_post_views.order(:place, :post_id).pluck(:place, :post_id, :flip_h, :flip_v, :x, :y, :scale, :stretch))
 
       patch creator_gallery_path(@gallery), params: { layout: @look }, headers: @alice, as: :json
       assert_response :success
-      assert_equal(2, @gallery.creator_gallery_post_views.count)
+      assert_equal(3, @gallery.creator_gallery_post_views.count)
     end
 
     # params.expect drops a key it does not know (it passes no
     # on_unpermitted), so a field outside the view's own is never written.
     should "refuse a view out of range, naming the remedy and writing nothing, and keep only a view's own fields" do
-      patch creator_gallery_path(@gallery), params: { layout: @look.merge(headline: "Turned", views: [{ post_id: @posts[0].id, scale: 5000 }]) }, headers: @alice, as: :json
+      patch creator_gallery_path(@gallery), params: { layout: @look.merge(headline: "Turned", views: [{ place: "banner", post_id: @posts[0].id, scale: 5000 }]) }, headers: @alice, as: :json
 
       assert_response 422
       assert_equal(["Post ##{@posts[0].id}'s view has a scale of 5000; it must be a whole number from 200 to 4000. Press Reset on the view, or bring it back in range."],
@@ -136,9 +138,9 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
       assert_equal(0, @gallery.creator_gallery_post_views.count)
       assert_not_equal("Turned", @gallery.reload.settings["headline"])
 
-      patch creator_gallery_path(@gallery), params: { layout: @look.merge(views: [{ post_id: @posts[0].id, x: 10, rotation: 90 }]) }, headers: @alice, as: :json
+      patch creator_gallery_path(@gallery), params: { layout: @look.merge(views: [{ place: "banner", post_id: @posts[0].id, x: 10, rotation: 90 }]) }, headers: @alice, as: :json
       assert_response :success
-      assert_equal([{ post_id: @posts[0].id, flip_h: false, flip_v: false, x: 10, y: 0, scale: 1000, stretch: 1000 }], CreatorGalleryLayout.new(@gallery.reload).views)
+      assert_equal([{ place: "banner", post_id: @posts[0].id, flip_h: false, flip_v: false, x: 10, y: 0, scale: 1000, stretch: 1000 }], CreatorGalleryLayout.new(@gallery.reload).views)
     end
 
     should "keep the candidate list behind the owner gate" do
@@ -328,7 +330,7 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
       end
 
       should "draw a harmonic's background under its applied view to a signed-out visitor" do
-        view = { post_id: @posts[5].id, flip_h: true, flip_v: false, x: 100, y: 0, scale: 1000, stretch: 1200 }
+        view = { place: "channel", post_id: @posts[5].id, flip_h: true, flip_v: false, x: 100, y: 0, scale: 1000, stretch: 1200 }
         patch creator_gallery_path(@gallery), params: { layout: @look.merge(tuner: { enabled: true, placement: "B" }, harmonics: [@harmonic], views: [view]) }, headers: @alice, as: :json
         assert_response :success
 

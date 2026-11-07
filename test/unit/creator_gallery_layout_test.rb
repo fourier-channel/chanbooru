@@ -41,15 +41,16 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
 
   def hero(**over) = look["hero"].merge(over.transform_keys(&:to_s))
 
-  # A moved, scaled, stretched and flipped view of `post`, as the editor sends it.
-  def view_of(post, **over)
-    { "post_id" => post.id, "flip_h" => true, "flip_v" => false, "x" => 120, "y" => -50, "scale" => 900, "stretch" => 1100 }.merge(over.transform_keys(&:to_s))
+  # A moved, scaled, stretched and flipped view of `post` in `place`, as the
+  # editor sends it.
+  def view_of(post, place = "banner", **over)
+    { "place" => place, "post_id" => post.id, "flip_h" => true, "flip_v" => false, "x" => 120, "y" => -50, "scale" => 900, "stretch" => 1100 }.merge(over.transform_keys(&:to_s))
   end
 
   # The view a row draws, for a view_of with these changes.
   def drawn_view(**over) = { flip_h: true, flip_v: false, x: 120, y: -50, scale: 900, stretch: 1100 }.merge(over)
 
-  def saved_views = @gallery.creator_gallery_post_views.reload.to_h { |row| [row.post_id, row.value] }
+  def saved_views = @gallery.creator_gallery_post_views.reload.to_h { |row| [[row.place, row.post_id], row.value] }
 
   def save_look(**over) = layout.save(viewer: @maple, page: {}, look: look(**over))
 
@@ -586,38 +587,51 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
     end
   end
 
-  # A post's APPLIED VIEW (operator, 2026-11-01, item 8): saved with the look
-  # for a post this Save puts where a view is drawn -- the banner, a harmonic's
-  # background, a miniband -- and kept when the post leaves the page, so it
-  # re-applies when the post is chosen again. Never the hero band's: that is
-  # the front page's carousel too.
+  # A post's APPLIED VIEW (operator, 2026-11-01, item 8), kept per PLACE
+  # (operator, 2026-11-07): saved with the look for a post this Save puts in
+  # that place -- the banner, the hero band, a miniband, a harmonic's
+  # background -- and kept when the post leaves it, so it re-applies when the
+  # post is placed there again. Each place is a frame of its own shape, so one
+  # post may hold a different view in each.
   context "Applied views" do
     setup do
       @harmonic = { "url" => "https://civitai.com/user/maple", "title" => "Maple LoRA", "cta" => "visit", "places" => CreatorGalleryHarmonic::CONFIG["presets"].first.last,
                     "background_post_id" => @posts[5].id, "focus_x" => 50, "focus_y" => 40, "zoom" => 120, "shade" => 45 }
     end
 
-    should "save a view of the banner, a harmonic's background and a miniband's post, and draw each, nil on every other slide" do
+    should "save a view in the banner, the hero band, a miniband and a channel's picture, and draw each in its own place, nil elsewhere" do
       sent = look("tuner" => { "enabled" => true, "placement" => "A" }, "harmonics" => [@harmonic],
-                  "views" => [view_of(@posts[0]), view_of(@posts[5], "flip_v" => true), view_of(@posts[3], "x" => -1000)])
+                  "views" => [view_of(@posts[0], "banner"), view_of(@posts[5], "channel", "flip_v" => true), view_of(@posts[3], "mini", "x" => -1000),
+                              view_of(@posts[1], "hero", "y" => 300)])
 
       assert_equal([], layout.save(viewer: @maple, page: {}, look: sent))
-      assert_equal({ @posts[0].id => drawn_view, @posts[5].id => drawn_view(flip_v: true), @posts[3].id => drawn_view(x: -1000) }, saved_views)
+      assert_equal({ ["banner", @posts[0].id] => drawn_view, ["channel", @posts[5].id] => drawn_view(flip_v: true),
+                     ["mini", @posts[3].id] => drawn_view(x: -1000), ["hero", @posts[1].id] => drawn_view(y: 300) }, saved_views)
 
       drawn = layout.draw(@admin)
       assert_equal(drawn_view, drawn[:banner][:view])
       assert_equal(drawn_view(flip_v: true), drawn[:harmonics].first[:picture][:view])
-      assert_equal([[drawn_view, nil], [drawn_view(x: -1000), nil], [nil]], drawn[:minis].map { |mini| mini[:slides].pluck(:view) })
+      assert_equal([[nil, nil], [drawn_view(x: -1000), nil], [nil]], drawn[:minis].map { |mini| mini[:slides].pluck(:view) })
       assert_equal(@posts.map(&:id), ids(drawn[:hero][:slides]))
-      assert(drawn[:hero][:slides].all? { |slide| slide.key?(:view) && slide[:view].nil? }, "a hero slide carries view: nil")
+      assert_equal([nil, drawn_view(y: 300), nil, nil, nil, nil], drawn[:hero][:slides].map { |slide| slide.fetch(:view) })
       assert(drawn[:minis].flat_map { |mini| mini[:slides] }.all? { |slide| slide.key?(:view) }, "every miniband slide carries view:")
-      assert_equal([@posts[0], @posts[3], @posts[5]].map(&:id).sort, layout.views.pluck(:post_id))
-      assert_equal({ post_id: @posts[3].id, **drawn_view(x: -1000) }, layout.views.find { |view| view[:post_id] == @posts[3].id })
+      assert_equal([["banner", @posts[0].id], ["channel", @posts[5].id], ["hero", @posts[1].id], ["mini", @posts[3].id]], layout.views.map { |view| [view[:place], view[:post_id]] })
+      assert_equal({ place: "mini", post_id: @posts[3].id, **drawn_view(x: -1000) }, layout.views.find { |view| view[:place] == "mini" })
+    end
+
+    should "keep a view of one post in each place it is drawn, each its own" do
+      assert_equal([], save_look("views" => [view_of(@posts[0], "banner"), view_of(@posts[0], "hero", "x" => 0), view_of(@posts[0], "mini", "scale" => 2000)]))
+      assert_equal({ ["banner", @posts[0].id] => drawn_view, ["hero", @posts[0].id] => drawn_view(x: 0), ["mini", @posts[0].id] => drawn_view(scale: 2000) }, saved_views)
+
+      drawn = layout.draw(@admin)
+      assert_equal(drawn_view, drawn[:banner][:view])
+      assert_equal(drawn_view(x: 0), drawn[:hero][:slides].first[:view])
+      assert_equal(drawn_view(scale: 2000), drawn[:minis].first[:slides].first[:view])
     end
 
     should "refuse a view out of its range, not whole or not a flip, naming the range and the remedy, and write nothing" do
-      sent = look("views" => [view_of(@posts[0], "x" => 1001), view_of(@posts[1], "scale" => "big", "stretch" => 499),
-                              view_of(@posts[2], "flip_h" => "maybe", "y" => nil)])
+      sent = look("views" => [view_of(@posts[0], "banner", "x" => 1001), view_of(@posts[1], "hero", "scale" => "big", "stretch" => 499),
+                              view_of(@posts[2], "mini", "flip_h" => "maybe", "y" => nil)])
 
       assert_equal(["Post ##{@posts[0].id}'s view has a move across of 1001; it must be a whole number from -1000 to 1000. Press Reset on the view, or bring it back in range.",
                     "Post ##{@posts[1].id}'s view has a scale of big; it must be a whole number from 200 to 4000. Press Reset on the view, or bring it back in range.",
@@ -629,69 +643,77 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
       assert_equal(0, CreatorGalleryPostView.count)
     end
 
-    should "refuse a view of a post this Save does not put where views are drawn, of no post id, or two of one post" do
-      assert_equal(["Post ##{@posts[5].id}'s view cannot be saved: this Save puts the post on no miniband, banner or channel background, where views are drawn. Put it on one, or leave its view out.",
-                    "Post #99999999's view cannot be saved: this Save puts the post on no miniband, banner or channel background, where views are drawn. Put it on one, or leave its view out.",
+    should "refuse a view in no known place, in a place this Save does not put its post, of no post id, or two of one post in one place" do
+      assert_equal(["A view's place is footer; it must be banner, hero, mini or channel. Send each view with the place it is drawn in.",
+                    "A view's place is empty; it must be banner, hero, mini or channel. Send each view with the place it is drawn in.",
+                    "Post ##{@posts[5].id}'s view on the banner cannot be saved: this Save does not put the post on the banner. Put it there, or leave its view out.",
+                    "Post ##{@posts[5].id}'s view on a miniband cannot be saved: this Save does not put the post on a miniband. Put it there, or leave its view out.",
+                    "Post ##{@posts[0].id}'s view on a channel's picture cannot be saved: this Save does not put the post on a channel's picture. Put it there, or leave its view out.",
+                    "Post #99999999's view on the hero band cannot be saved: this Save does not put the post on the hero band. Put it there, or leave its view out.",
                     "A view's post must be a post id. Send each view with the post_id of a post on the page.",
-                    "Post ##{@posts[0].id} has 2 views. Send one view per post."],
-                   save_look("views" => [view_of(@posts[5]), { "post_id" => 99_999_999 }, view_of(@posts[1], "post_id" => "first"), view_of(@posts[0]), view_of(@posts[0], "x" => 0)]))
+                    "Post ##{@posts[0].id} has 2 views on the banner. Send one view per post and place."],
+                   save_look("views" => [view_of(@posts[0], "footer"), view_of(@posts[0]).except("place"), view_of(@posts[5], "banner"), view_of(@posts[5], "mini"),
+                                         view_of(@posts[0], "channel"), { "place" => "hero", "post_id" => 99_999_999 }, view_of(@posts[1], "hero", "post_id" => "first"),
+                                         view_of(@posts[0], "banner"), view_of(@posts[0], "banner", "x" => 0)]))
       assert_equal(0, CreatorGalleryPostView.count)
 
       # A Save that leaves the harmonics as they are leaves their backgrounds on the page.
       assert_equal([], save_look("tuner" => { "enabled" => true, "placement" => "A" }, "harmonics" => [@harmonic]))
-      assert_equal([], save_look("views" => [view_of(@posts[5])]))
-      assert_equal([@posts[5].id], saved_views.keys)
+      assert_equal([], save_look("views" => [view_of(@posts[5], "channel")]))
+      assert_equal([["channel", @posts[5].id]], saved_views.keys)
     end
 
     should "name only a refused post's own refusal for its view, never that the Save puts it nowhere" do
       @posts[3].update_columns(is_deleted: true) # rubocop:disable Rails/SkipsModelValidations -- deleted after it was chosen, as a post can be
 
-      problems = save_look("views" => [view_of(@posts[3])])
+      problems = save_look("views" => [view_of(@posts[3], "mini")])
 
       assert_includes(problems, "Post ##{@posts[3].id} cannot be chosen: it is deleted. Take it off.")
-      assert_empty(problems.grep(/view cannot be saved/))
+      assert_empty(problems.grep(/cannot be saved/))
       assert_equal(0, CreatorGalleryPostView.count)
     end
 
-    should "leave every view when the Save carries none, and reset a post on the page that the list leaves out or sends as the identity" do
-      assert_equal([], save_look("views" => [view_of(@posts[0]), view_of(@posts[1]), view_of(@posts[3])]))
+    should "leave every view when the Save carries none, and reset a view in its place that the list leaves out or sends as the identity" do
+      assert_equal([], save_look("views" => [view_of(@posts[0], "banner"), view_of(@posts[0], "mini"), view_of(@posts[1], "mini"), view_of(@posts[3], "hero")]))
       assert_equal([], save_look)
-      assert_equal([@posts[0], @posts[1], @posts[3]].map(&:id).sort, saved_views.keys.sort)
+      assert_equal([["banner", @posts[0].id], ["hero", @posts[3].id], ["mini", @posts[0].id], ["mini", @posts[1].id]], saved_views.keys.sort)
 
       identity = CreatorGalleryPostView::IDENTITY.transform_keys(&:to_s)
-      assert_equal([], save_look("views" => [view_of(@posts[0], "y" => 7), identity.merge("post_id" => @posts[1].id)]))
-      assert_equal({ @posts[0].id => drawn_view(y: 7) }, saved_views)
+      assert_equal([], save_look("views" => [view_of(@posts[0], "mini", "y" => 7), identity.merge("place" => "mini", "post_id" => @posts[1].id)]))
+      assert_equal({ ["mini", @posts[0].id] => drawn_view(y: 7) }, saved_views)
 
       assert_equal([], save_look("views" => []))
       assert_equal({}, saved_views)
     end
 
-    should "keep the view of a post taken off the page, and draw it again when the post comes back" do
-      assert_equal([], save_look("views" => [view_of(@posts[3])]))
+    should "keep the view of a post taken off its place, and draw it again when the post comes back there" do
+      assert_equal([], save_look("views" => [view_of(@posts[3], "mini"), view_of(@posts[0], "banner")]))
       off = look["minis"].each_with_index.map { |mini, i| (i == 1) ? mini.merge("posts" => [@posts[4].id]) : mini }
 
-      assert_equal([], save_look("minis" => off, "views" => []))
-      assert_equal({ @posts[3].id => drawn_view }, saved_views)
+      assert_equal([], save_look("minis" => off, "banner" => { "post_id" => @posts[1].id, "y" => 40 }, "views" => []))
+      assert_equal({ ["mini", @posts[3].id] => drawn_view, ["banner", @posts[0].id] => drawn_view }, saved_views)
       assert_equal([nil], layout.draw(@admin)[:minis][1][:slides].pluck(:view))
+      assert_nil(layout.draw(@admin)[:banner][:view])
 
       assert_equal([], save_look)
       assert_equal([drawn_view, nil], layout.draw(@admin)[:minis][1][:slides].pluck(:view))
+      assert_equal(drawn_view, layout.draw(@admin)[:banner][:view])
     end
 
-    should "keep at most #{CreatorGalleryLayout::VIEWS_KEPT} views, dropping the oldest-changed of posts off the page" do
+    should "keep at most #{CreatorGalleryLayout::VIEWS_KEPT} views, every place's together, dropping the oldest-changed of posts off their place" do
       now = Time.zone.now
       kept = CreatorGalleryLayout::VIEWS_KEPT
-      off_page = Array.new(kept) { |i| { creator_gallery_id: @gallery.id, post_id: 90_000_000 + i, x: 5, created_at: now, updated_at: now - (i + 1).minutes } }
-      on_page = { creator_gallery_id: @gallery.id, post_id: @posts[1].id, x: 5, created_at: now, updated_at: now - 30.days }
+      off_page = Array.new(kept) { |i| { creator_gallery_id: @gallery.id, place: "mini", post_id: 90_000_000 + i, x: 5, created_at: now, updated_at: now - (i + 1).minutes } }
+      on_page = { creator_gallery_id: @gallery.id, place: "mini", post_id: @posts[1].id, x: 5, created_at: now, updated_at: now - 30.days }
       CreatorGalleryPostView.insert_all!([*off_page, on_page]) # rubocop:disable Rails/SkipsModelValidations -- a gallery's worth of old views at once
 
-      assert_equal([], save_look("views" => [view_of(@posts[0]), view_of(@posts[1], "flip_h" => false, "x" => 5, "y" => 0, "scale" => 1000, "stretch" => 1000)]))
+      assert_equal([], save_look("views" => [view_of(@posts[0], "banner"), view_of(@posts[1], "mini", "flip_h" => false, "x" => 5, "y" => 0, "scale" => 1000, "stretch" => 1000)]))
 
-      ids = saved_views.keys
-      assert_equal(kept, ids.size)
-      assert_includes(ids, @posts[0].id)
-      assert_includes(ids, @posts[1].id)
-      assert_equal([90_000_000 + kept - 2, 90_000_000 + kept - 1], off_page.pluck(:post_id) - ids)
+      keys = saved_views.keys
+      assert_equal(kept, keys.size)
+      assert_includes(keys, ["banner", @posts[0].id])
+      assert_includes(keys, ["mini", @posts[1].id])
+      assert_equal([90_000_000 + kept - 2, 90_000_000 + kept - 1], off_page.pluck(:post_id) - keys.map(&:last))
     end
   end
 

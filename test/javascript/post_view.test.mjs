@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { URL } from "node:url";
-import { LIMITS, IDENTITY, clamp, isIdentity, transform, style, pictureStyle, toBox, fromBox, move, scaleBy, resize, HANDLES } from "../../app/javascript/src/javascripts/post_view.js";
+import { LIMITS, IDENTITY, clamp, isIdentity, transform, style, cellView, pictureStyle, toBox, fromBox, move, scaleBy, resize, HANDLES } from "../../app/javascript/src/javascripts/post_view.js";
 
 const fixture = JSON.parse(readFileSync(new URL("../fixtures/files/post_views.json", import.meta.url), "utf8"));
 const view = (over = {}) => ({ ...IDENTITY, ...over });
@@ -32,6 +32,19 @@ test("every shared harmonic picture is styled as the server styles it", () => {
     return got === expected ? [] : [`${JSON.stringify(picture)}: wanted ${JSON.stringify(expected)}, got ${JSON.stringify(got)}`];
   });
   assert.deepEqual(wrong, []);
+});
+
+// A hero band thumbnail takes the view as its cell's vars, the same pan and
+// scale as the transform, the pan in the clip's container units.
+test("every shared view is a hero band cell's vars, the transform's own numbers", () => {
+  const wrong = fixture.views.flatMap(([v, expected]) => {
+    const vars = cellView(v);
+    const got = vars && `translate(${vars["--cv-translate"].replace("cqw ", "%, ").replace("cqh", "%")}) scale(${vars["--cv-scale"].replace(" ", ", ")})`;
+    return got === (expected || null) ? [] : [`${JSON.stringify(v)}: wanted ${JSON.stringify(expected)}, got ${JSON.stringify(got)}`];
+  });
+  assert.deepEqual(wrong, []);
+  assert.deepEqual(cellView(view({ x: 125, y: -40, scale: 1500, stretch: 800, flip_h: true })), { "--cv-translate": "12.5cqw -4cqh", "--cv-scale": "-1.2 1.5" });
+  assert.equal(cellView(undefined), null);
 });
 
 test("a picture with no view key is drawn as one with none", () => {

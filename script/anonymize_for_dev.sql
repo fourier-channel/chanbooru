@@ -124,6 +124,7 @@ comments: body=fill
 creator_galleries: slug=map matrix_id=map title=fill bio=fill matrix_contact=map settings=blank default_audience=keep
 creator_gallery_harmonics: site=keep url=fill title=fill subtitle=fill cta=keep places=keep staff_hidden_reason=fill
 creator_gallery_messages: body=fill
+creator_gallery_post_views: place=keep
 creator_gallery_posts: band=keep
 creator_group_memberships: source=keep
 creator_groups: name=derive

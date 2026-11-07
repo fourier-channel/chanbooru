@@ -40,10 +40,13 @@ class CreatorGalleryLayout
   HERO_DIRS = %w[left right].freeze
   MINI_DIRS = %w[left right up down].freeze
   CELLS = [3, 5, 7, 9].freeze
-  # The most applied views a gallery keeps (item 8); past it, the views of
-  # posts off the page that changed longest ago go first.
+  # The most applied views a gallery keeps (item 8), every place's together;
+  # past it, the views no longer on their place that changed longest ago go
+  # first.
   VIEWS_KEPT = 300
   VIEW_LABELS = { x: "move across", y: "move down", scale: "scale", stretch: "stretch" }.freeze
+  # Where a view is drawn (CreatorGalleryPostView::PLACES), as a sentence names it.
+  PLACE_NAMES = { "banner" => "the banner", "hero" => "the hero band", "mini" => "a miniband", "channel" => "a channel's picture" }.freeze
   HOLD = 2..12
   HEADLINE_MAX = 120
   SUBLINE_MAX = 200
@@ -133,9 +136,9 @@ class CreatorGalleryLayout
   # the counting ones, and none while it is off.
   def draw(viewer, manager: gallery.managed_by?(viewer))
     banner = Post.includes(:media_asset, :uploader).find_by(id: config["banner"]["post_id"])
-    # A post's applied view, drawn on the banner, a harmonic's picture and a
-    # miniband; never the hero band, which is the front page's carousel too.
-    views = gallery.creator_gallery_post_views.to_h { |row| [row.post_id, row.value] }
+    # A post's applied view in each place it is drawn: the banner, the hero
+    # band's thumbnails, a miniband and a channel's picture.
+    views = gallery.creator_gallery_post_views.to_h { |row| [[row.place, row.post_id], row.value] }
     harmonics, removed = harmonics_drawn(manager)
     backgrounds = Post.includes(:media_asset, :uploader).where(id: harmonics.filter_map(&:background_post_id)).index_by(&:id)
     judged, refused = judge(viewer, [*banner&.id, *backgrounds.keys])
@@ -154,10 +157,10 @@ class CreatorGalleryLayout
     showcase = LandingShowcase.new(viewer: viewer, posts: [*allowed, *banner])
     shown = visible_names([*config["hero"]["tags"], *config["minis"].pluck("tag")].compact_blank.uniq, viewer)
     {
-      banner: banner && showcase.slide_for(banner).merge(view: views[banner.id]),
-      hero: { tags: pills(config["hero"]["tags"] & shown), slides: drawn.first.map { |post| showcase.slide_for(post).merge(view: nil) }},
+      banner: banner && showcase.slide_for(banner).merge(view: views[["banner", banner.id]]),
+      hero: { tags: pills(config["hero"]["tags"] & shown), slides: drawn.first.map { |post| showcase.slide_for(post).merge(view: views[["hero", post.id]]) }},
       minis: config["minis"].zip(drawn.drop(1)).map do |mini, posts|
-        { tag: pills([mini["tag"]] & shown).first, slides: posts.map { |post| showcase.slide_for(post).merge(view: views[post.id]) }}
+        { tag: pills([mini["tag"]] & shown).first, slides: posts.map { |post| showcase.slide_for(post).merge(view: views[["mini", post.id]]) }}
       end,
       locked_count: distinct.count { |post| allowed_ids.exclude?(post.id) },
       owner_notices: [*(LEGACY_NOTICE if config["hero"]["tags"].empty?), *judged.flatten(1).filter_map(&:last), *refused[banner_id]].uniq,
@@ -191,9 +194,10 @@ class CreatorGalleryLayout
   end
 
   # The gallery's applied views, as the editor's draft holds them: one per
-  # post, by post id, the identity never (no row is the identity).
+  # place and post, in that order, the identity never (no row is the
+  # identity).
   def views
-    gallery.creator_gallery_post_views.order(:post_id).map { |row| { post_id: row.post_id, **row.value } }
+    gallery.creator_gallery_post_views.order(:place, :post_id).map { |row| { place: row.place, post_id: row.post_id, **row.value } }
   end
 
   # The hero band's posts as the page draws them for `viewer`, before the
@@ -275,8 +279,9 @@ class CreatorGalleryLayout
     # Absent leaves the harmonics as they are; an empty list removes the owner's.
     harmonics = look["harmonics"]&.map(&:to_h)
     # Absent leaves every applied view as it is; else the list is every view
-    # of the posts this Save puts where views are drawn, an unlisted one or
-    # the identity reset (item 8). Off the page, a post keeps its view.
+    # of the posts this Save puts where views are drawn, each in its place,
+    # an unlisted one or the identity reset (item 8). Off its place, a post
+    # keeps its view there.
     views = look["views"]&.map(&:to_h)
     view_values = views.to_a.map do |view|
       CreatorGalleryPostView::IDENTITY.to_h do |field, identity|
@@ -331,7 +336,9 @@ class CreatorGalleryLayout
           "Post ##{view["post_id"]}'s view has a #{VIEW_LABELS[field]} of #{view[field.to_s].to_s.presence || "empty"}; " \
             "it must be a whole number from #{range.min} to #{range.max}. Press Reset on the view, or bring it back in range."
         end
-        [*flips, *ranges]
+        unplaced = CreatorGalleryPostView::PLACES.exclude?(view["place"].to_s)
+        misplaced = "A view's place is #{view["place"].to_s.presence || "empty"}; it must be #{words(CreatorGalleryPostView::PLACES, "or")}. Send each view with the place it is drawn in." if unplaced
+        [*misplaced, *flips, *ranges]
       end,
     ].compact.uniq
 
@@ -355,17 +362,19 @@ class CreatorGalleryLayout
         held, added = added.first(1), added.drop(1) if held.empty?
         taken(id, held, added)
       end
-      # Where this Save puts each post a view is drawn on, the harmonics' as
-      # sent or, left as they are, as they stand. A refused post is placed
-      # too: its refusal is already a problem, and says the remedy.
+      # Where this Save puts each post, by the place a view is drawn in: the
+      # harmonics' as sent or, left as they are, as they stand. A refused post
+      # is placed too: its refusal is already a problem, and says the remedy.
       backgrounds = harmonics ? harmonics.filter_map { |entry| whole(entry["background_post_id"]) if entry["background_post_id"].present? } : gallery.creator_gallery_harmonics.filter_map(&:background_post_id)
-      placed = [*banner_id, *backgrounds, *bands.drop(1).flat_map(&:last)].compact.to_set
-      view_ids = views.to_a.map { |view| whole(view["post_id"]) }
-      problems += view_ids.compact.uniq.reject { |id| placed.include?(id) }.map do |id|
-        "Post ##{id}'s view cannot be saved: this Save puts the post on no miniband, banner or channel background, where views are drawn. Put it on one, or leave its view out."
+      placed = { "banner" => [*banner_id], "hero" => hero_ids, "mini" => bands.drop(1).flat_map(&:last), "channel" => backgrounds }.transform_values { |ids| ids.compact.to_set }
+      view_keys = views.to_a.map { |view| [view["place"].to_s, whole(view["post_id"])] }
+      problems += view_keys.select(&:last).uniq.select { |place, _| placed.key?(place) }.reject { |place, id| placed[place].include?(id) }.map do |place, id|
+        "Post ##{id}'s view on #{PLACE_NAMES[place]} cannot be saved: this Save does not put the post on #{PLACE_NAMES[place]}. Put it there, or leave its view out."
       end
-      problems << "A view's post must be a post id. Send each view with the post_id of a post on the page." if view_ids.any?(nil)
-      problems += view_ids.compact.tally.select { |_, n| n > 1 }.map { |id, n| "Post ##{id} has #{n} views. Send one view per post." }
+      problems << "A view's post must be a post id. Send each view with the post_id of a post on the page." if view_keys.any? { |_, id| id.nil? }
+      problems += view_keys.select(&:last).tally.select { |_, n| n > 1 }.map do |(place, id), n|
+        "Post ##{id} has #{n} views on #{PLACE_NAMES.fetch(place, place)}. Send one view per post and place."
+      end
       if problems.any?
         gallery.restore_attributes
         next
@@ -393,13 +402,17 @@ class CreatorGalleryLayout
       CreatorGalleryPost.insert_all!(rows) if rows.any? # rubocop:disable Rails/SkipsModelValidations -- every row was checked above, under the lock
       gallery.creator_gallery_posts.reset
       if views
-        changed = view_ids.zip(view_values).to_h.reject { |_, value| value == CreatorGalleryPostView::IDENTITY }
-        gallery.creator_gallery_post_views.where(post_id: placed.to_a).where.not(post_id: changed.keys).delete_all
-        changed.each { |id, value| gallery.creator_gallery_post_views.find_or_initialize_by(post_id: id).update!(value) }
+        changed = view_keys.zip(view_values).to_h.reject { |_, value| value == CreatorGalleryPostView::IDENTITY }
+        placed.each do |place, ids|
+          kept = changed.keys.select { |at, _| at == place }.map(&:last)
+          gallery.creator_gallery_post_views.where(place: place, post_id: ids.to_a).where.not(post_id: kept).delete_all
+        end
+        changed.each { |(place, id), value| gallery.creator_gallery_post_views.find_or_initialize_by(place: place, post_id: id).update!(value) }
       end
       excess = gallery.creator_gallery_post_views.count - VIEWS_KEPT
       if excess.positive?
-        oldest = gallery.creator_gallery_post_views.where.not(post_id: placed.to_a).order(:updated_at, :id).limit(excess)
+        off = placed.reduce(gallery.creator_gallery_post_views) { |rows, (place, ids)| rows.where.not(place: place, post_id: ids.to_a) } # rubocop:disable Rails/WhereNotWithMultipleConditions -- NOT (in this place AND one of its posts) is the point
+        oldest = off.order(:updated_at, :id).limit(excess)
         CreatorGalleryPostView.where(id: oldest.select(:id)).delete_all
       end
       gallery.creator_gallery_post_views.reset
@@ -524,7 +537,7 @@ class CreatorGalleryLayout
       gradient: harmonic.background_gradient,
       picture: post && showcase.slide_for(post).slice(:id, :tags, :rating, :flags, :score, :uploader_id, :w, :h).merge(
         src: post.media_asset.has_variant?(:"720x720") ? post.media_asset.variant(:"720x720").file_url : post.file_url,
-        focus_x: harmonic.focus_x, focus_y: harmonic.focus_y, zoom: harmonic.zoom, shade: harmonic.shade, view: views[post.id],
+        focus_x: harmonic.focus_x, focus_y: harmonic.focus_y, zoom: harmonic.zoom, shade: harmonic.shade, view: views[["channel", post.id]],
       ),
     }
   end

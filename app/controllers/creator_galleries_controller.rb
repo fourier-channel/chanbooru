@@ -498,7 +498,7 @@ class CreatorGalleriesController < ApplicationController
                                                                   minis: [[:tag, :effect, :dir, :hold, { posts: [] }]], tuner: %i[enabled placement],
                                                                   harmonics: [[:id, :shown, :url, :title, :subtitle, :cta, :background_post_id, :background_gradient,
                                                                                :focus_x, :focus_y, :zoom, :shade, { places: CreatorGalleryHarmonic::ELEMENTS.map(&:to_sym) }]],
-                                                                  views: [%i[post_id flip_h flip_v x y scale stretch]] }])
+                                                                  views: [%i[place post_id flip_h flip_v x y scale stretch]] }])
     problems = CreatorGalleryLayout.new(@gallery).save(page: gallery_params.to_h, look: look.to_h, viewer: CurrentUser.user)
     if problems.empty?
       render json: { ok: true, harmonic_ids: @gallery.creator_gallery_harmonics.reload.ids }

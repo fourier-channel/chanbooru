@@ -177,7 +177,8 @@ class CreatorGalleryComponent < ApplicationComponent
         layout: look["layout"],
         minis: look["minis"].each_with_index.map { |mini, i| mini.merge("posts" => stored["mini#{i + 1}"].to_a) },
         tuner: look["tuner"],
-        # Every view the creator saved, by post: choosing a post re-applies its own.
+        # Every view the creator saved, by place and post: choosing a post for a
+        # place re-applies the view it has there.
         views: layout.views,
         harmonics: gallery.creator_gallery_harmonics.map do |harmonic|
           harmonic.slice(:id, :shown, :url, :title, :subtitle, :cta, :places, :background_post_id, :background_gradient, :focus_x, :focus_y, :zoom, :shade)
