@@ -35,6 +35,16 @@ class AutocompleteServiceTest < ActiveSupport::TestCase
       end
     end
 
+    should "autocomplete emoji by name, reading the query as text" do
+      Danbooru.config.stubs(:dtext_emojis).returns({ "smile" => "x", "frown" => "y" })
+
+      assert_autocomplete_equals([":smile:"], "smi", :emoji)
+      assert_autocomplete_equals([":smile:"], "SMILE:", :emoji)
+      assert_autocomplete_equals([], "s.ile", :emoji)
+      assert_autocomplete_equals([], ".*", :emoji)
+      assert_autocomplete_equals([], "(", :emoji)
+    end
+
     should "autocomplete pools" do
       as(create(:user)) do
         create(:pool, name: "Disgustingly_Adorable")
