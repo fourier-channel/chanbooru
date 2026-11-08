@@ -334,6 +334,8 @@ class ErrorPageTest < ActionDispatch::IntegrationTest
       Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
       Danbooru.config.stubs(:anonymous_default_deny?).returns(true)
       MembersOnly.stubs(:anonymous_newest_ids).returns(Set.new)
+      # Signed out browses in safe mode (gate 10, 2026-11-08): only a post rated g is drawn.
+      @ok.update_columns(rating: "g") # rubocop:disable Rails/SkipsModelValidations
       configure_pictures(@ok)
 
       # Not shown yet, so not open: the record is what opens it.

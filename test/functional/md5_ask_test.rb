@@ -198,8 +198,8 @@ class Md5AskTest < ActionDispatch::IntegrationTest
         # as production's ~69,600 do. Copies of one post, for speed.
         hidden = create(:post, uploader: @tunnel, md5: real_md5, tag_string: "aichan_hidden landscape")
         Post.insert_all(Array.new(Searchable::LONG_IN_LIST) { hidden.attributes.except("id").merge("md5" => real_md5) }) # rubocop:disable Rails/SkipsModelValidations
-        @a = create(:post, uploader: @tunnel, md5: real_md5, tag_string: "4chan_bob landscape")
-        @b = create(:post, uploader: @tunnel, md5: real_md5, tag_string: "landscape")
+        @a = create(:post, uploader: @tunnel, md5: real_md5, tag_string: "4chan_bob landscape", rating: "g")
+        @b = create(:post, uploader: @tunnel, md5: real_md5, tag_string: "landscape", rating: "g")
       end
       CreatorVisibility.forget!
     end
@@ -362,7 +362,8 @@ class Md5AskTest < ActionDispatch::IntegrationTest
       tier = CreatorGroup.make!(gallery, name: "41chan_maple_tier_1", tier: 1, by: @maple)
       tier.add_member!(@member, by: @maple)
       record = ->(post) { FourierPostCreator.create!(post: post, mxid: gallery.matrix_id, recorded_by: @tunnel.id) && post }
-      make = ->(tags, **attrs) { create(:post, uploader: @tunnel, md5: real_md5, tag_string: tags, **attrs) }
+      # Rated g: a signed-out viewer browses in safe mode (gate 10, 2026-11-08).
+      make = ->(tags, **attrs) { create(:post, uploader: @tunnel, md5: real_md5, tag_string: tags, rating: "g", **attrs) }
 
       @posts = {}
       as(@tunnel) do
@@ -387,11 +388,11 @@ class Md5AskTest < ActionDispatch::IntegrationTest
         @posts[:widened] = record.call(make.call("landscape child"))
       end
       as(@member) do
-        @posts[:own_gated] = create(:post, uploader: @member, md5: real_md5, tag_string: "landscape child")
-        @posts[:own_deleted] = create(:post, uploader: @member, md5: real_md5, tag_string: "landscape")
+        @posts[:own_gated] = create(:post, uploader: @member, md5: real_md5, tag_string: "landscape child", rating: "g")
+        @posts[:own_deleted] = create(:post, uploader: @member, md5: real_md5, tag_string: "landscape", rating: "g")
       end
       # The newest page a signed-out viewer is shown, so :old is not on it.
-      @fillers = as(@tunnel) { Array.new(2) { create_list(:post, 10, uploader: @tunnel, tag_string: "landscape md5_filler") }.flatten }
+      @fillers = as(@tunnel) { Array.new(2) { create_list(:post, 10, uploader: @tunnel, tag_string: "landscape md5_filler", rating: "g") }.flatten }
 
       @posts[:jailed].delete!("troll jail: shock", user: @admin)
       @posts[:jailed_live].update!(is_deleted: false) if @posts[:jailed_live].reload.is_deleted?
@@ -418,7 +419,7 @@ class Md5AskTest < ActionDispatch::IntegrationTest
       # Shown signed out, as far as the md5 ask's own filter is concerned:
       # everything but :old, so what keeps a hidden post out of a signed-out
       # answer below is the search, not the shown set.
-      MembersOnly.remember_shown_to_anonymous(@posts.except(:old).values.map(&:id), safe_mode: false)
+      MembersOnly.remember_shown_to_anonymous(@posts.except(:old).values.map(&:id), safe_mode: true)
       @posts.each_value(&:reload)
       CreatorVisibility.forget!
 
@@ -501,6 +502,7 @@ class Md5AskTest < ActionDispatch::IntegrationTest
     should "build the signed-out newest page as the gallery's first page shows it" do
       Post.where(id: @fillers.map(&:id)).update_all(is_deleted: true) # rubocop:disable Rails/SkipsModelValidations
       Post.where(id: @posts.except(:imageboard).values.map(&:id)).update_all(rating: "g") # rubocop:disable Rails/SkipsModelValidations
+      @posts[:imageboard].update_columns(rating: "q") # rubocop:disable Rails/SkipsModelValidations
       visible = { false => %i[plain imageboard released old], true => %i[plain released old] }
 
       visible.each do |safe_mode, names|

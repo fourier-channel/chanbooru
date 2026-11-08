@@ -59,7 +59,7 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
     @gallery.creator_gallery_posts.create!(band: "mini1", post: @mini, position: 0)
     @gallery.creator_gallery_harmonics.create!(site: "civitai", url: "https://civitai.com/user/Rain", title: "Rain", places: CreatorGalleryHarmonic::CONFIG["presets"].first.last,
                                                background_post_id: @picture.id, focus_x: 50, focus_y: 50, zoom: 100, shade: 45)
-    create_list(:post, 21) # rubocop:disable FactoryBot/ExcessiveCreateList -- off the gallery's first page, so only the draw can grant them
+    create_list(:post, 21, rating: "g") # rubocop:disable FactoryBot/ExcessiveCreateList -- off the gallery's first page, so only the draw can grant them
     CreatorVisibility.forget!
   end
 
@@ -74,9 +74,9 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  # Drawn for a signed-out viewer: the draw grants exactly what it drew
+  # Drawn for a signed-out viewer, who browses in safe mode: the draw grants exactly what it drew
   # (CreatorGalleriesController#grant_anonymous_draw).
-  def drawn?(post) = MembersOnly.anonymous_shown_post?(post.id, safe_mode: false)
+  def drawn?(post) = MembersOnly.anonymous_shown_post?(post.id, safe_mode: true)
 
   # On the page as rendered: a slide carries its post's page, the banner and
   # a harmonic's picture their post's id as a blacklist target.
@@ -87,7 +87,7 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
   def found_signed_out(posts)
     CreatorVisibility.forget!
     anonymous = User.anonymous
-    CurrentUser.set(user: anonymous, request: ActionDispatch::TestRequest.create, safe_mode: false) do
+    CurrentUser.set(user: anonymous, request: ActionDispatch::TestRequest.create, safe_mode: true) do
       found = PostQuery.normalize("id:#{posts.map(&:id).join(",")}", current_user: anonymous).with_implicit_metatags.posts.pluck(:id).sort
       visible = posts.reject { |post| post.reload.hidden_from?(anonymous) }.map(&:id).sort
       assert_equal visible, found, "the search and Post#hidden_from? must agree"
@@ -110,8 +110,8 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
     MatrixViewerRooms.unstub(:ids)
   end
 
-  def md5_ask(posts)
-    get posts_path(format: :json), params: { tags: "md5:#{posts.map(&:md5).join(",")}", only: "md5,is_deleted,source", limit: posts.size }
+  def md5_ask(posts, media_door: nil)
+    get posts_path(format: :json), params: { tags: "md5:#{posts.map(&:md5).join(",")}", only: "md5,is_deleted,source", limit: posts.size, media_door: media_door }.compact
     assert_response :success
     response.parsed_body.pluck("md5")
   end
@@ -142,7 +142,7 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
     should "open a placed post's page and answer its md5, and neither for a Matrix post not placed" do
       view
       # Remembered as shown too, so what keeps them out below is Gate 3.
-      MembersOnly.remember_shown_to_anonymous([@loose.id, @redacted.id], safe_mode: false)
+      MembersOnly.remember_shown_to_anonymous([@loose.id, @redacted.id], safe_mode: true)
       get post_path(@hero)
       assert_response :success
       [@loose, @redacted].each do |post|
@@ -180,7 +180,7 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
       assert_equal [flagged, prefixed].map(&:id).sort, (others.map(&:id) & MembersOnly.placed_ids.to_a).sort
       others.each { |post| assert_not(drawn?(post), "post ##{post.id} was drawn") }
       assert_empty found_signed_out(others)
-      MembersOnly.remember_shown_to_anonymous(others.map(&:id), safe_mode: false)
+      MembersOnly.remember_shown_to_anonymous(others.map(&:id), safe_mode: true)
       others.each do |post|
         get post_path(post)
         assert_response 404
@@ -296,6 +296,55 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
       assert_not(drawn?(@hero))
       get post_path(@hero)
       assert_response 404
+    end
+  end
+
+  # SIGNED OUT SEES RATING G ONLY (operator, 2026-11-08: "only sfw images to
+  # signed out viewers"; SessionLoader#signed_out_safe_mode?). A placed Matrix
+  # post rated otherwise is neither drawn nor answered for a signed-out
+  # viewer. A Matrix reader the rooms refused is signed in, and fourier-auth
+  # asks for them with media_door=token_holder (MediaDoorAsk): they keep it.
+  context "a placed post not rated g" do
+    setup do
+      @racy = as(@tunnel) { create(:post, uploader: @tunnel, md5: SecureRandom.hex(16), tag_string: "night", rating: "q") }
+      FourierPostCreator.create!(post: @racy, mxid: @gallery.matrix_id, recorded_by: @tunnel.id)
+      @racy.update_columns(room_ids: @hero.room_ids) # rubocop:disable Rails/SkipsModelValidations -- PostMxc's answer
+      @gallery.creator_gallery_posts.create!(band: "hero", post: @racy, position: 10)
+      CreatorVisibility.forget!
+      MediaDoorAsk.instance_variable_set(:@door_addresses, nil) # its lookup is kept between requests
+    end
+
+    should "not be drawn, opened or answered for a signed-out viewer" do
+      view
+      assert(rendered?(@hero), "fixture: the placed post rated g is drawn signed out")
+      assert_not(rendered?(@racy), "a placed post rated q was drawn for a signed-out viewer")
+      assert_not(drawn?(@racy))
+      assert_includes MembersOnly.placed_ids, @racy.id, "fixture: the page placed it"
+      get post_path(@racy)
+      assert_response 404
+      assert_equal [@hero.md5], md5_ask([@hero, @racy])
+    end
+
+    should "be drawn for a signed-in viewer outside its rooms, and answered to the media door's ask for one" do
+      member = create(:user)
+      view(member)
+      assert(rendered?(@racy), "a member outside the rooms was not drawn the placed post rated q")
+
+      reset!
+      assert_equal [@hero.md5], md5_ask([@hero, @racy])
+      assert_equal [@hero.md5, @racy.md5].sort, md5_ask([@hero, @racy], media_door: "token_holder").sort
+    end
+
+    should "not be answered for a media_door value it does not know" do
+      view
+      assert_equal [@hero.md5], md5_ask([@hero, @racy], media_door: "anyone")
+    end
+
+    should "not be answered to the media door's ask from a peer that is not the media door" do
+      Danbooru.config.stubs(:fourier_media_door).returns("fourier-auth")
+      Resolv.stubs(:getaddresses).with("fourier-auth").returns(["10.9.9.9"])
+      view
+      assert_equal [@hero.md5], md5_ask([@hero, @racy], media_door: "token_holder")
     end
   end
 

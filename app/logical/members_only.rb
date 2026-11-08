@@ -233,7 +233,9 @@ module MembersOnly
   #     PaginationExtension#paginate), not this rule's;
   #   - in json ONLY, `tags=md5:<32 hex>[,<32 hex>...]` (up to the 20 rows a
   #     restricted page holds, fourier-auth's MAX_BATCH) with
-  #     `only=md5,is_deleted,source` and `limit`, and NO other parameter:
+  #     `only=md5,is_deleted,source` and `limit`, and NO other parameter but
+  #     `media_door` (fourier-auth's token-holder ask, MediaDoorAsk; any
+  #     other value of it is ignored there, so the ask stays a stranger's):
   #     fourier-auth's media gate asks exactly that, anonymously, before
   #     every picture it releases (booru-visibility.js), and treats any
   #     non-200 as "booru unavailable" -- refusing it would black out every
@@ -248,7 +250,7 @@ module MembersOnly
   # panel's remembered sort is not applied for them either (PostsController).
   ANONYMOUS_MD5_QUERY = /\Amd5:[0-9a-f]{32}(,[0-9a-f]{32}){0,19}\z/i
   ANONYMOUS_MD5_FIELDS = %w[is_deleted md5 source].freeze
-  ANONYMOUS_MD5_PARAMS = %w[tags only limit].freeze
+  ANONYMOUS_MD5_PARAMS = %w[tags only limit media_door].freeze
 
   def anonymous_post_listing(controller)
     params = controller.params
@@ -285,7 +287,10 @@ module MembersOnly
   # and a signed-in view of the page must be enough. Its post page still
   # opens signed out only for what a signed-out view drew.
   #
-  # fourier-auth's ask carries no safe mode, so both modes' shown sets count.
+  # Both modes' shown sets count. A stranger's ask runs in safe mode since
+  # 2026-11-08 (gate 10), so its search keeps rating g alone, whatever a set
+  # holds; a token holder's ask (media_door) runs out of safe mode, as the
+  # signed-in reader it stands for.
   # One batch (up to 20 rows) costs four cache reads and two cached newest
   # pages, whatever the batch holds; the rows kept are then
   # read back by primary key, so the answer renders as any other search does.

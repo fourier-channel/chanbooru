@@ -330,8 +330,17 @@ class SessionLoader
   end
 
   def set_safe_mode
-    safe_mode = request.host.in?(Danbooru.config.safe_mode_hostnames) || params[:safe_mode].to_s.truthy? || CurrentUser.user.enable_safe_mode?
+    safe_mode = request.host.in?(Danbooru.config.safe_mode_hostnames) || params[:safe_mode].to_s.truthy? || CurrentUser.user.enable_safe_mode? || signed_out_safe_mode?
     CurrentUser.safe_mode = safe_mode
+  end
+
+  # A signed-out viewer sees rating g only (operator, 2026-11-08: "only sfw
+  # images to signed out viewers"). Signed out as MembersOnly means it: no
+  # booru account and no verified Matrix identity. fourier-auth's md5 ask for
+  # a Matrix reader the rooms refused is not signed out (MediaDoorAsk).
+  # Published pages are sampling's, never served from here, and unchanged.
+  def signed_out_safe_mode?
+    MembersOnly.default_deny? && MembersOnly.signed_out?(CurrentUser.user, request) && !MediaDoorAsk.token_holder?(request, params)
   end
 
   # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Save-Data

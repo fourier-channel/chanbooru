@@ -244,8 +244,10 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
     setup do
       # Real md5s: the factory's are 64 hex characters, and the md5 door
       # admits only what an md5 is.
-      @old = create(:post, created_at: 2.days.ago, md5: SecureRandom.hex(16))
-      @newest = Array.new(21) { create(:post, md5: SecureRandom.hex(16)) }.last
+      # Rated g: a signed-out viewer browses in safe mode and sees rating g
+      # alone (gate 10, operator 2026-11-08).
+      @old = create(:post, rating: "g", created_at: 2.days.ago, md5: SecureRandom.hex(16))
+      @newest = Array.new(21) { create(:post, rating: "g", md5: SecureRandom.hex(16)) }.last
     end
 
     # The front page is the anonymous draw ON PURPOSE (operator, 2026-10-08:
@@ -260,7 +262,7 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
       first = slide_ids
       assert(first.any?, "the showcase drew nothing, so this proves nothing")
 
-      later = create(:post, md5: SecureRandom.hex(16), fav_count: 1_000)
+      later = create(:post, rating: "g", md5: SecureRandom.hex(16), fav_count: 1_000)
       assert_admitted "/landing/slides.json"
       assert_includes(slide_ids, later.id, "a signed-out draw must be live, not frozen")
     end
@@ -295,10 +297,10 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
                                 kind: "tags", tags: ["featured_maker"], ordering: "new", fresh_only: false)
         # Twelve by the featured creator, all older than the gallery's first
         # page; the row shows ten of them, the tag page all twelve.
-        @made = Array.new(12) { |i| create(:post, tag_string: "featured_maker", created_at: (10 + i).days.ago, md5: SecureRandom.hex(16)) }
-        create(:post, tag_string: "unfeatured_maker", created_at: 9.days.ago, md5: SecureRandom.hex(16))
+        @made = Array.new(12) { |i| create(:post, rating: "g", tag_string: "featured_maker", created_at: (10 + i).days.ago, md5: SecureRandom.hex(16)) }
+        create(:post, rating: "g", tag_string: "unfeatured_maker", created_at: 9.days.ago, md5: SecureRandom.hex(16))
         # The gallery's first page is newest by id: push these off it.
-        21.times { create(:post, md5: SecureRandom.hex(16)) }
+        21.times { create(:post, rating: "g", md5: SecureRandom.hex(16)) }
       end
 
       should "link a featured creator's pill and leave every other pill unlinked" do
@@ -414,7 +416,7 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
     # fourier-auth reads absence as refused and asks again as the reader's
     # own booru session, so a signed-in reader is unaffected.
     should "answer fourier-auth's anonymous md5 ask only for posts the site showed signed out" do
-      gated = create(:post, tag_string: "aaaa child", md5: SecureRandom.hex(16))
+      gated = create(:post, rating: "g", tag_string: "aaaa child", md5: SecureRandom.hex(16))
       ask = lambda do |*posts|
         get "/posts.json", params: { tags: "md5:#{posts.map(&:md5).join(",")}", only: "md5,is_deleted,source", limit: posts.size }
         assert_response 200
@@ -438,22 +440,24 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
       assert_equal([@old.md5], ask.call(@old).pluck("md5"))
     end
 
-    # The ask carries no safe mode, so both modes' shown sets count: the
-    # hourly buckets of each and the newest page of each. A promoted
+    # Both modes' shown sets count: the hourly buckets of each and the newest
+    # page of each. A stranger's ask runs in safe mode since 2026-11-08 (gate
+    # 10), so every post here is rated g; a set holding a non-g id grants
+    # nothing to a stranger. A promoted
     # creator's posts count once their page DREW them for a signed-out viewer
     # (Creator Gallery rebuild, 2026-10-23): a curated post the page did not
     # draw -- no longer fitting its band, made private since -- is never
     # granted, where the old curated-set grant opened it for good.
     should "count a post shown in either safe mode, or drawn on a promoted creator's page, in the md5 ask" do
       gallery = create(:creator_gallery, promoted_at: Time.current, settings: { "hero" => { "tags" => %w[drawn_band] }})
-      safe_shown, all_shown = Array.new(2) { create(:post, md5: SecureRandom.hex(16)) }
-      drawn = create(:post, md5: SecureRandom.hex(16), tag_string: "drawn_band")
-      undrawn = create(:post, md5: SecureRandom.hex(16), tag_string: "other_band")
+      safe_shown, all_shown = Array.new(2) { create(:post, rating: "g", md5: SecureRandom.hex(16)) }
+      drawn = create(:post, rating: "g", md5: SecureRandom.hex(16), tag_string: "drawn_band")
+      undrawn = create(:post, rating: "g", md5: SecureRandom.hex(16), tag_string: "other_band")
       [drawn, undrawn].each_with_index do |post, i|
         FourierPostCreator.create!(post: post, mxid: gallery.matrix_id, recorded_by: post.uploader_id)
         CreatorGalleryPost.create!(creator_gallery: gallery, post: post, position: i)
       end
-      create_list(:post, 21) # rubocop:disable FactoryBot/ExcessiveCreateList -- all four are off the newest page now
+      create_list(:post, 21, rating: "g") # rubocop:disable FactoryBot/ExcessiveCreateList -- all four are off the newest page now
       MembersOnly.remember_shown_to_anonymous([safe_shown.id], safe_mode: true)
       MembersOnly.remember_shown_to_anonymous([all_shown.id], safe_mode: false)
       ask = lambda do
@@ -478,13 +482,13 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
     should "grant a signed-out visitor the promoted card's picture, the hero band's first drawn post" do
       LandingCategory.create!(LandingCategory::DEFAULTS.find { it[:kind] == "galleries" }.merge(enabled: false))
       gallery = create(:creator_gallery, promoted_at: Time.current, settings: { "hero" => { "tags" => %w[drawn_band] }})
-      veiled, stray, drawn = %w[drawn_band other_band drawn_band].map { |tags| create(:post, md5: SecureRandom.hex(16), tag_string: tags) }
+      veiled, stray, drawn = %w[drawn_band other_band drawn_band].map { |tags| create(:post, rating: "g", md5: SecureRandom.hex(16), tag_string: tags) }
       [veiled, stray, drawn].each_with_index do |post, i|
         FourierPostCreator.create!(post: post, mxid: gallery.matrix_id, recorded_by: post.uploader_id)
         CreatorGalleryPost.create!(creator_gallery: gallery, post: post, position: i)
       end
       CreatorPostAudience.set!(veiled, gallery: gallery, audience: "private", by: create(:admin_user))
-      create_list(:post, 21) # rubocop:disable FactoryBot/ExcessiveCreateList -- all three are off the newest page now
+      create_list(:post, 21, rating: "g") # rubocop:disable FactoryBot/ExcessiveCreateList -- all three are off the newest page now
 
       get root_path
       assert_response 200
@@ -538,7 +542,7 @@ class AnonymousDefaultDenyTest < ActionDispatch::IntegrationTest
       # a thumbnail clicked minutes later still opens.
       get posts_path
       shown = Post.order(id: :desc).limit(20).last
-      create_list(:post, 21)
+      create_list(:post, 21, rating: "g")
       assert_admitted post_path(shown)
       assert_refused post_path(@old), why: :narrowed
     end

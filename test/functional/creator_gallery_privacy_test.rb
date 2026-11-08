@@ -34,10 +34,10 @@ class CreatorGalleryPrivacyTest < ActionDispatch::IntegrationTest
     @posts.first(5).each_with_index { |post, i| @gallery.creator_gallery_posts.create!(band: "hero", post: post, position: i) }
     @gallery.creator_gallery_posts.create!(band: "mini1", post: @posts[5], position: 0)
     @gallery.creator_gallery_messages.create!(body: "Commissions open")
-    create_list(:post, 21) # rubocop:disable FactoryBot/ExcessiveCreateList -- off the gallery's first page, so only the draw can grant them
+    create_list(:post, 21, rating: "g") # rubocop:disable FactoryBot/ExcessiveCreateList -- off the gallery's first page, so only the draw can grant them
   end
 
-  def shown?(post) = MembersOnly.anonymous_shown_post?(post.id, safe_mode: false)
+  def shown?(post) = MembersOnly.anonymous_shown_post?(post.id, safe_mode: true)
 
   def view(user = nil, headers: {})
     user ? get_auth(creator_gallery_path(@gallery), user, headers: headers) : get(creator_gallery_path(@gallery), headers: headers)

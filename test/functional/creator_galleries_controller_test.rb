@@ -261,14 +261,14 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
       @posts.each_with_index { |post, i| @gallery.creator_gallery_posts.create!(band: "hero", post: post, position: i) }
       @gallery.creator_gallery_posts.create!(band: "mini1", post: @posts[1], position: 0)
       CreatorPostAudience.set!(@posts[0], gallery: @gallery, audience: "private", by: create(:admin_user))
-      create_list(:post, 21) # rubocop:disable FactoryBot/ExcessiveCreateList -- off the gallery's first page, so only the draw can grant them
+      create_list(:post, 21, rating: "g") # rubocop:disable FactoryBot/ExcessiveCreateList -- off the gallery's first page, so only the draw can grant them
 
       get creator_gallery_path(@gallery)
 
       assert_response :success
       # Rain on the even posts, snow on the odd; the first is private now.
       drawn = [banner, @posts[1], @posts[2], @posts[4]]
-      shown = ->(post) { MembersOnly.anonymous_shown_post?(post.id, safe_mode: false) }
+      shown = ->(post) { MembersOnly.anonymous_shown_post?(post.id, safe_mode: true) }
       drawn.each { |post| assert(shown.call(post), "drawn post ##{post.id} was not granted") }
       [@posts[0], @posts[3], @posts[5]].each { |post| assert_not(shown.call(post), "undrawn post ##{post.id} was granted") }
       travel_to(3.hours.from_now) do
@@ -410,8 +410,8 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
         FourierPostCreator.create!(post: picture, mxid: @gallery.matrix_id, recorded_by: @tunnel.id)
         @gallery.creator_gallery_harmonics.create!(site: "civitai", url: "https://civitai.com/user/Alice", title: "Alice", places: @corner,
                                                    background_post_id: picture.id, focus_x: 50, focus_y: 50, zoom: 100, shade: 45)
-        create_list(:post, 21) # rubocop:disable FactoryBot/ExcessiveCreateList -- off the gallery's first page, so only the draw can grant them
-        shown = -> { MembersOnly.anonymous_shown_post?(picture.id, safe_mode: false) }
+        create_list(:post, 21, rating: "g") # rubocop:disable FactoryBot/ExcessiveCreateList -- off the gallery's first page, so only the draw can grant them
+        shown = -> { MembersOnly.anonymous_shown_post?(picture.id, safe_mode: true) }
 
         @gallery.update!(settings: { "hero" => { "tags" => %w[rain] }, "layout" => "1-2", "minis" => [{ "tag" => "snow" }], "tuner" => { "enabled" => false }})
         get creator_gallery_path(@gallery)

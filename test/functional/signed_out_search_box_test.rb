@@ -14,7 +14,7 @@ class SignedOutSearchBoxTest < ActionDispatch::IntegrationTest
   setup do
     Danbooru.config.stubs(:anonymous_default_deny?).returns(true)
     @uploader = create(:user)
-    as(@uploader) { create(:post, tag_string: "landscape") }
+    as(@uploader) { create(:post, tag_string: "landscape", rating: "g") }
   end
 
   context "the Modulation gallery" do
@@ -34,7 +34,7 @@ class SignedOutSearchBoxTest < ActionDispatch::IntegrationTest
     should "draw a signed-out viewer's tag pills as labels, linking only a featured creator's tag" do
       LandingCategory.create!(key: "featured", label: "Featured Creators", enabled: true, position: 0,
                               kind: "tags", tags: ["featured_maker"], ordering: "new", fresh_only: false)
-      as(@uploader) { create(:post, tag_string: "featured_maker") }
+      as(@uploader) { create(:post, tag_string: "featured_maker", rating: "g") }
 
       get posts_path(preset: "modulation")
 
@@ -62,7 +62,7 @@ class SignedOutSearchBoxTest < ActionDispatch::IntegrationTest
     setup do
       LandingCategory.create!(key: "featured", label: "Featured Creators", enabled: true, position: 0,
                               kind: "tags", tags: ["featured_maker"], ordering: "new", fresh_only: false)
-      @post = as(@uploader) { create(:post, tag_string: "featured_maker landscape") }
+      @post = as(@uploader) { create(:post, tag_string: "featured_maker landscape", rating: "g") }
     end
 
     should "name only a featured creator's tag as a link for a signed-out viewer" do

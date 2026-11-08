@@ -45,6 +45,65 @@ class SessionLoaderTest < ActiveSupport::TestCase
         assert_equal(true, CurrentUser.safe_mode?)
       end
 
+      context "for a viewer signed out, with the default-deny rule in force" do
+        setup do
+          Danbooru.config.stubs(:anonymous_default_deny?).returns(true)
+          @request.stubs(:get_header).returns(nil)
+          @request.stubs(:remote_addr).returns("10.0.0.5")
+          MediaDoorAsk.instance_variable_set(:@door_addresses, nil) # its lookup is kept between requests
+        end
+
+        should "be on: signed-out viewers see rating g only" do
+          SessionLoader.new(@request).load
+
+          assert_equal(true, CurrentUser.safe_mode?)
+        end
+
+        should "be off for a signed-in member" do
+          @user = create(:user)
+          @request.stubs(:session).returns(user_id: @user.id)
+          SessionLoader.new(@request).load
+
+          assert_equal(false, CurrentUser.safe_mode?)
+        end
+
+        should "be off for a verified Matrix identity" do
+          @request.stubs(:get_header).with(FourierIdentity::HEADER).returns("@bob:41chan.net")
+          @request.stubs(:get_header).with("fourier_identity.from_proxy").returns(true)
+          @request.stubs(:has_header?).returns(true)
+          SessionLoader.new(@request).load
+
+          assert_equal(false, CurrentUser.safe_mode?)
+        end
+
+        should "be off for the media door's ask for a token holder, from the media door" do
+          Danbooru.config.stubs(:fourier_media_door).returns("fourier-auth")
+          Resolv.stubs(:getaddresses).with("fourier-auth").returns(["10.0.0.5"])
+          @request.stubs(:query_parameters).returns({ "media_door" => "token_holder" })
+          SessionLoader.new(@request).load
+
+          assert_equal(false, CurrentUser.safe_mode?)
+        end
+
+        should "stay on for the same ask from any other peer" do
+          Danbooru.config.stubs(:fourier_media_door).returns("fourier-auth")
+          Resolv.stubs(:getaddresses).with("fourier-auth").returns(["10.0.0.9"])
+          @request.stubs(:query_parameters).returns({ "media_door" => "token_holder" })
+          SessionLoader.new(@request).load
+
+          assert_equal(true, CurrentUser.safe_mode?)
+        end
+
+        should "stay on when the media door resolves to nothing" do
+          Danbooru.config.stubs(:fourier_media_door).returns("fourier-auth")
+          Resolv.stubs(:getaddresses).with("fourier-auth").returns([])
+          @request.stubs(:query_parameters).returns({ "media_door" => "token_holder" })
+          SessionLoader.new(@request).load
+
+          assert_equal(true, CurrentUser.safe_mode?)
+        end
+      end
+
       should "not raise if the request has no remote ip" do
         @request.stubs(:remote_ip).returns(nil)
 
