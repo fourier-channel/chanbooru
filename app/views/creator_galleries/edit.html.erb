@@ -22,6 +22,46 @@
     </section>
   <% end %>
 
+  <%# --- timed links (CreatorTimedLinks; CREATOR_REACH sec 2) --- %>
+  <% timed = capture do %>
+    <section id="creator-timed-links" class="modcreator-timed">
+      <p class="modcreator-timed-about">
+        An address for up to <%= CreatorTimedLinks::MAX_POSTS %> of your posts, at any rating, that stops working after the day you pick.
+        Anyone with the address sees them; jailed, banished and flagged posts are never shown. End now stops it at once.
+      </p>
+      <% if @timed_links_problem %>
+        <p class="modcreator-timed-problem"><%= @timed_links_problem %></p>
+      <% else %>
+        <% listing = @timed_links %>
+        <% latest = CreatorTimedLinks.latest_end_date(listing.max_days) %>
+        <p class="modcreator-timed-count"><%= listing.links.size %> of <%= listing.max_live %> live links</p>
+        <% if listing.links.any? %>
+          <ul class="modcreator-timed-list">
+            <% listing.links.each do |link| %>
+              <li>
+                <strong><%= link.title.presence || "Untitled" %></strong>
+                <span><%= pluralize(link.post_count, "post") %>, ends <time datetime="<%= link.ends_at.iso8601 %>"><%= link.ends_at.strftime("%Y-%m-%d %H:%M") %></time></span>
+                <input type="text" readonly value="<%= link.url %>" aria-label="Address of <%= link.title.presence || "this link" %>" class="modcreator-timed-url">
+                <%= button_to "End now", creator_gallery_path(@gallery), method: :patch, params: { timed_link: "end", hash: link.hash_id }, class: "modcreator-remove" %>
+              </li>
+            <% end %>
+          </ul>
+        <% end %>
+        <% if listing.links.size < listing.max_live %>
+          <%= form_with url: creator_gallery_path(@gallery), method: :patch, class: "modcreator-form modcreator-timed-form" do |f| %>
+            <%= hidden_field_tag :timed_link, "create" %>
+            <label>Title (shown on the page) <%= text_field_tag :title, nil, maxlength: CreatorTimedLinks::TITLE_MAX, placeholder: "October set" %></label>
+            <label>Post numbers, up to <%= CreatorTimedLinks::MAX_POSTS %>, in the order to show them <%= text_area_tag :post_ids, nil, rows: 2, required: true, placeholder: "1234 5678 9012" %></label>
+            <label>Last day it works <%= date_field_tag :ends_on, latest, min: Time.zone.today, max: latest, required: true %></label>
+            <%= f.submit "Make a timed link" %>
+          <% end %>
+        <% else %>
+          <p>You have <%= listing.max_live %> live links, the most allowed. End one to make another.</p>
+        <% end %>
+      <% end %>
+    </section>
+  <% end %>
+
   <% settings = ModulationSetting.for_viewer(CurrentUser.user, session) %>
   <%= render CreatorGalleryComponent.new(
         gallery: @gallery,
@@ -35,6 +75,6 @@
         wheel: settings["wheel_scroll"].to_s.truthy?,
         about_open: settings["creator_about_open"].to_s.truthy?,
         about_boxes: settings["creator_about_boxes"],
-        panels: { "Blog messages" => blog }) %>
+        panels: { "Blog messages" => blog, "Timed links" => timed }) %>
 <% end %>
 <% content_for(:html_header) do %><% page_title "Edit #{@gallery.slug}" %><% end %>

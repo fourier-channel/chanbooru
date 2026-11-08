@@ -168,6 +168,7 @@ class CreatorGalleriesController < ApplicationController
     @draw = @layout.draw(CurrentUser.user, manager: true)
     @palette = @layout.palette(CurrentUser.user)
     @avatar = @layout.avatar(CurrentUser.user)
+    @timed_links, @timed_links_problem = timed_links_listing
   end
 
   # Claim your page. A non-admin may only create the gallery for their own
@@ -209,6 +210,7 @@ class CreatorGalleriesController < ApplicationController
     return take_up_character(params[:take_up_character]) if params[:take_up_character].present?
     return release_character_claim(params[:release_character]) if params[:release_character].present?
     return panel_write if params[:panel].present?
+    return timed_link_write if params[:timed_link].present?
     return save_layout if params[:layout].present?
 
     return redirect_to(creator_gallery_path(@gallery)) if @gallery.update(gallery_params)
@@ -257,6 +259,11 @@ class CreatorGalleriesController < ApplicationController
     @gallery.creator_gallery_messages.where(id: params[:message_id]).destroy_all
     respond_change
   end
+
+  # Timed links (below): where the editor scrolls back to, and what a creator
+  # reads when the link service fails (the log carries the reason).
+  TIMED_LINKS_ANCHOR = "modcreator-box-timed-links"
+  TIMED_LINK_FAILED = "Not done: the link service did not answer as it should. The server log says what is wrong; the site owner fixes it, then try again."
 
   private
 
@@ -616,6 +623,73 @@ class CreatorGalleriesController < ApplicationController
     # 2026-10-19); what is wrong with the list goes to the log.
     Rails.logger.error("creator panel @#{@gallery.slug}: #{act} not saved, the creator-prefix list is broken: #{e.message}")
     panel_redirect(act, stay, "Not saved: the creator-prefix list is broken; the server log says what is wrong. The site owner fixes the list, then try again.")
+  end
+
+  # --- TIMED LINKS (CreatorTimedLinks; CREATOR_REACH sec 2) ---------------
+  # PATCH creators/:slug with timed_link=create (post_ids, title, ends_on) or
+  # timed_link=end (hash): the same writer as the panel (panel_refusal), and
+  # back to the editor's Timed links panel with what happened.
+
+  # [Listing, nil], or [nil, words for the panel]. The editor still draws
+  # when sampling is down; the panel says so and the log says why.
+  def timed_links_listing
+    links = CreatorTimedLinks.new(@gallery)
+    return [nil, "Timed links are not switched on yet on this site."] unless links.configured?
+
+    [links.list, nil]
+  rescue CreatorTimedLinks::Failure => e
+    Rails.logger.error("creator timed links @#{@gallery.slug}: listing failed: #{e.message}")
+    [nil, "Your timed links cannot be shown right now: the link service did not answer. The site owner has been told in the server log."]
+  end
+
+  def timed_link_write
+    act = params[:timed_link].to_s
+    raise ActionController::BadRequest, "Unknown timed link action \"#{act}\". Reload the page and try again." unless act.in?(%w[create end])
+
+    require_panel_writer!
+    links = CreatorTimedLinks.new(@gallery)
+    notice = (act == "create") ? timed_link_create(links) : timed_link_end(links)
+    redirect_to edit_creator_gallery_path(@gallery, anchor: TIMED_LINKS_ANCHOR), notice: notice
+  rescue Refused, CreatorTimedLinks::Refused => e
+    redirect_to edit_creator_gallery_path(@gallery, anchor: TIMED_LINKS_ANCHOR), notice: e.message
+  rescue CreatorTimedLinks::Failure => e
+    Rails.logger.error("creator timed links @#{@gallery.slug}: #{act} failed: #{e.message}")
+    redirect_to edit_creator_gallery_path(@gallery, anchor: TIMED_LINKS_ANCHOR), notice: TIMED_LINK_FAILED
+  end
+
+  def timed_link_create(links)
+    ids = params[:post_ids].to_s.scan(/\d+/).map(&:to_i).uniq
+    raise Refused, "Write the numbers of the posts to show, for example 1234 5678." if ids.empty?
+    raise Refused, "A timed link shows at most #{CreatorTimedLinks::MAX_POSTS} posts; you listed #{ids.size}. Take some off." if ids.size > CreatorTimedLinks::MAX_POSTS
+
+    found = Post.where(id: ids).index_by(&:id)
+    owners = CreatorControl.controller_gallery_ids(found.values)
+    posts = ids.map do |id|
+      post = found[id]
+      # Missing, hidden from the creator and not theirs read alike.
+      raise Refused, format(NOT_YOUR_POST, id) if post.nil? || post.hidden_from?(CurrentUser.user) || owners.fetch(id, []).exclude?(@gallery.id)
+
+      post
+    end
+    ends_on = timed_link_end_date
+    max_days = links.list.max_days
+    link = links.create(posts: posts, title: params[:title], ends_on: ends_on, max_days: max_days)
+    "Made: #{link.url} -- it shows #{link.post_count} #{"post".pluralize(link.post_count)} until the end of #{ends_on.iso8601}."
+  end
+
+  def timed_link_end(links)
+    links.finish(params[:hash])
+    "Ended. That address shows nothing from now on."
+  end
+
+  def timed_link_end_date
+    date = params[:ends_on].to_s.strip
+    raise Refused, "Pick the last day the link should work." if date.empty?
+    raise Refused, "Write the end date as YYYY-MM-DD." unless date.match?(/\A\d{4}-\d{2}-\d{2}\z/)
+
+    Date.iso8601(date)
+  rescue Date::Error
+    raise Refused, "Write the end date as YYYY-MM-DD."
   end
 
   # Back to the block the act answers on, or to the one group left open.

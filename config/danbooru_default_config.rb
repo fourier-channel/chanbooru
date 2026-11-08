@@ -1114,6 +1114,25 @@ module Danbooru
       nil
     end
 
+    # TIMED LINKS (CreatorTimedLinks; fourier-basis docs/design/CREATOR_REACH.md
+    # sec 2): fourier-sampling's publications service as the booru reaches it,
+    # through Caddy's :5181 door on the danbooru_default bridge gateway -- the
+    # door fourier-auth reads published pages through. Set
+    # DANBOORU_FOURIER_SAMPLING_INTERNAL_URL in .env.local (the gateway address
+    # is the box's, so it is not written here). nil: the gallery editor says
+    # timed links are not switched on.
+    def fourier_sampling_internal_url
+      nil
+    end
+
+    # The key the booru asks sampling for creator links with; the same value as
+    # FS_CREATOR_LINK_KEY in /etc/fourier-sampling/env. A secret: set
+    # DANBOORU_FOURIER_SAMPLING_CREATOR_KEY in the gitignored .env.local, never
+    # here.
+    def fourier_sampling_creator_key
+      nil
+    end
+
     # Whether to enable comments.
     def comments_enabled?
       true

@@ -997,3 +997,49 @@ body:has(.modcreator) {
     .modcreator-about, .modcreator-about-btn svg { transition: none; }
   }
 }
+
+// The editor's Timed links panel (CREATOR_REACH sec 2): the live links, one
+// row each with its address to copy and End now, then the form.
+.modcreator-timed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+
+  .modcreator-timed-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    li {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.3rem 0.6rem;
+    }
+  }
+
+  .modcreator-timed-url {
+    flex: 1 1 18rem;
+    min-width: 0;
+    font-family: monospace;
+  }
+
+  .modcreator-timed-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+  }
+
+  .modcreator-timed-problem {
+    font-weight: bold;
+  }
+}
