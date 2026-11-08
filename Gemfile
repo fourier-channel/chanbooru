@@ -40,7 +40,7 @@ gem "puma_worker_killer"
 gem "rack-timeout", require: "rack/timeout/base"
 gem "rackup"
 gem "ffi"
-gem "rbtrace"
+gem "rbtrace", require: false # Use `bin/rbtrace --exec` or `RUBYOPT=-rrbtrace` to enable.
 gem "good_job"
 gem "crass"
 gem "public_suffix"
