@@ -1,7 +1,7 @@
 import Landing from "./modulation_landing_component";
 import {
-  BLANK_MINI, HERO_MAX, HERO_MIN, MIN_W, MINI_EFFECTS, MINI_MAX, DIRS, ROW_H,
-  adderRow, bandRule, groundPlan, layoutOf, miniLook, miniRole, problemsOf, rowsOf, ruleSentence, slotCount, tagsOf,
+  BLANK_MINI, HERO_MAX, HERO_MIN, MIN_W, MINI_EFFECTS, MINI_MAX, DIRS, ROW_H, SETS,
+  adderRow, bandRule, countIn, groundPlan, setOf, layoutOf, miniLook, miniRole, problemsOf, rowsOf, ruleSentence, slotCount, tagsOf,
 } from "./creator_gallery_model";
 import { covered, harmonicModel } from "./harmonic_model";
 import { bindLeave, mountTuner, tunerSection } from "./creator_tuner";
@@ -296,7 +296,7 @@ function editor(root, data, bindMinis, ground) {
   // its view there, to bring back when it is put there again.
   const viewsOnPage = (d) => {
     const on = {
-      banner: [d.banner.post_id], hero: d.hero.posts, mini: d.minis.slice(0, slotCount(d.layout)).flatMap((m) => m.posts),
+      banner: [d.banner.post_id, d.banner.member_post_id], hero: d.hero.posts, mini: d.minis.slice(0, slotCount(d.layout)).flatMap((m) => m.posts),
       channel: d.harmonics.map((h) => h.background_post_id),
     };
     return d.views.filter((v) => on[v.place]?.includes(v.post_id));
@@ -322,6 +322,9 @@ function editor(root, data, bindMinis, ground) {
   let saving = false;
   let leaving = false;
   let openMini = -1;
+  // Which banner the editor's page shows: the members' (what the creator,
+  // signed in, sees) until the banner for everyone is picked.
+  let bannerSide = "members";
   let toastTimer = 0;
 
   // The Tuner's harmonics (CREATOR_TUNER.md rev 3): the list's own checks,
@@ -659,12 +662,13 @@ function editor(root, data, bindMinis, ground) {
   function renderHeroPicker() {
     const box = region("hero-picker");
     const posts = draft.hero.posts;
-    region("hero-posts").textContent = `Posts (${posts.length}/${HERO_MAX})`;
+    region("hero-posts").textContent = `Posts (${posts.length}/${HERO_MAX * 2})`;
     region("hero-posts").setAttribute("aria-expanded", String(!box.hidden));
     if (box.hidden) { return; }
     const rule = bandRule(draft.hero.tags);
     const base = heroBase();
-    const full = posts.length >= HERO_MAX;
+    // Each set has its own maximum (CREATOR_REACH.md sec 1).
+    const full = (s) => countIn(posts, slideOf, setOf(s)) >= HERO_MAX;
     const stageAs = (list) => {
       draft.hero.posts = list;
       renderHeroPicker(); renderChips(); rebuildBelt(); changed();
@@ -691,14 +695,14 @@ function editor(root, data, bindMinis, ground) {
             ...(at >= 0 ? [el("span", { class: "cg-thumb-num" }, String(at + 1))] : []),
             el("span", { class: "cg-thumb-cap" }, `#${s.id}`, ...(chars ? [el("br", {}), el("span", { class: "cg-thumb-chars" }, chars)] : []))];
         },
-        blocked: (s) => full && !posts.includes(s.id),
+        blocked: (s) => full(s) && !posts.includes(s.id),
         act: (s) => {
           const on = posts.includes(s.id);
           return {
             attrs: { "data-cg-act": "hero-pick", "data-id": s.id },
             text: on ? "Take off the band" : "Pick",
-            disabled: full && !on,
-            why: full && !on ? `The band holds ${HERO_MAX} posts, the most. Take one off first` : null,
+            disabled: full(s) && !on,
+            why: full(s) && !on ? `The band holds ${HERO_MAX} posts ${SETS[setOf(s)]}, the most. Take one off first` : null,
           };
         },
         strip: "hero",
@@ -707,7 +711,8 @@ function editor(root, data, bindMinis, ground) {
     }
     keepScroll(box, () => fill(box,
       el("div", { class: "modcreator-picker-head" },
-        el("span", { class: "cg-label modcreator-picker-title" }, `The band's posts: ${posts.length}, from ${HERO_MIN} to ${HERO_MAX}, in this order`),
+        el("span", { class: "cg-label modcreator-picker-title" },
+          `The band's posts, in this order: ${countIn(posts, slideOf, "g")} of ${HERO_MAX} for everyone, ${countIn(posts, slideOf, "other")} of ${HERO_MAX} for members only, at least ${HERO_MIN} in all`),
         el("button", { type: "button", class: "cg-btn cg-btn--sm", "data-cg-act": "hero-picker" }, "Done")),
       decks.stage("hero", posts.map((id, i) => stripItem("hero", id, i, posts.length, {})), {
         label: "The band's posts, in order",
@@ -779,7 +784,7 @@ function editor(root, data, bindMinis, ground) {
       el("label", { class: "modcreator-mini-hold" }, "Hold",
         el("input", { type: "range", min: 2, max: 12, value: mini.hold, "data-cg-field": "mini-hold", "data-i": i }),
         el("span", {}, `${mini.hold}s`)),
-      el("button", { type: "button", class: "cg-btn cg-btn--sm", "data-cg-act": "mini-picker", "data-i": i, "aria-expanded": String(openMini === i) }, `Posts (${mini.posts.length}/${MINI_MAX})`)));
+      el("button", { type: "button", class: "cg-btn cg-btn--sm", "data-cg-act": "mini-picker", "data-i": i, "aria-expanded": String(openMini === i) }, `Posts (${mini.posts.length}/${MINI_MAX * 2})`)));
   }
 
   // `andWindow` false leaves an open window as it stands: a fit ended by a
@@ -811,7 +816,7 @@ function editor(root, data, bindMinis, ground) {
     const mini = draft.minis[i];
     const answer = loaded.get(mini.tag);
     const used = usedMap(draft.minis.slice(0, slotCount(draft.layout)), i);
-    const full = mini.posts.length >= MINI_MAX;
+    const full = (s) => countIn(mini.posts, slideOf, setOf(s)) >= MINI_MAX;
     const here = (id) => mini.posts.includes(id);
     const stageAs = (list) => {
       mini.posts = list;
@@ -833,9 +838,10 @@ function editor(root, data, bindMinis, ground) {
           return [{ "aria-pressed": String(at >= 0) }, ...(at >= 0 ? [el("span", { class: "cg-thumb-num" }, String(at + 1))] : [])];
         },
         note: (s) => (used.has(s.id) ? `${here(s.id) ? "Also in" : "Used in"} ${usedWords(used.get(s.id))}` : null),
-        blocked: (s) => !here(s.id) && (used.has(s.id) || full),
+        blocked: (s) => !here(s.id) && (used.has(s.id) || full(s)),
         act: (s) => {
-          const why = (used.has(s.id) && "A post shows on one miniband only. Take it off the other first") || (full && `A miniband holds ${MINI_MAX} posts, the most. Take one off first`);
+          const why = (used.has(s.id) && "A post shows on one miniband only. Take it off the other first") ||
+            (full(s) && `A miniband holds ${MINI_MAX} posts ${SETS[setOf(s)]}, the most. Take one off first`);
           return {
             attrs: { "data-cg-act": "mini-pick", "data-i": i, "data-id": s.id },
             text: here(s.id) ? "Take off the miniband" : "Pick",
@@ -850,7 +856,7 @@ function editor(root, data, bindMinis, ground) {
     keepScroll(win, () => fill(win,
       el("div", { class: "modcreator-mini-window-head" },
         el("span", { class: "modcreator-mini-num" }, String(i + 1)),
-        el("span", { class: "cg-label" }, mini.tag ? `${label(mini.tag)}: ${mini.posts.length} of ${MINI_MAX}, in this order` : "Pick a tag first"),
+        el("span", { class: "cg-label" }, mini.tag ? `${label(mini.tag)}, in this order: ${countIn(mini.posts, slideOf, "g")} of ${MINI_MAX} for everyone, ${countIn(mini.posts, slideOf, "other")} of ${MINI_MAX} for members only` : "Pick a tag first"),
         el("button", { type: "button", class: "cg-btn cg-btn--sm", "data-cg-act": "mini-picker", "data-i": i }, "Done")),
       decks.stage(`mini-${i}`, mini.posts.map((id, k) => stripItem("mini", id, k, mini.posts.length, { "data-i": i })), {
         label: `Miniband ${i + 1}'s posts, in order`,
@@ -876,20 +882,28 @@ function editor(root, data, bindMinis, ground) {
   }
 
   // --- the look: banner, depth, layout ---
+  // Two banners (CREATOR_REACH.md sec 1): the one for everyone takes a
+  // general-rated post only; the members' takes any rating and is optional.
+  const BANNERS = [
+    { region: "banners", act: "banner", key: "post_id", ok: (s) => s.rating === "g", label: "Your general-rated posts" },
+    { region: "member-banners", act: "member-banner", key: "member_post_id", ok: () => true, label: "Your posts, at any rating" },
+  ];
+  const shownBanner = () => (bannerSide === "members" && draft.banner.member_post_id) || draft.banner.post_id;
+
   function renderBanners() {
     const all = loaded.get("");
-    keepScroll(region("banners"), () => fill(region("banners"),
+    BANNERS.forEach(({ region: name, act, key, ok, label: list }) => keepScroll(region(name), () => fill(region(name),
       ...(all ? capNote(all) : []),
-      el("button", { type: "button", class: "modcreator-banner-none", "data-cg-act": "banner", "aria-pressed": String(!draft.banner.post_id) }, "None"),
-      ...(all ? [decks.deck(all.slides, {
+      el("button", { type: "button", class: "modcreator-banner-none", "data-cg-act": act, "aria-pressed": String(!draft.banner[key]) }, "None"),
+      ...(all ? [decks.deck(all.slides.filter(ok), {
         size: 80,
-        label: "Your posts",
-        card: (s) => [{ "data-cg-act": "banner", "aria-pressed": String(s.id === draft.banner.post_id) }],
-      })] : [el("span", { class: "cg-note" }, "Finding your posts...")])));
+        label: list,
+        card: (s) => [{ "data-cg-act": act, "aria-pressed": String(s.id === draft.banner[key]) }],
+      })] : [el("span", { class: "cg-note" }, "Finding your posts...")]))));
   }
 
   function paintBanner() {
-    const slide = draft.banner.post_id && slideOf(draft.banner.post_id);
+    const slide = shownBanner() && slideOf(shownBanner());
     layers.forEach((layer) => {
       const kind = layer.classList.contains("modcreator-ground") ? "ground" : "banner";
       const art = !slide ? el("span", { class: `modcreator-${kind}-art modcreator-${kind}-art--none` }) :
@@ -917,10 +931,10 @@ function editor(root, data, bindMinis, ground) {
       layer.style.setProperty("--cg-dim", String(dim / 100));
       layer.style.setProperty("--cg-par", String(strength / 100));
       layer.style.setProperty("--cg-y", `${draft.banner.y}%`);
-      showView(layer, viewOf("banner", draft.banner.post_id));
+      showView(layer, viewOf("banner", shownBanner()));
     });
     ground.redraw();
-    root.querySelector("[data-cg-act='view-banner']").disabled = !draft.banner.post_id;
+    root.querySelector("[data-cg-act='view-banner']").disabled = !shownBanner();
   }
 
   const press = (act, v) => root.querySelectorAll(`[data-cg-act="${act}"]`).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === String(v))));
@@ -1308,12 +1322,14 @@ function editor(root, data, bindMinis, ground) {
       break;
     }
     case "banner":
-      draft.banner.post_id = act.dataset.id ? id : null;
+    case "member-banner":
+      draft.banner[act.dataset.cgAct === "banner" ? "post_id" : "member_post_id"] = act.dataset.id ? id : null;
+      bannerSide = act.dataset.cgAct === "banner" ? "everyone" : "members";
       renderBanners(); paintBanner(); paintDepth(); changed();
       break;
     case "view-banner": {
       const frame = () => root.querySelector(".modcreator-banner");
-      editView(draft.banner.post_id, { place: "banner", what: "The banner", frame, paint: (view) => layers.forEach((layer) => showView(layer, view)) });
+      editView(shownBanner(), { place: "banner", what: "The banner", frame, paint: (view) => layers.forEach((layer) => showView(layer, view)) });
       break;
     }
     case "mini-view": fit("mini", id, i); break;

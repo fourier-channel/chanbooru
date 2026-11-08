@@ -28,10 +28,24 @@
 # (#placed_post_ids), which lets those through Gate 3 alone for a signed-out
 # viewer while fresh (operator, 2026-11-01): a placed Matrix post is drawn
 # like any other, and still refused by every other gate.
+#
+# TWO SETS PER BAND (operator rulings, 2026-11-08, CREATOR_REACH.md sec 1):
+# a signed-out viewer browses in safe mode, rating g only (gate 10), so each
+# band holds up to its maximum of general-rated posts AND as many again rated
+# above general. The creator orders them together; the draw's showcase gate
+# draws a signed-out viewer the general ones and a member both, mixed. Two
+# banners likewise: the banner for everyone takes a general-rated post only;
+# the banner for signed-in members takes any and is drawn to a member when
+# set and showable to them, else the banner for everyone.
 class CreatorGalleryLayout
   HERO_MIN = 5
+  # Each set's maximum: a band holds this many general-rated posts and this
+  # many more rated above general. HERO_MIN counts the band's total.
   HERO_MAX = 24
   MINI_MAX = 6
+  # A band's two sets as sentences name them, general first
+  # (creator_gallery_model.js's SETS, word for word).
+  SETS = { "g" => "for everyone (rated general)", "other" => "for members only (rated above general)" }.freeze
   CHAR_MAX = 5
   # A layout is its rows of minibands: "2-3" is two over three.
   LAYOUTS = { "2-3" => [2, 3], "3-2" => [3, 2], "1-2" => [1, 2], "2-2" => [2, 2], "1-3" => [1, 3], "4" => [4] }.freeze
@@ -58,7 +72,9 @@ class CreatorGalleryLayout
   DEFAULTS = {
     "headline" => "",
     "subline" => "",
-    "banner" => { "post_id" => nil, "y" => 50 }.freeze,
+    # post_id is the banner for everyone, general-rated; member_post_id the
+    # banner for signed-in members, any rating, optional.
+    "banner" => { "post_id" => nil, "member_post_id" => nil, "y" => 50 }.freeze,
     "depth" => { "blur" => 18, "dim" => 45, "parallax" => 40 }.freeze,
     "hero" => { "tags" => [].freeze, "effect" => "glide", "dir" => "left", "hold" => 5, "cells" => 5 }.freeze,
     "layout" => "2-3",
@@ -135,13 +151,13 @@ class CreatorGalleryLayout
   # (sec 4.6) with why, and draws it while the Tuner is off; to everyone else
   # the counting ones, and none while it is off.
   def draw(viewer, manager: gallery.managed_by?(viewer))
-    banner = Post.includes(:media_asset, :uploader).find_by(id: config["banner"]["post_id"])
+    banners = Post.includes(:media_asset, :uploader).where(id: [banner_id, member_banner_id].compact).index_by(&:id)
     # A post's applied view in each place it is drawn: the banner, the hero
     # band's thumbnails, a miniband and a channel's picture.
     views = gallery.creator_gallery_post_views.to_h { |row| [[row.place, row.post_id], row.value] }
     harmonics, removed = harmonics_drawn(manager)
     backgrounds = Post.includes(:media_asset, :uploader).where(id: harmonics.filter_map(&:background_post_id)).index_by(&:id)
-    judged, refused = judge(viewer, [*banner&.id, *backgrounds.keys])
+    judged, refused = judge(viewer, [*banners.keys, *backgrounds.keys])
     kept = judged.map { |pairs| pairs.filter_map { |post, problem| post if problem.nil? && LandingShowcase.showable?(post, viewer) } }
     distinct = kept.flatten.uniq(&:id)
     # A harmonic's picture is one of the posts the page shows, so it joins
@@ -152,18 +168,25 @@ class CreatorGalleryLayout
     allowed = viewer.can_browse_freely? ? listed : listed.first(viewer.listing_per_page_limit)
     allowed_ids = allowed.to_set(&:id)
     drawn = kept.map { |posts| posts.select { |post| allowed_ids.include?(post.id) } }
-    banner = nil unless banner && !refused.key?(banner.id) && LandingShowcase.showable?(banner, viewer)
+    # A member is drawn the banner for members when they may see it, else
+    # the banner for everyone; anyone else the banner for everyone.
+    showable = ->(id) { banners[id] if banners[id] && !refused.key?(id) && LandingShowcase.showable?(banners[id], viewer) }
+    everyone = showable.call(banner_id)
+    members = showable.call(member_banner_id) if MembersOnly.member?(viewer)
+    banner = members || everyone
 
-    showcase = LandingShowcase.new(viewer: viewer, posts: [*allowed, *banner])
+    showcase = LandingShowcase.new(viewer: viewer, posts: [*allowed, everyone, members].compact)
     shown = visible_names([*config["hero"]["tags"], *config["minis"].pluck("tag")].compact_blank.uniq, viewer)
     {
       banner: banner && showcase.slide_for(banner).merge(view: views[["banner", banner.id]]),
+      # Both banners as this viewer may see them, for the editor's two pickers.
+      banners: { everyone: everyone && showcase.slide_for(everyone), members: members && showcase.slide_for(members) },
       hero: { tags: pills(config["hero"]["tags"] & shown), slides: drawn.first.map { |post| showcase.slide_for(post).merge(view: views[["hero", post.id]]) }},
       minis: config["minis"].zip(drawn.drop(1)).map do |mini, posts|
         { tag: pills([mini["tag"]] & shown).first, slides: posts.map { |post| showcase.slide_for(post).merge(view: views[["mini", post.id]]) }}
       end,
       locked_count: distinct.count { |post| allowed_ids.exclude?(post.id) },
-      owner_notices: [*(LEGACY_NOTICE if config["hero"]["tags"].empty?), *judged.flatten(1).filter_map(&:last), *refused[banner_id]].uniq,
+      owner_notices: [*(LEGACY_NOTICE if config["hero"]["tags"].empty?), *judged.flatten(1).filter_map(&:last), *refused[banner_id], *refused[member_banner_id]].uniq,
       tuner: config["tuner"],
       harmonics: harmonics.each_with_index.map do |harmonic, i|
         post = backgrounds[harmonic.background_post_id]
@@ -189,7 +212,7 @@ class CreatorGalleryLayout
     rows = gallery.creator_gallery_posts.includes(:post).group_by(&:band).transform_values { |list| list.filter_map(&:post) }
     chosen = band_rules.flat_map { |band, band_rule| rows[band].to_a.select { |post| misfit(post, band, band_rule).nil? }.map(&:id) }
     pictures = harmonics_drawn(false).first.filter_map(&:background_post_id)
-    ids = [*chosen, banner_id, *pictures].grep(Integer).uniq
+    ids = [*chosen, banner_id, member_banner_id, *pictures].grep(Integer).uniq
     ids.empty? ? [] : eligible_parts.flat_map { |part| part.where(id: ids).pluck(:id) }.uniq
   end
 
@@ -269,9 +292,10 @@ class CreatorGalleryLayout
     hero_tags = Array(hero["tags"]).map { |tag| tag.to_s.strip }.compact_blank.uniq
     mini_tags = minis.map { |mini| mini["tag"].to_s.strip }
     banner_id = whole(banner["post_id"]) if banner["post_id"].present?
+    member_banner_id = whole(banner["member_post_id"]) if banner["member_post_id"].present?
     bands = [["hero", post_ids(hero["posts"])], *minis.each_with_index.map { |mini, i| ["mini#{i + 1}", post_ids(mini["posts"])] }]
-    refused = refusals([*bands.flat_map(&:last), *banner_id].compact.uniq, viewer)
-    posts = Post.where(id: bands.flat_map(&:last).compact.uniq - refused.keys).index_by(&:id)
+    refused = refusals([*bands.flat_map(&:last), *banner_id, *member_banner_id].compact.uniq, viewer)
+    posts = Post.where(id: [*bands.flat_map(&:last), *banner_id].compact.uniq - refused.keys).index_by(&:id)
     tag_refusals = refused_tags([*hero_tags, *mini_tags].compact_blank.uniq, viewer)
     hero_rule = rule(hero_tags - tag_refusals.keys)
     hero_ids = bands.first.last
@@ -295,8 +319,11 @@ class CreatorGalleryLayout
       ("The headline is #{look["headline"].to_s.length} characters; #{HEADLINE_MAX} is the most. Shorten it." if look["headline"].to_s.length > HEADLINE_MAX),
       ("The subline is #{look["subline"].to_s.length} characters; #{SUBLINE_MAX} is the most. Shorten it." if look["subline"].to_s.length > SUBLINE_MAX),
       ("The banner's position must be a whole number from #{BANNER_Y.min} to #{BANNER_Y.max}." unless BANNER_Y.cover?(whole(banner["y"]))),
-      ("The banner must be a post id. Pick it from the list." if banner["post_id"].present? && banner_id.nil?),
+      ("The banner for everyone must be a post id. Pick it from the list." if banner["post_id"].present? && banner_id.nil?),
       refused[banner_id],
+      ("Post ##{banner_id} cannot be the banner for everyone: it is rated #{Post::RATINGS[posts[banner_id].rating].downcase}. Pick a general-rated post, or make it the banner for signed-in members." if posts[banner_id] && posts[banner_id].rating != "g"),
+      ("The banner for signed-in members must be a post id. Pick it from the list." if banner["member_post_id"].present? && member_banner_id.nil?),
+      refused[member_banner_id],
       *DEPTH.map { |key, range| "The depth's #{key} must be a whole number from #{range.min} to #{range.max}." unless range.cover?(whole(depth[key])) },
       choice("The hero band's effect", hero["effect"], HERO_EFFECTS),
       choice("The hero band's direction", hero["dir"], HERO_DIRS),
@@ -307,7 +334,7 @@ class CreatorGalleryLayout
       *tag_refusals.values,
       ("The hero band has no tags. Add one with + Tag on the band." if hero_tags.empty?),
       ("The hero band holds #{hero_ids.size} of the #{HERO_MIN} posts it needs. Open Posts on the band and pick more." if hero_ids.size < HERO_MIN),
-      ("The hero band holds #{hero_ids.size} posts; #{HERO_MAX} is the most. Take some off." if hero_ids.size > HERO_MAX),
+      *set_problems("The hero band", hero_ids, posts, HERO_MAX),
       ("The hero band has more than #{CHAR_MAX} character tags. Take one off." if hero_rule.characters.size > CHAR_MAX),
       *hero_rule.characters.filter_map do |tag|
         "#{tag} is on none of the band's posts. Pick a post that has it, or take the tag off." if hero_ids.none? { |id| posts[id]&.tag_array&.include?(tag) }
@@ -322,7 +349,7 @@ class CreatorGalleryLayout
           choice("#{label}'s direction", mini["dir"], MINI_DIRS),
           ("#{label}'s hold must be a whole number of seconds from #{HOLD.min} to #{HOLD.max}." unless HOLD.cover?(whole(mini["hold"]))),
           ("#{label} has no posts. Open Posts on it and pick at least one." if mini_tags[i].present? && ids.empty?),
-          ("#{label} holds #{ids.size} posts; #{MINI_MAX} is the most." if ids.size > MINI_MAX),
+          *set_problems(label, ids, posts, MINI_MAX),
           *band_post_problems("mini#{i + 1}", ids, rule([mini_tags[i]].compact_blank - tag_refusals.keys), refused, posts),
         ]
       end,
@@ -366,7 +393,7 @@ class CreatorGalleryLayout
       # harmonics' as sent or, left as they are, as they stand. A refused post
       # is placed too: its refusal is already a problem, and says the remedy.
       backgrounds = harmonics ? harmonics.filter_map { |entry| whole(entry["background_post_id"]) if entry["background_post_id"].present? } : gallery.creator_gallery_harmonics.filter_map(&:background_post_id)
-      placed = { "banner" => [*banner_id], "hero" => hero_ids, "mini" => bands.drop(1).flat_map(&:last), "channel" => backgrounds }.transform_values { |ids| ids.compact.to_set }
+      placed = { "banner" => [*banner_id, *member_banner_id], "hero" => hero_ids, "mini" => bands.drop(1).flat_map(&:last), "channel" => backgrounds }.transform_values { |ids| ids.compact.to_set }
       view_keys = views.to_a.map { |view| [view["place"].to_s, whole(view["post_id"])] }
       problems += view_keys.select(&:last).uniq.select { |place, _| placed.key?(place) }.reject { |place, id| placed[place].include?(id) }.map do |place, id|
         "Post ##{id}'s view on #{PLACE_NAMES[place]} cannot be saved: this Save does not put the post on #{PLACE_NAMES[place]}. Put it there, or leave its view out."
@@ -383,7 +410,7 @@ class CreatorGalleryLayout
       gallery.update!(settings: gallery.settings.merge(
         "headline" => look["headline"].to_s,
         "subline" => look["subline"].to_s,
-        "banner" => { "post_id" => banner_id, "y" => whole(banner["y"]) },
+        "banner" => { "post_id" => banner_id, "member_post_id" => member_banner_id, "y" => whole(banner["y"]) },
         "depth" => DEPTH.keys.index_with { |key| whole(depth[key]) },
         "hero" => { "tags" => hero_tags, "effect" => hero["effect"], "dir" => hero["dir"], "hold" => whole(hero["hold"]), "cells" => whole(hero["cells"]) },
         "layout" => layout,
@@ -437,10 +464,12 @@ class CreatorGalleryLayout
 
       max = (band == "hero") ? HERO_MAX : MINI_MAX
       place = (band == "hero") ? "The hero band" : "Miniband #{band.delete_prefix("mini")}"
+      set = (post.rating == "g") ? "g" : "other"
+      in_set = rows.joins(:post).then { |held| (set == "g") ? held.where(posts: { rating: "g" }) : held.where.not(posts: { rating: "g" }) }
       held = (band == "hero") ? [] : gallery.creator_gallery_posts.where(post_id: post.id).where.not(band: ["hero", band]).reorder(:band).pluck(:band)
       problem = refusals([post.id], viewer)[post.id] || misfit(post, band, rule(tags)) ||
         (taken(post.id, held, [band]) if held.any?) ||
-        ("#{place} holds #{max} posts; #{max} is the most. Take one off first." if rows.count >= max)
+        ("#{place} holds #{max} posts #{SETS[set]}; #{max} is the most. Take one off first." if in_set.count >= max)
       rows.create!(post: post, position: (rows.maximum(:position) || -1) + 1) if problem.nil?
       problem
     end
@@ -507,6 +536,20 @@ class CreatorGalleryLayout
 
   def banner_id
     config["banner"]["post_id"]
+  end
+
+  def member_banner_id
+    config["banner"]["member_post_id"]
+  end
+
+  # A band's sets over their maximum, as problems naming the remedy: its
+  # posts by rating, general or above (SETS). A post this Save refuses is in
+  # neither; its refusal says the remedy.
+  def set_problems(place, ids, posts, max)
+    general, other = ids.filter_map { |id| posts[id] }.partition { |post| post.rating == "g" }
+    [["g", general], ["other", other]].filter_map do |set, held|
+      "#{place} holds #{held.size} posts #{SETS[set]}; #{max} is the most. Take some off." if held.size > max
+    end
   end
 
   # A harmonic as the page draws it (sec 2). `post` is its background when

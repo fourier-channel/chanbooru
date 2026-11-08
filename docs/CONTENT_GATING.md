@@ -29,8 +29,9 @@ which is why nearly every signed-out cell says gate 10.
 
 | example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| an ordinary post (`1girl`) on the site's welcome page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| an ordinary general-rated post (`1girl`) on the site's welcome page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 | that same `1girl`, once it leaves the hero band | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| a post rated questionable, on the welcome page or a gallery band | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 | a sensitive tag, `loli` (gate 1) | {no: gate 10} / {no: gate 10} | {no: gate 1} / {no: gate 1} | {no: gate 1} / {no: gate 1} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 | deleted by a moderator (gate 4) | {no: gate 10} / {no: gate 10} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} | {yes: its own} / {yes: its own} |
 | jailed, `troll_jail` (gate 4) | {no: gate 10} / {no: gate 10} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} |
@@ -78,7 +79,7 @@ creator-private tags (gate 6) and published pages (gate 11).
 | 7 | the edge check: browsers only |
 | 8 | creator prefixes: whole sources hidden by default |
 | 9 | creator visibility: what each creator chooses |
-| 10 | signed out: closed by default |
+| 10 | signed out: closed by default, general-rated posts only |
 | 11 | published pages: a deliberate, expiring grant |
 | 12 | flagged tags: a review quarantine |
 
@@ -303,7 +304,7 @@ storage does not hold is refused (404); there is no second source.
 
 | example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| an ordinary post (`1girl`) on the site's welcome page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| an ordinary general-rated post (`1girl`) on the site's welcome page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 | that same `1girl`, once it leaves the hero band | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 | a Matrix upload, viewer not in its room (gate 3) | {no: gate 10} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {yes} / {yes: via R2} |
 | that upload, placed on its creator's public gallery | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes} / {yes: via R2} |
@@ -509,7 +510,7 @@ group alice opened.
 
 ---
 
-## 10. Signed out -- closed by default
+## 10. Signed out -- closed by default, general-rated only
 
 A signed-out visitor is refused **every page that is not on an explicit
 list**, with the same 404 a hidden post gets; a 403 or a redirect to sign in
@@ -531,14 +532,26 @@ Every other listing -- popular, favourites, pools and the rest -- is for
 members. Everything that is open still passes the other gates: a sensitive
 post is not on the front page either.
 
+**Signed out sees general-rated posts only** (operator 2026-11-08). Every open
+page above browses in safe mode for a signed-out visitor: only posts rated
+general (`rating:g`) are drawn, listed, opened or have their image loaded. A
+post rated sensitive, questionable or explicit is absent for them, as if
+hidden, wherever it would otherwise appear -- a creator's gallery bands
+included. Signing in lifts it. One exception, unchanged: a **published page**
+(gate 11) shows exactly what it showed before; this rule neither closes nor
+opens anything there. A Matrix reader whom a room refuses still gets a public
+creator gallery's placed posts at every rating (gate 3's temporary grant):
+they are signed in, only not in that room.
+
 **Images follow pages.** A signed-out visitor loads a post's image only while
 that post's page would open for them. A cached answer can outlast a post's
 "being shown" status by about three minutes.
 
 | example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| an ordinary post (`1girl`) on the site's welcome page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| an ordinary general-rated post (`1girl`) on the site's welcome page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 | that same `1girl`, once it leaves the hero band | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| a post rated questionable, on the welcome page or a gallery band | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 
 ---
 

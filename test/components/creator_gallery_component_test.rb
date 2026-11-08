@@ -31,6 +31,16 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
 
   def avatar = { name: "Maple Woods", mxc: nil, url: nil, problem: nil }
 
+  # The edit page, as its creator opens it.
+  def render_editor
+    palette = [{ name: "landscape", category: "general", count: 12 }, { name: "sky", category: "general", count: 4 }]
+    panels = { "Blog messages" => "<form id='blog-form'></form>".html_safe }
+    with_request_url "/creators/maple" do
+      render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: @maple, avatar: avatar, can_edit: true, editing: true, scan: nil,
+                                                draw: draw(banner: slide(9, "sky")), palette: palette, panels: panels))
+    end
+  end
+
   def render_gallery(viewer: @maple, **options)
     with_request_url "/creators/maple" do
       render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: viewer, avatar: avatar, can_edit: false, scan: nil, draw: draw, **options))
@@ -381,8 +391,6 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
 
   context "editing" do
     setup do
-      palette = [{ name: "landscape", category: "general", count: 12 }, { name: "sky", category: "general", count: 4 }]
-      panels = { "Blog messages" => "<form id='blog-form'></form>".html_safe }
       create(:tag, name: "maple_(maple)", category: Tag.categories.character)
       @stored = Array.new(3) { as(@maple) { create(:post) } }
       # The draw is the curator's own: a stored post or a band tag hidden from
@@ -393,10 +401,7 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
       end
       @gallery.creator_gallery_post_views.create!(place: "mini", post_id: @stored[2].id, flip_h: true, flip_v: false, x: 0, y: -50, scale: 900, stretch: 1000)
       @gallery.creator_gallery_post_views.create!(place: "hero", post_id: @stored[0].id, x: 120)
-      with_request_url "/creators/maple" do
-        render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: @maple, avatar: avatar, can_edit: true, editing: true, scan: nil,
-                                                  draw: draw(banner: slide(9, "sky")), palette: palette, panels: panels))
-      end
+      render_editor
     end
 
     should "start the editor from the saved look and the bands' stored posts, not the curator's draw" do
@@ -411,6 +416,20 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
       assert_equal(["landscape", "sky"], data["palette"].pluck("name"))
       assert_equal("/creators/maple/edit.json", data["candidatesUrl"])
       assert_equal("/creators/maple", data["saveUrl"])
+    end
+
+    # An old banner above general-rated is offered as the members' banner
+    # (CREATOR_REACH.md sec 1): the banner for everyone takes rating g only.
+    should "offer a saved banner above general as the members' banner, and keep a general one for everyone" do
+      risque = as(@maple) { create(:post, rating: "q") }
+      @gallery.update!(settings: @gallery.settings.merge("banner" => { "post_id" => risque.id, "y" => 30 }))
+      render_editor
+      assert_equal({ "post_id" => nil, "member_post_id" => risque.id, "y" => 30 }, JSON.parse(page.find("[data-editor]")["data-editor"])["draft"]["banner"])
+
+      general = as(@maple) { create(:post, rating: "g") }
+      @gallery.update!(settings: @gallery.settings.merge("banner" => { "post_id" => general.id, "y" => 30 }))
+      render_editor
+      assert_equal(general.id, JSON.parse(page.find("[data-editor]")["data-editor"])["draft"]["banner"]["post_id"])
     end
 
     should "start the editor from the saved views by place, to re-apply each when its post is put there" do

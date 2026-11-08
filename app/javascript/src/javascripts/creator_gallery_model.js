@@ -15,8 +15,15 @@
 // word for word: Save waits on the server, the editor only says it sooner.
 
 export const HERO_MIN = 5;
+// Each set's maximum (operator, 2026-11-08, CREATOR_REACH.md sec 1): a band
+// holds this many general-rated posts, drawn for everyone, and this many more
+// rated above general, drawn for signed-in members only. HERO_MIN counts the
+// band's total.
 export const HERO_MAX = 24;
 export const MINI_MAX = 6;
+// A band's two sets as sentences name them (CreatorGalleryLayout::SETS).
+export const SETS = { g: "for everyone (rated general)", other: "for members only (rated above general)" };
+export const setOf = (slide) => (slide.rating === "g" ? "g" : "other");
 export const CHAR_MAX = 5;
 export const CELLS = [3, 5, 7, 9];
 export const HOLD_MIN = 2;
@@ -77,6 +84,19 @@ function lacking(rule, slide) {
   return missing.length ? words(missing, "and") : `any of ${words(rule.c, "or")}`;
 }
 
+// The sets of a band's posts over `max`, as the server says it; only when the
+// page has seen every post, or only the server knows its rating.
+function setProblems(place, ids, slideOf, max) {
+  const slides = ids.map(slideOf);
+  if (slides.some((s) => !s)) { return []; }
+  return ["g", "other"].map((set) => [set, slides.filter((s) => setOf(s) === set).length])
+    .filter(([, n]) => n > max)
+    .map(([set, n]) => `${place} holds ${n} posts ${SETS[set]}; ${max} is the most. Take some off.`);
+}
+
+// How many of `ids` the page knows are in `set`.
+export const countIn = (ids, slideOf, set) => ids.filter((id) => slideOf(id) && setOf(slideOf(id)) === set).length;
+
 // "miniband 1", "minibands 1 and 3".
 const minibands = (nums) => `miniband${nums.length > 1 ? "s" : ""} ${words(nums, "and")}`;
 
@@ -88,7 +108,7 @@ const minibands = (nums) => `miniband${nums.length > 1 ? "s" : ""} ${words(nums,
 //   be on one miniband (operator, 2026-11-01), but a duplicate saved before
 //   that rule is kept; only a miniband newly holding a post another one
 //   holds is refused. The hero band may share any.
-export function problemsOf(draft, slideOf, saved) {
+export function problemsOf(draft, slideOf, saved = []) {
   const { hero } = draft;
   const rule = bandRule(hero.tags);
   const chosen = hero.posts.map((id) => [id, slideOf(id)]).filter(([, s]) => s);
@@ -99,7 +119,7 @@ export function problemsOf(draft, slideOf, saved) {
   const heroProblems = [
     !hero.tags.length && "The hero band has no tags. Add one with + Tag on the band.",
     n < HERO_MIN && `The hero band holds ${n} of the ${HERO_MIN} posts it needs. Open Posts on the band and pick more.`,
-    n > HERO_MAX && `The hero band holds ${n} posts; ${HERO_MAX} is the most. Take some off.`,
+    ...setProblems("The hero band", hero.posts, slideOf, HERO_MAX),
     rule.c.length > CHAR_MAX && `The hero band has more than ${CHAR_MAX} character tags. Take one off.`,
     ...rule.c.filter((c) => !unseen && !chosen.some(([, s]) => tagsOf(s).includes(c)))
       .map((c) => `${c} is on none of the band's posts. Pick a post that has it, or take the tag off.`),
@@ -107,10 +127,10 @@ export function problemsOf(draft, slideOf, saved) {
       .map(([id, s]) => `Post #${id} does not carry ${lacking(rule, s)}. Take it off the band or change the band's tags.`),
   ];
   const minis = draft.minis.slice(0, slotCount(draft.layout));
-  const miniProblems = minis.map((m, i) => (
-    (!m.tag && `Miniband ${i + 1} has no tag. Pick one on the miniband.`) ||
-    (!m.posts.length && `Miniband ${i + 1} has no posts. Open Posts on it and pick at least one.`) ||
-    (m.posts.length > MINI_MAX && `Miniband ${i + 1} holds ${m.posts.length} posts; ${MINI_MAX} is the most.`)
+  const miniProblems = minis.flatMap((m, i) => (
+    (!m.tag && [`Miniband ${i + 1} has no tag. Pick one on the miniband.`]) ||
+    (!m.posts.length && [`Miniband ${i + 1} has no posts. Open Posts on it and pick at least one.`]) ||
+    setProblems(`Miniband ${i + 1}`, m.posts, slideOf, MINI_MAX)
   ));
   const bandsOf = new Map();
   minis.forEach((m, i) => new Set(m.posts).forEach((id) => bandsOf.set(id, [...(bandsOf.get(id) || []), i + 1])));

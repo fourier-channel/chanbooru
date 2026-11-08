@@ -11,12 +11,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   bandRule, problemsOf, adderRow, ruleSentence, miniLook, miniRole, rowsOf, slotCount, words, groundPlan,
-  HERO_MIN, MINI_MAX,
+  HERO_MIN, HERO_MAX, MINI_MAX, countIn, setOf,
 } from "../../app/javascript/src/javascripts/creator_gallery_model.js";
 
 const gen = (name) => ({ name, category: "general" });
 const chr = (name) => ({ name, category: "character" });
-const slide = (id, tags) => ({ id, tags });
+const slide = (id, tags, rating = "g") => ({ id, tags, rating });
 const SLIDES = [
   slide(1, "night neon maple"),
   slide(2, "night neon juniper"),
@@ -99,9 +99,38 @@ test("problemsOf: too many posts, too many characters, an overfull miniband", ()
   const chars = ["a", "b", "c", "d", "e", "maple"].map(chr);
   const minis = [{ tag: "rain", posts: [4, 4, 4, 4, 4, 4, 4] }, goodMinis[1], goodMinis[2]];
   const out = problemsOf(draftOf({ tags: chars, posts }, minis), slideOf);
-  assert.ok(out.includes("The hero band holds 25 posts; 24 is the most. Take some off."));
+  assert.ok(out.includes("The hero band holds 25 posts for everyone (rated general); 24 is the most. Take some off."));
   assert.ok(out.includes("The hero band has more than 5 character tags. Take one off."));
-  assert.ok(out.includes(`Miniband 1 holds 7 posts; ${MINI_MAX} is the most.`));
+  assert.ok(out.includes(`Miniband 1 holds 7 posts for everyone (rated general); ${MINI_MAX} is the most. Take some off.`));
+});
+
+// TWO SETS PER BAND (operator, 2026-11-08): each set has the band's maximum.
+test("problemsOf: a band holds its maximum in each set, and names the set that is over", () => {
+  const above = [slide(8, "night neon maple", "q"), slide(9, "rain", "e")];
+  const both = new Map([...byId, ...above.map((s) => [s.id, s])]);
+  const of = (id) => both.get(id);
+  const hero = (g, o) => ({ tags: [gen("night")], posts: [...Array(g).fill(1), ...Array(o).fill(8)] });
+  const minis = (g, o) => [{ tag: "rain", posts: [...Array(g).fill(4), ...Array(o).fill(9)] }, goodMinis[1], goodMinis[2]];
+
+  assert.deepEqual(problemsOf(draftOf(hero(HERO_MAX, HERO_MAX), minis(MINI_MAX, MINI_MAX)), of), []);
+  assert.deepEqual(problemsOf(draftOf(hero(HERO_MAX + 1, HERO_MAX + 1), minis(MINI_MAX, MINI_MAX + 1)), of), [
+    "The hero band holds 25 posts for everyone (rated general); 24 is the most. Take some off.",
+    "The hero band holds 25 posts for members only (rated above general); 24 is the most. Take some off.",
+    "Miniband 1 holds 7 posts for members only (rated above general); 6 is the most. Take some off.",
+  ]);
+});
+
+test("problemsOf: a band over its maximum with a post the page never saw is left to the server", () => {
+  const draft = draftOf({ tags: [gen("night")], posts: [...Array(HERO_MAX + 1).fill(1), 99] }, goodMinis);
+  assert.deepEqual(problemsOf(draft, slideOf), []);
+});
+
+test("setOf and countIn: general-rated is one set, every other rating the other; unseen posts are not counted", () => {
+  assert.equal(setOf(slide(1, "", "g")), "g");
+  ["s", "q", "e"].forEach((rating) => assert.equal(setOf(slide(1, "", rating)), "other"));
+  const of = (id) => ({ 1: slide(1, "", "g"), 2: slide(2, "", "q") })[id];
+  assert.equal(countIn([1, 2, 2, 3], of, "g"), 1);
+  assert.equal(countIn([1, 2, 2, 3], of, "other"), 2);
 });
 
 test("problemsOf: minibands past the layout's slots are not asked about", () => {

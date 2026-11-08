@@ -171,7 +171,7 @@ class CreatorGalleryComponent < ApplicationComponent
         show_contact: gallery.show_contact,
         headline: look["headline"],
         subline: look["subline"],
-        banner: look["banner"],
+        banner: draft_banner,
         depth: look["depth"],
         hero: look["hero"].merge("tags" => layout.pills(look["hero"]["tags"]), "posts" => stored["hero"].to_a),
         layout: look["layout"],
@@ -193,7 +193,7 @@ class CreatorGalleryComponent < ApplicationComponent
       logos: CreatorGalleryHarmonic::CONFIG["sites"].filter_map { |site| site["logo"] }.index_with { |file| helpers.asset_pack_path("static/#{file}") },
       removed: CreatorHarmonicRemoval.pluck(:url).map { |url| CreatorHarmonicRemoval.fingerprint(url) },
       isAdmin: CurrentUser.user.is_admin?,
-      slides: [*hero_slides, *draw[:minis].flat_map { |mini| mini[:slides] }, draw[:banner]].compact.uniq { |slide| slide[:id] },
+      slides: [*hero_slides, *draw[:minis].flat_map { |mini| mini[:slides] }, draw[:banner], *draw[:banners].to_h.values].compact.uniq { |slide| slide[:id] },
       palette: palette.to_a,
       slug: gallery.slug,
       matrixId: gallery.matrix_id,
@@ -206,6 +206,19 @@ class CreatorGalleryComponent < ApplicationComponent
 
   def messages
     gallery.creator_gallery_messages
+  end
+
+  # The two banners as the editor starts from them. A banner for everyone
+  # saved before there were two (CREATOR_REACH.md sec 1) that is not
+  # general-rated is offered as the banner for signed-in members, where
+  # nothing is set yet: Save keeps it there, or the creator moves it back and
+  # Save names the rule.
+  def draft_banner
+    banner = look["banner"]
+    rating = Post.where(id: banner["post_id"]).pick(:rating) if banner["post_id"]
+    return banner if rating.nil? || rating == "g" || banner["member_post_id"]
+
+    banner.merge("post_id" => nil, "member_post_id" => banner["post_id"])
   end
 
   # About's boxes in their fixed order, each as this viewer left it: the bio,

@@ -75,9 +75,14 @@
             <input class="cg-input" maxlength="255" data-cg-field="matrix_contact" autocomplete="off" value="<%= gallery.matrix_contact %>" placeholder="<%= gallery.matrix_id %>">
           </label>
           <div class="cg-field">
-            <span>Banner</span>
-            <span class="cg-note">Any of your posts. The background behind the gallery is the same picture, pushed back.</span>
+            <span>Banner -- everyone</span>
+            <span class="cg-note">Seen by every visitor, signed in or not, so it must be a general-rated post. The background behind the gallery is the same picture, pushed back.</span>
             <div class="modcreator-banners" data-cg-region="banners"></div>
+          </div>
+          <div class="cg-field">
+            <span>Banner -- signed-in members</span>
+            <span class="cg-note">Optional, any rating. Signed-in visitors see it instead of the banner for everyone.</span>
+            <div class="modcreator-banners" data-cg-region="member-banners"></div>
           </div>
           <label class="cg-field">Banner focus <span class="cg-note"><span data-cg-region="banner-y"><%= look["banner"]["y"] %></span>% from the top</span>
             <input type="range" min="0" max="100" data-cg-field="banner.y" autocomplete="off" value="<%= look["banner"]["y"] %>">

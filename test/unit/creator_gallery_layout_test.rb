@@ -12,7 +12,7 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
   MXID = "@maple:41chan.net"
 
   def post_with(tags, creator: MXID, **attrs)
-    post = as(@tunnel) { create(:post, uploader: @tunnel, tag_string: tags, rating: "g", **attrs) }
+    post = as(@tunnel) { create(:post, uploader: @tunnel, tag_string: tags, **{ rating: "g" }.merge(attrs)) }
     FourierPostCreator.create!(post: post, mxid: creator, recorded_by: @tunnel.id) if creator
     post
   end
@@ -247,7 +247,7 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
       config = layout.config
 
       assert_equal("", config["headline"])
-      assert_equal({ "post_id" => nil, "y" => 50 }, config["banner"])
+      assert_equal({ "post_id" => nil, "member_post_id" => nil, "y" => 50 }, config["banner"])
       assert_equal({ "blur" => 18, "dim" => 45, "parallax" => 40 }, config["depth"])
       assert_equal({ "tags" => %w[night wren ivo], "effect" => "glide", "dir" => "left", "hold" => 5, "cells" => 5 }, config["hero"])
       assert_equal([{ "tag" => "rain", "effect" => "slide", "dir" => "left", "hold" => 4 },
@@ -368,13 +368,16 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
       private_post = @posts[4]
       CreatorPostAudience.set!(private_post, gallery: @gallery, audience: "private", by: @maple)
       stray = post_with("night neon wren", creator: "@alice:41chan.net")
+      # A refused post counts in no set (it is named on its own), so the
+      # seventh general-rated post on miniband 3 is this one.
+      seventh = post_with("night neon")
       FourierTagSource.create!(post: @posts[0], tag: "secret_sauce", source: FourierTagSource::CREATOR, status: FourierTagSource::APPROVED, public: false)
       spoiled = look(
         "hero" => hero("tags" => %w[night wren ivo nosuchtag secret_sauce], "posts" => [@posts[0].id, @posts[1].id, private_post.id, stray.id]),
         "minis" => [
           { "tag" => "", "effect" => "slide", "dir" => "left", "hold" => 4, "posts" => [] },
           { "tag" => "snow", "effect" => "spin", "dir" => "left", "hold" => 30, "posts" => [@posts[3].id] },
-          { "tag" => "night", "effect" => "slide", "dir" => "left", "hold" => 4, "posts" => @posts.map(&:id) + [@posts[0].id] },
+          { "tag" => "night", "effect" => "slide", "dir" => "left", "hold" => 4, "posts" => @posts.map(&:id) + [@posts[0].id, seventh.id] },
         ],
       )
 
@@ -390,7 +393,7 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
         "Miniband 1 has no tag. Pick one on the miniband.",
         "Miniband 2's effect must be one of slide, fade, drift, flip or depth.",
         "Miniband 2's hold must be a whole number of seconds from 2 to 12.",
-        "Miniband 3 holds 7 posts; 6 is the most.",
+        "Miniband 3 holds 7 posts for everyone (rated general); 6 is the most. Take some off.",
         "Post ##{@posts[0].id} is on miniband 3 twice. Take one off.",
         "Title is too long (maximum is 120 characters)",
         "Post ##{@posts[3].id} is already on miniband 2. A post can be on one miniband only: take it off miniband 2 to put it on miniband 3, or leave it off miniband 3.",
@@ -407,7 +410,7 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
 
       assert_equal(["The hero band has no tags. Add one with + Tag on the band."],
                    layout.save(viewer: @maple, page: {}, look: look("hero" => hero("tags" => []))))
-      assert_equal(["The hero band holds 25 posts; 24 is the most. Take some off."],
+      assert_equal(["The hero band holds 25 posts for everyone (rated general); 24 is the most. Take some off."],
                    layout.save(viewer: @maple, page: {}, look: look("hero" => hero("posts" => (@posts + extra).map(&:id)))))
       assert_includes(layout.save(viewer: @maple, page: {}, look: look("hero" => hero("tags" => %w[night wren ivo] + chars))),
                       "The hero band has more than 5 character tags. Take one off.")
@@ -415,6 +418,55 @@ class CreatorGalleryLayoutTest < ActiveSupport::TestCase
                    layout.save(viewer: @maple, page: {}, look: look("hero" => hero("tags" => %w[night ivo]))))
       assert_equal(["Post ##{@posts[0].id} does not carry snow. Take it off miniband 1 or change its tag."],
                    layout.save(viewer: @maple, page: {}, look: look("minis" => look["minis"].each_with_index.map { |mini, i| (i == 0) ? mini.merge("tag" => "snow", "posts" => [@posts[0].id]) : mini })))
+    end
+
+    # TWO SETS PER BAND (operator, 2026-11-08, CREATOR_REACH.md sec 1): a band
+    # holds its maximum of general-rated posts, drawn for everyone, and as many
+    # more above general, drawn for signed-in members only.
+    should "hold a band's maximum of general-rated posts and as many more above general, and name the set that is over" do
+      general = Array.new(18) { post_with("night neon wren") }
+      above = Array.new(24) { |i| post_with("night neon wren", rating: %w[s q e][i % 3]) }
+
+      assert_equal([], save_look("hero" => hero("posts" => (@posts + general + above).map(&:id))))
+      assert_equal(48, @gallery.creator_gallery_posts.where(band: "hero").count)
+      assert_equal(["The hero band holds 25 posts for everyone (rated general); 24 is the most. Take some off.",
+                    "The hero band holds 25 posts for members only (rated above general); 24 is the most. Take some off."],
+                   save_look("hero" => hero("posts" => (@posts + general + above + [post_with("night neon wren"), post_with("night neon wren", rating: "q")]).map(&:id))))
+    end
+
+    should "add a post to the set its rating puts it in, refusing it only when that set is full" do
+      rainy = Array.new(5) { post_with("night neon wren rain") }
+      minis = look["minis"].each_with_index.map { |mini, i| (i == 0) ? mini.merge("posts" => [*@posts.first(2), *rainy.first(4)].map(&:id)) : mini }
+      assert_equal([], save_look("minis" => minis))
+
+      assert_nil(layout.add(post_with("rain", rating: "q"), "mini1", @maple))
+      assert_equal("Miniband 1 holds 6 posts for everyone (rated general); 6 is the most. Take one off first.", layout.add(rainy[4], "mini1", @maple))
+    end
+
+    # Two banners (B3): the one for everyone is general-rated; the one for
+    # signed-in members takes any rating and is drawn to a member who may see it.
+    should "refuse a banner for everyone above general, and draw the members' banner to a signed-in member only" do
+      risque = post_with("night neon", rating: "s")
+
+      assert_equal(["Post ##{risque.id} cannot be the banner for everyone: it is rated sensitive. Pick a general-rated post, or make it the banner for signed-in members."],
+                   save_look("banner" => { "post_id" => risque.id, "y" => 40 }))
+      assert_equal([], save_look("banner" => { "post_id" => @posts[1].id, "member_post_id" => risque.id, "y" => 40 }))
+      assert_equal({ "post_id" => @posts[1].id, "member_post_id" => risque.id, "y" => 40 }, @gallery.reload.settings["banner"])
+
+      anonymous = layout.draw(User.anonymous)
+      assert_equal(@posts[1].id, anonymous[:banner][:id])
+      assert_nil(anonymous[:banners][:members])
+      member = layout.draw(@admin)
+      assert_equal(risque.id, member[:banner][:id])
+      assert_equal([@posts[1].id, risque.id], member[:banners].values_at(:everyone, :members).pluck(:id))
+      assert_includes(layout.placed_post_ids, risque.id)
+    end
+
+    should "draw the everyone banner to a member when the members' banner is not set" do
+      assert_equal([], save_look("banner" => { "post_id" => @posts[1].id, "y" => 40 }))
+
+      assert_equal(@posts[1].id, layout.draw(@admin)[:banner][:id])
+      assert_nil(layout.draw(@admin)[:banners][:members])
     end
 
     should "name the allowed values of every setting it refuses" do
