@@ -86,7 +86,7 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
     with_request_url "/creators/maple" do
       render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: @maple, avatar: avatar, can_edit: false, scan: nil, draw: draw(banner: slide(9, "sky"))))
     end
-    assert_css(".modcreator-ground.mod-blacklist-target[data-id='9'][data-tags='sky'] img.modcreator-ground-art", visible: :all)
+    assert_css(".modcreator-ground.mod-blacklist-target[data-id='9'][data-tags='sky'] canvas.modcreator-ground-art", visible: :all)
     assert_css(".modcreator-banner.mod-blacklist-target[data-id='9'] img.modcreator-banner-art", visible: :all)
 
     render_gallery
@@ -101,7 +101,7 @@ class CreatorGalleryComponentTest < ViewComponent::TestCase
       render_inline(CreatorGalleryComponent.new(gallery: @gallery, viewer: @maple, avatar: avatar, can_edit: false, scan: nil,
                                                 draw: draw(banner: slide(9, "sky").merge(full: "/original/9.jpg"), minis: minis)))
     end
-    assert_css("img.modcreator-ground-art[src='/original/9.jpg']", visible: :all)
+    assert_css("canvas.modcreator-ground-art[data-src='/original/9.jpg']", visible: :all)
     assert_css("img.modcreator-banner-art[src='/original/9.jpg']", visible: :all)
     assert_css("img.modcreator-mini-img[src='/sample/3.jpg']", visible: :all)
   end

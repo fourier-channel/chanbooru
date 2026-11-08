@@ -48,7 +48,7 @@ class CreatorGalleryPrivacyTest < ActionDispatch::IntegrationTest
   # every post the creator controls.
   def assert_closed(banner: true)
     assert_select ".modcreator-banner img", banner ? { minimum: 1 } : 0
-    assert_select ".modcreator-ground img", banner ? { minimum: 1 } : 0
+    assert_select ".modcreator-ground canvas", banner ? { minimum: 1 } : 0
     # The disc's letter is the page's address, never the creator's name.
     assert_select ".modcreator-avatar-letter", text: "A"
     assert_select ".modcreator-private", text: "This gallery is private."

@@ -10,7 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  bandRule, problemsOf, adderRow, ruleSentence, miniLook, miniRole, rowsOf, slotCount, words,
+  bandRule, problemsOf, adderRow, ruleSentence, miniLook, miniRole, rowsOf, slotCount, words, groundPlan,
   HERO_MIN, MINI_MAX,
 } from "../../app/javascript/src/javascripts/creator_gallery_model.js";
 
@@ -247,4 +247,26 @@ test("miniLook: fade, drift and depth hide the posts waiting their turn", () => 
 
 test("miniLook: an unknown direction travels left", () => {
   assert.deepEqual(miniLook("slide", "sideways", "prev", 4), miniLook("slide", "left", "prev", 4));
+});
+
+test("groundPlan: a wide picture covers a tall canvas, centred across and placed by y down", () => {
+  const plan = groundPlan(2000, 1000, 100, 100, 1, 0, 50);
+  assert.deepEqual([plan.w, plan.h, plan.dw, plan.dh, plan.x, plan.y], [100, 100, 200, 100, -50, 0]);
+  assert.equal(groundPlan(1000, 2000, 100, 100, 1, 0, 100).y, -100);
+  assert.equal(groundPlan(1000, 2000, 100, 100, 1, 0, 25).y, -25);
+});
+
+test("groundPlan: unblurred, the canvas is the device's pixels", () => {
+  const plan = groundPlan(4000, 3000, 2100, 1260, 2, 0, 50);
+  assert.deepEqual([plan.w, plan.h, plan.blur], [4200, 2520, 0]);
+});
+
+test("groundPlan: a blur shrinks the canvas, keeping the blur's share of it", () => {
+  const plan = groundPlan(2400, 1600, 2100, 1260, 1, 18, 50);
+  assert.deepEqual([plan.w, plan.h, plan.blur], [467, 280, 4]);
+  // Up to an eighth of the size, the rest of the blur drawn.
+  const most = groundPlan(2400, 1600, 2100, 1260, 2, 48, 50);
+  assert.deepEqual([most.w, most.h, most.blur], [525, 315, 12]);
+  // A small blur keeps the full size.
+  assert.equal(groundPlan(2400, 1600, 2100, 1260, 1, 3, 50).w, 2100);
 });

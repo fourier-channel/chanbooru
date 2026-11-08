@@ -7,11 +7,13 @@
 
   <%# --- the ground: the banner's picture, pushed far back ------------------
       Fixed and clipped, so the parallax never moves anything but itself. The
-      banner is a post like any other: the blacklist sees it here too. %>
+      banner is a post like any other: the blacklist sees it here too. Its
+      picture is drawn into the canvas once, blurred and dimmed
+      (creator_gallery_component.js#groundArt). %>
   <% banner = draw[:banner] %>
   <%= tag.div(class: ["modcreator-ground", ("mod-blacklist-target" if banner)], style: depth_style, aria: { hidden: true }, data: { cg_depth: "", **(banner ? marks(banner) : {}) }) do %>
     <% if banner %>
-      <img class="modcreator-ground-art" src="<%= banner_picture(banner) %>" alt="">
+      <canvas class="modcreator-ground-art" data-src="<%= banner_picture(banner) %>"></canvas>
     <% else %>
       <span class="modcreator-ground-art modcreator-ground-art--none"></span>
     <% end %>

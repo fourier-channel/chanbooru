@@ -194,3 +194,17 @@ export function miniRole(j, n, pos, settled) {
   if (j === cur) { return "cur"; }
   return n > 1 && j === (cur - 1 + n) % n && !settled ? "prev" : "other";
 }
+
+// The ground's picture on its canvas (creator_gallery_component.js#groundArt):
+// a canvas of css x dpr pixels, shrunk while the blur allows, and where on it
+// a picture of iw x ih lands, as CSS's object-fit: cover at object-position
+// 50% y%. A picture blurred by b pixels loses nothing drawn 1/k the size and
+// blurred b/k, so the canvas is drawn small (k up to 8, at least 4 pixels of
+// blur left) and the stylesheet stretches it back.
+export function groundPlan(iw, ih, cssW, cssH, dpr, blur, y) {
+  const k = Math.min(8, Math.max(1, (blur * dpr) / 4));
+  const w = Math.max(1, Math.round((cssW * dpr) / k));
+  const h = Math.max(1, Math.round((cssH * dpr) / k));
+  const s = Math.max(w / iw, h / ih);
+  return { w, h, x: (w - (iw * s)) / 2, y: (h - (ih * s)) * (y / 100), dw: iw * s, dh: ih * s, blur: (blur * dpr) / k };
+}

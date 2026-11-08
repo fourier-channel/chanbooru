@@ -11,6 +11,10 @@
 
 body:has(.modcreator) {
   #sidebar { display: none; }
+
+  // The skin's page vignette is fixed to the window, so every scroll step
+  // repainted it, under a ground that covers it whole.
+  &[data-preset="modulation"] { background-image: none; background-attachment: scroll; }
   #content { max-width: none; }
 
   // The site header steps back so the creator's page is the page (operator,
@@ -64,6 +68,12 @@ body:has(.modcreator) {
     border: 1px solid color-mix(in srgb, var(--mod-ink) 7%, transparent);
     box-shadow: 0 50px 120px -40px rgb(0 0 0 / 95%), inset 0 1px 0 color-mix(in srgb, var(--mod-ink) 6%, transparent);
   }
+
+  // Over a ground already blurred (creator_gallery_component.js#groundArt),
+  // the frost is invisible: 0.4/255 mean at the default blur, measured. Not
+  // re-blurring it each frame triples scroll speed on a software compositor.
+  // The editor's bar keeps it: it slides over sharp pictures.
+  &.is-ground-soft .cg-glass:not(.modcreator-bar-row) { backdrop-filter: none; }
 
   .cg-btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
@@ -177,15 +187,20 @@ body:has(.modcreator) {
     background: var(--mod-surface);
   }
 
+  // The canvas holds the picture already blurred, dimmed and placed at --cg-y
+  // (creator_gallery_component.js#groundArt); its own layer, so the parallax
+  // and the view move it without drawing it again.
   .modcreator-ground-art {
     position: absolute; top: -90px; left: -90px;
     width: calc(100% + 180px); height: calc(100% + 180px);
-    object-fit: cover; object-position: 50% var(--cg-y);
-    filter: blur(var(--cg-blur)) brightness(calc(1 - var(--cg-dim))) saturate(1.25);
+    will-change: transform;
 
     // The banner post's applied view (--cg-view, item 8) after the parallax's move.
     transform: translate3d(calc(var(--px, 0) * var(--cg-par) * -40px), calc(var(--py, 0) * var(--cg-par) * -24px), 0) var(--cg-view,) scale(1.18);
     transition: transform 0.7s ease-out;
+
+    // A canvas that takes no filter (Safari before 18) wears it here instead.
+    &.is-css-filtered { filter: blur(var(--cg-blur)) brightness(calc(1 - var(--cg-dim))) saturate(1.25); }
   }
 
   .modcreator-ground-art--none, .modcreator-banner-art--none {

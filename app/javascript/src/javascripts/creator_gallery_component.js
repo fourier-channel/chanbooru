@@ -1,7 +1,7 @@
 import Landing from "./modulation_landing_component";
 import {
   BLANK_MINI, HERO_MAX, HERO_MIN, MIN_W, MINI_EFFECTS, MINI_MAX, DIRS, ROW_H,
-  adderRow, bandRule, layoutOf, miniLook, miniRole, problemsOf, rowsOf, ruleSentence, slotCount, tagsOf,
+  adderRow, bandRule, groundPlan, layoutOf, miniLook, miniRole, problemsOf, rowsOf, ruleSentence, slotCount, tagsOf,
 } from "./creator_gallery_model";
 import { covered, harmonicModel } from "./harmonic_model";
 import { bindLeave, mountTuner, tunerSection } from "./creator_tuner";
@@ -183,13 +183,18 @@ function cycleMini(mini, reduced) {
 //
 // One pointer listener for the page, its writes one per frame, and only to
 // the layers that move ([data-cg-depth], each clipped): --px/--py from -1 to
-// 1, scaled in the stylesheet by the creator's --cg-par.
+// 1, scaled in the stylesheet by the creator's --cg-par. Only a mouse moves
+// them: a finger's pointermove is a scroll or a drag, and a ground that slid
+// under every scroll would be redrawn with it. A page whose strength is 0
+// never moves them, so it listens for nothing; the editor's slider can raise it.
 function parallax(root) {
   const layers = root.querySelectorAll("[data-cg-depth]");
+  if (!root.dataset.editor && !(Number(layers[0]?.style.getPropertyValue("--cg-par")) > 0)) { return; }
   let frame = 0;
   let x = 0;
   let y = 0;
   window.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse") { return; }
     x = ((e.clientX / window.innerWidth) * 2) - 1;
     y = ((e.clientY / window.innerHeight) * 2) - 1;
     if (frame) { return; }
@@ -203,9 +208,77 @@ function parallax(root) {
   }, { passive: true });
 }
 
+// --- the ground's picture -------------------------------------------------
+//
+// Drawn into its canvas blurred, dimmed and saturated once, and again only when
+// the window, the picture or the look changes (groundPlan, in the model). It
+// was an <img> wearing those as a CSS filter, and a CSS filter is redone on
+// every frame the page draws: each scroll step and each step of the hero band,
+// over the whole window. On a machine without a strong graphics card that was
+// most of every frame (2026-11-08, software compositing: scrolling went from 46
+// to 62 frames a second with the filter alone taken off).
+//
+// A browser whose canvas takes no filter (Safari before 18) draws the picture
+// sharp and the canvas wears the CSS filter instead: the same look, at the old
+// cost.
+function groundArt(layer) {
+  let source = null;
+  let frame = 0;
+  const art = () => layer.querySelector("canvas.modcreator-ground-art");
+
+  function draw() {
+    frame = 0;
+    const canvas = art();
+    const look = (name) => parseFloat(layer.style.getPropertyValue(name)) || 0;
+    // Glass over a ground blurred this much, or over no picture, looks the
+    // same unfrosted, and its backdrop blur is half of every scrolled frame.
+    layer.parentElement.classList.toggle("is-ground-soft", !canvas || look("--cg-blur") >= 12);
+    if (!canvas || !source) { return; }
+    const context = canvas.getContext("2d");
+    const filtered = "filter" in context;
+    const plan = groundPlan(source.naturalWidth, source.naturalHeight, canvas.clientWidth, canvas.clientHeight,
+      window.devicePixelRatio || 1, filtered ? look("--cg-blur") : 0, look("--cg-y"));
+    canvas.classList.toggle("is-css-filtered", !filtered);
+    canvas.width = plan.w;
+    canvas.height = plan.h;
+    if (filtered) { context.filter = `blur(${plan.blur}px) brightness(${1 - look("--cg-dim")}) saturate(1.25)`; }
+    context.drawImage(source, plan.x, plan.y, plan.dw, plan.dh);
+  }
+
+  const redraw = () => { frame ||= requestAnimationFrame(draw); };
+
+  // The canvas's picture, again whenever the editor puts in another canvas.
+  // A picture that finishes loading after its canvas was replaced is dropped.
+  function load() {
+    const canvas = art();
+    source = null;
+    if (!canvas) { return; }
+    const img = new Image();
+    img.decoding = "async";
+    img.addEventListener("load", () => {
+      if (art() !== canvas) { return; }
+      source = img;
+      redraw();
+    });
+    img.src = canvas.dataset.src;
+  }
+
+  // A move to a screen of another density keeps the window's size, so the
+  // ResizeObserver stays quiet while the bitmap is sized for the old density.
+  const density = () => {
+    window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`)
+      .addEventListener("change", () => { redraw(); density(); }, { once: true });
+  };
+
+  new ResizeObserver(redraw).observe(layer);
+  density();
+  load();
+  return { load, redraw };
+}
+
 // --- the editor ----------------------------------------------------------
 
-function editor(root, data, bindMinis) {
+function editor(root, data, bindMinis, ground) {
   const region = (name) => root.querySelector(`[data-cg-region="${name}"]`);
   const modland = root.querySelector("[data-modland]");
   const beltConfig = JSON.parse(modland.dataset.config);
@@ -819,9 +892,10 @@ function editor(root, data, bindMinis) {
     const slide = draft.banner.post_id && slideOf(draft.banner.post_id);
     layers.forEach((layer) => {
       const kind = layer.classList.contains("modcreator-ground") ? "ground" : "banner";
-      layer.querySelector(`.modcreator-${kind}-art`).replaceWith(slide ?
-        el("img", { class: `modcreator-${kind}-art`, src: bannerPicture(slide), alt: "" }) :
-        el("span", { class: `modcreator-${kind}-art modcreator-${kind}-art--none` }));
+      const art = !slide ? el("span", { class: `modcreator-${kind}-art modcreator-${kind}-art--none` }) :
+        kind === "ground" ? el("canvas", { class: "modcreator-ground-art", "data-src": bannerPicture(slide) }) :
+          el("img", { class: "modcreator-banner-art", src: bannerPicture(slide), alt: "" });
+      layer.querySelector(`.modcreator-${kind}-art`).replaceWith(art);
       Object.keys(marks({})).forEach((name) => layer.removeAttribute(name));
       layer.classList.remove("mod-blacklist-target", "blacklisted-active", "blacklisted-hidden");
       if (slide) {
@@ -829,6 +903,7 @@ function editor(root, data, bindMinis) {
         layer.classList.add("mod-blacklist-target");
       }
     });
+    ground.load();
     const engine = document.querySelector("#blacklist-box")?.blacklist;
     if (engine) { engine.adopt(slide ? layers : [], layers); }
   }
@@ -844,6 +919,7 @@ function editor(root, data, bindMinis) {
       layer.style.setProperty("--cg-y", `${draft.banner.y}%`);
       showView(layer, viewOf("banner", draft.banner.post_id));
     });
+    ground.redraw();
     root.querySelector("[data-cg-act='view-banner']").disabled = !draft.banner.post_id;
   }
 
@@ -1667,12 +1743,13 @@ function initGallery(root) {
     anchor.scrollIntoView();
   }
 
+  const ground = groundArt(root.querySelector(".modcreator-ground"));
   if (!reduced) { parallax(root); }
   // A harmonic leaves the booru through the leaving notice; the editor's own
   // Tuner opens the builder instead.
   bindLeave(root);
   if (root.dataset.editor) {
-    editor(root, JSON.parse(root.dataset.editor), bindMinis);
+    editor(root, JSON.parse(root.dataset.editor), bindMinis, ground);
   } else {
     bindMinis();
     root.querySelectorAll("[data-cg-tuner]").forEach((section) => mountTuner(section));
