@@ -182,6 +182,9 @@ class MediaFile::Image < MediaFile
 
     resized_image.release
     MediaFile::Image.new(output_file)
+  rescue StandardError
+    output_file&.close
+    raise
   end
 
   def preview!(max_width, max_height, **options)
