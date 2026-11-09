@@ -19,8 +19,17 @@ matrix. Each cell is what that viewer gets:
 - **Visible** -- the post appears and its image loads.
 - Blocked -- the post is absent everywhere (search, counts, paging, its own
   page) and its image is refused. The number under it is the first gate that
-  stops this viewer. Where a post's page and its image are stopped by
-  different gates, both are shown, the page's first.
+  stops this viewer, and under that is the error they are answered with (an
+  HTTP status: 404 not found, 403 forbidden, 401 not signed in). Where a
+  post's page and its image are stopped by different gates, or answered with
+  different errors, both are shown, the page's first.
+
+The errors are chosen so that a refusal gives nothing away: a hidden post
+answers 404, exactly as a post that never existed. A board image answers 404
+whenever it is refused, whatever the reason. Only a Matrix image says more,
+because Matrix's own media address does: 401 when you are not signed in
+through Matrix, 403 when you are but not in its room. A script meets the edge
+check's 403 (gate 7) before any of these.
 
 A request meets the gates in a fixed order. The edge check (gate 7) lets every
 browser through and stops every script, so it is not a column. Next comes the
@@ -30,16 +39,17 @@ which is why nearly every signed-out cell says gate 10.
 | example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
 | an ordinary general-rated post (`1girl`) on the site's welcome page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| that same `1girl`, once it leaves the hero band | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| a post rated questionable, on the welcome page or a gallery band | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| a sensitive tag, `loli` (gate 1) | {no: gate 10} / {no: gate 10} | {no: gate 1} / {no: gate 1} | {no: gate 1} / {no: gate 1} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| deleted by a moderator (gate 4) | {no: gate 10} / {no: gate 10} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} | {yes: its own} / {yes: its own} |
-| jailed, `troll_jail` (gate 4) | {no: gate 10} / {no: gate 10} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} |
-| a banished tag, `gore` (gate 5) | {no: gate 10} / {no: gate 10} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {yes} / {yes} |
-| a hidden source, `aichan_someone` (gate 8) | {no: gate 10} / {no: gate 10} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {yes} / {yes} | {yes} / {yes} |
-| its creator set it to private (gate 9) | {no: gate 10} / {no: gate 10} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {yes: logged} / {yes: logged} | {yes} / {yes} |
-| a flagged tag (gate 12) | {no: gate 10} / {no: gate 10} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {yes} / {yes} | {yes: its own} / {yes: its own} |
-| a Matrix upload, viewer not in its room (gate 3) | {no: gate 10} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {yes} / {yes: via R2} |
+| that same `1girl`, once it leaves the hero band | {no: gate 10, 404} / {no: gate 10, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| a post rated questionable, on the welcome page or a gallery band | {no: gate 10, 404} / {no: gate 10, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| a nude post, `1girl` `completely_nude` (rated explicit), on the welcome page or a gallery band | {no: gate 10, 404} / {no: gate 10, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| a sensitive tag, `loli` (gate 1) | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 1, 404} / {no: gate 1, 404} | {no: gate 1, 404} / {no: gate 1, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| deleted by a moderator (gate 4) | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {yes} / {yes} | {yes: its own} / {yes: its own} |
+| jailed, `troll_jail` (gate 4) | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {yes} / {yes} |
+| a banished tag, `gore` (gate 5) | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {yes} / {yes} |
+| a hidden source, `aichan_someone` (gate 8) | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {yes} / {yes} | {yes} / {yes} |
+| its creator set it to private (gate 9) | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {yes: logged} / {yes: logged} | {yes} / {yes} |
+| a flagged tag (gate 12) | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {yes} / {yes} | {yes: its own} / {yes: its own} |
+| a Matrix upload, viewer not in its room (gate 3) | {no: gate 10, 404} / {no: gate 3, 401} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {yes} / {yes: via R2} |
 | that upload, placed on its creator's public gallery | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes} / {yes: via R2} |
 
 **The columns.**
@@ -80,7 +90,7 @@ creator-private tags (gate 6) and published pages (gate 11).
 | 8 | creator prefixes: whole sources hidden by default |
 | 9 | creator visibility: what each creator chooses |
 | 10 | signed out: closed by default, general-rated posts only |
-| 11 | published pages: a deliberate, expiring grant |
+| 11 | published pages and creators' timed links: a deliberate, expiring grant |
 | 12 | flagged tags: a review quarantine |
 
 ## How the gates work together
@@ -161,7 +171,7 @@ and a reader of a live published page that shows the image (gate 11).
 
 | example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| a sensitive tag, `loli` (gate 1) | {no: gate 10} / {no: gate 10} | {no: gate 1} / {no: gate 1} | {no: gate 1} / {no: gate 1} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| a sensitive tag, `loli` (gate 1) | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 1, 404} / {no: gate 1, 404} | {no: gate 1, 404} / {no: gate 1, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 
 ---
 
@@ -222,7 +232,8 @@ There are two kinds of image, decided differently:
 signed-out reader and, only if that is a no, as you. So an image is served
 exactly to the viewers its post is visible to: a sensitive image to Gold and
 above, a deleted one to admins, a hidden one to nobody. A thumbnail is refused
-like its original. If the board cannot be reached, the gate refuses (503). A
+like its original. A refused image answers 404, the same as one that does not
+exist. If the board cannot be reached, the gate refuses (503). A
 Matrix upload's file is never served on this route unless a visible post that
 is not a Matrix upload holds the same file.
 
@@ -232,7 +243,10 @@ refused to everyone, admins included; it is reviewed only in the moderation
 console's jail panel, which reads it from storage. Otherwise the gate checks
 which rooms the image was posted in and whether you are joined to one. The gate
 re-reads the quarantine list every 30 seconds; if it cannot, it keeps the last
-good list for 30 minutes and then refuses every Matrix image until it can.
+good list for 30 minutes and then refuses every Matrix image until it can. A
+refused Matrix image answers 401 to a reader not signed in through Matrix, 403
+to one outside its rooms, 404 while it is quarantined, and 503 while the gate
+cannot decide.
 
 **Matrix posts follow their image.** A post whose image came from Matrix is
 visible to exactly the viewers who can see the image: the rooms it was posted
@@ -305,8 +319,8 @@ storage does not hold is refused (404); there is no second source.
 | example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
 | an ordinary general-rated post (`1girl`) on the site's welcome page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| that same `1girl`, once it leaves the hero band | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| a Matrix upload, viewer not in its room (gate 3) | {no: gate 10} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {no: gate 3} / {no: gate 3} | {yes} / {yes: via R2} |
+| that same `1girl`, once it leaves the hero band | {no: gate 10, 404} / {no: gate 10, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| a Matrix upload, viewer not in its room (gate 3) | {no: gate 10, 404} / {no: gate 3, 401} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {yes} / {yes: via R2} |
 | that upload, placed on its creator's public gallery | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes} / {yes: via R2} |
 
 ---
@@ -333,8 +347,8 @@ below Moderator, and a banned post below Approver.
 
 | example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| deleted by a moderator (gate 4) | {no: gate 10} / {no: gate 10} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} | {yes: its own} / {yes: its own} |
-| jailed, `troll_jail` (gate 4) | {no: gate 10} / {no: gate 10} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {no: gate 4} / {no: gate 4} | {yes} / {yes} |
+| deleted by a moderator (gate 4) | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {yes} / {yes} | {yes: its own} / {yes: its own} |
+| jailed, `troll_jail` (gate 4) | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {yes} / {yes} |
 
 A published page never shows a jailed image (gate 11).
 
@@ -378,7 +392,7 @@ gates.
 
 | example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| a banished tag, `gore` (gate 5) | {no: gate 10} / {no: gate 10} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {no: gate 5} / {no: gate 5} | {yes} / {yes} |
+| a banished tag, `gore` (gate 5) | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {yes} / {yes} |
 
 **Your blocklist, for a post tagged `insect`.**
 
@@ -476,7 +490,7 @@ bot can add or remove one.
 
 | example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| a hidden source, `aichan_someone` (gate 8) | {no: gate 10} / {no: gate 10} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {no: gate 8} / {no: gate 8} | {yes} / {yes} | {yes} / {yes} |
+| a hidden source, `aichan_someone` (gate 8) | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {yes} / {yes} | {yes} / {yes} |
 
 Also visible to `someone`, once their claim on `aichan_someone` is approved.
 Once the tag is released, the post follows the other gates like any other.
@@ -502,7 +516,7 @@ act on it.
 
 | example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| its creator set it to private (gate 9) | {no: gate 10} / {no: gate 10} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {no: gate 9} / {no: gate 9} | {yes: logged} / {yes: logged} | {yes} / {yes} |
+| its creator set it to private (gate 9) | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {yes: logged} / {yes: logged} | {yes} / {yes} |
 
 Say the post is by `41chan_alice` and she named bob: bob sees it too, and so
 does alice herself. If alice blocks carol, carol cannot see it, even through a
@@ -550,8 +564,9 @@ that post's page would open for them. A cached answer can outlast a post's
 | example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
 | an ordinary general-rated post (`1girl`) on the site's welcome page | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| that same `1girl`, once it leaves the hero band | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| a post rated questionable, on the welcome page or a gallery band | {no: gate 10} / {no: gate 10} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| that same `1girl`, once it leaves the hero band | {no: gate 10, 404} / {no: gate 10, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| a post rated questionable, on the welcome page or a gallery band | {no: gate 10, 404} / {no: gate 10, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+| a nude post, `1girl` `completely_nude` (rated explicit), on the welcome page or a gallery band | {no: gate 10, 404} / {no: gate 10, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
 
 ---
 
@@ -567,6 +582,17 @@ sends. The publishing service re-reads the quarantine list every 60 seconds; if
 it cannot, the last good list holds for 30 minutes, and after that the page
 withholds every image. When the page expires or is taken down, the grant ends
 with it. If the service cannot be reached, the gate refuses.
+
+**A creator's timed link is the same grant** (CREATOR_REACH sec 2, built
+2026-11-08). A creator picks up to 24 of their own posts, at any rating, on
+their gallery's edit screen, and an end date at most 30 days out; the booru
+hands that list to the same publishing service once, and the service serves
+the page and the grant exactly as for a published thread: the same withholding
+of jailed, banished and flagged images on every view, the same end. The
+creator can end it early with End now; a creator has at most 5 live links.
+Both numbers are settings. The booru, not the service, decides which posts are
+the creator's own. A post hidden later for any other reason stays on a live
+link until it ends or is ended (the operator's accepted trade).
 
 The moderation console itself is separate: it opens only to a Matrix account
 at power level 70 or above in the moderators' room, and fails closed.
@@ -609,7 +635,7 @@ quick review.
 
 | example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
 |---|---|---|---|---|---|---|---|
-| a flagged tag (gate 12) | {no: gate 10} / {no: gate 10} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {no: gate 12} / {no: gate 12} | {yes} / {yes} | {yes: its own} / {yes: its own} |
+| a flagged tag (gate 12) | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {yes} / {yes} | {yes: its own} / {yes: its own} |
 
 ---
 
@@ -622,8 +648,10 @@ quick review.
 | signed out, a page answers 404 that opens when signed in | 10 -- closed by default |
 | a list stops at 20, or page 2 answers 410 | 2 -- below Member every list is one page of 20 |
 | cannot register | 0 -- no code, or a used, expired or revoked one |
-| a board image is broken but the post's page opens | 3 -- the image follows its post; a 503 means a service was unreachable |
-| a Matrix image is broken | 3 -- you are not in the room it was posted in, or not signed in through Matrix |
+| a board image answers 404 but the post's page opens | 3 -- the image follows its post; a 503 means a service was unreachable |
+| a Matrix image answers 401 | 3 -- you are not signed in through Matrix |
+| a Matrix image answers 403 | 3 -- you are not in the room it was posted in |
+| a Matrix image answers 404 for everyone, admins included | 4, 5 or 12 -- jailed, or carrying a banished or flagged tag |
 | a Matrix post opens for one viewer and 404s for another, admins included | 3 -- the post follows its image's rooms |
 | a tag's count is higher than the posts you can page through | 3 -- counts include Matrix posts outside your rooms |
 | a Matrix image stopped loading in a room it was posted in | 3 -- the message that posted it there was deleted |
