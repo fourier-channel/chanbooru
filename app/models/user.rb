@@ -376,7 +376,10 @@ class User < ApplicationRecord
     end
 
     def change_password(current_password:, new_password:, password_confirmation:, verification_code:, request:)
-      if !authenticate_password(current_password) && !matrix_verified?(request)
+      password_correct = authenticate_password(current_password) || matrix_verified?(request)
+      limit_2fa_attempts! if password_correct && totp.present?
+
+      if !password_correct
         UserEvent.create_from_request!(self, :failed_reauthenticate, request)
         errors.add(:current_password, "is incorrect")
         false
