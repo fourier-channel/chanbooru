@@ -315,6 +315,32 @@ class CommentsControllerTest < ActionDispatch::IntegrationTest
         assert_response 404
       end
 
+      should "not allow commenting on banned posts" do
+        @post.update!(is_banned: true)
+
+        assert_no_difference("Comment.count") do
+          post_auth comments_path, @user, params: { comment: { post_id: @post.id, body: "blah" }}
+        end
+        assert_response 403
+      end
+
+      should "not allow commenting on taken down posts" do
+        @post.update!(is_taken_down: true)
+
+        assert_no_difference("Comment.count") do
+          post_auth comments_path, @user, params: { comment: { post_id: @post.id, body: "blah" }}
+        end
+        assert_response 403
+      end
+
+      should "allow approvers to comment on banned posts" do
+        @post.update!(is_banned: true)
+
+        assert_difference("Comment.count", 1) do
+          post_auth comments_path, create(:approver), params: { comment: { post_id: @post.id, body: "blah" }}
+        end
+      end
+
       context "that mentions a user" do
         setup do
           Danbooru.config.stubs(:rate_limits_enabled?).returns(true)
