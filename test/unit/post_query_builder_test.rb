@@ -960,7 +960,6 @@ class PostQueryBuilderTest < ActiveSupport::TestCase
       gif = create(:post, file_ext: "gif", media_asset: build(:media_asset, file_ext: "gif"))
       mp4 = create(:post, file_ext: "mp4", media_asset: build(:media_asset, file_ext: "mp4"))
       webm = create(:post, file_ext: "webm", media_asset: build(:media_asset, file_ext: "webm"))
-      swf = create(:post, file_ext: "swf", media_asset: build(:media_asset, file_ext: "swf"))
       zip = create(:post, file_ext: "zip", media_asset: build(:media_asset, file_ext: "zip"))
 
       assert_tag_match([jpg], "is:jpg")
@@ -968,7 +967,7 @@ class PostQueryBuilderTest < ActiveSupport::TestCase
       assert_tag_match([gif], "is:gif")
       assert_tag_match([mp4], "is:mp4")
       assert_tag_match([webm], "is:webm")
-      assert_tag_match([swf], "is:swf")
+      assert_tag_match([], "is:swf")
       assert_tag_match([zip], "is:zip")
     end
 

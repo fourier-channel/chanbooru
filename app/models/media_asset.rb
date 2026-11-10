@@ -24,8 +24,12 @@ class MediaAsset < ApplicationRecord
 
   class Error < StandardError; end
 
-  FILE_TYPES = %w[jpg png gif webp avif mp4 webm swf zip]
-  FILE_MIME_TYPES = %w[image/jpeg image/png image/gif image/webp image/avif video/mp4 video/webm application/x-shockwave-flash video/x-ugoira]
+  # No swf (removed 2026-11-10): a Flash file is a program, and playing one on
+  # this origin runs it with the viewer's cookies. FileTypeDetector still
+  # recognises the header, so an swf is refused by name below rather than
+  # slipping through as an unknown type.
+  FILE_TYPES = %w[jpg png gif webp avif mp4 webm zip]
+  FILE_MIME_TYPES = %w[image/jpeg image/png image/gif image/webp image/avif video/mp4 video/webm video/x-ugoira]
   FILE_KEY_LENGTH = 9
   VARIANTS = %i[180x180 360x360 720x720 sample full original]
   MAX_FILE_SIZE = Danbooru.config.max_file_size.to_i

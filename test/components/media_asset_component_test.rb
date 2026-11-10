@@ -34,11 +34,13 @@ class MediaAssetComponentTest < ViewComponent::TestCase
     end
 
     context "for a flash file" do
-      should "render the flash" do
-        media_asset = create(:media_asset, file_ext: "swf")
+      should "not play the flash: there is no player to hand it to" do
+        media_asset = create(:media_asset)
+        media_asset.update_columns(file_ext: "swf") # rubocop:disable Rails/SkipsModelValidations -- a legacy row: no upload accepts swf since 2026-11-10
         node = render_component(media_asset)
 
-        assert_equal(media_asset.variant(:original).file_url, node.css(".media-asset-component div.ruffle-container").attr("data-swf").value)
+        assert_empty(node.css("[data-swf]"))
+        assert_match(/Flash files are not played here/, node.css(".media-asset-component").text)
       end
     end
 

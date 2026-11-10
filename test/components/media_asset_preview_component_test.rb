@@ -43,7 +43,8 @@ class MediaAssetPreviewComponentTest < ViewComponent::TestCase
 
     context "for a flash file" do
       should "render the flash placeholder image" do
-        media_asset = create(:media_asset, file_ext: "swf")
+        media_asset = create(:media_asset)
+        media_asset.update_columns(file_ext: "swf") # rubocop:disable Rails/SkipsModelValidations -- a legacy row: no upload accepts swf since 2026-11-10
         node = render_preview(media_asset)
 
         assert_equal(media_asset_path(media_asset), node.css("article a").attr("href").value)

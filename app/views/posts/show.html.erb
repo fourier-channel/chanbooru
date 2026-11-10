@@ -320,7 +320,7 @@
           mirror of a site that holds the image. Nothing here is on Danbooru. %>
       <p>This image is hidden by safe mode. Disable safe mode in your settings to view it (<%= link_to_wiki "learn more", "help:safe_mode" %>).</p>
     <% elsif @post.is_flash? -%>
-      <div class="ruffle-container" data-swf="<%= @post.tagged_file_url %>"></div>
+      <p>Flash files are not played here.</p>
     <% elsif @post.is_video? || @post.is_ugoira? -%>
       <%= render VideoComponent.new(@post.media_asset, default_quality: (params.fetch(:size, CurrentUser.user.default_image_size) == "original" ? "original" : "sample"), start_time: params[:time].to_f, html: { id: "image" }) %>
     <% elsif @post.is_image? -%>

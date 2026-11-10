@@ -229,6 +229,23 @@ class UploadsControllerTest < ActionDispatch::IntegrationTest
         end
       end
 
+      # Flash is a program, and playing one on this origin runs it with the
+      # viewer's cookies. Refused since 2026-11-10; the header is still
+      # recognised, so this is a refusal by name, not an unknown type.
+      context "for a Flash file" do
+        should "refuse it and store nothing" do
+          create_upload!("test/files/swf/compressed.swf", user: @user)
+
+          assert_equal("File is not an image or video", Upload.last.error)
+          assert_equal(0, MediaAsset.where(file_ext: "swf").count)
+          assert_equal(:swf, MediaFile.open("test/files/swf/compressed.swf").file_ext)
+        end
+
+        should "not be a file type a media asset can hold" do
+          assert_not(build(:media_asset, file_ext: "swf").valid?)
+        end
+      end
+
       context "for an unsupported video file" do
         should "fail for a .mkv file" do
           create_upload!("test/files/mkv/test-512x512.mkv", user: @user)
@@ -442,7 +459,6 @@ class UploadsControllerTest < ActionDispatch::IntegrationTest
         should_upload_successfully("test/files/mp4/test-iso5.mp4")
         should_upload_successfully("test/files/webm/test-512x512.webm")
         should_upload_successfully("test/files/webm/test-gbrp-vp9.webm")
-        # should_upload_successfully("test/files/swf/compressed.swf")
 
         should_upload_successfully("test/files/avif/fox.profile0.8bpc.yuv420.monochrome.avif")
         should_upload_successfully("test/files/avif/hdr_cosmos01000_cicp9-16-9_yuv420_limited_qp40.avif")

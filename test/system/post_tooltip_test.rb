@@ -3,7 +3,7 @@ require "application_system_test_case"
 class PostTooltipTest < ApplicationSystemTestCase
   context "Post tooltips" do
     setup do
-      @post = create(:post, file_ext: "swf")
+      @post = create(:post)
       puts @post.preview_file_url
     end
 

@@ -27,6 +27,15 @@ class ModulationMediaBoxTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Flash cannot be uploaded since 2026-11-10, so a flash post can only be a
+  # row from before then.
+  def legacy_flash(width, height)
+    post = make("jpg", width, height)
+    post.update_columns(file_ext: "swf") # rubocop:disable Rails/SkipsModelValidations -- a legacy row: no upload accepts swf since 2026-11-10
+    post.media_asset.update_columns(file_ext: "swf") # rubocop:disable Rails/SkipsModelValidations -- a legacy row: no upload accepts swf since 2026-11-10
+    post
+  end
+
   def media(post, viewer = @viewer)
     as(viewer) { ModulationPostComponent.new(post: post, viewer: viewer).payload[:media] }
   end
@@ -103,7 +112,7 @@ class ModulationMediaBoxTest < ActionDispatch::IntegrationTest
     end
 
     should "give flash no box: its preview is a fixed placeholder of no known size" do
-      m = media(make("swf", 640, 480))
+      m = media(legacy_flash(640, 480))
       assert_equal "other", m[:kind]
       assert_nil m[:box]
     end
@@ -134,7 +143,7 @@ class ModulationMediaBoxTest < ActionDispatch::IntegrationTest
     end
 
     should "carry no style when there is no box" do
-      post = make("swf", 640, 480)
+      post = legacy_flash(640, 480)
       get_auth post_path(post, preset: "modulation"), @viewer
       assert_response :success
 

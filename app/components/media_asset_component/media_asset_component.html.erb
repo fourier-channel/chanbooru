@@ -19,7 +19,7 @@
     <% elsif is_video? || is_ugoira? %>
       <%= render VideoComponent.new(media_asset, default_quality: (current_user.default_image_size == "original" ? "original" : "sample"), html: { class: "media-asset-image" }) %>
     <% elsif is_flash? %>
-      <%= tag.div "data-swf": variant(:original).file_url, class: "media-asset-image ruffle-container" %>
+      <p>Flash files are not played here.</p>
     <% end %>
   </div>
 

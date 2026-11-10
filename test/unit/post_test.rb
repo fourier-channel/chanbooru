@@ -1483,7 +1483,9 @@ class PostTest < ActiveSupport::TestCase
 
       context "a Flash file with the sound tag" do
         should "not automatically remove the sound tag" do
-          @post = create(:post, file_ext: "swf", media_asset: build(:media_asset, file_ext: "swf"))
+          @post = create(:post)
+          @post.update_columns(file_ext: "swf") # rubocop:disable Rails/SkipsModelValidations -- a legacy row: no upload accepts swf since 2026-11-10
+          @post.media_asset.update_columns(file_ext: "swf") # rubocop:disable Rails/SkipsModelValidations -- a legacy row: no upload accepts swf since 2026-11-10
           @post.update!(tag_string: "sound")
 
           assert_equal("flash sound", @post.tag_string)
