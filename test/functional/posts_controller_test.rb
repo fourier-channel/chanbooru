@@ -1157,6 +1157,18 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
         assert_equal("bbb", @post.tag_string)
       end
 
+      should "not overflow the session cookie when adding many new tags" do
+        tags = 40.times.map { |i| "tag#{i}_#{"a" * 150}" }.join(" ")
+        put_auth post_path(@post), @user, params: { post: { tag_string: "bbb #{tags}" }}
+        assert_redirected_to post_path(@post)
+      end
+
+      should "not overflow the session cookie when adding a very long tag" do
+        put_auth post_path(@post), @user, params: { post: { tag_string: "bbb #{"a" * 2000}" }}
+        assert_redirected_to post_path(@post)
+        assert_equal("bbb", @post.reload.tag_string)
+      end
+
       should "ignore restricted params" do
         put_auth post_path(@post), @user, params: { post: { last_noted_at: 1.minute.ago }}
         assert_nil(@post.reload.last_noted_at)
