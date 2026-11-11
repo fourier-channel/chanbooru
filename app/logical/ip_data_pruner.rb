@@ -24,14 +24,15 @@
 #                    hold per-request data, so whatever is in it goes too.
 #                    login_session_id stays: a random id per sign-in, cleared
 #                    at logout, naming the account's own login and no device.
-#   login_sessions   session_id, dated by last_seen_at: the same browser id as
+#   login_sessions   session_id, dated by created_at: the same browser id as
 #                    user_events.session_id, written when the login began and
-#                    reached from an event by its login_session_id, so it goes
-#                    with the events' or one join undoes their clearing.
-#                    last_seen_at is written at sign-in and at logout and never
-#                    per request, so it dates the id's recording; NULL counts as
-#                    old. Nothing signs anyone in by it (that is login_id), so
-#                    the login itself stays as valid as it was.
+#                    never after, and reached from an event by its
+#                    login_session_id, so it goes with the events' or one join
+#                    undoes their clearing. Not by last_seen_at: SessionLoader
+#                    moves that hourly while the login is in use, which would
+#                    keep the id as long as the login lasts. Nothing signs
+#                    anyone in by it (that is login_id), so the login itself
+#                    stays as valid as it was.
 #   users            last_ip_addr, dated by last_logged_in_at. SessionLoader
 #                    rewrites the address on every request it changes on, and
 #                    moves last_logged_in_at on any request an hour after the
@@ -102,7 +103,7 @@ class IpDataPruner
   end
 
   def stale_login_sessions
-    LoginSession.where.not(session_id: nil).where("last_seen_at IS NULL OR last_seen_at < ?", cutoff)
+    LoginSession.where.not(session_id: nil).where(created_at: ...cutoff)
   end
 
   def stale_users
