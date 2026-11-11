@@ -992,7 +992,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       should "keep the popup layout through 2FA verification, and finish at the completion page" do
         user = create(:user_with_2fa, password: "password")
 
-        post verify_totp_session_path, params: { totp: { user_id: user.signed_id(purpose: :verify_totp), code: user.totp.code, url: login_done_path }}
+        post verify_totp_session_path, params: { totp: { user_id: verify_totp_token(user), code: user.totp.code, url: login_done_path }}
 
         assert_redirected_to login_done_path
         assert_equal(user.id, session[:user_id])

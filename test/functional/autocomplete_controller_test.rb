@@ -144,7 +144,8 @@ class AutocompleteControllerTest < ActionDispatch::IntegrationTest
         get autocomplete_index_path(search: { query: "tag_", type: "tag_query" }, limit: 1_000_000)
 
         assert_response :success
-        assert_equal(100, response.parsed_body.css("li").count)
+        # Fork: the limit is also clamped to the viewer's page size (AutocompleteService).
+        assert_equal([AutocompleteService::MAX_LIMIT, User.anonymous.listing_per_page_limit].min, response.parsed_body.css("li").count)
       end
 
       should "not set session cookies when the response is publicly cached" do

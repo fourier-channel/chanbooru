@@ -22,7 +22,8 @@ class CountsControllerTest < ActionDispatch::IntegrationTest
         get posts_counts_path(format: :json, tags: "a b c")
         assert_response 422
 
-        get_auth posts_counts_path(format: :json, tags: "a b c"), create(:user)
+        # Fork: members search any number of tags; restricted accounts and anonymous two (User#tag_query_limit).
+        get_auth posts_counts_path(format: :json, tags: "a b c"), create(:restricted_user)
         assert_response 422
       end
 
