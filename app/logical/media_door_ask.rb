@@ -20,9 +20,29 @@
 #
 # Fails closed: the parameter from any other peer is ignored (and logged),
 # so the request keeps safe mode.
+#
+# A MATRIX IMAGE FOLLOWS ITS POST, IN ITS ROOMS TOO (operator, 2026-11-11).
+# The rooms decide who may fetch a Matrix image (Gate 3), but a room member
+# the booru hides the post from -- a sensitive post below Gold (gate 1), a
+# deleted or jailed one (gate 4), every gate but the rooms -- is refused the
+# image as well, and Technetium pops the message out of the room. For that
+# fourier-auth asks with `media_door=matrix_reader&matrix_id=<the reader>`,
+# from the same peer only, and is answered {md5, hidden} for every post that
+# holds one of the md5s (#hidden_from_reader). An md5 no post holds is
+# absent, and the rooms alone decide it. From any other peer the mode is
+# ignored and logged, and the ask is answered as a stranger's: rows with no
+# `hidden`, which fourier-auth refuses to read, so its image is refused.
 module MediaDoorAsk
   PARAM = "media_door"
   TOKEN_HOLDER = "token_holder"
+  MATRIX_READER = "matrix_reader"
+  MATRIX_ID = "matrix_id"
+
+  # What a mode loses when its ask comes from a peer that is not the door.
+  LOST = {
+    TOKEN_HOLDER => "a Matrix reader outside a placed post's rooms gets the signed-out (rating g) answer",
+    MATRIX_READER => "fourier-auth cannot read the answer and refuses every Matrix image a booru post holds (503)",
+  }.freeze
 
   module_function
 
@@ -31,12 +51,45 @@ module MediaDoorAsk
   def token_holder?(request, params)
     return false unless params[PARAM].to_s == TOKEN_HOLDER
 
-    from_media_door?(request)
+    from_media_door?(request, TOKEN_HOLDER)
+  end
+
+  # @return [String, nil] the Matrix reader fourier-auth asks for, when this
+  #   request is its in-room ask (see above)
+  def matrix_reader(request, params)
+    return nil unless params[PARAM].to_s == MATRIX_READER
+
+    mxid = params[MATRIX_ID].to_s.downcase
+    return nil unless FourierPostCreator.valid_mxid?(mxid)
+
+    from_media_door?(request, MATRIX_READER) ? mxid : nil
+  end
+
+  # Whether each post holding one of the md5s in `tags` (md5:a,b,...) is
+  # hidden from the Matrix reader `mxid`, by every gate but the rooms: the
+  # question MatrixViewerRooms.placed_grant asks for a signed-out viewer.
+  # The reader is their linked booru account; one with none yet (a Matrix
+  # account makes it on its first booru request) or a deleted one is a
+  # stranger, as their booru page would treat them. Nothing is made, nobody is
+  # signed in and nothing is recorded: this asks about a reader, it is not one.
+  #
+  # @return [Array<Hash>] {md5:, hidden:} for each post found
+  def hidden_from_reader(tags, mxid)
+    raise ActionController::BadRequest, "#{PARAM}=#{MATRIX_READER} asks about tags=md5:<md5>[,<md5>...] (up to 20), nothing else" unless tags.to_s.match?(MembersOnly::ANONYMOUS_MD5_QUERY)
+
+    reader = User.find_by(matrix_id: mxid)
+    reader = User.anonymous if reader.nil? || reader.is_deleted?
+    md5s = tags.to_s.delete_prefix("md5:").downcase.split(",")
+    Post.unscoped do
+      posts = Post.where(md5: md5s).select(:id, :md5, :is_banned, :bit_flags, :tag_string).to_a
+      hidden = Post.hidden_ids_among(posts.map(&:id), reader, rooms: false)
+      posts.map { |post| { md5: post.md5, hidden: hidden.include?(post.id) || post.banblocked?(reader) } }
+    end
   end
 
   # The media door's addresses are looked up again only when a peer does not
   # match them, as FourierIdentity.from_proxy? does.
-  def from_media_door?(request)
+  def from_media_door?(request, mode)
     door = Danbooru.config.fourier_media_door
     return true if door.nil?
 
@@ -47,9 +100,9 @@ module MediaDoorAsk
     return true if @door_addresses.include?(peer)
 
     if @door_addresses.empty?
-      Rails.logger.error("media door ask: #{door.inspect} resolves to no address, so no #{PARAM}=#{TOKEN_HOLDER} ask is honoured and a Matrix reader outside a placed post's rooms gets the signed-out (rating g) answer; fourier_media_door must name fourier-auth's compose service")
+      Rails.logger.error("media door ask: #{door.inspect} resolves to no address, so no #{PARAM}=#{mode} ask is honoured and #{LOST.fetch(mode)}; fourier_media_door must name fourier-auth's compose service")
     else
-      Rails.logger.error("media door ask: ignored #{PARAM}=#{TOKEN_HOLDER} from #{peer}, which is not #{door.inspect} (#{@door_addresses.join(", ")}); answered as signed out. If fourier-auth's compose service is not #{door.inspect}, set fourier_media_door to it")
+      Rails.logger.error("media door ask: ignored #{PARAM}=#{mode} from #{peer}, which is not #{door.inspect} (#{@door_addresses.join(", ")}); answered as signed out, so #{LOST.fetch(mode)}. If fourier-auth's compose service is not #{door.inspect}, set fourier_media_door to it")
     end
     false
   end

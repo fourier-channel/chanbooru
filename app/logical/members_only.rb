@@ -234,8 +234,9 @@ module MembersOnly
   #   - in json ONLY, `tags=md5:<32 hex>[,<32 hex>...]` (up to the 20 rows a
   #     restricted page holds, fourier-auth's MAX_BATCH) with
   #     `only=md5,is_deleted,source` and `limit`, and NO other parameter but
-  #     `media_door` (fourier-auth's token-holder ask, MediaDoorAsk; any
-  #     other value of it is ignored there, so the ask stays a stranger's):
+  #     `media_door` and `matrix_id` (fourier-auth's token-holder and
+  #     in-room asks, MediaDoorAsk; from any other peer, or with any other
+  #     value, they are ignored there, so the ask stays a stranger's):
   #     fourier-auth's media gate asks exactly that, anonymously, before
   #     every picture it releases (booru-visibility.js), and treats any
   #     non-200 as "booru unavailable" -- refusing it would black out every
@@ -250,7 +251,7 @@ module MembersOnly
   # panel's remembered sort is not applied for them either (PostsController).
   ANONYMOUS_MD5_QUERY = /\Amd5:[0-9a-f]{32}(,[0-9a-f]{32}){0,19}\z/i
   ANONYMOUS_MD5_FIELDS = %w[is_deleted md5 source].freeze
-  ANONYMOUS_MD5_PARAMS = %w[tags only limit media_door].freeze
+  ANONYMOUS_MD5_PARAMS = %w[tags only limit media_door matrix_id].freeze
 
   def anonymous_post_listing(controller)
     params = controller.params

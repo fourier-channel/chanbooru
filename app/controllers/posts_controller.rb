@@ -10,8 +10,14 @@ class PostsController < ApplicationController
 
   def index
     refuse_window_chunk! if request.variant.window?
+    reader = MediaDoorAsk.matrix_reader(request, params)
 
-    if params[:md5].present?
+    if reader
+      # fourier-auth's in-room ask: which of these posts the reader may not
+      # see (MediaDoorAsk.hidden_from_reader), not a search.
+      authorize Post
+      render json: MediaDoorAsk.hidden_from_reader(params[:tags], reader)
+    elsif params[:md5].present?
       @post = authorize Post.find_by!(md5: params[:md5])
       # Same rule by the other door: an md5 lookup must not confirm a gated post
       # exists when the post page would not.
