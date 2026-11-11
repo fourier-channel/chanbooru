@@ -76,27 +76,9 @@ class SessionLoaderTest < ActiveSupport::TestCase
           assert_equal(false, CurrentUser.safe_mode?)
         end
 
-        should "be off for the media door's ask for a token holder, from the media door" do
+        should "stay on for the retired token-holder ask, even from the media door" do
           Danbooru.config.stubs(:fourier_media_door).returns("fourier-auth")
           Resolv.stubs(:getaddresses).with("fourier-auth").returns(["10.0.0.5"])
-          @request.stubs(:query_parameters).returns({ "media_door" => "token_holder" })
-          SessionLoader.new(@request).load
-
-          assert_equal(false, CurrentUser.safe_mode?)
-        end
-
-        should "stay on for the same ask from any other peer" do
-          Danbooru.config.stubs(:fourier_media_door).returns("fourier-auth")
-          Resolv.stubs(:getaddresses).with("fourier-auth").returns(["10.0.0.9"])
-          @request.stubs(:query_parameters).returns({ "media_door" => "token_holder" })
-          SessionLoader.new(@request).load
-
-          assert_equal(true, CurrentUser.safe_mode?)
-        end
-
-        should "stay on when the media door resolves to nothing" do
-          Danbooru.config.stubs(:fourier_media_door).returns("fourier-auth")
-          Resolv.stubs(:getaddresses).with("fourier-auth").returns([])
           @request.stubs(:query_parameters).returns({ "media_door" => "token_holder" })
           SessionLoader.new(@request).load
 

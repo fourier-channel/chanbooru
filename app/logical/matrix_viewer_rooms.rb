@@ -38,8 +38,6 @@ class MatrixViewerRooms
 
   # The memo's kind for #placed_grant, forgotten when the record is written.
   PLACED_GRANT = :placed_grant
-  # How long #placed_grant's check of the other gates is kept.
-  PLACED_GRANT_CHECKED = 30.seconds
 
   class Failure < StandardError; end
 
@@ -76,42 +74,25 @@ class MatrixViewerRooms
   # Matrix identity outside the post's rooms: "an unlock for gate 3 on that
   # specific view surface and not scoped to any given user".
   #
-  # Only a post a signed-out viewer may see, every gate but this one asked
-  # (Post.hidden_ids_among, rooms: false), and whose md5 the md5 ask gives a
-  # signed-out viewer (PostPolicy#can_see_media?: not banned, not taken
-  # down): for a viewer outside the rooms the Matrix door asks the booru as
-  # nobody, so a placed post gated, flagged, deleted, banned, under a hidden
-  # prefix or hidden by its creator would draw for a viewer whose own gates
-  # pass it -- a Gold viewer, an approver, an admin -- with its image refused.
-  # Left out, its card is absent and the band goes on, as the hero band's do
-  # (operator, 2026-11-01). Inside its rooms it shows as ever.
+  # Gate 3 only, and every placed post: while a post is placed THE BOORU
+  # DECIDES THE REST FOR THE VIEWER'S RANK (operator, 2026-11-11: "we let the
+  # booru surface, as the more permissive of the two surfaces due to the
+  # explicit creator grant, decide"). Each viewer's own gates still hide a
+  # placed post gated, flagged, deleted, banned, under a hidden prefix or
+  # hidden by its creator from whoever may not see it, and its card is
+  # absent; signed out still sees rating g only. The Matrix door asks the
+  # same question as the reader (MediaDoorAsk, `hidden_outside_rooms`), so a
+  # card drawn is an image released. Inside its rooms it shows as ever.
   #
   # Empty with no request at all, since a job or a console is no viewer --
   # LandingShowcaseCache's refresh searches as User.anonymous for a list
   # every viewer is served, long after a grant has lapsed. Read once a
   # request, the same for every viewer (CreatorVisibility.memoized): a page
-  # asks it per post and per search, and nothing in front of the cache
-  # absorbs the reads. And what the other gates leave of it is cached for
-  # PLACED_GRANT_CHECKED, keyed on the record itself so a new placement is
-  # asked about at once: asked as nobody, it cost a signed-in request 10-50
-  # ms on production (2026-11-01, 22 posts placed), every request while a
-  # public page has been viewed in the last two hours. A post gated or hidden
-  # after the check keeps the grant that long, and only Gate 3's: every gate
-  # of the viewer's own still hides it.
+  # asks it per post and per search.
   def self.placed_grant(request: CurrentUser.request)
     return Set.new unless request
 
-    CreatorVisibility.memoized(PLACED_GRANT, nil) do
-      placed = MembersOnly.placed_ids
-      next placed if placed.empty?
-
-      Rails.cache.fetch(["gate3-placed-grant", Digest::SHA256.hexdigest(placed.sort.join(","))], expires_in: PLACED_GRANT_CHECKED) do
-        Post.unscoped do
-          kept = placed - Post.hidden_ids_among(placed.to_a, User.anonymous, rooms: false)
-          Post.where(id: kept.to_a).select(:id, :is_banned, :bit_flags, :tag_string).reject { |post| post.banblocked?(User.anonymous) }.to_set(&:id)
-        end
-      end
-    end
+    CreatorVisibility.memoized(PLACED_GRANT, nil) { MembersOnly.placed_ids }
   end
 
   # What gate 3 shows `user`, as one row condition: the rooms meet theirs,

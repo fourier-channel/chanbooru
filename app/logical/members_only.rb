@@ -234,8 +234,8 @@ module MembersOnly
   #   - in json ONLY, `tags=md5:<32 hex>[,<32 hex>...]` (up to the 20 rows a
   #     restricted page holds, fourier-auth's MAX_BATCH) with
   #     `only=md5,is_deleted,source` and `limit`, and NO other parameter but
-  #     `media_door` and `matrix_id` (fourier-auth's token-holder and
-  #     in-room asks, MediaDoorAsk; from any other peer, or with any other
+  #     `media_door` and `matrix_id` (fourier-auth's ask for a Matrix
+  #     reader, MediaDoorAsk; from any other peer, or with any other
   #     value, they are ignored there, so the ask stays a stranger's):
   #     fourier-auth's media gate asks exactly that, anonymously, before
   #     every picture it releases (booru-visibility.js), and treats any
@@ -282,16 +282,14 @@ module MembersOnly
   #
   # And for a post placed on a public creator's page (placed_ids): its
   # image is public while the grant is fresh, whoever opened the page
-  # (operator, 2026-11-01: "not scoped to any given user"). The Matrix door
-  # cannot ask as the reader's booru session -- it holds a Matrix token, not
-  # one -- so for a token holder outside the rooms it asks this, as nobody,
-  # and a signed-in view of the page must be enough. Its post page still
-  # opens signed out only for what a signed-out view drew.
+  # (operator, 2026-11-01: "not scoped to any given user"), so a signed-in
+  # view of the page is enough for a tokenless image request, which asks
+  # this. A Matrix reader outside the rooms is asked about as themselves
+  # instead (MediaDoorAsk, `hidden_outside_rooms`). Its post page still opens
+  # signed out only for what a signed-out view drew.
   #
-  # Both modes' shown sets count. A stranger's ask runs in safe mode since
-  # 2026-11-08 (gate 10), so its search keeps rating g alone, whatever a set
-  # holds; a token holder's ask (media_door) runs out of safe mode, as the
-  # signed-in reader it stands for.
+  # Both modes' shown sets count. The ask runs in safe mode since 2026-11-08
+  # (gate 10), so its search keeps rating g alone, whatever a set holds.
   # One batch (up to 20 rows) costs four cache reads and two cached newest
   # pages, whatever the batch holds; the rows kept are then
   # read back by primary key, so the answer renders as any other search does.
@@ -400,7 +398,7 @@ module MembersOnly
   # with safe mode.
   #
   # Read by Gate 3 (MatrixViewerRooms.placed_grant), for every viewer, and by
-  # the image door's md5 ask (anonymous_md5_rows). Only the posts Gate 3
+  # the image door's asks (anonymous_md5_rows, MediaDoorAsk). Only the posts Gate 3
   # could hide are written -- a post that is not a Matrix post ({0}) is never
   # asked about rooms -- so the list every search inlines is as long as the
   # Matrix posts placed. The cap

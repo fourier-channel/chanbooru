@@ -2299,8 +2299,8 @@ class Post < ApplicationRecord
   # The one exception (operator, 2026-11-01): a post placed on a public
   # creator's page someone opened passes, for every viewer, while the record
   # is fresh (MatrixViewerRooms.placed_grant) -- unless it has no rooms left:
-  # redaction still wins (2026-10-15) -- and only if a signed-out viewer may
-  # see it, this gate aside, since the image door serves it to no one else.
+  # redaction still wins (2026-10-15). Every other gate is the viewer's own:
+  # the booru decides the rest for their rank (operator, 2026-11-11).
   # Read only once the rooms have said hidden, so every other post costs
   # nothing more.
   #
@@ -2433,7 +2433,7 @@ class Post < ApplicationRecord
   # by_creator: false leaves out the creator term, for a caller that holds
   # the ids already and checks them in Ruby (hidden_ids_among). rooms: false
   # leaves out Gate 3's, for the one question asked of every gate but it --
-  # which placed posts the image door can serve (MatrixViewerRooms.placed_grant).
+  # what the media door refuses a room member (MediaDoorAsk.withheld_ids).
   def self.hidden_from(user, by_creator: true, rooms: true)
     tags = "string_to_array(posts.tag_string, ' ')"
     terms = []

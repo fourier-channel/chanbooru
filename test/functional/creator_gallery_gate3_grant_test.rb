@@ -110,6 +110,14 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
     MatrixViewerRooms.unstub(:ids)
   end
 
+  # The Matrix door's ask for a reader its rooms refused (MediaDoorAsk):
+  # md5 => hidden_outside_rooms.
+  def door_ask(posts, matrix_id)
+    get posts_path(format: :json), params: { tags: "md5:#{posts.map(&:md5).join(",")}", only: "md5,is_deleted,source", limit: posts.size, media_door: "matrix_reader", matrix_id: matrix_id }
+    assert_response :success
+    response.parsed_body.to_h { |row| [row["md5"], row["hidden_outside_rooms"]] }
+  end
+
   def md5_ask(posts, media_door: nil)
     get posts_path(format: :json), params: { tags: "md5:#{posts.map(&:md5).join(",")}", only: "md5,is_deleted,source", limit: posts.size, media_door: media_door }.compact
     assert_response :success
@@ -225,42 +233,47 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
     end
   end
 
-  # The grant opens Gate 3 only for a post the image door can then serve
-  # (operator, 2026-11-01: as the hero band, a card whose picture would not
-  # come is absent, and the rest go on). The Matrix door asks the booru as
-  # nobody for a viewer outside the rooms, so a placed post that a signed-out
-  # viewer may not see, Gate 3 aside, is not granted -- not even to a viewer
-  # whose own gates would pass it. Inside its rooms it shows as ever.
+  # WHILE A POST IS PLACED, THE BOORU DECIDES FOR THE READER'S RANK
+  # (operator, 2026-11-11: "we let the booru surface, as the more permissive
+  # of the two surfaces due to the explicit creator grant, decide"). The
+  # grant opens Gate 3 alone; every other gate is the viewer's own. Post and
+  # image stay one decision: the Matrix door asks for a reader outside the
+  # rooms as that reader (MediaDoorAsk, hidden_outside_rooms), so a card
+  # drawn for them has its picture, and one they may not see is absent.
   context "a placed post a signed-out viewer may not see" do
     setup do
-      @gold = create(:gold_user)
+      @gold = create(:gold_user, matrix_id: "@gold:41chan.net")
+      @member = create(:user, matrix_id: "@member:41chan.net")
       @gated = as(@tunnel) { create(:post, uploader: @tunnel, md5: SecureRandom.hex(16), tag_string: "night child", rating: "g") }
       FourierPostCreator.create!(post: @gated, mxid: @gallery.matrix_id, recorded_by: @tunnel.id)
       @gated.update_columns(room_ids: @hero.room_ids) # rubocop:disable Rails/SkipsModelValidations -- PostMxc's answer
       @gallery.creator_gallery_posts.create!(band: "hero", post: @gated, position: 10)
       CreatorVisibility.forget!
+      MediaDoorAsk.instance_variable_set(:@door_addresses, nil) # its lookup is kept between requests
     end
 
-    should "be absent for a Gold viewer outside its rooms, the rest of the band drawn" do
+    should "be drawn for a Gold viewer outside its rooms, and its image answered open for them" do
       view(@gold)
-      assert(rendered?(@hero), "fixture: the placed post every viewer may see is drawn")
-      assert_not(rendered?(@gated), "a placed post the image door would refuse was drawn for a Gold viewer outside its rooms")
-      assert(hidden_from_gold?(@gated))
-      assert_not(hidden_from_gold?(@hero))
+      assert(rendered?(@gated), "a placed post behind a sensitive tag was not drawn for a Gold viewer outside its rooms")
+      assert_not(hidden_from_gold?(@gated))
 
       reset!
       MatrixViewerRooms.stubs(:ids).returns([MatrixViewerRooms::NOT_MATRIX, MatrixViewerRooms::SITE_ASSET])
-      view(@gold, headers: { "X-Fourier-Identity" => "@bob:41chan.net" })
-      assert(rendered?(@hero), "fixture: a verified Matrix viewer outside the rooms is drawn the placed post every viewer may see")
-      assert_not(rendered?(@gated), "drawn for a verified Matrix viewer outside its rooms")
+      view(@gold, headers: { "X-Fourier-Identity" => "@gold:41chan.net" })
+      assert(rendered?(@gated), "not drawn for a verified Matrix viewer outside its rooms")
+      MatrixViewerRooms.unstub(:ids)
+
+      reset!
+      assert_equal({ @hero.md5 => false, @gated.md5 => false }, door_ask([@hero, @gated], "@gold:41chan.net"))
     end
 
-    should "be absent when banned, for an approver outside its rooms" do
-      approver = create(:approver)
-      @gated.update_columns(tag_string: "night", is_banned: true) # rubocop:disable Rails/SkipsModelValidations
-      view(approver)
+    should "be absent for a member below Gold outside its rooms, the rest of the band drawn, and its image refused them" do
+      view(@member)
       assert(rendered?(@hero), "fixture: the placed post every viewer may see is drawn")
-      assert_not(rendered?(@gated), "a banned placed post, whose md5 the signed-out ask withholds, was drawn for an approver outside its rooms")
+      assert_not(rendered?(@gated), "a placed post behind a sensitive tag was drawn for a member below Gold")
+
+      reset!
+      assert_equal({ @hero.md5 => false, @gated.md5 => true }, door_ask([@hero, @gated], "@member:41chan.net"))
     end
 
     should "be drawn for a Gold viewer inside its rooms, as without the grant" do
@@ -271,8 +284,9 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
       assert_not(hidden_from_gold?(@gated, rooms: inside))
     end
 
-    should "be refused by the image door's md5 ask, as its card is absent" do
-      view(@gold)
+    should "be neither drawn nor answered for a signed-out viewer" do
+      view
+      assert_not(rendered?(@gated))
       reset!
       assert_equal [@hero.md5], md5_ask([@hero, @gated])
     end
@@ -286,9 +300,9 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
       [@hero, @mini, @banner, @picture].each { |post| assert_includes placed, post.id }
       [@plain, @loose].each { |post| assert_not_includes placed, post.id }
 
-      # The Matrix door asks the booru as nobody for a token holder outside
-      # the rooms, so the md5 ask answers the placed posts whoever viewed the
-      # page; never one with no rooms left, nor one not placed.
+      # A tokenless image request asks the booru as nobody, so the md5 ask
+      # answers the placed posts whoever viewed the page; never one with no
+      # rooms left, nor one not placed.
       reset!
       assert_equal [@hero.md5], md5_ask([@hero, @loose, @redacted])
       # A signed-in view draws nothing for a signed-out viewer: the post's page
@@ -303,7 +317,7 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
   # signed out viewers"; SessionLoader#signed_out_safe_mode?). A placed Matrix
   # post rated otherwise is neither drawn nor answered for a signed-out
   # viewer. A Matrix reader the rooms refused is signed in, and fourier-auth
-  # asks for them with media_door=token_holder (MediaDoorAsk): they keep it.
+  # asks for them as themselves (MediaDoorAsk, hidden_outside_rooms): they keep it.
   context "a placed post not rated g" do
     setup do
       @racy = as(@tunnel) { create(:post, uploader: @tunnel, md5: SecureRandom.hex(16), tag_string: "night", rating: "q") }
@@ -332,19 +346,28 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
 
       reset!
       assert_equal [@hero.md5], md5_ask([@hero, @racy])
-      assert_equal [@hero.md5, @racy.md5].sort, md5_ask([@hero, @racy], media_door: "token_holder").sort
+      create(:user, matrix_id: "@member:41chan.net")
+      assert_equal({ @hero.md5 => false, @racy.md5 => false }, door_ask([@hero, @racy], "@member:41chan.net"))
     end
 
+    # The media door's old anonymous ask for a token holder is retired: it
+    # asks as the reader now, so the value is one this booru does not know.
     should "not be answered for a media_door value it does not know" do
       view
       assert_equal [@hero.md5], md5_ask([@hero, @racy], media_door: "anyone")
+      assert_equal [@hero.md5], md5_ask([@hero, @racy], media_door: "token_holder")
     end
 
     should "not be answered to the media door's ask from a peer that is not the media door" do
       Danbooru.config.stubs(:fourier_media_door).returns("fourier-auth")
       Resolv.stubs(:getaddresses).with("fourier-auth").returns(["10.9.9.9"])
+      create(:user, matrix_id: "@member:41chan.net")
       view
-      assert_equal [@hero.md5], md5_ask([@hero, @racy], media_door: "token_holder")
+      reset!
+      get posts_path(format: :json), params: { tags: "md5:#{[@hero, @racy].map(&:md5).join(",")}", only: "md5,is_deleted,source", limit: 2, media_door: "matrix_reader", matrix_id: "@member:41chan.net" }
+      assert_response :success
+      assert_equal [@hero.md5], response.parsed_body.pluck("md5")
+      assert(response.parsed_body.none? { |row| row.key?("hidden_outside_rooms") }, "a peer that is not the door was answered the reader's ask")
     end
   end
 

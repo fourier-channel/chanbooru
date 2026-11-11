@@ -336,11 +336,11 @@ class SessionLoader
 
   # A signed-out viewer sees rating g only (operator, 2026-11-08: "only sfw
   # images to signed out viewers"). Signed out as MembersOnly means it: no
-  # booru account and no verified Matrix identity. fourier-auth's md5 ask for
-  # a Matrix reader the rooms refused is not signed out (MediaDoorAsk).
-  # Published pages are sampling's, never served from here, and unchanged.
+  # booru account and no verified Matrix identity. fourier-auth asks about a
+  # Matrix reader by their Matrix id instead (MediaDoorAsk), never through
+  # this. Published pages are sampling's, never served from here, and unchanged.
   def signed_out_safe_mode?
-    MembersOnly.default_deny? && MembersOnly.signed_out?(CurrentUser.user, request) && !MediaDoorAsk.token_holder?(request, params)
+    MembersOnly.default_deny? && MembersOnly.signed_out?(CurrentUser.user, request)
   end
 
   # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Save-Data

@@ -286,8 +286,8 @@ module Danbooru
       Rails.env.production? ? "nginx" : nil
     end
 
-    # The host whose connections may ask the md5 question for a signed-in
-    # Matrix reader (MediaDoorAsk): fourier-auth. nil trusts any peer, which
+    # The host whose connections may ask the md5 question for a Matrix
+    # reader (MediaDoorAsk): fourier-auth. nil trusts any peer, which
     # development and the tests use.
     def fourier_media_door
       Rails.env.production? ? "fourier-auth" : nil

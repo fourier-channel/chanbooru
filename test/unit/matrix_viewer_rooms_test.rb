@@ -149,17 +149,13 @@ class MatrixViewerRoomsTest < ActiveSupport::TestCase
       @gated = create(:post, tag_string: "night child").tap { |post| post.update_columns(room_ids: [@a.id]) } # rubocop:disable Rails/SkipsModelValidations
     end
 
-    should "hold only the placed posts a signed-out viewer may see, Gate 3 aside" do
-      MembersOnly.remember_placed([@shown.id, @gated.id])
-      assert_equal Set[@shown.id], grant
-    end
-
-    should "leave out a placed post whose md5 the signed-out md5 ask withholds: banned, or taken down" do
+    # The booru decides the rest for the viewer's rank (operator, 2026-11-11),
+    # so the grant holds every placed post: each viewer's own gates still
+    # hide a gated or banned one from whoever may not see it.
+    should "hold every placed post, whatever the other gates say" do
       banned = create(:post, tag_string: "night", is_banned: true).tap { |post| post.update_columns(room_ids: [@a.id]) } # rubocop:disable Rails/SkipsModelValidations
-      taken_down = create(:post, tag_string: "night").tap { |post| post.update_columns(room_ids: [@a.id], bit_flags: 4) } # rubocop:disable Rails/SkipsModelValidations
-      assert(taken_down.reload.is_taken_down?, "fixture: taken down")
-      MembersOnly.remember_placed([@shown.id, banned.id, taken_down.id])
-      assert_equal Set[@shown.id], grant
+      MembersOnly.remember_placed([@shown.id, @gated.id, banned.id])
+      assert_equal Set[@shown.id, @gated.id, banned.id], grant
     end
 
     should "be empty with no request" do
@@ -167,19 +163,13 @@ class MatrixViewerRoomsTest < ActiveSupport::TestCase
       assert_equal Set.new, MatrixViewerRooms.placed_grant(request: nil)
     end
 
-    should "ask about a new placement at once, and keep a check for PLACED_GRANT_CHECKED" do
+    should "hold a new placement at once" do
       MembersOnly.remember_placed([@shown.id])
       assert_equal Set[@shown.id], grant
 
       other = create(:post, tag_string: "night").tap { |post| post.update_columns(room_ids: [@b.id]) } # rubocop:disable Rails/SkipsModelValidations
       MembersOnly.remember_placed([other.id])
       assert_equal Set[@shown.id, other.id], grant
-
-      other.update_columns(tag_string: "night child") # rubocop:disable Rails/SkipsModelValidations
-      assert_equal Set[@shown.id, other.id], grant, "a check is kept while fresh"
-      travel(MatrixViewerRooms::PLACED_GRANT_CHECKED + 1.second) do
-        assert_equal Set[@shown.id], grant
-      end
     end
   end
 
