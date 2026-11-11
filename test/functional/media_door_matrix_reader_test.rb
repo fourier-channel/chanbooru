@@ -12,7 +12,6 @@ class MediaDoorMatrixReaderTest < ActionDispatch::IntegrationTest
     Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
     Danbooru.config.stubs(:anonymous_default_deny?).returns(true)
     Danbooru.config.stubs(:gate3_matrix_posts_enforced?).returns(true)
-    Danbooru.config.stubs(:restricted_tags).returns(["gatedname"])
     Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN) # production's; the test env shows them to all
     Danbooru.config.stubs(:fourier_media_door).returns("fourier-auth")
     Resolv.stubs(:getaddresses).with("fourier-auth").returns(["127.0.0.1"])
@@ -24,7 +23,7 @@ class MediaDoorMatrixReaderTest < ActionDispatch::IntegrationTest
     @plain, @gated, @deleted = as(@tunnel) do
       [
         create(:post, uploader: @tunnel, md5: SecureRandom.hex(16), tag_string: "rain"),
-        create(:post, uploader: @tunnel, md5: SecureRandom.hex(16), tag_string: "rain gatedname"),
+        create(:post, uploader: @tunnel, md5: SecureRandom.hex(16), tag_string: "rain child"),
         create(:post, uploader: @tunnel, md5: SecureRandom.hex(16), tag_string: "rain"),
       ]
     end

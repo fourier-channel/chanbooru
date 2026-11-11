@@ -91,7 +91,15 @@ class FourierTagSourcesController < ApplicationController
     # read answered both until 2026-09-24: a jailed post's whole tag list, to
     # anyone. 404 as there, which every reader already takes as "no such post".
     # One rule, Post#hidden_from?: gated, deleted or jailed, under a hidden creator prefix, hidden by its creator.
-    raise ActiveRecord::RecordNotFound if post.hidden_from?(CurrentUser.user)
+    # A Matrix image's post withheld from a member of its rooms says so, still
+    # as a 404: the door refuses them the image, and Technetium pops it out of
+    # the room (operator, 2026-11-11). They saw it posted, so the post's
+    # existence is no news to them; nothing else of it is answered.
+    if post.hidden_from?(CurrentUser.user)
+      raise ActiveRecord::RecordNotFound unless MediaDoorAsk.withheld?(post, CurrentUser.user)
+
+      return render json: { success: false, withheld: true, message: "This post is hidden from you, so its picture is too" }, status: 404
+    end
     payload = if params[:scope] == "public"
                 FourierTagSource.matrix_projection(post)
               else

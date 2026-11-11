@@ -82,9 +82,26 @@ module MediaDoorAsk
     md5s = tags.to_s.delete_prefix("md5:").downcase.split(",")
     Post.unscoped do
       posts = Post.where(md5: md5s).select(:id, :md5, :is_banned, :bit_flags, :tag_string).to_a
-      hidden = Post.hidden_ids_among(posts.map(&:id), reader, rooms: false)
-      posts.map { |post| { md5: post.md5, hidden: hidden.include?(post.id) || post.banblocked?(reader) } }
+      hidden = withheld_ids(posts, reader)
+      posts.map { |post| { md5: post.md5, hidden: hidden.include?(post.id) } }
     end
+  end
+
+  # Whether `post`, already hidden from `user`, is a Matrix image the door
+  # refuses them for its post, so Technetium pops it from the room
+  # (FourierTagSourcesController#show answers `withheld`). Only a post placed
+  # in rooms that hold this reader: one hidden by the rooms alone is not, and
+  # a new Matrix post is closed to every room ({}) until its own are known,
+  # so its picture does not pop for the people it was posted to.
+  def withheld?(post, user)
+    post.room_ids.to_a.any?(&:positive?) && !post.hidden_by_matrix_rooms?(user) && withheld_ids([post], user).include?(post.id)
+  end
+
+  # The ids among `posts` hidden from `reader` by every gate but the rooms:
+  # what the media door refuses a room member the image for.
+  def withheld_ids(posts, reader)
+    hidden = Post.hidden_ids_among(posts.map(&:id), reader, rooms: false)
+    posts.select { |post| hidden.include?(post.id) || post.banblocked?(reader) }.map(&:id)
   end
 
   # The media door's addresses are looked up again only when a peer does not

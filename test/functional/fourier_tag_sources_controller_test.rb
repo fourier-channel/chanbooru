@@ -168,6 +168,60 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # A MATRIX IMAGE FOLLOWS ITS POST, IN ITS ROOMS TOO (operator, 2026-11-11):
+  # "a sensitive image showing up for a moment and then visibly popping out of
+  # existence". A post hidden from a member of its rooms by another gate
+  # answers its 404 `withheld`, and Technetium pops the picture out of the
+  # room; every other 404 says no more than before.
+  def withheld(post, user)
+    get_auth "/posts/#{post.id}/tag_sources.json", user
+    assert_response 404
+    response.parsed_body["withheld"]
+  end
+
+  context "GET /posts/:post_id/tag_sources for a Matrix post hidden from its reader" do
+    setup do
+      Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
+      Danbooru.config.stubs(:gate3_matrix_posts_enforced?).returns(true)
+      @uploader = create(:approver_user)
+      @room = MatrixRoom.create!(room_id: "!in:41chan.net")
+      @gated = create(:post, tag_string: "a child", uploader: @uploader) # a real restricted tag: Post::RESTRICTED_TAGS_REGEX is fixed when Post loads, and a stub of the list would disagree with it
+      @gated.update_columns(room_ids: [@room.id]) # rubocop:disable Rails/SkipsModelValidations -- PostMxc's answer
+      MatrixViewerRooms.stubs(:ids).returns([MatrixViewerRooms::NOT_MATRIX, @room.id]) # the reader is in the room
+    end
+
+    should "answer a member of its rooms that it is withheld from them" do
+      assert_equal true, withheld(@gated, create(:user))
+    end
+
+    should "answer a Gold member of its rooms as before" do
+      get_auth "/posts/#{@gated.id}/tag_sources.json", create(:gold_user)
+      assert_response :success
+    end
+
+    should "answer a deleted post withheld, so a moderator's deletion pops too" do
+      deleted = create(:post, tag_string: "a", uploader: @uploader)
+      deleted.update_columns(room_ids: [@room.id], is_deleted: true) # rubocop:disable Rails/SkipsModelValidations -- the state, not how it is reached
+      assert_equal true, withheld(deleted, create(:user))
+    end
+
+    should "not say withheld to a reader the rooms hide it from" do
+      MatrixViewerRooms.stubs(:ids).returns([MatrixViewerRooms::NOT_MATRIX])
+      assert_nil withheld(@gated, create(:user))
+    end
+
+    should "not say withheld for a new Matrix post, closed until its rooms are known" do
+      @gated.update_columns(room_ids: []) # rubocop:disable Rails/SkipsModelValidations -- start_matrix_post_closed
+      assert_nil withheld(@gated, create(:user))
+      assert_nil withheld(@gated, create(:gold_user)), "a new post is closed to Gold too, and must not pop for them"
+    end
+
+    should "not say withheld for a post that is not from Matrix" do
+      @gated.update_columns(room_ids: [MatrixViewerRooms::NOT_MATRIX]) # rubocop:disable Rails/SkipsModelValidations -- an ordinary upload
+      assert_nil withheld(@gated, create(:user))
+    end
+  end
+
   # THE MODEL-BIT BACKFILL (2026-09-24). fourier-sampling's retag timer pushes
   # hydra's tags onto posts that already exist and recorded them with no model
   # bit at all, and 22.4M older rows predate the bits entirely -- the lamp
