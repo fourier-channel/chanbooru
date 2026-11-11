@@ -59,6 +59,7 @@ gate 10.
 | set private by its creator | {no: gate 7, 403} / {no: gate 10, 404} | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {yes: logged} / {yes: logged} | {yes} / {yes} |
 | a flagged tag | {no: gate 7, 403} / {no: gate 10, 404} | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {yes} / {yes} | {yes: its own} / {yes: its own} |
 | a Matrix upload, viewer not in its room | {no: gate 7, 403} / {no: gate 3, 401} | {no: gate 10, 404} / {no: gate 3, 401} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {yes} / {yes: via R2} |
+| a Matrix upload with a sensitive tag, {tag: loli}, viewer in its room | {no: gate 7, 403} / {no: gate 3, 401} | {no: gate 10, 404} / {no: gate 3, 401} | {no: gate 1, 404} / {no: gate 1, 404} | {no: gate 1, 404} / {no: gate 1, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes: via R2} |
 | that upload, on its creator's public gallery | {no: gate 7, 403}{*} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes} / {yes: via R2} |
 
 {*} The media is technically reachable, but nothing the robot can access points to it, and it cannot be derived, so it is functionally blocked.
@@ -257,8 +258,23 @@ which rooms the image was posted in and whether you are joined to one. The gate
 re-reads the quarantine list every 30 seconds; if it cannot, it keeps the last
 good list for 30 minutes and then refuses every Matrix image until it can. A
 refused Matrix image answers 401 to a reader not signed in through Matrix, 403
-to one outside its rooms, 404 while it is quarantined, and 503 while the gate
-cannot decide.
+to one outside its rooms, 404 while it is quarantined or its post is hidden
+from you (next), and 503 while the gate cannot decide.
+
+**In its rooms, a Matrix image follows its post too** (operator,
+2026-11-11). Being in the room is not enough: when the board hides the
+image's post from you by any other gate -- a sensitive tag below Gold
+(gate 1), deleted or jailed (gate 4), a hidden source, its creator's choice,
+a flagged tag -- the gate refuses you the image with 404, as it refuses a
+board image. A new image shows until the tagger has tagged it, moments after
+it is posted; in Technetium the picture then visibly pops out of the room,
+so the room sees that it does not belong there. Another Matrix client keeps
+the message without its picture: only its text and details are left. The
+level that counts is your linked board account's; a Matrix account that has
+none yet counts as a new one. An image no post holds is decided by its rooms
+alone. If the board cannot be asked, the gate refuses (503). Encrypted
+rooms -- today only direct messages -- are outside this: their images are
+never matched to a post.
 
 **Matrix posts follow their image.** A post whose image came from Matrix is
 visible to exactly the viewers who can see the image: the rooms it was posted
