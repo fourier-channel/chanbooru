@@ -2172,6 +2172,22 @@ class MediaFileMp4Test < ActiveSupport::TestCase
     end
   end
 
+  context "a high resolution video" do
+    should "generate a preview without using too much memory" do
+      Danbooru::Tempfile.create(["danbooru-noise-", ".png"]) do |noise|
+        Danbooru::Tempfile.create(["danbooru-1080p-", ".mp4"]) do |video|
+          Vips::Image.gaussnoise(1920, 1080).pngsave(noise.path)
+          FFmpeg.shell!("ffmpeg -loop 1 -framerate 60 -i #{noise.path.shellescape} -t 5 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -y #{video.path.shellescape}")
+
+          stub_const(ExternalCommand, :MEMORY_LIMIT, 1.gigabyte) do
+            preview = MediaFile.open(video.path).preview!(720, 720)
+            assert_equal([720, 405], preview.dimensions)
+          end
+        end
+      end
+    end
+  end
+
   context "a video with too many frames" do
     should "not read the frames" do
       file = MediaFile.open("test/files/mp4/test-300x300-vp9.mp4")
