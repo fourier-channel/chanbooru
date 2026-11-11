@@ -132,6 +132,8 @@ class UserDeletion
       # Fork: the Matrix sign-in stands in for the password, not for a second
       # factor, as in SessionLoader#reauthenticate.
       if user.matrix_verified?(request) && user.totp.present?
+        user.limit_2fa_attempts!
+
         if !user.totp.verify(verification_code) && !user.verify_backup_code!(verification_code)
           errors.add(:base, "Two-factor code is incorrect: enter the 6-digit code from your authenticator app, or a backup code")
         end

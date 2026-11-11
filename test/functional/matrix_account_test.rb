@@ -392,7 +392,7 @@ class MatrixAccountTest < ActionDispatch::IntegrationTest
     end
 
     should "be deleted with its code, not with the Matrix sign-in alone" do
-      login_as(@alice)
+      login_as(@alice, reauthenticate: true)
 
       delete user_path(@alice), headers: identity("@alice:41chan.net")
       assert_equal(false, @alice.reload.is_deleted)
@@ -404,6 +404,18 @@ class MatrixAccountTest < ActionDispatch::IntegrationTest
       delete user_path(@alice), headers: identity("@alice:41chan.net"), params: { user: { verification_code: @alice.totp.code }}
       assert_equal(true, @alice.reload.is_deleted)
     end
+
+    # The code asked here counts against the same limit as every other place
+    # a code is asked (User#limit_2fa_attempts!), or deletion would be the
+    # door for guessing it.
+    should "not be deleted once the account has made too many two-factor attempts" do
+      login_as(@alice, reauthenticate: true)
+      User.any_instance.stubs(:limit_2fa_attempts!).raises(RateLimiter::RateLimitError)
+
+      delete user_path(@alice), headers: identity("@alice:41chan.net"), params: { user: { verification_code: @alice.totp.code }}
+      assert_response 429
+      assert_equal(false, @alice.reload.is_deleted)
+    end
   end
 
   context "deleting the account while signed in to Matrix" do
@@ -412,7 +424,14 @@ class MatrixAccountTest < ActionDispatch::IntegrationTest
       @alice = User.find_by_name("alice")
     end
 
+    # Deletion asks for a fresh confirmation (requires_reauthentication), and
+    # the Matrix sign-in gives it there too.
     should "need no password, and not make the account again on the next request" do
+      delete user_path(@alice), headers: identity("@alice:41chan.net")
+      assert_redirected_to confirm_password_session_path(url: user_path(@alice))
+      assert_equal(false, @alice.reload.is_deleted)
+
+      post reauthenticate_session_path, headers: identity("@alice:41chan.net"), params: { session: { url: user_path(@alice) }}
       delete user_path(@alice), headers: identity("@alice:41chan.net")
       assert_equal(true, @alice.reload.is_deleted)
 
