@@ -28,6 +28,9 @@ class AutocompleteControllerTest < ActionDispatch::IntegrationTest
       should "be rate limited" do
         user = create(:user)
         Danbooru.config.stubs(:rate_limits_enabled?).returns(true)
+        # Fork: frozen, because at 5 points a second an empty limit refills in
+        # 0.2 s, and the sign-in before the request can take longer than that.
+        freeze_time
         create(:rate_limit, action: "autocomplete:index", key: user.cache_key, limited: true)
 
         get_auth autocomplete_index_path(search: { query: "azur", type: "tag_query" }), user
