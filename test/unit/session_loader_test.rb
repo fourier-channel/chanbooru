@@ -28,10 +28,11 @@ class SessionLoaderTest < ActiveSupport::TestCase
         @request.stubs(:session).returns({ user_id: @user.id })
         UserEvent.expects(:create_from_request!).never
         User.any_instance.expects(:with_lock).never
+        # Fork: the cookie's whole session is emptied, as logout empties it.
+        @request.expects(:reset_session).once
         SessionLoader.new(@request).load
 
         assert_equal(true, CurrentUser.user.is_anonymous?)
-        assert_nil(@request.session[:user_id])
       end
 
       context "for a login session" do
@@ -100,7 +101,8 @@ class SessionLoaderTest < ActiveSupport::TestCase
 
         should "be off for a signed-in member" do
           @user = create(:user)
-          @request.stubs(:session).returns(user_id: @user.id)
+          login_session = create(:login_session, user: @user)
+          @request.stubs(:session).returns(user_id: @user.id, login_id: login_session.login_id)
           SessionLoader.new(@request).load
 
           assert_equal(false, CurrentUser.safe_mode?)
