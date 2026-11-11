@@ -39,6 +39,9 @@ module Source::Tests::Extractor
     end
 
     context "A blog post from a blogspot.com.es domain" do
+      # Fork: these call the Blogger API, which needs a key; without one the extractor finds no images.
+      setup { skip "Blogger API key not configured" if SiteCredential.for_site("Blogger").blank? }
+
       strategy_should_work(
         "http://vincentmcart.blogspot.com.es/2016/05/poison-sting.html?zx=141d0a1a4c3e3ba",
         image_urls: %w[
@@ -107,6 +110,9 @@ module Source::Tests::Extractor
     end
 
     context "A blog page URL" do
+      # Fork: these call the Blogger API, which needs a key; without one the extractor finds no images.
+      setup { skip "Blogger API key not configured" if SiteCredential.for_site("Blogger").blank? }
+
       strategy_should_work(
         "http://jenolab.blogspot.com/p/bd.html",
         image_urls: %w[
@@ -158,6 +164,9 @@ module Source::Tests::Extractor
     end
 
     context "A blog post on a custom domain" do
+      # Fork: these call the Blogger API, which needs a key; without one the extractor finds no images.
+      setup { skip "Blogger API key not configured" if SiteCredential.for_site("Blogger").blank? }
+
       strategy_should_work(
         "https://blogger.googleblog.com/2020/05/a-better-blogger-experience-on-web.html",
         image_urls: %w[
