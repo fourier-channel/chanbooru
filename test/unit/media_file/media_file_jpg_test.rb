@@ -6,8 +6,13 @@ class MediaFileJpgTest < ActiveSupport::TestCase
       file = MediaFile.open("test/files/jpg/test-blank.jpg")
       Vips::Image.any_instance.stubs(:jpegsave).raises(Vips::Error)
 
-      assert_raises(Vips::Error) { file.resize!(150, 150) }
-      assert_equal([], Dir.glob("#{Dir.tmpdir}/danbooru-image-preview-#{file.md5}-*"))
+      # Fork: in a directory of its own. Every test worker shares /tmp, where a
+      # preview of the same file made by another test stays until it is collected.
+      Dir.mktmpdir do |tmpdir|
+        Dir.stubs(:tmpdir).returns(tmpdir)
+        assert_raises(Vips::Error) { file.resize!(150, 150) }
+        assert_equal([], Dir.glob("#{tmpdir}/danbooru-image-preview-#{file.md5}-*"))
+      end
     end
   end
 

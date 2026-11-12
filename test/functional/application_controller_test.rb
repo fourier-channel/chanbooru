@@ -465,6 +465,9 @@ class ApplicationControllerTest < ActionDispatch::IntegrationTest
         user = create(:user)
         post = create(:post, rating: "s")
         Danbooru.config.stubs(:rate_limits_enabled?).returns(true)
+        # Fork: frozen, as in autocomplete_controller_test.rb: an empty limit is not
+        # limited once it refills one point, and the sign-in can take that long.
+        freeze_time
         create(:rate_limit, action: "posts:update", key: user.cache_key, limited: true)
 
         put_auth post_path(post), user, params: { post: { rating: "e" }}

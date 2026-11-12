@@ -15,8 +15,13 @@ class MediaFileWebmTest < ActiveSupport::TestCase
       file = MediaFile.open("test/files/webm/test-512x512.webm")
       FFmpeg.stubs(:shell!).raises(FFmpeg::Error)
 
-      assert_raises(FFmpeg::Error) { FFmpeg.new(file).smart_video_preview! }
-      assert_equal([], Dir.glob("#{Dir.tmpdir}/danbooru-video-preview-#{file.md5}-*"))
+      # Fork: in a directory of its own. Every test worker shares /tmp, where a
+      # preview of the same file made by another test stays until it is collected.
+      Dir.mktmpdir do |tmpdir|
+        Dir.stubs(:tmpdir).returns(tmpdir)
+        assert_raises(FFmpeg::Error) { FFmpeg.new(file).smart_video_preview! }
+        assert_equal([], Dir.glob("#{tmpdir}/danbooru-video-preview-#{file.md5}-*"))
+      end
     end
   end
 

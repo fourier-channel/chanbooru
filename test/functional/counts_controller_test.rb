@@ -52,6 +52,9 @@ class CountsControllerTest < ActionDispatch::IntegrationTest
       should "be rate limited" do
         user = create(:user)
         Danbooru.config.stubs(:rate_limits_enabled?).returns(true)
+        # Fork: frozen, as in autocomplete_controller_test.rb: an empty limit is not
+        # limited once it refills one point, and the sign-in can take that long.
+        freeze_time
         create(:rate_limit, action: "counts:posts", key: user.cache_key, limited: true)
 
         get_auth posts_counts_path(format: :json, tags: "touhou"), user

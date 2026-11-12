@@ -5,6 +5,13 @@ class DanbooruHttpTest < ActiveSupport::TestCase
     "https://httpbingo.org/#{path}"
   end
 
+  # Fork: badssl.com resets about one connection in four (measured 2026-11-12),
+  # which answers 598 before any certificate is seen. Ask again on a 598 only,
+  # so a 590 still comes from the certificate check itself.
+  def badssl_get(http, url)
+    (1..5).lazy.map { |n| [n, http.get(url)] }.find { |n, response| n == 5 || response.status != 598 }.last
+  end
+
   # Start a local server that returns the given body for every request, and yield its URL.
   def with_local_server(body, gzip: false, content_type: "text/html")
     server = WEBrick::HTTPServer.new(BindAddress: "127.0.0.1", Port: 0, Logger: WEBrick::Log.new(File::NULL), AccessLog: [])
@@ -60,16 +67,16 @@ class DanbooruHttpTest < ActiveSupport::TestCase
       end
 
       should "return a 5xx error if the SSL certificate is expired" do
-        response = Danbooru::Http.get("https://expired.badssl.com")
+        response = badssl_get(Danbooru::Http, "https://expired.badssl.com")
         assert_equal(590, response.status)
         assert_equal("", response.body.to_s)
       end
 
       should "verify SSL certificates when legacy SSL is enabled" do
-        assert_equal(590, Danbooru::Http.with_legacy_ssl.get("https://expired.badssl.com").status)
-        assert_equal(590, Danbooru::Http.with_legacy_ssl.get("https://self-signed.badssl.com").status)
-        assert_equal(590, Danbooru::Http.with_legacy_ssl.get("https://wrong.host.badssl.com").status)
-        assert_equal(200, Danbooru::Http.with_legacy_ssl.get("https://badssl.com").status)
+        assert_equal(590, badssl_get(Danbooru::Http.with_legacy_ssl, "https://expired.badssl.com").status)
+        assert_equal(590, badssl_get(Danbooru::Http.with_legacy_ssl, "https://self-signed.badssl.com").status)
+        assert_equal(590, badssl_get(Danbooru::Http.with_legacy_ssl, "https://wrong.host.badssl.com").status)
+        assert_equal(200, badssl_get(Danbooru::Http.with_legacy_ssl, "https://badssl.com").status)
       end
 
       should "decompress gzipped responses under the max size" do
@@ -355,7 +362,9 @@ class DanbooruHttpTest < ActiveSupport::TestCase
         assert_equal(591, response.status)
 
         response = Danbooru::Http.public_only.get("http://127.0.0.1./foo.txt")
-        assert_equal(598, response.status) # `127.0.0.1.` is treated as a domain name, which fails with a DNS resolution error
+        # Fork: `127.0.0.1.` is a domain name, so what it gives is the resolver's: a
+        # DNS error (598), or 127.0.0.1, refused (591). Either way nothing connects.
+        assert_includes([591, 598], response.status.to_i)
 
         response = Danbooru::Http.public_only.get("http://0.0.0.0/foo.txt")
         assert_equal(591, response.status)

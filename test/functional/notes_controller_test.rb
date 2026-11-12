@@ -155,6 +155,9 @@ class NotesControllerTest < ActionDispatch::IntegrationTest
 
       should "be rate limited" do
         Danbooru.config.stubs(:rate_limits_enabled?).returns(true)
+        # Fork: frozen, as in autocomplete_controller_test.rb: an empty limit is not
+        # limited once it refills one point, and the sign-in can take that long.
+        freeze_time
         create(:rate_limit, action: "notes:preview", key: @user.cache_key, limited: true)
 
         note = { x: 0, y: 0, width: 1, height: 1, body: "test", post_id: @note.post_id }

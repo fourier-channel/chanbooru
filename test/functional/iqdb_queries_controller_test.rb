@@ -10,6 +10,9 @@ class IqdbQueriesControllerTest < ActionDispatch::IntegrationTest
     context "show action" do
       should "be rate limited" do
         Danbooru.config.stubs(:rate_limits_enabled?).returns(true)
+        # Fork: frozen, as in autocomplete_controller_test.rb: an empty limit is not
+        # limited once it refills one point, and the sign-in can take that long.
+        freeze_time
         create(:rate_limit, action: "iqdb_queries:show", key: @user.cache_key, limited: true)
 
         get_auth iqdb_queries_path, @user, params: { post_id: @post.id }
@@ -19,6 +22,9 @@ class IqdbQueriesControllerTest < ActionDispatch::IntegrationTest
 
       should "rate limit the create action" do
         Danbooru.config.stubs(:rate_limits_enabled?).returns(true)
+        # Fork: frozen, as in autocomplete_controller_test.rb: an empty limit is not
+        # limited once it refills one point, and the sign-in can take that long.
+        freeze_time
         create(:rate_limit, action: "iqdb_queries:create", key: @user.cache_key, limited: true)
 
         post_auth iqdb_queries_path(format: :json), @user, params: { search: { post_id: @post.id }}
