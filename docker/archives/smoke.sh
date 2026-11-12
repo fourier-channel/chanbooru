@@ -7,9 +7,10 @@ docker run --rm --network none "$1" sh -c 'bundle check && bundle exec ruby -Imo
   require \"dotenv\"; require \"logger\"; require \"aws-sdk\"; require \"optparse\"
   require \"pool_version\"; require \"post_version\"; require \"nokogiri\"; require \"rack\"
   Aws::SQS::Client; Aws::SQS::QueuePoller
-  want = { \"nokogiri\" => \"1.19.4\", \"rack\" => \"3.1.22\", \"rack-session\" => \"2.1.2\", \"concurrent-ruby\" => \"1.3.8\", \"crass\" => \"1.0.7\", \"erb\" => \"6.0.7\", \"activerecord\" => \"8.0.5.1\", \"activesupport\" => \"8.0.5.1\", \"actionview\" => \"8.0.5.1\", \"rails-html-sanitizer\" => \"1.7.1\", \"loofah\" => \"2.25.2\", \"uri\" => \"1.1.2\" }
+  want = { \"nokogiri\" => \"1.19.7\", \"rack\" => \"3.1.23\", \"rack-session\" => \"2.1.2\", \"concurrent-ruby\" => \"1.3.8\", \"crass\" => \"1.0.8\", \"erb\" => \"6.0.7\", \"activerecord\" => \"8.0.5.2\", \"activesupport\" => \"8.0.5.2\", \"actionview\" => \"8.0.5.2\", \"rails-html-sanitizer\" => \"1.7.2\", \"loofah\" => \"2.25.3\", \"uri\" => \"1.1.2\" }
   have = want.to_h { |g, _| [g, Gem.loaded_specs.fetch(g).version.to_s] }
   abort \"gem versions: want #{want}, have #{have}\" unless have == want
+  abort \"ruby #{RUBY_VERSION}: want 3.4.12\" unless RUBY_VERSION == \"3.4.12\"
   puts \"archives smoke ok: ruby #{RUBY_VERSION}, activerecord #{ActiveRecord.version}, #{have.map { |g, v| \"#{g} #{v}\" }.join(\", \")}\"
 "'
 # Outside bundle exec, which hides every gem not in Gemfile.lock: Ruby's own erb
