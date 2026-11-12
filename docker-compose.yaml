@@ -254,6 +254,22 @@ services:
     image: postgres:16.15-bookworm@sha256:e8a07d2c7579b038938cdba6c539e580e5001caf9ea203d397b5cc83e76bd938
     shm_size: 1gb
     restart: unless-stopped
+    # Query statistics (operator 2026-11-12: only "if it doesn't require us to
+    # log events that can be traced to specific users"). pg_stat_statements
+    # keeps one row per normalized statement -- constants become $1, no
+    # parameters, no client address, no per-execution row -- under the app's
+    # role, never a site user's. track_utility=off keeps SET and other utility
+    # statements, whose text is NOT normalized, out of it. The extension lives
+    # in the postgres database, not danbooru, so the schema dump is unchanged;
+    # bin/chanbooru-deploy creates it and proves both settings. Design:
+    # fourier-coherence docs/design/LIMITS.md section 8. Pinned by
+    # test/unit/chanbooru_query_statistics_test.rb.
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track_utility=off
     environment:
       POSTGRES_USER: danbooru
       POSTGRES_HOST_AUTH_METHOD: trust

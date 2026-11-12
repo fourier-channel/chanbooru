@@ -440,6 +440,20 @@ done
 [[ "$CODE" == "200" ]] || die "front page answered ${CODE:-nothing} after 90s. docker compose logs danbooru"
 echo "   front page 200"
 
+# Query statistics: the extension in the postgres database, and proof that
+# the running server preloads it with utility statements untracked
+# (docker-compose.yaml, postgres command). Reading the view at all fails
+# unless the library was preloaded; the setting is read from the server.
+docker compose exec -T postgres psql -U danbooru -d postgres -qAt -v ON_ERROR_STOP=1 \
+    -c 'SET client_min_messages = warning' \
+    -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements' < /dev/null \
+  || die "could not create pg_stat_statements in the postgres database; the booru itself is serving. docker compose logs postgres, then rerun the deploy."
+PGSS="$(docker compose exec -T postgres psql -U danbooru -d postgres -qAt \
+    -c "SELECT current_setting('pg_stat_statements.track_utility') || ' ' || (SELECT count(*) FROM pg_stat_statements)" < /dev/null | tr -d '\r')"
+[[ "$PGSS" =~ ^off\ [0-9]+$ ]] \
+  || die "query statistics are not as declared (read: '${PGSS:-nothing}'; want track_utility off and a readable view); the booru itself is serving. docker compose up -d postgres recreates it from docker-compose.yaml, then rerun the deploy."
+echo "   query statistics on (${PGSS#off } statements, utility statements untracked)"
+
 FINISHED_AT=$(date +%s)
 
 # Old releases go only after the new one has proved itself.
