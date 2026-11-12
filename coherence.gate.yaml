@@ -24,7 +24,7 @@
 #   deploy_stamp_ignore  path prefixes no deploy reads, which may differ from
 #                   HEAD without withholding the stamp (e.g. .vscode/).
 
-# The toolchain is not on the host and never was: Ruby 4.0.6 and Rails 8.1.3.1
+# The toolchain is not on the host and never was: Ruby 4.0.9 and Rails 8.1.4.1
 # live in the devbooru stack (`docker-compose.dev.yaml`, project name devbooru,
 # `bin/dev` is the shortcut).
 #

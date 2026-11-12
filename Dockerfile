@@ -18,7 +18,7 @@
 
 # You must also update .ruby-version and the Gemfile when updating the Ruby version.
 # These versions are used by bin/danbooru-dev-entrypoint to detect whether the current installed docker containers are outdated
-ARG RUBY_VERSION="4.0.6"
+ARG RUBY_VERSION="4.0.9"
 ARG RUBY_MAJOR_VERSION="4.0"
 
 # The comments above these ARGs help renovate figure out where to check for new versions of these dependencies.
@@ -43,7 +43,7 @@ ARG UBUNTU_SNAPSHOT="20261028T000000Z"
 # built with go1.26.0 and carried 1 critical and 25 highs with a fix (scan of
 # 2026-10-24); no newer one is packaged. Only the binary is copied.
 # docker: rclone/rclone
-ARG RCLONE_IMAGE="rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5"
+ARG RCLONE_IMAGE="rclone/rclone:1.76.0@sha256:7cbeec24a44f206067597c0368be4de90ae19a64d5113c7d1938bd737a81e466"
 
 
 # The base layer for everything.
