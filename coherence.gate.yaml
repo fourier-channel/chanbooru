@@ -52,10 +52,12 @@
 gate: bash script/change-tests.sh
 deploy_gate: bash script/fork-tests.sh
 suite: bash script/fork-tests.sh
-# Both 60 minutes: the fork set took 38m04s, and a commit gate that cannot
-# be narrowed runs the fork set too.
-timeout: 3600
-deploy_timeout: 3600
+# The fork set took 38m04s at 216 files. The 2026-11-11 upstream security
+# picks touched 66 more upstream test files, so the set is 282, and it ran
+# past 60 minutes still passing tests: 2 hours each, a commit gate that
+# cannot be narrowed runs the fork set too.
+timeout: 7200
+deploy_timeout: 7200
 
 # THE DEPLOY REQUIRES THE STAMP (operator 2026-10-25: "make it so the
 # chanbooru deploy must go through the gate"). bin/chanbooru-deploy refuses
