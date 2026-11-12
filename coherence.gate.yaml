@@ -63,10 +63,16 @@ deploy_timeout: 7200
 # chanbooru deploy must go through the gate"). bin/chanbooru-deploy refuses
 # any commit without deploy-gate/<commit> on origin, so a deploy-tier PASS is
 # the only way onto production. .vscode/ is editor state on vesper's checkout;
-# no deploy reads it.
+# no deploy reads it. Nor do the hydrated docs and their pointers: hydrate
+# rewrites them from fourier-basis canon whenever canon moves, so they differ
+# from HEAD between the commits that record them, and a 67-minute PASS on
+# 1d1dafb7a was withheld for it (2026-11-12). No app file or test reads them.
 deploy_stamp: true
 deploy_stamp_ignore:
   - .vscode/
+  - docs/.coherence/
+  - docs/CONTENT_GATING.md
+  - docs/SITE_DESIGN.md
 
 # Upstream Danbooru content: Japanese and Chinese test fixtures, a ZWJ inside
 # a flag emoji in a test asserting emoji normalization, and typographic
