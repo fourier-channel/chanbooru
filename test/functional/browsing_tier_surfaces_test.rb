@@ -92,8 +92,10 @@ class BrowsingTierSurfacesTest < ActionDispatch::IntegrationTest
     # A tag's wiki drawn above its search: its embeds, as a full account sees
     # them and at most the viewer's page of them (DText#format_text).
     tag_wiki_embeds: { path: -> { ["/posts", { tags: "tierfix_tag", preset: "historical" }] }, formats: %i[html], count: :embeds, kind: :whole },
-    dtext_preview_requests: { verb: :post, path: -> { ["/dtext_preview", { body: @aliases.map { |a| "[ta:#{a.id}]" }.join("\n\n") }] }, formats: %i[html], count: -> { (wiki_links & @aliases.map(&:antecedent_name)).size }, kind: :whole },
-    dtext_preview: { verb: :post, path: -> { ["/dtext_preview", { body: @posts.map { |p| "!post ##{p.id}" }.join("\n\n"), media_embeds: "1" }] }, formats: %i[html], count: :embeds, kind: :whole },
+    # /dtext_preview asks for a login (upstream 15108ba68): signed out and
+    # Matrix-only viewers are refused it whole, so only Restricted is bounded.
+    dtext_preview_requests: { verb: :post, path: -> { ["/dtext_preview", { body: @aliases.map { |a| "[ta:#{a.id}]" }.join("\n\n") }] }, formats: %i[html], count: -> { (wiki_links & @aliases.map(&:antecedent_name)).size }, kind: :whole, viewers: %i[restricted] },
+    dtext_preview: { verb: :post, path: -> { ["/dtext_preview", { body: @posts.map { |p| "!post ##{p.id}" }.join("\n\n"), media_embeds: "1" }] }, formats: %i[html], count: :embeds, kind: :whole, viewers: %i[restricted] },
     # The hero band's posts are the belt's pool items (landing/_pool_item), the minibands' are cards; a post on both counts once.
     creator_gallery: { path: -> { ["/creators/#{@gallery.slug}", {}] }, formats: %i[html], count: -> { (@doc.css(".modcreator .modland-poolitem[data-id]").map { |item| item["data-id"].to_i } + @doc.css("a.modcreator-card[href]").map { |a| a["href"][%r{\A/posts/(\d+)\z}, 1].to_i }).uniq.count { |id| @posts.map(&:id).include?(id) } }, kind: :whole },
     show_seq: { path: -> { ["/posts/#{@posts[2].id}/show_seq", { seq: "next", q: "tierfix_tag" }] }, formats: %i[html], kind: :walk, expect: 410, walked: -> { response.redirect? }},

@@ -52,7 +52,7 @@ class CreatorGalleryLinkingTest < ActionDispatch::IntegrationTest
     should "not take the verified identity on an API-key request" do
       attacker = create(:user)
       key = create(:api_key, user: attacker)
-      url = creator_galleries_path(login: attacker.name, api_key: key.key)
+      url = creator_galleries_path(login: attacker.name, api_key: key.key, format: :json)
       post url, params: { creator_gallery: { title: "Erin" }}, headers: { "X-Fourier-Identity" => "@erin:41chan.net" }
 
       assert_response 403
@@ -117,7 +117,7 @@ class CreatorGalleryLinkingTest < ActionDispatch::IntegrationTest
     should "be forbidden on an API-key request, whatever identity the cookie carries" do
       attacker = create(:user)
       key = create(:api_key, user: attacker)
-      put creator_gallery_path(@gallery, login: attacker.name, api_key: key.key), params: { link_account: "1" }, headers: DAVE
+      put creator_gallery_path(@gallery, login: attacker.name, api_key: key.key, format: :json), params: { link_account: "1" }, headers: DAVE
 
       assert_response 403
       assert_nil(@gallery.reload.user_id)

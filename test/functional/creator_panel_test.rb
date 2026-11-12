@@ -109,7 +109,7 @@ class CreatorPanelTest < ActionDispatch::IntegrationTest
           "a moderator with the owner's identity on a page linked to someone else" => -> { panel(@moderator, act, **params) },
           "a stranger" => -> { panel(@stranger, act, headers: {}, **params) },
           "the owner by API key" => lambda {
-            put creator_gallery_path(@gallery, login: @maple.name, api_key: api_key.key), params: { panel: act, **params }, headers: MAPLE
+            put creator_gallery_path(@gallery, login: @maple.name, api_key: api_key.key, format: :json), params: { panel: act, **params }, headers: MAPLE
           },
         }
         refusals.each do |who, write|

@@ -170,7 +170,7 @@ class ArtistClaimFilingTest < ActionDispatch::IntegrationTest
     # skips CSRF protection, so it never stands in for the claimant's session.
     should "be forbidden on an API-key request" do
       key = create(:api_key, user: @maple)
-      put creator_gallery_path(@gallery, login: @maple.name, api_key: key.key), params: { claim_tag: ["4chan_maple"] }, headers: MAPLE
+      put creator_gallery_path(@gallery, login: @maple.name, api_key: key.key, format: :json), params: { claim_tag: ["4chan_maple"] }, headers: MAPLE
 
       assert_response 403
       assert_equal 0, ArtistClaim.count

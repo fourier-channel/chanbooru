@@ -45,8 +45,9 @@ class UnpostedMediaMetadataVisibilityTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # The include drops the record the viewer cannot see (upstream ef4dd50a3).
   should "not hand it to a moderator through an include from the upload" do
-    assert_equal({}, included_through_upload(@moderator))
+    assert_nil(included_through_upload(@moderator))
   end
 
   should "show it to the uploader and to an admin" do

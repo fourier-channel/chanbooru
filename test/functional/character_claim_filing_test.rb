@@ -71,7 +71,7 @@ class CharacterClaimFilingTest < ActionDispatch::IntegrationTest
       assert_response 403
 
       key = create(:api_key, user: @saber)
-      put creator_gallery_path(@gallery, login: @saber.name, api_key: key.key), params: { claim_character: "maple" }, headers: SABER
+      put creator_gallery_path(@gallery, login: @saber.name, api_key: key.key, format: :json), params: { claim_character: "maple" }, headers: SABER
       assert_response 403
 
       file_claim(@admin, "maple", headers: {})
