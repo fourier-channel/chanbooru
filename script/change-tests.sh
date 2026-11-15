@@ -78,7 +78,8 @@ EVERYTHING=("${RUNTIME_FILES[@]}" db/ test/test_helper.rb test/test_helpers/
   test/factories/ test/fourier_database_guard.rb config/application.rb
   config/environments/ config/initializers/ app/models/application_record.rb
   app/controllers/application_controller.rb app/policies/application_policy.rb
-  app/components/application_component.rb app/views/layouts/)
+  app/components/application_component.rb app/views/layouts/
+  app/interfaces/modulation/views/layouts/)
 for f in "${CHANGED[@]}"; do
   for p in "${EVERYTHING[@]}"; do
     if [[ "$f" == "$p" || ( "$p" == */ && "$f" == "$p"* ) || "$f" == "$p"/* ]]; then
@@ -120,8 +121,10 @@ for f in "${CHANGED[@]}"; do
   case "$f" in
     app/*|lib/*|script/*|bin/*) add_named "${stem}_test.rb" "${stem}_script_test.rb" ;;
   esac
-  if [[ "$f" == app/views/* ]]; then
-    dir="${f#app/views/}" dir="${dir%/*}"
+  # An interface's views override upstream's by path (app/interfaces/<name>/
+  # views/posts/show.html.erb draws posts/show), so they map the same way.
+  if [[ "$f" == app/views/* || "$f" == app/interfaces/*/views/* ]]; then
+    dir="${f#app/views/}" dir="${dir#app/interfaces/*/views/}" dir="${dir%/*}"
     add_named "${dir##*/}_controller_test.rb"
   fi
   if [[ "$f" == *.rb && -f "$f" ]]; then
@@ -135,7 +138,7 @@ for f in "${CHANGED[@]}"; do
     add_naming "$f" "${words[@]}"
   fi
   # A module the JS suite imports is covered by it; the suite always runs.
-  if [[ "$f" == app/javascript/* ]] && git grep -qF -- "$f" -- test/javascript; then
+  if [[ "$f" == app/javascript/* || "$f" == app/interfaces/*/javascript/* ]] && git grep -qF -- "$f" -- test/javascript; then
     continue
   fi
   if [ "${#TESTS[@]}" -eq "$before" ]; then

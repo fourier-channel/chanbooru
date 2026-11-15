@@ -874,7 +874,7 @@ class BrowsingTierSurfacesTest < ActionDispatch::IntegrationTest
     # FIXED_SIZES with why.
     should "name no fixed list size above the tier's page" do
       page = Danbooru::Configuration.new.restricted_browsing_per_page
-      over = Rails.root.glob("app/{views,controllers,components,helpers}/**/*.{rb,erb}").flat_map do |file|
+      over = Rails.root.glob("app/{views,controllers,components,helpers,interfaces}/**/*.{rb,erb}").flat_map do |file|
         File.readlines(file).each_with_index.filter_map do |line, i|
           size = line[/\.(?:limit|take)\(([\d_]+)\)/, 1]&.delete("_")&.to_i
           "#{file.relative_path_from(Rails.root)}:#{i + 1}" if size && size > page && line.exclude?("listing_per_page_limit")

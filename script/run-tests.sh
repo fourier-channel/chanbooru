@@ -51,6 +51,35 @@ RUN=(docker compose -f docker-compose.dev.yaml exec -T
      -e RAILS_ENV=test -e PARALLEL_WORKERS="$WORKERS"
      danbooru "${LIGHT[@]}" bin/rails test)
 
+# THE LOAD AND LINT CHECKS RUN FIRST, IN BOTH TIERS, and a red one does not
+# stop the run, so every red shows at once.
+#   zeitwerk:check     every autoloaded file defines the constant its path names.
+#   zeitwerk:shadowed  no autoloaded file is skipped because another root
+#                      defines its constant (lib/tasks/fourier_zeitwerk.rake):
+#                      zeitwerk:check stays green over that.
+#   stylelint-all      every stylesheet, app/interfaces included. It sat in no
+#                      gate and had rotted red when this was added (2026-11-15).
+STATIC=(docker compose -f docker-compose.dev.yaml exec -T -e RAILS_ENV=test danbooru "${LIGHT[@]}")
+static_rc=0
+ZW_OUT="$("${STATIC[@]}" bin/rails zeitwerk:check zeitwerk:shadowed </dev/null 2>&1)"
+zw_rc=$?
+if [ "$zw_rc" -eq 0 ]; then
+  echo "zeitwerk:check and zeitwerk:shadowed: $(grep -E '^zeitwerk:shadowed:' <<< "$ZW_OUT")"
+else
+  grep -v ': warning: ' <<< "$ZW_OUT"
+  echo "FAIL: bin/rails zeitwerk:check zeitwerk:shadowed exited $zw_rc."
+  static_rc=$zw_rc
+fi
+SL_OUT="$("${STATIC[@]}" npm run -s stylelint-all -- --formatter unix </dev/null 2>&1)"
+sl_rc=$?
+if [ "$sl_rc" -eq 0 ]; then
+  echo "stylelint-all: no problems"
+else
+  echo "$SL_OUT"
+  echo "FAIL: npm run stylelint-all exited $sl_rc."
+  static_rc=$sl_rc
+fi
+
 # THE JS SUITE RUNS WHOLE, IN BOTH TIERS. test/javascript is `node --test`
 # over pure modules and takes seconds, so choosing among it would save
 # nothing. It sat in no gate from 2026-10-17, when it was added, to
@@ -74,6 +103,7 @@ echo
 "${RUN[@]}" "$@"
 rc=$?
 [ "$rc" -eq 0 ] && rc=$js_rc
+[ "$rc" -eq 0 ] && rc=$static_rc
 [ -z "${TEST_TIMING:-}" ] && exit "$rc"
 # The JUnit reporter has already timed every class, one report per class, in
 # the container's tmp; its <testsuite> line carries the name, count and time.

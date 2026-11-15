@@ -42,8 +42,15 @@ class FormantTokensTest < ActiveSupport::TestCase
   # space, not removed, so the text either side cannot fuse into a name.
   COMMENT = %r{/\*.*?\*/|(?<!:)//[^\n]*}m
 
+  # A MISSING SOURCE IS AN ERROR, NEVER AN EMPTY ONE. This returned {} for a
+  # path that was not there, and preset_tokens merges what parse returns: a
+  # preset source that moved (stage 1 moves the skin into app/interfaces) would
+  # have dropped out of the agreement check with the check still green.
   def parse(path)
-    return {} unless File.exist?(path)
+    unless File.exist?(path)
+      raise ArgumentError, "#{path} is not there, so its tokens cannot be compared with canon. " \
+                           "Fix: point PRESET_SOURCES (or CANON) at where the file now lives"
+    end
 
     parse_source(File.read(path))
   end
@@ -86,6 +93,11 @@ class FormantTokensTest < ActiveSupport::TestCase
         docs/design/formant/, re-run `coherence hydrate`, and never by editing
         the delivered copy -- an edited copy is exactly the copy that drifts.
       MSG
+    end
+
+    should "refuse a source that is not there rather than read it as empty" do
+      error = assert_raises(ArgumentError) { parse(Rails.root.join("app/javascript/src/styles/no_such_preset.scss")) }
+      assert_match(/no_such_preset\.scss is not there.*Fix: point PRESET_SOURCES/, error.message)
     end
 
     # The shape canon actually has (formant tokens.css, the tag-ink note), cut

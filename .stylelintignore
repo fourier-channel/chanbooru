@@ -1,0 +1,4 @@
+# Hydrated from fourier-formant canon (app/javascript/src/styles/formant/
+# .coherence/_tokens.scss.ptr): not ours to reformat. An edit here is an edited
+# copy that hydrate overwrites; style changes go to canon in fourier-formant.
+app/javascript/src/styles/formant/

@@ -256,7 +256,10 @@ body[data-preset="modulation"] {
       padding-bottom: 0;
     }
 
-    /* The submit is an <input> too, and must not inherit the field width. */
+    /* The submit is an <input> too, and must not inherit the field width.
+       Chained, not :not(a, b): the list form takes the specificity of ONE
+       argument (0,1,1), the chain adds both (0,2,1); kept so the cascade is unchanged. */
+    /* stylelint-disable-next-line selector-not-notation */
     input:not([type="submit"]):not([type="button"]), select {
       min-width: 11rem;
     }
