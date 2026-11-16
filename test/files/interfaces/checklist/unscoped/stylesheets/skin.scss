@@ -1,0 +1,19 @@
+// Fixture for InterfaceCompletenessTest: three rules outside the preset.
+body[data-preset="unscoped"] {
+  .fine { color: red; }
+}
+
+body[data-preset="unscoped"] .also-fine, %placeholder { color: red; }
+
+@mixin swatch {
+  .inside-a-mixin { color: red; }
+}
+
+.loose { color: red; }
+
+@include swatch;
+
+@media (min-width: 1px) {
+  .in-media { color: red; }
+  body[data-preset="unscoped"] .scoped-in-media { color: red; }
+}

@@ -44,6 +44,15 @@ class Interface
     new(number: 1, name: "modulation", folder: Rails.root.join("app/interfaces/modulation")),
   ].freeze
 
+  # The `draws` key of a view file, by its path under a views folder:
+  # posts/show.html.erb -> "posts/show", posts/index.html+window.erb ->
+  # "posts/index+window", layouts/_slot.html.erb -> "layouts/_slot".
+  def self.draws_key(relative)
+    dir, base = File.split(relative)
+    variant = base[/\+(\w+)\./, 1]
+    "#{dir}/#{base.split(".").first}#{"+#{variant}" if variant}"
+  end
+
   # @return [Interface] the interface named `name`
   def self.fetch(name)
     TABLE.find { |interface| interface.name == name } or
