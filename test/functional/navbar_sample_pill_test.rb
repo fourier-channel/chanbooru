@@ -83,11 +83,11 @@ end
 class NavbarDisabledEntryTest < ViewComponent::TestCase
   context "a disabled navbar entry" do
     should "render as a span with no href, so it cannot be followed" do
-      component = ModulationNavbarComponent.new(current_user: create(:user))
+      surface = NavSurface.new(viewer: create(:user), request: vc_test_request, session: vc_test_request.session)
       inert = { label: "Inert", category: "meta", disabled: true, disabled_reason: "Not yet linked" }
-      component.define_singleton_method(:entries) { [inert] }
+      surface.define_singleton_method(:entries) { [inert] }
 
-      render_inline(component)
+      render_inline(ModulationNavbarComponent.new(surface: surface))
 
       assert_css("#top.modnav span#modnav-inert.modnav-pill.is-disabled[aria-disabled='true']", text: "Inert")
       assert_no_css("#modnav-inert[href]")

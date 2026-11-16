@@ -78,7 +78,7 @@
   <%# The Modulation header is its own component, not a restyle: upstream's is
       what the historical preset must keep serving. %>
   <% if modulation? %>
-    <%= render ModulationNavbarComponent.new(current_user: CurrentUser.user, settings: ModulationSetting.for_viewer(CurrentUser.user, session), observation: SessionObservation.for_request(request, CurrentUser.user)) %>
+    <%= render ModulationNavbarComponent.new(surface: NavSurface.new(viewer: CurrentUser.user, request: request, session: session)) %>
   <% else %>
     <%= render NavbarComponent.new(current_user: CurrentUser.user) %>
   <% end %>
