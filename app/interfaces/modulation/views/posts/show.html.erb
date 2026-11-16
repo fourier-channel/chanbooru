@@ -1,0 +1,34 @@
+<% page_title @post.presenter.humanized_essential_tag_string %>
+<% meta_description "View this #{@post.image_width}x#{@post.image_height} #{number_to_human_size(@post.file_size)} image" %>
+<% seo_canonical_url post_path(@post) %>
+<% if Danbooru.config.comments_enabled?.to_s.truthy? %>
+  <% atom_feed_tag "Comments for post ##{@post.id}", comments_url(:atom, search: { post_id: @post.id }) %>
+<% end %>
+
+<%# Modulation's post page: the single cell over PostSurface, which decides
+    what it offers the viewer. Upstream's page (app/views/posts/show) is
+    classic's. The head tags above are the ones both pages set. %>
+  <%# One PostSurface decides the view and the edit form below, so the two
+      cannot disagree about whether this viewer may edit. %>
+  <% surface = PostSurface.new(post: @post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session, request: request) %>
+  <%= render ModulationPostComponent.new(surface: surface) %>
+
+  <%# THE EDIT FORM LIVES HERE TOO, so Modulation's "contribute" links can be
+      plain #edit anchors instead of a detour through ?preset=historical.
+      Operator ruling 2026-09-20: "Nothing should be preset=historical."
+
+      Before this, the three contribute links sent the viewer to the upstream
+      page. The preset param was the only thing making those links work at
+      all -- #edit existed only on the upstream page then -- so
+      dropping the param without rendering the form here would have replaced
+      a detour with three dead anchors.
+
+      The SAME partial upstream uses, not a copy: it takes only `post`, so
+      one form serves both presets and a change to it cannot land in one and
+      miss the other. posts.js does `$("#edit").show()` on the anchor and
+      appends #form into `#c-posts #edit`, both of which match here. %>
+  <% if surface.can_edit? %>
+    <section id="edit" class="mod-edit" style="display: none;">
+      <%= render "posts/partials/show/edit", :post => @post %>
+    </section>
+  <% end %>

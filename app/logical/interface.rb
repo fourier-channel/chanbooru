@@ -42,7 +42,7 @@ class Interface
   TABLE = [
     new(number: 0, name: "historical"),
     new(number: 1, name: "modulation", folder: Rails.root.join("app/interfaces/modulation"),
-        draws: %w[layouts/_color_scheme layouts/_navbar posts/index posts/index+window],
+        draws: %w[layouts/_color_scheme layouts/_navbar posts/index posts/index+window posts/show],
         capabilities: %w[windowed_gallery remembers_gallery_sort]),
   ].freeze
 
