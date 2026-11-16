@@ -92,6 +92,20 @@ class FourierTagSourceTest < ActiveSupport::TestCase
       assert_includes FourierTagSource.matrix_projection(@post)[:lamp][:both], "a"
     end
 
+    # The rows came back in whatever order the planner chose: by name through
+    # the (post_id, tag) index, by insertion otherwise, so one post's pills
+    # changed order between reads and a parity recording went red (2026-11-16).
+    should "list a post's tags in name order whatever plan the database picks" do
+      @post.update!(tag_string: "landscape pv_artist scenery sky")
+      FourierTagSource.record_partition!(@post, { "auto" => %w[scenery sky landscape pv_artist], "spectrum" => %w[scenery sky landscape pv_artist] }, @user)
+      FourierTagSource.connection.execute("SET LOCAL enable_indexscan = off; SET LOCAL enable_bitmapscan = off; SET LOCAL enable_indexonlyscan = off")
+
+      buckets, lamps = FourierTagSource.buckets_and_lamps_for(@post, nil)
+
+      assert_equal %w[landscape pv_artist scenery sky], buckets[:auto], "the tags came back in the planner's order; fix: FourierTagSource.buckets_and_lamps_for orders its rows by tag"
+      assert_equal %w[landscape pv_artist scenery sky], lamps[:spectrum], "the lamps came back in the planner's order; fix: FourierTagSource.buckets_and_lamps_for orders its rows by tag"
+    end
+
     should "light an unsourced tag's lamp white -- no row means no model" do
       @post.update!(tag_string: "a byhand")
       FourierTagSource.record_partition!(@post, { "auto" => ["a"], "spectrum" => ["a"] }, @user)

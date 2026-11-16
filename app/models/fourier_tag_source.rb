@@ -564,7 +564,9 @@ class FourierTagSource < ApplicationRecord
     # outside tag_string, so the post is not hidden by it.
     hidden = TagQuarantine.hidden_names_for(viewer)
     rows = rows.where.not(tag: hidden) if hidden.any?
-    rows = rows.to_a
+    # By name, as tag_string is: unordered, the pills came back in whichever
+    # order the planner's chosen scan produced.
+    rows = rows.order(:tag).to_a
     unsourced = current - known - hidden
     # An unsourced tag has no row, so no model claimed it -- which is exactly
     # what a white lamp says. A tag added by hand from Matrix lands here (the
