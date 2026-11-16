@@ -20,6 +20,8 @@
 #      class it defines -- or, in config/danbooru_default_config.rb, a setting
 #      the change touches -- unless that name is so widely used it chooses
 #      nothing (TOO_WIDE), which is said by name;
+#      and a change to an interface, or to an upstream page one draws, runs
+#      the interface recordings (INTERFACE_RECORDINGS);
 #   4. a change to what EVERY test stands on -- the runtime, the schema, the
 #      test helpers and factories, the application base classes -- cannot be
 #      narrowed, so it runs the fork set instead;
@@ -49,6 +51,12 @@ SMOKE=(
 )
 # A class named in more test files than this is too common to choose by.
 TOO_WIDE=25
+# What an interface change reaches (rule 3, below).
+INTERFACE_RECORDINGS=(
+  test/functional/interface_parity_test.rb
+  test/functional/interface_privacy_test.rb
+  test/unit/interface_completeness_test.rb
+)
 
 BASE="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)" || {
   echo "FAIL: the branch $(git branch --show-current) has no upstream, so the change cannot be derived."
@@ -126,6 +134,16 @@ for f in "${CHANGED[@]}"; do
   if [[ "$f" == app/views/* || "$f" == app/interfaces/*/views/* ]]; then
     dir="${f#app/views/}" dir="${dir#app/interfaces/*/views/}" dir="${dir%/*}"
     add_named "${dir##*/}_controller_test.rb"
+  fi
+  # The interface recordings (stage 1 of the Modulation interfaces): every
+  # surface an interface carves, drawn for every viewer under both interfaces
+  # and held byte for byte. A change to an interface, to its registry or
+  # resolver, or to an upstream page an interface draws reaches them, and no
+  # test is named after any of those files: a carve gated on the controller's
+  # test alone never compared a byte.
+  if [[ "$f" == app/interfaces/* || "$f" == app/logical/interface.rb || "$f" == app/logical/interface_resolver.rb ]] ||
+     { [[ "$f" == app/views/* ]] && compgen -G "app/interfaces/*/views/${f#app/views/}" >/dev/null; }; then
+    TESTS+=("${INTERFACE_RECORDINGS[@]}")
   fi
   if [[ "$f" == *.rb && -f "$f" ]]; then
     mapfile -t words < <(grep -oP '^\s*(class|module)\s+\K[A-Z][A-Za-z0-9_:]*' "$f" | sed 's/.*:://' | sort -u)
