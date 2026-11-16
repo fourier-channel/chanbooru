@@ -2122,7 +2122,9 @@ class PostTest < ActiveSupport::TestCase
 
         assert_equal(2, @parent.fav_count)
         assert_equal(2, @parent.favorites.count)
-        assert_equal([@user1.id, @gold1.id], @parent.favorites.pluck(:user_id))
+        # Fork: pluck has no order; under parallel load the moved rows come back
+        # in either order (deploy gate, 2026-11-16).
+        assert_equal([@user1.id, @gold1.id].sort, @parent.favorites.pluck(:user_id).sort)
       end
 
       should "create a vote for each user who can vote" do
