@@ -1,0 +1,1 @@
+<p class="modgal-window-error" data-status="422">variant=window is the Modulation gallery&#39;s chunk of a search. Fix: add preset=modulation.</p>

@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Error: ActiveRecord::RecordNotFound | Danbooru</title>
+
+  <link href="/favicon.ico" rel="icon" sizes="16x16" type="image/x-icon">
+  <link href="/favicon.svg" rel="icon" sizes="any" type="image/svg+xml">
+  <link rel="canonical" href="http://www.example.com/posts/50005/modulation?opened=1">
+  <link rel="search" type="application/opensearchdescription+xml" href="http://www.example.com/opensearch.xml?version=2" title="Search posts">
+
+  
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <meta name="autocomplete-tag-prefixes" content="[&quot;ch:&quot;,&quot;co:&quot;,&quot;gen:&quot;,&quot;char:&quot;,&quot;copy:&quot;,&quot;art:&quot;,&quot;meta:&quot;,&quot;general:&quot;,&quot;character:&quot;,&quot;copyright:&quot;,&quot;artist:&quot;]">
+  <meta name="tag-visibility" content="288250887223">
+
+  <script src="/packs-test/js/runtime.js"></script>
+<script src="/packs-test/js/vendors-node_modules_alpinejs_morph_dist_module_esm_js-node_modules_alpinejs_persist_dist_mod-370228.js"></script>
+<script src="/packs-test/js/application.js"></script>
+
+  <link rel="stylesheet" href="/packs-test/css/application.css" />
+
+
+  
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Danbooru">
+  <meta property="og:title" content="Error: ActiveRecord::RecordNotFound | Danbooru">
+  
+  <meta property="og:url" content="http://www.example.com/posts/50005/modulation?opened=1">
+
+
+  <meta name="twitter:title" content="Error: ActiveRecord::RecordNotFound | Danbooru">
+  
+
+  <meta name="git-hash" content="0000000000000000000000000000000000000000">
+  <meta name="theme-color" content="hsl(213, 100%, 50%)">
+
+  
+    <meta property="og:image" content="https://41chan.net/41chan.png">
+    <meta name="twitter:card" content="summary">
+  
+</head>
+
+<body lang="en" class="c-static a-error flex flex-col" spellcheck="false" data-controller="static" data-action="error" data-current-user-ip-addr="127.0.0.1" data-current-user-save-data="false" data-preset="historical" data-current-user-id="50004" data-current-user-name="pv_approver" data-current-user-level="37" data-current-user-level-string="Approver" data-current-user-theme="auto" data-current-user-comment-threshold="-8" data-current-user-default-image-size="large" data-current-user-time-zone="Eastern Time (US &amp; Canada)" data-current-user-per-page="20" data-current-user-is-banned="false" data-current-user-receive-email-notifications="false" data-current-user-new-post-navigation-layout="true" data-current-user-enable-private-favorites="false" data-current-user-show-deleted-children="false" data-current-user-disable-categorized-saved-searches="false" data-current-user-disable-tagged-filenames="false" data-current-user-disable-mobile-gestures="false" data-current-user-enable-safe-mode="false" data-current-user-enable-desktop-mode="false" data-current-user-disable-post-tooltips="false" data-current-user-requires-verification="false" data-current-user-is-verified="false" data-current-user-show-deleted-posts="false" data-current-user-is-admin="false" data-current-user-is-anonymous="false" data-current-user-is-approver="true" data-current-user-is-builder="true" data-current-user-is-contributor="true" data-current-user-is-gold="true" data-current-user-is-member="true" data-current-user-is-moderator="false" data-current-user-is-owner="false" data-current-user-is-platinum="true" data-current-user-is-restricted="false" data-cookie-news-ticker="null" data-cookie-hide-upgrade-account-notice="null" data-cookie-hide-dmail-notice="null" data-cookie-dab="null" data-cookie-show-relationship-previews="null" data-cookie-post-preview-size="null" data-cookie-post-preview-show-votes="null">
+  
+
+    <header id="top" class="md:space-y-0 mt-2" x-data="{ menuOpen: false }">
+  <div class="relative flex items-center justify-between mx-8 sm:mx-2 text-xxl">
+    <div id="app-name-header" class="inline-flex items-center gap-2">
+      <a id="app-logo" href="/"><img class="h-9 hover:brightness-125" src="/packs-test/static/danbooru-logo-128x128-ea111b6658173e847734.png" /></a>
+      <a id="app-name" class="font-header font-bold leading-none" href="/">Danbooru</a>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <div id="blacklist-box" class="blocklist"
+     x-data="{ blacklist: new Danbooru.Blacklist($root), open: false }"
+     x-init="blacklist.initialize([], { signedIn: true })"
+     x-on:keydown.escape="if (open && !$event.defaultPrevented) { open = false; $refs.trigger.focus(); }"
+     x-on:keydown.escape.window="if (open && !$root.contains($event.target)) { open = false; $refs.trigger.focus(); }"
+     x-on:pointerdown.window="if (open && !$root.contains($event.target)) open = false"
+     x-on:focusout="if (open && $event.relatedTarget && !$root.contains($event.relatedTarget)) open = false">
+  <button type="button" id="blocklist-trigger" class="blocklist-trigger" x-ref="trigger" data-shortcut="b"
+          aria-haspopup="dialog" aria-controls="blocklist-panel" aria-expanded="false"
+          x-bind:aria-expanded="open.toString()"
+          aria-label="Blocklist"
+          x-bind:aria-label="`Blocklist: ${blacklist.blacklistedPostCount} hidden in this view, ${blacklist.rules.length} blocks`"
+          x-on:click="open = !open; if (open) $nextTick(() => $refs.input.focus())">
+    <svg class="blocklist-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg>
+    <span class="blocklist-count" x-bind:class="blacklist.blacklistedPostCount > 0 && 'is-shown'"
+          x-text="blacklist.blacklistedPostCount > 99 ? '99+' : blacklist.blacklistedPostCount"></span>
+  </button>
+
+  <div id="blocklist-panel" class="blocklist-panel" role="dialog" aria-label="Your blocklist" hidden x-bind:hidden="!open">
+    <div class="blocklist-head">
+      <h2 class="blocklist-title">Blocklist</h2>
+      <span class="blocklist-hidden" x-text="`${blacklist.blacklistedPostCount} hidden in this view`"></span>
+    </div>
+
+    <form class="blocklist-add ui-front" x-on:submit.prevent="const input = $refs.input; $(input).data('ui-autocomplete')?.close(); blacklist.add(input.value).then((ok) => { if (ok) input.value = '' })">
+      <input type="text" x-ref="input" class="blocklist-input" aria-label="Block a tag" placeholder="block a tag"
+             autocomplete="off" spellcheck="false" data-autocomplete=tag-query>
+      <button type="submit" class="blocklist-block">Block</button>
+    </form>
+
+    <p class="blocklist-error" role="alert" x-show="blacklist.error" x-text="blacklist.error"></p>
+
+    <ul class="blocklist-pills" x-show="blacklist.rules.length > 0">
+      <template x-for="rule in blacklist.rules" x-bind:key="rule.string">
+        <li class="blocklist-pill" x-bind:class="rule.locked && 'is-locked'">
+          <span class="blocklist-pill-rule" x-text="rule.string" x-bind:title="rule.string"></span>
+          <span class="blocklist-pill-count" x-show="rule.matchCount > 0" x-text="rule.matchCount"
+                x-bind:title="`${rule.matchCount} hidden in this view`"></span>
+          <button type="button" class="blocklist-pill-lock"
+                  x-bind:aria-pressed="rule.locked.toString()"
+                  x-bind:aria-label="(rule.locked ? 'Unlock ' : 'Lock ') + rule.string"
+                  x-bind:title="rule.locked ? 'Locked: unlock it before it can be removed' : 'Lock it, so it cannot be removed by accident'"
+                  x-on:click="blacklist.setLocked(rule, !rule.locked)">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="5" y="11" width="14" height="10" rx="2"/>
+              <path x-show="rule.locked" d="M8 11V7a4 4 0 0 1 8 0v4"/>
+              <path x-show="!rule.locked" d="M8 11V7a4 4 0 0 1 7.6-1.8"/>
+            </svg>
+          </button>
+          <button type="button" class="blocklist-pill-remove" x-show="!rule.locked"
+                  x-bind:aria-label="'Unblock ' + rule.string" title="Unblock"
+                  x-on:click="const input = $refs.input; blacklist.remove(rule).then(() => input.focus())">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7l10 10M17 7L7 17"/></svg>
+          </button>
+        </li>
+      </template>
+    </ul>
+
+    <p class="blocklist-empty" x-show="blacklist.rules.length === 0">
+      Nothing blocked. Type a tag and press Enter. Tags on one line hide only posts that have all of them;
+      start a tag with - to exempt it.
+    </p>
+
+    <p class="blocklist-foot">
+        Kept on your account, on every page.
+        <a href="/settings#user_blacklisted_tags">Edit as text</a>
+    </p>
+  </div>
+</div>
+
+      <a class="mobile-only cursor-pointer" x-on:click="menuOpen = !menuOpen">
+        <svg class="icon svg-icon menu-icon block w-6" viewBox="0 0 448 512" x-show="!menuOpen"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#menu" /></svg>
+        <svg class="icon svg-icon close-icon block w-6" viewBox="0 0 320 512" x-show="menuOpen" x-cloak="true"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#close" /></svg>
+      </a>
+    </div>
+  </div>
+
+  <nav id="nav" class="desktop-only mt-2" x-bind:class="{ 'desktop-only': !menuOpen }">
+    <div id="main-menu" class="flex flex-wrap items-center px-5 sm:p-2">
+        <a id="nav-my-account" class="py-1.5 px-3 " href="/profile">My Account </a>
+
+      <a id="nav-posts" class="py-1.5 px-3 " href="/posts">Posts</a>
+      <a id="nav-comments" class="py-1.5 px-3 " href="/comments">Comments</a>
+      <a id="nav-notes" class="py-1.5 px-3 " href="/notes">Notes</a>
+      <a id="nav-artists" class="py-1.5 px-3 " href="/artists">Artists</a>
+      <a id="nav-tags" class="py-1.5 px-3 " href="/tags">Tags</a>
+      <a id="nav-pools" class="py-1.5 px-3 " href="/pools/gallery">Pools</a>
+      <a id="nav-wiki" class="py-1.5 px-3 " href="/wiki_pages/help:home">Wiki</a>
+      <a id="nav-forum" class="py-1.5 px-3 " href="/forum_topics">Forum</a>
+
+      
+
+
+      <a id="nav-more" class="py-1.5 px-3  current font-bold" href="/static/site_map">More \u{bb}</a>
+    </div>
+
+  </nav>
+</header>
+
+
+  <div id="page" class="relative flex-1 mx-8 mt-4 sm:mx-2 sm:mt-2">
+      <div class="notice notice-error notice-large">
+        <h2>2FA Required</h2>
+        <p>
+          Because you have a privileged account, you must enable two-factor authentication to ensure your account is secure.
+        </p>
+        <div><a href="/users/50004/totp/edit">Enable two-factor authentication</a></div>
+      </div>
+
+
+
+
+
+    <div id="notice"
+      class="notice flex fixed top-2 left-2 right-2 p-2 mx-auto max-w-720px max-h-150px thin-scrollbar z-9999 shadow-lg sm:text-sm"
+      x-init="$root.notice = $data.notice"
+      x-data="{ notice: new Danbooru.Notice(null) }"
+      x-bind:class="notice.type === 'error' ? 'notice-error' : 'notice-info'"
+      x-show="notice.isOpen"
+      x-transition.opacity.400ms
+      x-cloak>
+  <span class="prose flex-1" x-html="notice.message"></span>
+  <a href="javascript:void(0)" id="close-notice-link" class="flex self-center text-lg" data-shortcut="esc" x-on:click="notice.close()"><svg class="icon svg-icon close-icon" viewBox="0 0 320 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#close" /></svg></a>
+</div>
+
+
+    
+<div class="oh-no">
+  <h1 class="oh-no-title">Oh No!</h1>
+
+  <div class="oh-no-art">
+    <div class="oh-no-art-placeholder" aria-hidden="true">
+      <svg class="icon svg-icon image-icon oh-no-art-placeholder-icon" viewBox="0 0 512 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#image" /></svg>
+    </div>
+  </div>
+
+  <p class="oh-no-intro">You have reached the error page.  Which error, we cannot say for sure, because that's just the way computers work.  The following flowchart of conditionals may help:</p>
+
+  <ol class="oh-no-flow" role="list">
+    <li class="oh-no-step">
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">Have you registered?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <p>The majority of this site is only available to registered viewers.</p>
+          <p>You may register by clicking <span class="oh-no-ui">"Manage Session"</span>, <span class="oh-no-ui">"Booru: Log In"</span> and then <span class="oh-no-ui">"Create Account"</span>.</p>
+        </div>
+      </details>
+    </li>
+
+    <li class="oh-no-step">
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">Are you already registered, but still here?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <p>Your login token may be stale.  Click the <span class="oh-no-ui">"Manage Session"</span> button and check your logins for any amber or red lamps.  If so, follow the instructions on the panel.</p>
+        </div>
+      </details>
+    </li>
+
+    <li class="oh-no-step">
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">Registered, logged in with fresh tokens, and yet, here you are again?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <p>Try performing a full purge of site data by clicking the <span class="oh-no-bin" role="img" aria-label="junk bin icon"><svg class="icon purge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.5 6.5h17M9 6.5v-2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5.5 6.5l1.2 13a1.6 1.6 0 0 0 1.6 1.5h7.4a1.6 1.6 0 0 0 1.6-1.5l1.2-13M10 10.5v6.5M14 10.5v6.5" /></svg></span> in the upper right corner.  This will log you out of the services, purge your cache of all site data (with only a few exceptions) and give you a fresh start.  Try logging in again.</p>
+        </div>
+      </details>
+    </li>
+
+    <li class="oh-no-step">
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">Registered, newly logged in with a brand new set of tokens, and this page keeps popping up?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <p>It's possible this surface is not intended to be available to your user level--or at all.</p>
+        </div>
+      </details>
+    </li>
+
+    <li class="oh-no-step">
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">So you're registered, session tokens fresh out the box, and absolutely sure something is supposed to be here?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <p>You may report the bug to <span class="oh-no-ui">@Fourier:41chan.net</span> in the appropriate channel under <span class="oh-no-ui">"get help"</span> in the 41chan Matrix Homeserver.</p>
+        </div>
+      </details>
+    </li>
+  </ol>
+
+  <div class="oh-no-details">
+    
+    <p>Details: That record was not found.</p>
+
+  </div>
+</div>
+
+  </div>
+
+  <div id="tooltips"></div>
+
+  <footer id="page-footer" class="text-sm text-center flex-initial mt-4 py-3 w-full border-t flex flex-wrap items-center justify-center gap-1 leading-none">
+    <a href="/terms_of_service">Terms</a>
+    / <a title="Policies and Pledges" href="https://41chan.net/pip2.html">PIP<sup>2</sup></a>
+    / <a href="https://41chan.net/about.html">About</a>
+    / <a href="/upgrade">Upgrade</a>
+    / <a href="/contact">Contact</a>
+    /
+      <a title="Running commit: 000000000" class="social-icon" href="https://github.com/fourier-channel/chanbooru">
+        <img class="icon inline-block h-4" src="/packs-test/static/github-logo-c932001442ab985405de.png" />
+</a>  </footer>
+</body></html>

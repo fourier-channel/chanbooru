@@ -1,0 +1,1 @@
+Location: http://www.example.com/posts/50000

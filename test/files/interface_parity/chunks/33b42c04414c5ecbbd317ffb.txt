@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Error: ActiveRecord::RecordNotFound | Safebooru</title>
+  <link rel="icon" href="/favicon.ico" sizes="16x16" type="image/x-icon">
+  <link rel="icon" href="/favicon.svg" sizes="any" type="image/svg+xml">
+  <link rel="top" title="Safebooru" href="/">
+  
+  
+  <script src="/packs-test/js/runtime.js"></script>
+<script src="/packs-test/js/vendors-node_modules_alpinejs_morph_dist_module_esm_js-node_modules_alpinejs_persist_dist_mod-370228.js"></script>
+<script src="/packs-test/js/application.js"></script>
+  <link rel="stylesheet" href="/packs-test/css/application.css" />
+  
+</head>
+<body lang="en">
+  <div id="page">
+    
+<div class="oh-no">
+  <h1 class="oh-no-title">Oh No!</h1>
+
+  <div class="oh-no-art">
+    <div class="oh-no-art-placeholder" aria-hidden="true">
+      <svg class="icon svg-icon image-icon oh-no-art-placeholder-icon" viewBox="0 0 512 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#image" /></svg>
+    </div>
+  </div>
+
+  <p class="oh-no-intro">You have reached the error page.  Which error, we cannot say for sure, because that's just the way computers work.  The following flowchart of conditionals may help:</p>
+
+  <ol class="oh-no-flow" role="list">
+    <li class="oh-no-step">
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">Have you registered?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <p>The majority of this site is only available to registered viewers.</p>
+          <p>You may register by clicking <span class="oh-no-ui">"Manage Session"</span>, <span class="oh-no-ui">"Booru: Log In"</span> and then <span class="oh-no-ui">"Create Account"</span>.</p>
+        </div>
+      </details>
+    </li>
+
+    <li class="oh-no-step">
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">Are you already registered, but still here?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <p>Your login token may be stale.  Click the <span class="oh-no-ui">"Manage Session"</span> button and check your logins for any amber or red lamps.  If so, follow the instructions on the panel.</p>
+        </div>
+      </details>
+    </li>
+
+    <li class="oh-no-step">
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">Registered, logged in with fresh tokens, and yet, here you are again?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <p>Try performing a full purge of site data by clicking the <span class="oh-no-bin" role="img" aria-label="junk bin icon"><svg class="icon purge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.5 6.5h17M9 6.5v-2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5.5 6.5l1.2 13a1.6 1.6 0 0 0 1.6 1.5h7.4a1.6 1.6 0 0 0 1.6-1.5l1.2-13M10 10.5v6.5M14 10.5v6.5" /></svg></span> in the upper right corner.  This will log you out of the services, purge your cache of all site data (with only a few exceptions) and give you a fresh start.  Try logging in again.</p>
+        </div>
+      </details>
+    </li>
+
+    <li class="oh-no-step">
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">Registered, newly logged in with a brand new set of tokens, and this page keeps popping up?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <p>It's possible this surface is not intended to be available to your user level--or at all.</p>
+        </div>
+      </details>
+    </li>
+
+    <li class="oh-no-step">
+      <details class="oh-no-toggle">
+        <summary>
+          <h2 class="oh-no-question">So you're registered, session tokens fresh out the box, and absolutely sure something is supposed to be here?</h2>
+          <span class="oh-no-triangle" aria-hidden="true"></span>
+        </summary>
+        <div class="oh-no-answer">
+          <p>You may report the bug to <span class="oh-no-ui">@Fourier:41chan.net</span> in the appropriate channel under <span class="oh-no-ui">"get help"</span> in the 41chan Matrix Homeserver.</p>
+        </div>
+      </details>
+    </li>
+  </ol>
+
+  <div class="oh-no-details">
+    
+    <p>Details: That record was not found.</p>
+
+  </div>
+</div>
+
+  </div>
+</body>
+</html>

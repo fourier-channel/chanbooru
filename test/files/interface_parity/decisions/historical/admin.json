@@ -1,0 +1,616 @@
+{
+  "home": {
+    "status": 200,
+    "posts": [],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "landing_slides": {
+    "status": 200,
+    "posts": [],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": false,
+    "admin_views_logged": 0,
+    "payload": {
+      "keys": [
+        "categories",
+        "pool"
+      ]
+    }
+  },
+  "posts": {
+    "status": 200,
+    "posts": [
+      50000,
+      50002,
+      50003,
+      50005,
+      50006,
+      50007
+    ],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_tag_search": {
+    "status": 200,
+    "posts": [
+      50000,
+      50002,
+      50003,
+      50005,
+      50006,
+      50007
+    ],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_banished_search": {
+    "status": 200,
+    "posts": [],
+    "secrets": [
+      "banished_name"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_banned_artist": {
+    "status": 200,
+    "posts": [
+      50007
+    ],
+    "secrets": [
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_window": {
+    "status": 422,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": false,
+    "admin_views_logged": 0
+  },
+  "posts_random": {
+    "status": 302,
+    "redirect": "http://www.example.com/posts/50000",
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": false,
+    "admin_views_logged": 0
+  },
+  "post_art": {
+    "status": 200,
+    "posts": [
+      50002,
+      50003
+    ],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "post_child": {
+    "status": 200,
+    "posts": [
+      50002,
+      50003
+    ],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "post_deleted": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "post_jailed": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "post_closed": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 1
+  },
+  "post_flagged": {
+    "status": 200,
+    "posts": [],
+    "secrets": [
+      "flagged_name"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "post_banned_artist": {
+    "status": 200,
+    "posts": [],
+    "secrets": [
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "post_tooltip": {
+    "status": 200,
+    "posts": [
+      50002
+    ],
+    "secrets": [],
+    "blacklist_box": false,
+    "admin_views_logged": 0
+  },
+  "post_closed_tooltip": {
+    "status": 200,
+    "posts": [
+      50005
+    ],
+    "secrets": [],
+    "blacklist_box": false,
+    "admin_views_logged": 0
+  },
+  "stray_posts_tooltip": {
+    "status": 200,
+    "posts": [
+      50000,
+      50002,
+      50003,
+      50005,
+      50006,
+      50007
+    ],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "stray_login_tooltip": {
+    "status": 403,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "login": {
+    "status": 403,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "gallery": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "gallery_identity": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "tags": {
+    "status": 200,
+    "posts": [],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "not_found": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "retired_section": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "json_art": {
+    "status": 200,
+    "posts": [],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": false,
+    "admin_views_logged": 0,
+    "payload": {
+      "tags": {
+        "creator": [],
+        "auto": [
+          "landscape",
+          "pv_artist",
+          "scenery",
+          "sky"
+        ],
+        "both": [],
+        "meta": [],
+        "pending": [],
+        "unsourced": []
+      },
+      "generation": false,
+      "audience": [
+        {
+          "words": "Not chosen yet (acts as Everyone) (PV Creator's default)",
+          "href": "/creators/pvcreator/edit?post_id=50002&view=identity#creator-panel-posts"
+        }
+      ],
+      "quarantine": {
+        "tag_ids": {
+          "scenery": 50005,
+          "sky": 50006,
+          "pv_artist": 50002,
+          "landscape": 50004
+        },
+        "flagged": []
+      },
+      "can_edit": true,
+      "candidates": [
+        50000,
+        50001,
+        50003,
+        50005,
+        50006,
+        50007
+      ],
+      "notices": [
+        {
+          "kind": "child",
+          "text": "This post has children.",
+          "href": "/posts?tags=parent%3A50002",
+          "label": "view children"
+        }
+      ],
+      "status": "active",
+      "logs_admin_view": false,
+      "moderation": {
+        "can": true,
+        "jailed": false,
+        "deleted": false
+      }
+    }
+  },
+  "json_art_visit": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": false,
+    "admin_views_logged": 0,
+    "payload": {
+      "keys": [
+        "candidates",
+        "comments_html",
+        "id",
+        "presets"
+      ]
+    }
+  },
+  "json_art_prefetch": {
+    "status": 200,
+    "posts": [],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": false,
+    "admin_views_logged": 0,
+    "payload": {
+      "tags": {
+        "creator": [],
+        "auto": [
+          "landscape",
+          "pv_artist",
+          "scenery",
+          "sky"
+        ],
+        "both": [],
+        "meta": [],
+        "pending": [],
+        "unsourced": []
+      },
+      "generation": false,
+      "audience": [
+        {
+          "words": "Not chosen yet (acts as Everyone) (PV Creator's default)",
+          "href": "/creators/pvcreator/edit?post_id=50002&view=identity#creator-panel-posts"
+        }
+      ],
+      "quarantine": {
+        "tag_ids": {
+          "scenery": 50005,
+          "sky": 50006,
+          "pv_artist": 50002,
+          "landscape": 50004
+        },
+        "flagged": []
+      },
+      "can_edit": true,
+      "candidates": [
+        50000,
+        50001,
+        50003,
+        50005,
+        50006,
+        50007
+      ],
+      "notices": [
+        {
+          "kind": "child",
+          "text": "This post has children.",
+          "href": "/posts?tags=parent%3A50002",
+          "label": "view children"
+        }
+      ],
+      "status": "active",
+      "logs_admin_view": false,
+      "moderation": {
+        "can": true,
+        "jailed": false,
+        "deleted": false
+      }
+    }
+  },
+  "json_art_opened": {
+    "status": 200,
+    "posts": [],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": false,
+    "admin_views_logged": 0,
+    "payload": {
+      "tags": {
+        "creator": [],
+        "auto": [
+          "landscape",
+          "pv_artist",
+          "scenery",
+          "sky"
+        ],
+        "both": [],
+        "meta": [],
+        "pending": [],
+        "unsourced": []
+      },
+      "generation": false,
+      "audience": [
+        {
+          "words": "Not chosen yet (acts as Everyone) (PV Creator's default)",
+          "href": "/creators/pvcreator/edit?post_id=50002&view=identity#creator-panel-posts"
+        }
+      ],
+      "quarantine": {
+        "tag_ids": {
+          "scenery": 50005,
+          "sky": 50006,
+          "pv_artist": 50002,
+          "landscape": 50004
+        },
+        "flagged": []
+      },
+      "can_edit": true,
+      "candidates": [
+        50000,
+        50001,
+        50003,
+        50005,
+        50006,
+        50007
+      ],
+      "notices": [
+        {
+          "kind": "child",
+          "text": "This post has children.",
+          "href": "/posts?tags=parent%3A50002",
+          "label": "view children"
+        }
+      ],
+      "status": "active",
+      "logs_admin_view": false,
+      "moderation": {
+        "can": true,
+        "jailed": false,
+        "deleted": false
+      }
+    }
+  },
+  "json_closed_opened": {
+    "status": 200,
+    "posts": [],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": false,
+    "admin_views_logged": 1,
+    "payload": {
+      "tags": {
+        "creator": [],
+        "auto": [],
+        "both": [],
+        "meta": [],
+        "pending": [],
+        "unsourced": [
+          "landscape",
+          "pv_artist"
+        ]
+      },
+      "generation": false,
+      "audience": [
+        {
+          "words": "Private (post setting)",
+          "href": "/creators/pvcreator/edit?post_id=50005&view=identity#creator-panel-posts"
+        }
+      ],
+      "quarantine": {
+        "tag_ids": {
+          "pv_artist": 50002,
+          "landscape": 50004
+        },
+        "flagged": []
+      },
+      "can_edit": true,
+      "candidates": [
+        50000,
+        50001,
+        50002,
+        50003,
+        50006,
+        50007
+      ],
+      "notices": [],
+      "status": "active",
+      "logs_admin_view": true,
+      "moderation": {
+        "can": true,
+        "jailed": false,
+        "deleted": false
+      }
+    }
+  },
+  "json_jailed": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "json_deleted": {
+    "status": 200,
+    "posts": [],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": false,
+    "admin_views_logged": 0,
+    "payload": {
+      "tags": {
+        "creator": [],
+        "auto": [],
+        "both": [],
+        "meta": [],
+        "pending": [],
+        "unsourced": [
+          "landscape",
+          "pv_artist"
+        ]
+      },
+      "generation": false,
+      "audience": [
+        {
+          "words": "Not chosen yet (acts as Everyone) (PV Creator's default)",
+          "href": "/creators/pvcreator/edit?post_id=50001&view=identity#creator-panel-posts"
+        }
+      ],
+      "quarantine": {
+        "tag_ids": {
+          "pv_artist": 50002,
+          "landscape": 50004
+        },
+        "flagged": []
+      },
+      "can_edit": true,
+      "candidates": [
+        50000,
+        50002,
+        50003,
+        50005,
+        50006,
+        50007
+      ],
+      "notices": [
+        {
+          "kind": "deleted",
+          "text": "This post was deleted. Reason: pv ordinary deletion."
+        }
+      ],
+      "status": "deleted",
+      "logs_admin_view": false,
+      "moderation": {
+        "can": true,
+        "jailed": false,
+        "deleted": true
+      }
+    }
+  },
+  "json_creator_activity": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": false,
+    "admin_views_logged": 0,
+    "payload": {
+      "keys": [
+        "active",
+        "window"
+      ]
+    }
+  },
+  "json_session_status": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": false,
+    "admin_views_logged": 0,
+    "payload": {
+      "keys": [
+        "booru",
+        "matrix",
+        "now"
+      ]
+    }
+  },
+  "json_session_tokens": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": false,
+    "admin_views_logged": 0,
+    "payload": {
+      "keys": [
+        "tokens"
+      ]
+    }
+  },
+  "session_keys": [
+    "login_id",
+    "user_id"
+  ]
+}

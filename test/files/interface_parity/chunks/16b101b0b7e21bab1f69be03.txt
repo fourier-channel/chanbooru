@@ -1,0 +1,447 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+    <meta name="color-scheme" content="dark">
+  <title>PV Creator | Danbooru</title>
+
+  <link href="/favicon.ico" rel="icon" sizes="16x16" type="image/x-icon">
+  <link href="/favicon.svg" rel="icon" sizes="any" type="image/svg+xml">
+  <link rel="canonical" href="http://www.example.com/creators/pvcreator?view=identity">
+  <link rel="search" type="application/opensearchdescription+xml" href="http://www.example.com/opensearch.xml?version=2" title="Search posts">
+
+  
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <meta name="autocomplete-tag-prefixes" content="[&quot;ch:&quot;,&quot;co:&quot;,&quot;gen:&quot;,&quot;char:&quot;,&quot;copy:&quot;,&quot;art:&quot;,&quot;meta:&quot;,&quot;general:&quot;,&quot;character:&quot;,&quot;copyright:&quot;,&quot;artist:&quot;]">
+  <meta name="tag-visibility" content="288250887223">
+
+  <script src="/packs-test/js/runtime.js"></script>
+<script src="/packs-test/js/vendors-node_modules_alpinejs_morph_dist_module_esm_js-node_modules_alpinejs_persist_dist_mod-370228.js"></script>
+<script src="/packs-test/js/application.js"></script>
+
+  <link rel="stylesheet" href="/packs-test/css/application.css" />
+
+
+  
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Danbooru">
+  <meta property="og:title" content="PV Creator | Danbooru">
+  
+  <meta property="og:url" content="http://www.example.com/creators/pvcreator?view=identity">
+
+
+  <meta name="twitter:title" content="PV Creator | Danbooru">
+  
+
+  <meta name="git-hash" content="0000000000000000000000000000000000000000">
+  <meta name="theme-color" content="hsl(213, 100%, 50%)">
+
+  
+    <meta property="og:image" content="https://41chan.net/41chan.png">
+    <meta name="twitter:card" content="summary">
+  
+</head>
+
+<body lang="en" class="c-creator-galleries a-show flex flex-col" spellcheck="false" data-controller="creator-galleries" data-action="show" data-layout="sidebar" data-current-user-ip-addr="127.0.0.1" data-current-user-save-data="false" data-preset="modulation" data-current-user-id="50006" data-current-user-name="pv_admin" data-current-user-level="50" data-current-user-level-string="Admin" data-current-user-theme="auto" data-current-user-comment-threshold="-8" data-current-user-default-image-size="large" data-current-user-time-zone="Eastern Time (US &amp; Canada)" data-current-user-per-page="20" data-current-user-is-banned="false" data-current-user-receive-email-notifications="false" data-current-user-new-post-navigation-layout="true" data-current-user-enable-private-favorites="false" data-current-user-show-deleted-children="false" data-current-user-disable-categorized-saved-searches="false" data-current-user-disable-tagged-filenames="false" data-current-user-disable-mobile-gestures="false" data-current-user-enable-safe-mode="false" data-current-user-enable-desktop-mode="false" data-current-user-disable-post-tooltips="false" data-current-user-requires-verification="false" data-current-user-is-verified="false" data-current-user-show-deleted-posts="false" data-current-user-is-admin="true" data-current-user-is-anonymous="false" data-current-user-is-approver="true" data-current-user-is-builder="true" data-current-user-is-contributor="true" data-current-user-is-gold="true" data-current-user-is-member="true" data-current-user-is-moderator="true" data-current-user-is-owner="false" data-current-user-is-platinum="true" data-current-user-is-restricted="false" data-cookie-news-ticker="null" data-cookie-hide-upgrade-account-notice="null" data-cookie-hide-dmail-notice="null" data-cookie-dab="null" data-cookie-show-relationship-previews="null" data-cookie-post-preview-size="null" data-cookie-post-preview-show-votes="null">
+  
+
+    <header id="top" class="modnav" x-data="{ menuOpen: false }">
+  <div class="modnav-head">
+    <div class="modnav-bar">
+    <div class="modnav-brand">
+      <a id="app-logo" class="modnav-logo" href="/">
+        <img alt="" src="/packs-test/static/danbooru-logo-128x128-ea111b6658173e847734.png" />
+</a>      <a id="app-name" class="modnav-wordmark" href="/">Danbooru</a>
+    </div>
+
+    <nav class="modnav-nav desktop-only" x-bind:class="{ 'desktop-only': !menuOpen }">
+      <div class="modnav-links">
+            <a id="modnav-posts" class="modnav-pill modnav-pill--general" href="/posts">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Posts
+              
+</a>            <a id="modnav-creators" class="modnav-pill modnav-pill--artist" href="/artists">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Creators
+              
+</a>            <a id="modnav-tags" class="modnav-pill modnav-pill--general" href="/tags">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Tags
+              
+</a>            <a id="modnav-pools" class="modnav-pill modnav-pill--general" href="/pools/gallery">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Pools
+              
+</a>            <a id="modnav-wiki" class="modnav-pill modnav-pill--general" href="/wiki_pages">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Wiki
+              
+</a>            <a id="modnav-reports" class="modnav-pill modnav-pill--meta" href="/moderation_reports">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Reports
+              
+</a>            <a id="modnav-dashboard" class="modnav-pill modnav-pill--meta" href="/moderator/dashboard">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Dashboard
+              
+</a>            <a id="modnav-flagged" class="modnav-pill modnav-pill--meta" href="/tags?search%5Bquarantine%5D=flagged">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Flagged
+                <span class="modnav-pill-count">1</span>
+              
+</a>            <a id="modnav-more" class="modnav-pill modnav-pill--general is-current" href="/static/site_map">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>More
+              
+</a>          <button type="button" id="modnav-session-toggle" class="modnav-pill modnav-pill--session"
+                  aria-expanded="false" aria-controls="modnav-session">
+            <span class="modnav-pill-dot" data-region="summary-lamp" aria-hidden="true"></span>Manage Session<span class="modnav-pill-cta" data-region="cta"></span>
+          </button>
+          <div class="modnav-tokens" id="modnav-tokens" role="group" aria-label="Your session tokens" hidden></div>
+
+      </div>
+    </nav>
+
+
+    <div class="modnav-corner">
+    <div id="blacklist-box" class="blocklist"
+     x-data="{ blacklist: new Danbooru.Blacklist($root), open: false }"
+     x-init="blacklist.initialize([], { signedIn: true })"
+     x-on:keydown.escape="if (open && !$event.defaultPrevented) { open = false; $refs.trigger.focus(); }"
+     x-on:keydown.escape.window="if (open && !$root.contains($event.target)) { open = false; $refs.trigger.focus(); }"
+     x-on:pointerdown.window="if (open && !$root.contains($event.target)) open = false"
+     x-on:focusout="if (open && $event.relatedTarget && !$root.contains($event.relatedTarget)) open = false">
+  <button type="button" id="blocklist-trigger" class="blocklist-trigger" x-ref="trigger" data-shortcut="b"
+          aria-haspopup="dialog" aria-controls="blocklist-panel" aria-expanded="false"
+          x-bind:aria-expanded="open.toString()"
+          aria-label="Blocklist"
+          x-bind:aria-label="`Blocklist: ${blacklist.blacklistedPostCount} hidden in this view, ${blacklist.rules.length} blocks`"
+          x-on:click="open = !open; if (open) $nextTick(() => $refs.input.focus())">
+    <svg class="blocklist-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg>
+    <span class="blocklist-count" x-bind:class="blacklist.blacklistedPostCount > 0 && 'is-shown'"
+          x-text="blacklist.blacklistedPostCount > 99 ? '99+' : blacklist.blacklistedPostCount"></span>
+  </button>
+
+  <div id="blocklist-panel" class="blocklist-panel" role="dialog" aria-label="Your blocklist" hidden x-bind:hidden="!open">
+    <div class="blocklist-head">
+      <h2 class="blocklist-title">Blocklist</h2>
+      <span class="blocklist-hidden" x-text="`${blacklist.blacklistedPostCount} hidden in this view`"></span>
+    </div>
+
+    <form class="blocklist-add ui-front" x-on:submit.prevent="const input = $refs.input; $(input).data('ui-autocomplete')?.close(); blacklist.add(input.value).then((ok) => { if (ok) input.value = '' })">
+      <input type="text" x-ref="input" class="blocklist-input" aria-label="Block a tag" placeholder="block a tag"
+             autocomplete="off" spellcheck="false" data-autocomplete=tag-query>
+      <button type="submit" class="blocklist-block">Block</button>
+    </form>
+
+    <p class="blocklist-error" role="alert" x-show="blacklist.error" x-text="blacklist.error"></p>
+
+    <ul class="blocklist-pills" x-show="blacklist.rules.length > 0">
+      <template x-for="rule in blacklist.rules" x-bind:key="rule.string">
+        <li class="blocklist-pill" x-bind:class="rule.locked && 'is-locked'">
+          <span class="blocklist-pill-rule" x-text="rule.string" x-bind:title="rule.string"></span>
+          <span class="blocklist-pill-count" x-show="rule.matchCount > 0" x-text="rule.matchCount"
+                x-bind:title="`${rule.matchCount} hidden in this view`"></span>
+          <button type="button" class="blocklist-pill-lock"
+                  x-bind:aria-pressed="rule.locked.toString()"
+                  x-bind:aria-label="(rule.locked ? 'Unlock ' : 'Lock ') + rule.string"
+                  x-bind:title="rule.locked ? 'Locked: unlock it before it can be removed' : 'Lock it, so it cannot be removed by accident'"
+                  x-on:click="blacklist.setLocked(rule, !rule.locked)">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="5" y="11" width="14" height="10" rx="2"/>
+              <path x-show="rule.locked" d="M8 11V7a4 4 0 0 1 8 0v4"/>
+              <path x-show="!rule.locked" d="M8 11V7a4 4 0 0 1 7.6-1.8"/>
+            </svg>
+          </button>
+          <button type="button" class="blocklist-pill-remove" x-show="!rule.locked"
+                  x-bind:aria-label="'Unblock ' + rule.string" title="Unblock"
+                  x-on:click="const input = $refs.input; blacklist.remove(rule).then(() => input.focus())">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7l10 10M17 7L7 17"/></svg>
+          </button>
+        </li>
+      </template>
+    </ul>
+
+    <p class="blocklist-empty" x-show="blacklist.rules.length === 0">
+      Nothing blocked. Type a tag and press Enter. Tags on one line hide only posts that have all of them;
+      start a tag with - to exempt it.
+    </p>
+
+    <p class="blocklist-foot">
+        Kept on your account, on every page.
+        <a href="/settings#user_blacklisted_tags">Edit as text</a>
+    </p>
+  </div>
+</div>
+
+    <div class="modnav-reset" role="group" aria-label="This browser's copy of the booru">
+      <button type="button" class="modnav-reset-half" data-act="purge" aria-label="Purge"
+              title="Purge: sign out of the booru and delete everything it stored in this browser">
+        <svg class="icon purge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.5 6.5h17M9 6.5v-2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5.5 6.5l1.2 13a1.6 1.6 0 0 0 1.6 1.5h7.4a1.6 1.6 0 0 0 1.6-1.5l1.2-13M10 10.5v6.5M14 10.5v6.5" /></svg>
+      </button>
+      <button type="button" class="modnav-reset-half" data-act="hard-refresh" aria-label="Hard refresh"
+              title="Hard refresh: reload this panel, fetching the page and every file it uses from the server again">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8.31 8.78L10.64 4.75Q12 2.4 13.36 4.75L16.07 9.46M16.93 6.27L16.07 9.46L12.89 8.6M18.02 12.81L20.34 16.85Q21.7 19.2 18.98 19.2L13.55 19.19M15.88 21.53L13.55 19.19L15.89 16.87M9.67 19.21L5.02 19.2Q2.3 19.2 3.66 16.85L6.38 12.15M3.19 13L6.38 12.15L7.22 15.33"/></svg>
+      </button>
+      <div class="modnav-reset-confirm" role="alertdialog" aria-labelledby="modnav-reset-q" hidden>
+        <p id="modnav-reset-q">Are you sure you want to do this? While we're confident that our services are
+        configured to work properly regardless of the age of your access token, that token itself is unique, and
+        you are performing an irreversible action.</p>
+        <p class="modnav-reset-what">Purge signs you out of the booru, ends its link to your Matrix session on
+        this site, and deletes everything the booru stored in this browser.</p>
+        <div class="modnav-reset-row">
+          <button type="button" class="modnav-reset-go" data-act="purge-go">Purge it</button>
+          <button type="button" data-act="purge-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <a class="modnav-burger mobile-only" x-on:click="menuOpen = !menuOpen" aria-label="Menu">
+      <svg class="icon svg-icon menu-icon block w-6" viewBox="0 0 448 512" x-show="!menuOpen"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#menu" /></svg>
+      <svg class="icon svg-icon close-icon block w-6" viewBox="0 0 320 512" x-show="menuOpen" x-cloak="true"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#close" /></svg>
+    </a>
+    </div>
+
+    <div class="modnav-session" id="modnav-session" data-observation="{&quot;booru&quot;:{&quot;expect&quot;:&quot;cookie:_danbooru2_session&quot;,&quot;observed&quot;:&quot;cookie:_danbooru2_session&quot;,&quot;digest&quot;:&quot;SESSION&quot;,&quot;signed_in&quot;:true,&quot;name&quot;:&quot;pv_admin&quot;,&quot;level&quot;:&quot;Admin&quot;,&quot;started_at&quot;:1768478400,&quot;authenticated_at&quot;:null,&quot;current_session&quot;:{&quot;digest&quot;:&quot;SESSION&quot;,&quot;seen_at&quot;:1768478400},&quot;previous_session&quot;:null,&quot;account&quot;:null},&quot;matrix&quot;:{&quot;expect&quot;:&quot;cookie:fourier_session&quot;,&quot;observed&quot;:null,&quot;digest&quot;:null,&quot;linked&quot;:false,&quot;matrix_id&quot;:null,&quot;verified_at&quot;:null,&quot;gate&quot;:&quot;absent&quot;,&quot;info&quot;:null},&quot;now&quot;:1768478400}"
+         hidden>
+      <div class="modnav-session-inner">
+        <div class="modnav-monitor" data-monitor="booru">
+          <span class="modnav-monitor-trigger" data-region="trigger"
+                tabindex="0" aria-describedby="modnav-tip-booru">
+            <span class="modnav-lamp" data-region="lamp" aria-hidden="true"></span>
+            <span class="modnav-monitor-label">Booru:</span>
+          </span>
+          <span class="modnav-monitor-status" data-region="status"></span>
+          <span class="modnav-monitor-actions" data-region="controls"></span>
+          <div class="modnav-monitor-tip" id="modnav-tip-booru" data-region="tip" role="tooltip"></div>
+        </div>
+        <span class="modnav-monitor-sep" aria-hidden="true">|</span>
+        <div class="modnav-monitor" data-monitor="matrix">
+          <span class="modnav-monitor-trigger" data-region="trigger"
+                tabindex="0" aria-describedby="modnav-tip-matrix">
+            <span class="modnav-lamp" data-region="lamp" aria-hidden="true"></span>
+            <span class="modnav-monitor-label">Matrix:</span>
+          </span>
+          <span class="modnav-monitor-status" data-region="status"></span>
+          <span class="modnav-monitor-actions" data-region="controls"></span>
+          <div class="modnav-monitor-tip" id="modnav-tip-matrix" data-region="tip" role="tooltip"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</header>
+
+
+  <div id="page" class="relative flex-1 mx-8 mt-4 sm:mx-2 sm:mt-2">
+      <div class="notice notice-error notice-large">
+        <h2>2FA Required</h2>
+        <p>
+          Because you have a privileged account, you must enable two-factor authentication to ensure your account is secure.
+        </p>
+        <div><a href="/users/50006/totp/edit">Enable two-factor authentication</a></div>
+      </div>
+
+
+
+
+
+    <div id="notice"
+      class="notice flex fixed top-2 left-2 right-2 p-2 mx-auto max-w-720px max-h-150px thin-scrollbar z-9999 shadow-lg sm:text-sm"
+      x-init="$root.notice = $data.notice"
+      x-data="{ notice: new Danbooru.Notice(null) }"
+      x-bind:class="notice.type === 'error' ? 'notice-error' : 'notice-info'"
+      x-show="notice.isOpen"
+      x-transition.opacity.400ms
+      x-cloak>
+  <span class="prose flex-1" x-html="notice.message"></span>
+  <a href="javascript:void(0)" id="close-notice-link" class="flex self-center text-lg" data-shortcut="esc" x-on:click="notice.close()"><svg class="icon svg-icon close-icon" viewBox="0 0 320 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#close" /></svg></a>
+</div>
+
+
+      <div id="c-creator-galleries">
+    <div id="a-show">
+
+      <div class="sidebar-container flex sm:flex-col gap-3">
+        <aside id="sidebar" class="flex-0 break-words sm:order-2">
+          
+        </aside>
+
+        <section id="content" class="flex-1 min-w-0 sm:order-1">
+            <div class="modcreator" data-creator-gallery
+     >
+
+  <div class="modcreator-ground" style="--cg-blur: 18px; --cg-dim: 0.45; --cg-par: 0.4; --cg-y: 50%" aria-hidden="true" data-cg-depth="">
+      <span class="modcreator-ground-art modcreator-ground-art--none"></span>
+    <span class="modcreator-ground-vignette"></span>
+</div>
+
+  <header class="modcreator-head" data-cg-region="head">
+    <div class="modcreator-banner" style="--cg-blur: 18px; --cg-dim: 0.45; --cg-par: 0.4; --cg-y: 50%" aria-hidden="true" data-cg-depth="">
+        <span class="modcreator-banner-art modcreator-banner-art--none"></span>
+</div>
+    <div class="modcreator-id" data-cg-region="id">
+      <div class="modcreator-avatar" title="From Matrix">
+          <span class="modcreator-avatar-letter" aria-hidden="true">P</span>
+      </div>
+        <div class="modcreator-name">
+          <h1 class="modcreator-title modcreator-static" data-cg-static="title">PV Creator</h1>
+            <span class="modcreator-contact" data-cg-contact-off >pvcreator</span>
+        </div>
+    </div>
+
+      <a class="modcreator-identity-btn" title="Manage Creator Identity" href="/creators/pvcreator/edit?view=identity">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="9" cy="11" r="2.2"></circle><path d="M5.8 16c.6-1.5 1.8-2.3 3.2-2.3s2.6.8 3.2 2.3M14.5 10h4M14.5 13.5h3"></path></svg>
+        <span class="modcreator-identity-btn-text">Manage Creator Identity</span>
+</a>      <a class="modcreator-edit-btn" title="Edit Gallery" href="/creators/pvcreator/edit">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"></path></svg>
+        <span class="modcreator-sr">Edit Gallery</span>
+</a></header>
+
+  <main class="modcreator-main">
+    <div class="modcreator-about" id="modcreator-about" role="region" aria-label="About" >
+      <div class="modcreator-about-clip">
+        <div class="modcreator-about-chips" role="group" aria-label="About boxes">
+            <button type="button" class="cg-btn cg-btn--sm modcreator-about-chip" data-cg-act="box" data-v="bio" aria-pressed="true" aria-controls="modcreator-box-bio">Bio</button>
+        </div>
+        <div class="modcreator-boxes" data-cg-region="boxes">
+            <section class="modcreator-box cg-glass" id="modcreator-box-bio" aria-label="Bio" data-cg-box="bio" data-flip-id="bio">
+              <div class="modcreator-box-head">
+                <h2 class="cg-label modcreator-box-title">Bio</h2>
+                <button type="button" class="cg-btn cg-btn--sm modcreator-box-x" data-cg-act="box" data-v="bio" aria-label="Close Bio" title="Close">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+                </button>
+              </div>
+              <div class="modcreator-box-body cg-scroll">
+                  <p class="modcreator-bio" data-cg-static="bio">Nothing here yet.</p>
+</div>              <div class="modcreator-box-grip" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="Resize Bio"
+                   aria-valuemin="80" aria-valuemax="2000" 
+                   title="Drag to resize, or use the arrow keys. Double-click or Home fits the content.">
+                <span class="modcreator-box-grip-bar" aria-hidden="true"></span>
+              </div>
+</section>        </div>
+      </div>
+    </div>
+
+    <section class="modcreator-hero cg-glass" aria-label="Hero band">
+      <button type="button" class="cg-btn modcreator-about-btn" data-cg-act="about" aria-expanded="true" aria-controls="modcreator-about">
+        About
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+      </button>
+
+      <div class="modcreator-hero-head">
+        <h2 class="modcreator-headline modcreator-static" data-cg-static="headline"></h2>
+        <p class="modcreator-subline modcreator-static" data-cg-static="subline"></p>
+      </div>
+
+      <div class="modcreator-pills">
+        <div class="modcreator-pills-row modcreator-static">
+        </div>
+      </div>
+
+
+      <div class="modcreator-belt">
+        <div class="modland" data-modland data-config="{&quot;creditPhrases&quot;:[[&quot;created by&quot;,94],[&quot;generated by&quot;,1],[&quot;genned by&quot;,1],[&quot;willed into existence by&quot;,1],[&quot;hallucinated by&quot;,1],[&quot;requested politely from a robot by&quot;,1],[&quot;the output from twenty five gallons of water boiled by&quot;,1]],&quot;categories&quot;:[],&quot;advanceMs&quot;:5000,&quot;resumeMs&quot;:10000,&quot;direction&quot;:1,&quot;cells&quot;:5,&quot;effect&quot;:&quot;glide&quot;,&quot;holdAxis&quot;:true,&quot;scopedKeys&quot;:true,&quot;hoverPause&quot;:true,&quot;liveCreators&quot;:[],&quot;liveWindow&quot;:300}" hidden>
+          <section class="modland-showcase">
+            <div class="modland-tabs" role="tablist" aria-label="Characters">
+              <span class="modland-tabs-thumb" data-region="thumb" aria-hidden="true"></span>
+            </div>
+
+            <div class="modland-stage-wrap">
+              <button type="button" class="modland-wheel-toggle" data-act="wheel" role="switch"
+        aria-checked="false" aria-label="Scroll the band with the mouse wheel"
+        title="Mouse wheel: scroll this band">
+  <svg class="modland-wheel-mouse" viewBox="0 0 16 22" aria-hidden="true">
+    <rect class="modland-wheel-body" x="1.5" y="1.5" width="13" height="19" rx="6.5" />
+    <line class="modland-wheel-notch" x1="8" y1="5" x2="8" y2="9" />
+  </svg>
+</button>
+<button type="button" class="modland-arrow modland-arrow--prev" data-act="prev"
+        aria-label="Previous">
+  <span class="modland-arrow-face" aria-hidden="true"><span class="modland-arrow-glyph">&#8249;</span><span class="modland-arrow-word">Up</span></span>
+</button>
+<button type="button" class="modland-arrow modland-arrow--next" data-act="next"
+        aria-label="Next">
+  <span class="modland-arrow-face" aria-hidden="true"><span class="modland-arrow-glyph">&#8250;</span><span class="modland-arrow-word">Down</span></span>
+</button>
+
+              <article class="modland-ride" data-region="ride">
+                <section class="mod-stage">
+                  <div class="mod-belt" data-region="belt"></div>
+                </section>
+              </article>
+              <p class="modland-credit" data-region="credit"></p>
+              <div class="modland-resume" data-region="resume" hidden>
+                <button type="button" class="modland-resume-btn" data-act="resume" title="Resume now">
+                  <span class="modland-resume-fill" data-region="fill" aria-hidden="true"></span>
+                  <span class="modland-resume-label">The ride never ends.</span>
+                  <span class="modland-resume-left" data-region="left"></span>
+                </button>
+              </div>
+              <div class="modland-pool" hidden aria-hidden="true">
+                
+              </div>
+            </div>
+          </section>
+        </div>
+        <p class="modcreator-hero-empty" data-cg-region="hero-empty" >
+            No posts in this band for you yet.
+        </p>
+      </div>
+
+    </section>
+
+    <section class="modcreator-minis">
+      <div class="modcreator-minis-head">
+        <h2 class="modcreator-minis-title">More from PV Creator</h2>
+        <span class="cg-label" data-cg-region="layout-name"></span>
+      </div>
+      <div data-cg-region="minis">
+          <div class="modcreator-minis-row">
+              <div class="modcreator-mini" data-cg-mini="0" data-effect="slide" data-dir="left" data-hold="4"
+                   style="--mini-h: 300px; --mini-w: 360px">
+                  <div class="modcreator-mini-empty">Nothing here yet</div>
+              </div>
+              <div class="modcreator-mini" data-cg-mini="1" data-effect="slide" data-dir="left" data-hold="4"
+                   style="--mini-h: 300px; --mini-w: 360px">
+                  <div class="modcreator-mini-empty">Nothing here yet</div>
+              </div>
+          </div>
+          <div class="modcreator-minis-row">
+              <div class="modcreator-mini" data-cg-mini="2" data-effect="slide" data-dir="left" data-hold="4"
+                   style="--mini-h: 250px; --mini-w: 250px">
+                  <div class="modcreator-mini-empty">Nothing here yet</div>
+              </div>
+              <div class="modcreator-mini" data-cg-mini="3" data-effect="slide" data-dir="left" data-hold="4"
+                   style="--mini-h: 250px; --mini-w: 250px">
+                  <div class="modcreator-mini-empty">Nothing here yet</div>
+              </div>
+              <div class="modcreator-mini" data-cg-mini="4" data-effect="slide" data-dir="left" data-hold="4"
+                   style="--mini-h: 250px; --mini-w: 250px">
+                  <div class="modcreator-mini-empty">Nothing here yet</div>
+              </div>
+          </div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+  
+
+        </section>
+      </div>
+    </div>
+  </div>
+
+  </div>
+
+  <div id="tooltips"></div>
+
+  <footer id="page-footer" class="text-sm text-center flex-initial mt-4 py-3 w-full border-t flex flex-wrap items-center justify-center gap-1 leading-none">
+    <a href="/terms_of_service">Terms</a>
+    / <a title="Policies and Pledges" href="https://41chan.net/pip2.html">PIP<sup>2</sup></a>
+    / <a href="https://41chan.net/about.html">About</a>
+    / <a href="/upgrade">Upgrade</a>
+    / <a href="/contact">Contact</a>
+    /
+      <a title="Running commit: 000000000" class="social-icon" href="https://github.com/fourier-channel/chanbooru">
+        <img class="icon inline-block h-4" src="/packs-test/static/github-logo-c932001442ab985405de.png" />
+</a>  </footer>
+</body></html>
+

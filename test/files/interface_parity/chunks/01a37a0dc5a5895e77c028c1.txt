@@ -1,0 +1,1 @@
+<p class="modgal-window-error" data-status="410">The gallery window is for full accounts: this account sees one page of results. Fix: open the search without variant=window.</p>

@@ -1,0 +1,9 @@
+login_available 200 367d37b6fac503ac9b4e344a
+login_deleted 200 ebf1e8b15fbe86233c4eaa41
+login_failed_password 401 90b088558cd369cfd78e9648
+login_identity_while_signed_in 403 74f478dad5111b520750859d
+login_invalid 200 dbfec8a286ad5cf4bd2a9062
+login_linked_signed_out 200 71abed49100ab6814099f674
+login_no_identity 200 1d674d2a4dfd7daaa64b7775
+login_taken 200 f54ac45e6a94e27678211d90
+login_two_factor 200 9059bafe6b75949757a4de0d

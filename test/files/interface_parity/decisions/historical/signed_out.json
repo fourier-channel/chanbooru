@@ -1,0 +1,269 @@
+{
+  "home": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "landing_slides": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts": {
+    "status": 200,
+    "posts": [
+      50002
+    ],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_tag_search": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_banished_search": {
+    "status": 404,
+    "posts": [],
+    "secrets": [
+      "banished_name"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_banned_artist": {
+    "status": 404,
+    "posts": [],
+    "secrets": [
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_window": {
+    "status": 422,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": false,
+    "admin_views_logged": 0
+  },
+  "posts_random": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "post_art": {
+    "status": 200,
+    "posts": [
+      50002
+    ],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "post_child": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "post_deleted": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "post_jailed": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "post_closed": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "post_flagged": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "post_banned_artist": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "post_tooltip": {
+    "status": 200,
+    "posts": [
+      50002
+    ],
+    "secrets": [],
+    "blacklist_box": false,
+    "admin_views_logged": 0
+  },
+  "post_closed_tooltip": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "stray_posts_tooltip": {
+    "status": 200,
+    "posts": [
+      50002
+    ],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "stray_login_tooltip": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "login": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "gallery": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "gallery_identity": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "tags": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "not_found": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "retired_section": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "json_art": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "json_art_visit": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "json_art_prefetch": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "json_art_opened": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "json_closed_opened": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "json_jailed": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "json_deleted": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "json_creator_activity": {
+    "status": 404,
+    "posts": [],
+    "secrets": [
+      "banished_name"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "json_session_status": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "json_session_tokens": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "good_job": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": false,
+    "admin_views_logged": 0
+  },
+  "session_keys": []
+}
