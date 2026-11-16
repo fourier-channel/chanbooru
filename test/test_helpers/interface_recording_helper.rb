@@ -153,6 +153,10 @@ module InterfaceRecordingHelper
 
   def leave_recorded_world!
     Danbooru.config = @original_config if @original_config
+    # The stubbed proxy "localhost" leaves its addresses memoised on the
+    # class: a later test in this worker whose proxy is elsewhere would see
+    # its 127.0.0.1 peer as the proxy and honour the identity header.
+    FourierIdentity.instance_variable_set(:@proxy_addresses, nil)
     restore_sequences!
   end
 

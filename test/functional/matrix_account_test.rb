@@ -314,6 +314,9 @@ class MatrixAccountTest < ActionDispatch::IntegrationTest
   end
 
   context "the identity header" do
+    # The proxy's addresses are memoised on the class, so whatever an earlier
+    # test in this worker resolved is cleared before as well as after.
+    setup { FourierIdentity.instance_variable_set(:@proxy_addresses, nil) }
     teardown { FourierIdentity.instance_variable_set(:@proxy_addresses, nil) }
 
     should "be honoured from the proxy" do
