@@ -51,6 +51,13 @@ ActiveSupport.on_load(:good_job_application_controller) do
     super(status, exception, **options, layout: "blank")
   end
 
+  # Fork: the interface plug, a no-op here. render_error_page calls it first,
+  # but this controller has no ExperiencePreset and draws its errors in the
+  # blank layout above, so it has no interface to plug; a real plug would
+  # raise inside the error handler and bring that 500 back.
+  def use_interface_views
+  end
+
   def authorize_user
     authorize(self, :can_view_good_job_dashboard?, policy_class: BackgroundJobPolicy)
   end

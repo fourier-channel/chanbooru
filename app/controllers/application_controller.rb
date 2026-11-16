@@ -31,6 +31,7 @@ class ApplicationController < ActionController::Base
   before_action :normalize_search
   before_action :ip_ban_check
   before_action :set_variant
+  before_action :use_interface_views
   before_action :add_headers
   before_action :cause_error
   before_action :redirect_if_name_invalid?
@@ -232,6 +233,7 @@ class ApplicationController < ActionController::Base
     end
 
     def render_error_page(status, exception = nil, message: "", errors: nil, template: "static/error", format: request.format.symbol, layout: "default") # rubocop:disable Metrics/ParameterLists
+      use_interface_views
       @exception = exception
       @expected = status < 500
       @message = message.to_s.encode("utf-8", invalid: :replace, undef: :replace)

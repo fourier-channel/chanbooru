@@ -16,7 +16,8 @@ module ExperiencePreset
 
   MODULATION = "modulation"
   HISTORICAL = "historical"
-  PRESETS = [MODULATION, HISTORICAL].freeze
+  # The interface registry's names (app/logical/interface.rb).
+  PRESETS = Interface::TABLE.map(&:name).freeze
   FALLBACK = MODULATION
   SESSION_KEY = :experience_preset
 
@@ -37,7 +38,26 @@ module ExperiencePreset
     experience_preset == HISTORICAL
   end
 
-  private
+  # @return [Interface] the registry's line for this request's preset.
+  def current_interface
+    Interface.fetch(experience_preset)
+  end
+
+  # THE PLUG: this request looks in its interface's views first, through the
+  # interface's resolver, and falls through to upstream's. Only this
+  # request's lookup changes, never the controller's class-wide view paths.
+  # Every format, because landing#slides renders an HTML partial inside JSON.
+  #
+  # Run as a before_action after set_variant, and again as the first line of
+  # render_error_page, so an error raised before the filters reach it still
+  # draws under the interface; the second call finds the resolver already
+  # first and adds no copy.
+  def use_interface_views
+    interface = current_interface
+    return if interface.classic? || lookup_context.view_paths.first.equal?(interface.resolver)
+
+    prepend_view_path(interface.resolver)
+  end
 
   # The preset served when nobody asked. Configurable because the test
   # environment needs a different answer -- the reasoning is recorded on
@@ -47,6 +67,8 @@ module ExperiencePreset
     PRESETS.include?(configured) ? configured : FALLBACK
   end
 
+  private
+
   # Not self.class.default_preset: self.class is the CONTROLLER that included
   # this module, and a module's own singleton method is not inherited by an
   # includer's singleton.
@@ -55,7 +77,16 @@ module ExperiencePreset
   end
 
   def resolve_experience_preset
-    requested = params[:preset].to_s.downcase.strip
+    # A body the parser refused (malformed JSON, too deep, too many keys)
+    # raises again on every read of params, and render_error_page's plug
+    # resolves the preset while answering that very error: reading params
+    # there turned upstream's 400 into a 500. Such a request names no
+    # preset; it gets the session's or the default.
+    requested = begin
+      params[:preset].to_s.downcase.strip
+    rescue ActionController::BadRequest, ActionDispatch::Http::Parameters::ParseError
+      ""
+    end
 
     # An explicit, recognised preset wins and is remembered for the session.
     # An unrecognised one is not an error -- it just means "the default", and it
