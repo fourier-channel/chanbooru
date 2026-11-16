@@ -274,7 +274,10 @@ class PostsController < ApplicationController
   # without one gets the remembered sort re-applied. sort_reset clears the
   # memory (the blank select option). Deleted posts are NOT remembered here --
   # they are asked for in the search. HTML, and an interface whose gallery
-  # remembers its sort only: the API sees exactly what it asked.
+  # remembers its sort only: the API sees exactly what it asked. A memory
+  # that cannot be read or written fails the page, logged by
+  # render_error_page: the plain search in its place would be a gallery
+  # sorted other than the viewer asked, with nothing said.
   def apply_modulation_panel_memory(tag_query)
     return tag_query unless request.format.html? && current_interface.capable?("remembers_gallery_sort") && action_name == "index" && params[:random].blank?
     # A gallery window chunk carries its page's search whole, the remembered
@@ -308,10 +311,6 @@ class PostsController < ApplicationController
     # alone and simply no longer read.
 
     query.presence
-  rescue StandardError
-    # The panel memory is a convenience; a failure here must degrade to the
-    # plain search, never take the index down.
-    tag_query
   end
 
   def log_search_query

@@ -225,5 +225,22 @@ class GalleryWindowTest < ActionDispatch::IntegrationTest
       page_html(@member, tags: "gwtest")
       assert_select ".modgal-grid[data-window-tags='gwtest order:score']", 1, "the remembered sort was not applied; fix: Modulation's line in Interface::TABLE lists remembers_gallery_sort"
     end
+
+    # The memory used to swallow any error and serve the plain search: a
+    # gallery sorted other than the viewer asked, with nothing said
+    # anywhere. A failure is the page's failure now, logged by
+    # render_error_page.
+    should "fail the page loudly when the remembered sort cannot be read, never serve the plain search" do
+      # Only the first read fails: the error page draws the navbar, which
+      # reads the settings again and must draw.
+      ModulationSetting.stubs(:for_viewer).raises(RuntimeError, "injected sort memory failure").then.returns({})
+      logged = []
+      DanbooruLogger.stubs(:log).with { |error, *| logged << error }
+      page_html(@member, tags: "gwtest")
+
+      assert_response(500, "a sort memory that raised served a page; fix: PostsController#apply_modulation_panel_memory lets the error reach render_error_page")
+      assert_empty(cards, "a sort memory that raised drew the plain search; fix: PostsController#apply_modulation_panel_memory has no rescue")
+      assert(logged.any? { |error| error.message == "injected sort memory failure" }, "the sort memory's failure was not logged; fix: let it reach render_error_page, which logs it")
+    end
   end
 end
