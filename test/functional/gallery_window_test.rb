@@ -223,7 +223,7 @@ class GalleryWindowTest < ActionDispatch::IntegrationTest
     should "carry the panel's remembered sort into the window's own tags" do
       ModulationSetting.record!(@member, nil, { "gallery_sort" => "score" })
       page_html(@member, tags: "gwtest")
-      assert_select ".modgal-grid[data-window-tags='gwtest order:score']", 1
+      assert_select ".modgal-grid[data-window-tags='gwtest order:score']", 1, "the remembered sort was not applied; fix: Modulation's line in Interface::TABLE lists remembers_gallery_sort"
     end
   end
 end

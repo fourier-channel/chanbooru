@@ -1,14 +1,5 @@
-<%# "Modulation" -- the themed post index, and the default. The upstream page
-    below is retained as the hidden "historical" preset. %>
-<% if modulation? %>
-  <% content_for(:content) do %>
-    <%= render ModulationGalleryComponent.new(surface: GallerySurface.new(post_set: @post_set, viewer: CurrentUser.user, request: request, session: session)) %>
-  <% end %>
-  <% content_for(:html_header) do %>
-    <% page_title(@post_set.post_query.is_empty_search? ? Danbooru.config.app_name : @post_set.page_title) %>
-    <% meta_description @post_set.meta_description %>
-  <% end %>
-<% else %>
+<%# Upstream's post index, drawn by the classic interface. Modulation draws
+    its own (app/interfaces/modulation/views/posts/index.html.erb). %>
 <% content_for(:sidebar) do %>
   <%= render "posts/partials/common/search", :path => posts_path, :tags => params[:tags], :tags_dom_id => "tags" %>
 
@@ -274,5 +265,4 @@
   <% if @post_set.has_explicit? %>
     <meta name="rating" content="adult">
   <% end %>
-<% end %>
 <% end %>

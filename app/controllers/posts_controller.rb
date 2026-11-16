@@ -246,11 +246,12 @@ class PostsController < ApplicationController
 
   # The Modulation gallery is a window over its search (GALLERY_WINDOW.md
   # section 2): :page for the page it draws, :chunk for a run its script
-  # fetches. HTML and Modulation only -- the API, the feeds and the historical
-  # page keep their numbered pages untouched -- and not the Random button,
+  # fetches. HTML, and an interface with a windowed gallery only -- the API,
+  # the feeds and classic's page keep their numbered pages untouched -- and
+  # not the Random button,
   # which redirects to a random:N search the size of an ordinary page.
   def gallery_window
-    return nil unless request.format.html? && modulation? && action_name == "index" && params[:random].blank?
+    return nil unless request.format.html? && current_interface.capable?("windowed_gallery") && action_name == "index" && params[:random].blank?
 
     request.variant.window? ? :chunk : :page
   end
@@ -261,7 +262,7 @@ class PostsController < ApplicationController
   # is refused by name. A chunk's cursor is refused by paginate, as any
   # cursor is; this is the window's own decision, for the head chunk.
   def refuse_window_chunk!
-    raise PostQuery::Error, "variant=window is the Modulation gallery's chunk of a search. Fix: add preset=modulation." unless modulation?
+    raise PostQuery::Error, "variant=window is the Modulation gallery's chunk of a search. Fix: add preset=modulation." unless current_interface.capable?("windowed_gallery")
     return if CurrentUser.user.can_browse_freely?
 
     raise PaginationExtension::PaginationError, "The gallery window is for full accounts: this account sees one page of results. Fix: open the search without variant=window."
@@ -272,10 +273,10 @@ class PostsController < ApplicationController
   # order: in the query IS the panel being set, so it is recorded; a query
   # without one gets the remembered sort re-applied. sort_reset clears the
   # memory (the blank select option). Deleted posts are NOT remembered here --
-  # they are asked for in the search. HTML + Modulation only: the API sees
-  # exactly what it asked.
+  # they are asked for in the search. HTML, and an interface whose gallery
+  # remembers its sort only: the API sees exactly what it asked.
   def apply_modulation_panel_memory(tag_query)
-    return tag_query unless request.format.html? && modulation? && action_name == "index" && params[:random].blank?
+    return tag_query unless request.format.html? && current_interface.capable?("remembers_gallery_sort") && action_name == "index" && params[:random].blank?
     # A gallery window chunk carries its page's search whole, the remembered
     # sort already in it: re-reading the memory here would let another tab's
     # change of sort reorder the run mid-walk, and record! on every chunk.
