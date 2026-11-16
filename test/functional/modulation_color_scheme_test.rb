@@ -21,6 +21,14 @@ class ModulationColorSchemeTest < ActionDispatch::IntegrationTest
     body[%r{<head>.*?</head>}m].to_s
   end
 
+  # The popped-out creator dashboard's head, under `preset`.
+  def popout(preset)
+    get_auth edit_creator_gallery_path(@gallery, view: "identity", popout: "1", preset: preset), @maple, headers: { "X-Fourier-Identity" => "@maple:41chan.net" }
+    assert_response :success
+    assert_select "#creator-identity.creator-identity-popout", count: 1
+    head_of(response.body)
+  end
+
   context "A page's head" do
     should "declare the dark colour scheme under Modulation, before any script" do
       get posts_path(preset: "modulation")
@@ -28,7 +36,7 @@ class ModulationColorSchemeTest < ActionDispatch::IntegrationTest
       assert_response :success
       head = head_of(response.body)
       meta = head.index('<meta name="color-scheme" content="dark">')
-      assert(meta, "no dark colour scheme declared in the Modulation head")
+      assert(meta, "no dark colour scheme declared in the Modulation head; fix: Modulation draws layouts/_color_scheme and layouts/default renders that slot")
       assert_operator(meta, :<, head.index("<script").to_i, "declared after a script -- the browser paints before it reads it")
     end
 
@@ -36,7 +44,28 @@ class ModulationColorSchemeTest < ActionDispatch::IntegrationTest
       get posts_path(preset: "historical")
 
       assert_response :success
-      assert_no_match(/name="color-scheme"/, head_of(response.body))
+      assert_no_match(/name="color-scheme"/, head_of(response.body), "the historical head declares a colour scheme; fix: upstream's layouts/_color_scheme draws nothing")
+    end
+  end
+
+  # The popped-out creator dashboard has a layout of its own (popout), with
+  # the same colour-scheme slot as the default layout.
+  context "The popped-out creator dashboard's head" do
+    setup do
+      CreatorPrefixes.reset!
+      @maple = create(:user)
+      @gallery = CreatorGallery.create!(slug: "maple", matrix_id: "@maple:41chan.net", user: @maple)
+    end
+
+    should "declare the dark colour scheme under Modulation, before any script" do
+      head = popout("modulation")
+      meta = head.index('<meta name="color-scheme" content="dark">')
+      assert(meta, "no dark colour scheme declared in the popout's Modulation head; fix: layouts/popout renders the layouts/color_scheme slot")
+      assert_operator(meta, :<, head.index("<script").to_i, "declared after a script -- the browser paints before it reads it")
+    end
+
+    should "declare none under the historical preset" do
+      assert_no_match(/name="color-scheme"/, popout("historical"), "the historical popout declares a colour scheme; fix: upstream's layouts/_color_scheme draws nothing")
     end
   end
 end

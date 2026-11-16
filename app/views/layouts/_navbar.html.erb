@@ -1,0 +1,4 @@
+<%# The header slot (layouts/default). An interface that draws its own header
+    overrides this partial; whatever it draws must reach the blocklist and
+    the purge control (test/unit/interface_completeness_test.rb, item 7). %>
+    <%= render NavbarComponent.new(current_user: CurrentUser.user) %>

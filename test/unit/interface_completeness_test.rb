@@ -17,10 +17,11 @@ require "test_helper"
 #      would be served to another's viewers;
 #   6. every stylesheet rule sits under body[data-preset="<name>"], since one
 #      bundle carries every interface's CSS to every viewer;
-#   7. every layout an interface draws reaches #blacklist-box (the
-#      BlocklistComponent; without it blacklisted posts are drawn) and the
-#      purge control, and a posts/show it draws reaches the opened=1 request
-#      that writes the admin-view log.
+#   7. every layout an interface draws, and the header slot it draws
+#      (layouts/_navbar, where the layouts take their header from), reaches
+#      #blacklist-box (the BlocklistComponent; without it blacklisted posts
+#      are drawn) and the purge control, and a posts/show it draws reaches
+#      the opened=1 request that writes the admin-view log.
 # Not checked: that an interface's JS does nothing on another interface's
 # pages (item 6). No shape of a file shows that.
 #
@@ -134,7 +135,7 @@ class InterfaceCompletenessTest < ActiveSupport::TestCase
 
     duties = drawn.flat_map do |k, file|
       text = tree(file, views: views).first.values.join("\n")
-      layout = k.start_with?("layouts/") && k.exclude?("/_")
+      layout = (k.start_with?("layouts/") && k.exclude?("/_")) || k == "layouts/_navbar"
       [
         layout && text.exclude?("BlocklistComponent") && "#{rel[file]} never reaches #blacklist-box, so blacklisted posts are drawn; fix: render BlocklistComponent in its header",
         layout && text.exclude?('data-act="purge"') && "#{rel[file]} never reaches the purge control; fix: render it in its header beside the blocklist",
@@ -215,19 +216,27 @@ class InterfaceCompletenessTest < ActiveSupport::TestCase
       assert_equal(3, flagged.size, "the loose rule, the @include and the rule in @media, and nothing scoped:\n#{gaps.join("\n")}")
     end
 
-    should "name a layout that never reaches #blacklist-box or purge, and a post page that never sends opened=1" do
-      gaps = self.class.gaps(self.class.fixture("dutiless", draws: ["layouts/default", "posts/show"]))
-      assert(gaps.any? { |gap| gap.include?("layouts/default.html.erb never reaches #blacklist-box") }, gaps.join("\n"))
-      assert(gaps.any? { |gap| gap.include?("layouts/default.html.erb never reaches the purge control") }, gaps.join("\n"))
+    should "name a layout or header slot that never reaches #blacklist-box or purge, and a post page that never sends opened=1" do
+      gaps = self.class.gaps(self.class.fixture("dutiless", draws: ["layouts/default", "layouts/_navbar", "posts/show"]))
+      %w[default _navbar].each do |layout|
+        assert(gaps.any? { |gap| gap.include?("layouts/#{layout}.html.erb never reaches #blacklist-box") }, gaps.join("\n"))
+        assert(gaps.any? { |gap| gap.include?("layouts/#{layout}.html.erb never reaches the purge control") }, gaps.join("\n"))
+      end
       assert(gaps.any? { |gap| gap.include?("posts/show.html.erb never sends the opened=1 request") }, gaps.join("\n"))
     end
 
     # The follower is what the duty checks stand on: from upstream's own
-    # default layout it must reach both headers' BlocklistComponent.
-    should "follow a layout's render tree to the blocklist" do
-      found, = self.class.tree(UPSTREAM_VIEWS.join("layouts/default.html.erb"))
-      assert(found.keys.any? { |file| file.to_s.end_with?("blocklist_component/blocklist_component.html.erb") }, found.keys.join("\n"))
-      assert(found.keys.any? { |file| file.to_s.end_with?("modulation_navbar_component/modulation_navbar_component.html.erb") })
+    # default layout, through the header slot, it must reach each header's
+    # BlocklistComponent -- upstream's slot alone, and Modulation's copy
+    # first when it is handed Modulation's views.
+    should "follow a layout's render tree through the header slot to the blocklist" do
+      default = UPSTREAM_VIEWS.join("layouts/default.html.erb")
+      [[nil, "/navbar_component/navbar_component.html.erb"],
+       [Interface.fetch("modulation").folder.join("views"), "/modulation_navbar_component/modulation_navbar_component.html.erb"]].each do |views, header|
+        found, = self.class.tree(default, views: views)
+        assert(found.keys.any? { |file| file.to_s.end_with?(header) }, "#{header} not reached:\n#{found.keys.join("\n")}")
+        assert(found.keys.any? { |file| file.to_s.end_with?("blocklist_component/blocklist_component.html.erb") }, found.keys.join("\n"))
+      end
     end
 
     should "pass Modulation's skin, which is scoped, and find the unscoped rules in a component stylesheet" do

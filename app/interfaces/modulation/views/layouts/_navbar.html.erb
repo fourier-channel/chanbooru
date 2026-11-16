@@ -1,0 +1,4 @@
+<%# The Modulation header is its own component, not a restyle: upstream's is
+    what the historical interface keeps serving. It draws what NavSurface
+    decided for this viewer. %>
+    <%= render ModulationNavbarComponent.new(surface: NavSurface.new(viewer: CurrentUser.user, request: request, session: session)) %>

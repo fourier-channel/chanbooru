@@ -1,0 +1,8 @@
+<%# THE PAGE IS DARK BEFORE ITS STYLESHEET SAYS SO. Three parser-blocking
+    scripts load ahead of the stylesheet, and until it lands the browser
+    paints its default canvas: every navigation flashed one fully white frame
+    in Firefox (2026-09-26). Declared in the head, ahead of every script, the
+    canvas is dark from the first paint. A scheme, not a colour: the skin's
+    colours stay the formant tokens'. The historical interface is upstream's
+    light one and draws no scheme (test/functional/modulation_color_scheme_test.rb). %>
+    <meta name="color-scheme" content="dark">

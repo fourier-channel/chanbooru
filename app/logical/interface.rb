@@ -41,7 +41,8 @@ class Interface
 
   TABLE = [
     new(number: 0, name: "historical"),
-    new(number: 1, name: "modulation", folder: Rails.root.join("app/interfaces/modulation")),
+    new(number: 1, name: "modulation", folder: Rails.root.join("app/interfaces/modulation"),
+        draws: %w[layouts/_color_scheme layouts/_navbar]),
   ].freeze
 
   # The `draws` key of a view file, by its path under a views folder:
