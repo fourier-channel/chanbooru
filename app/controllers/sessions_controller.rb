@@ -41,6 +41,7 @@ class SessionsController < ApplicationController
       notice = "New location verified. Login again to continue"
     end
 
+    load_matrix_sign_in
     respond_with(@session, notice: notice)
   end
 
@@ -56,6 +57,7 @@ class SessionsController < ApplicationController
       link_matrix_account
       redirect_to @url
     else
+      load_matrix_sign_in
       render :new, status: 401
     end
   end
@@ -137,6 +139,15 @@ class SessionsController < ApplicationController
     return unless matrix_id.present? && (params.dig(:session, :link_matrix) || params.dig(:totp, :link_matrix)).to_s.truthy?
 
     MatrixAccount.new(request, matrix_id).link_signed_in(@user)
+  end
+
+  # Fork: the login page's Matrix panel -- the viewer's Matrix ID and, for a
+  # signed-out viewer, the account it has or would have here. Loaded for every
+  # render of the page, #new's and #create's after a wrong password, so each
+  # interface's page only draws it.
+  def load_matrix_sign_in
+    @matrix_id = FourierIdentity.current(request)
+    @matrix_account = MatrixAccount.new(request, @matrix_id) if @matrix_id && CurrentUser.user.is_anonymous? && Danbooru.config.matrix_accounts_from_identity?
   end
 
   # A popup login is identified by where it is GOING, not by a flag threaded

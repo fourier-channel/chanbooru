@@ -201,6 +201,18 @@ class MatrixAccountTest < ActionDispatch::IntegrationTest
       assert_select "label", text: /Link this account to your Matrix ID, @alice:41chan.net/
     end
 
+    # #create renders the login page itself after a wrong password; the
+    # Matrix state is loaded for that render too, under every interface.
+    should "be offered the link again after a wrong password" do
+      %w[modulation historical].each do |preset|
+        post session_path(preset: preset, preset_sticky: 0), headers: identity("@alice:41chan.net"), params: { session: { name: "alice", password: "wrong" }}
+
+        assert_response(401, "a wrong password under #{preset} answered #{response.status}")
+        assert_select("label", { text: /Link this account to your Matrix ID, @alice:41chan.net/ }, "no link box after a wrong password under #{preset}; fix: SessionsController#create calls load_matrix_sign_in before render :new")
+        assert_select "input[type=checkbox][name='session[link_matrix]'][checked]", count: 0
+      end
+    end
+
     should "link it when asked" do
       post session_path, headers: identity("@alice:41chan.net"), params: { session: { name: "alice", password: "alicepass", link_matrix: "1" }}
       assert_equal(@user.id, session[:user_id])

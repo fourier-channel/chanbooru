@@ -1,0 +1,9 @@
+<%# Fork: the box that links the account signed in to the viewer's Matrix ID,
+    offered only when its owner asks (SessionsController#link_matrix_account),
+    on the login page of every interface. %>
+<% if @matrix_account&.state == "taken" %>
+    <label class="mb-4 flex items-center gap-2">
+      <%= check_box_tag "session[link_matrix]", "1", false %>
+      Link this account to your Matrix ID, <%= @matrix_account.matrix_id %>
+    </label>
+<% end %>

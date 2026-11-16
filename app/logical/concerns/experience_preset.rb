@@ -22,20 +22,12 @@ module ExperiencePreset
   SESSION_KEY = :experience_preset
 
   included do
-    helper_method :experience_preset, :modulation?, :historical?
+    helper_method :experience_preset
   end
 
   # @return [String] the preset this request renders in; always one of PRESETS.
   def experience_preset
     @experience_preset ||= resolve_experience_preset
-  end
-
-  def modulation?
-    experience_preset == MODULATION
-  end
-
-  def historical?
-    experience_preset == HISTORICAL
   end
 
   # @return [Interface] the registry's line for this request's preset.
