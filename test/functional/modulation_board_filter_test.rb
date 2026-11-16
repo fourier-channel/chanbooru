@@ -12,7 +12,7 @@ require "test_helper"
 # segments, and a substring test would light that segment up for anyone
 # searching the tag. That is the bug this file exists to prevent.
 class ModulationBoardFilterTest < ActionDispatch::IntegrationTest
-  BOARDS = ModulationGalleryComponent::BOARDS
+  BOARDS = GallerySurface::BOARDS
 
   context "The Modulation board filter" do
     setup do

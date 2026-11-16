@@ -9,7 +9,7 @@ require "test_helper"
 class ModulationGalleryComponentTest < ViewComponent::TestCase
   def draw(tags, user: @member, page: nil)
     CurrentUser.scoped(user) do
-      render_inline(ModulationGalleryComponent.new(post_set: PostSets::Post.new(tags, page, nil, user: user, window: :page), viewer: user))
+      render_inline(ModulationGalleryComponent.new(surface: GallerySurface.new(post_set: PostSets::Post.new(tags, page, nil, user: user, window: :page), viewer: user, request: vc_test_request, session: vc_test_request.session)))
     end
   end
 

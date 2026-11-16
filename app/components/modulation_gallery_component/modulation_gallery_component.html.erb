@@ -113,7 +113,7 @@
   <%# The grid: the gallery window's box over the search (GridComponent; the
       chunks the window fetches are drawn by the same component). %>
   <% if posts.any? %>
-    <%= render ModulationGalleryComponent::GridComponent.new(gallery: self) %>
+    <%= render ModulationGalleryComponent::GridComponent.new(surface: surface) %>
 
     <%# Every card the box could show is hidden by the viewer's blocklist:
         gallery_window.js shows the one that is true, with its fix. A blocked

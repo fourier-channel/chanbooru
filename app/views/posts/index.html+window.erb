@@ -3,4 +3,4 @@
     markup as the page's. gallery_window.js reads it with DOMParser and
     places the cards; the grid carries the chunk's tag maps and whether the
     search goes on either side. %>
-<%= render ModulationGalleryComponent::GridComponent.new(gallery: ModulationGalleryComponent.new(post_set: @post_set, viewer: CurrentUser.user), chunk: true) %>
+<%= render ModulationGalleryComponent::GridComponent.new(surface: GallerySurface.new(post_set: @post_set, viewer: CurrentUser.user, request: request, session: session), chunk: true) %>

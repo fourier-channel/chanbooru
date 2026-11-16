@@ -28,16 +28,16 @@ class ModulationGalleryComponent::GridComponent < ApplicationComponent
   # and says to reload, rather than placing cards it may misread.
   WINDOW_VERSION = "1"
 
-  attr_reader :gallery
+  attr_reader :surface
 
-  delegate :post_set, to: :gallery
+  delegate :post_set, to: :surface
 
-  # @param gallery [ModulationGalleryComponent] the gallery whose posts and
-  #   card data these are
+  # @param surface [GallerySurface] the posts and card data, decided for the
+  #   viewer (interfaces stage 1, step 4b); the grid draws them
   # @param chunk [Boolean] a fetched run: every card arrives off
-  def initialize(gallery:, chunk: false)
+  def initialize(surface:, chunk: false)
     super
-    @gallery = gallery
+    @surface = surface
     @chunk = chunk
   end
 
@@ -50,10 +50,10 @@ class ModulationGalleryComponent::GridComponent < ApplicationComponent
   # The grid's attributes: the hover panel's maps, and the window's state
   # when this viewer has one.
   def grid_data
-    data = { "data-tag-categories" => gallery.page_tag_categories.to_json, "data-tag-counts" => gallery.page_tag_counts.to_json }
+    data = { "data-tag-categories" => surface.page_tag_categories.to_json, "data-tag-counts" => surface.page_tag_counts.to_json }
     # Below the browsing tier the gallery is one page: which empty state is
     # true when the blocklist hides all of it.
-    data["data-one-page"] = "true" unless gallery.can_browse?
+    data["data-one-page"] = "true" unless surface.can_browse?
     return data unless post_set.windowing?
 
     data.merge!(
@@ -78,6 +78,6 @@ class ModulationGalleryComponent::GridComponent < ApplicationComponent
     seek = post_set.seek
     return nil if seek.nil? || (seek.id.nil? && seek.offset.to_i == 0)
 
-    post_set.window_cursors[gallery.posts.first&.id]
+    post_set.window_cursors[surface.posts.first&.id]
   end
 end

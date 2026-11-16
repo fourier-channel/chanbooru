@@ -183,6 +183,22 @@ class GalleryWindowTest < ActionDispatch::IntegrationTest
       assert_equal hidden, response.body[/That post is not in this search[^<]*/]
     end
 
+    # Below Approver a banned artist's search is refused whole (451,
+    # PostsController#index), and a chunk is the same search: it must not
+    # hand out the cards the page withholds.
+    should "refuse a banned artist's chunk below Approver, as the page is refused" do
+      artist = create(:artist, is_banned: true)
+      as(@member) { create(:post, tag_string: artist.name) }
+
+      get_auth posts_path, @member, params: { preset: "modulation", variant: "window", tags: artist.name }
+      assert_response 451, "a banned artist's chunk was served below Approver; fix: PostsController#index refuses the search (PageRemovedError) for every html variant, window included"
+      assert_select ".modgal-card", 0
+
+      get_auth posts_path, create(:approver), params: { preset: "modulation", variant: "window", tags: artist.name }
+      assert_response :success
+      assert_select ".modgal-card", 1
+    end
+
     should "give a restricted viewer one page, no window and no cursor" do
       restricted = create(:restricted_user)
       page_html(restricted, tags: "gwtest")
