@@ -17,7 +17,7 @@ class CharacterClaimDisplayTest < ActionDispatch::IntegrationTest
   end
 
   def payload(post, viewer)
-    as(viewer) { ModulationPostComponent.new(post: post, viewer: viewer).payload }
+    as(viewer) { PostSurface.new(post: post, viewer: viewer).payload }
   end
 
   setup do
@@ -39,13 +39,13 @@ class CharacterClaimDisplayTest < ActionDispatch::IntegrationTest
     end
 
     should "ask nothing with no character tags, and one query with them" do
-      component = ModulationPostComponent.new(post: @plain, viewer: @member)
-      component.category_tags
-      assert_empty(sql_during { assert_equal({}, component.oc_owners) }.grep(/character_claims/))
+      surface = PostSurface.new(post: @plain, viewer: @member)
+      surface.category_tags
+      assert_empty(sql_during { assert_equal({}, surface.oc_owners) }.grep(/character_claims/))
 
-      component = ModulationPostComponent.new(post: @post, viewer: @member)
-      component.category_tags
-      assert_equal(1, sql_during { component.oc_owners }.size)
+      surface = PostSurface.new(post: @post, viewer: @member)
+      surface.category_tags
+      assert_equal(1, sql_during { surface.oc_owners }.size)
     end
 
     should "give a signed-out visitor the @slug, linked to the gallery, promoted or not" do

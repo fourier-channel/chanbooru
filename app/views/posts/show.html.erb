@@ -9,7 +9,10 @@
     post page below is retained as the hidden "historical" preset; see
     ExperiencePreset for how a page picks between them. %>
 <% if modulation? %>
-  <%= render ModulationPostComponent.new(post: @post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session, request: request) %>
+  <%# One PostSurface decides the view and the edit form below, so the two
+      cannot disagree about whether this viewer may edit. %>
+  <% surface = PostSurface.new(post: @post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session, request: request) %>
+  <%= render ModulationPostComponent.new(surface: surface) %>
 
   <%# THE EDIT FORM LIVES HERE TOO, so Modulation's "contribute" links can be
       plain #edit anchors instead of a detour through ?preset=historical.
@@ -25,7 +28,7 @@
       one form serves both presets and a change to it cannot land in one and
       miss the other. posts.js does `$("#edit").show()` on the anchor and
       appends #form into `#c-posts #edit`, both of which match here. %>
-  <% if policy(@post).update? %>
+  <% if surface.can_edit? %>
     <section id="edit" class="mod-edit" style="display: none;">
       <%= render "posts/partials/show/edit", :post => @post %>
     </section>

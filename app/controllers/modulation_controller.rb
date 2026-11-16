@@ -35,10 +35,10 @@ class ModulationController < ApplicationController
     # comment section (below the fold) is not rendered.
     # ?visit=1: the viewer landed on a post shown from its prefetch. Only what
     # that lacked -- random's preset, built as a visit, and the comments --
-    # not the whole payload again (ModulationPostComponent#visit_payload).
+    # not the whole payload again (PostSurface#visit_payload).
     read = %i[visit prefetch].find { params[it].present? } || :full
-    component = ModulationPostComponent.new(post: post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session, request: request, read: read)
-    body = (read == :visit) ? component.visit_payload : component.payload
+    surface = PostSurface.new(post: post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session, request: request, read: read)
+    body = (read == :visit) ? surface.visit_payload : surface.payload
     body = body.merge(comments_html: comments_html(post)) unless read == :prefetch
     render json: body, status: 200
   end

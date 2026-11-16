@@ -96,7 +96,7 @@ class CreatorPanelSurfacesTest < ActionDispatch::IntegrationTest
       CreatorVisibility.forget!
 
       [@stranger, @member, @moderator].each do |user|
-        assert_nil(ModulationPostComponent.new(post: @post, viewer: user).audience_payload, user.name)
+        assert_nil(PostSurface.new(post: @post, viewer: user).audience_payload, user.name)
       end
     end
 

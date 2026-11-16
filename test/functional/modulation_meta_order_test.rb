@@ -15,7 +15,7 @@ class ModulationMetaOrderTest < ActionDispatch::IntegrationTest
   end
 
   def meta(post)
-    as(@uploader) { ModulationPostComponent.new(post: post, viewer: @uploader).payload[:meta] }.pluck(:text)
+    as(@uploader) { PostSurface.new(post: post, viewer: @uploader).payload[:meta] }.pluck(:text)
   end
 
   should "put the status, the rating and the source before the file's numbers and the uploader" do

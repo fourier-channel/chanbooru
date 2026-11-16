@@ -383,7 +383,11 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
       get_auth post_modulation_path(@closed), @admin
       assert_response :success
       assert response.parsed_body["logs_admin_view"]
-      assert_equal 0, views.count, "a prefetch or a refresh is not a view"
+      get_auth post_modulation_path(@closed), @admin, params: { prefetch: 1 }
+      assert_response :success
+      get_auth post_modulation_path(@closed), @admin, params: { visit: 1 }
+      assert_response :success
+      assert_equal 0, views.count, "a prefetch, a visit or a refresh logged an admin view; fix: ModulationController#show logs only on ?opened=1"
 
       get_auth post_modulation_path(@closed), @admin, params: { opened: 1 }
       assert_equal 1, views.where(subject: @closed, creator: @admin).count

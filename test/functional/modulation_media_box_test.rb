@@ -37,7 +37,7 @@ class ModulationMediaBoxTest < ActionDispatch::IntegrationTest
   end
 
   def media(post, viewer = @viewer)
-    as(viewer) { ModulationPostComponent.new(post: post, viewer: viewer).payload[:media] }
+    as(viewer) { PostSurface.new(post: post, viewer: viewer).payload[:media] }
   end
 
   context "the payload's media" do

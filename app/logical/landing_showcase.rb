@@ -90,7 +90,7 @@ class LandingShowcase
     # jail an image and it stays in the carousel for them.
     #
     # Checked against the tag as well as the flag, matching
-    # ModulationPostComponent#jailed?, so a jailing whose delete half failed is
+    # PostSurface#jailed?, so a jailing whose delete half failed is
     # still kept out.
     return false if post.is_deleted?
     return false if post.has_tag?(Danbooru.config.troll_jail_tag)

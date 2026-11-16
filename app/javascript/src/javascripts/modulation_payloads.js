@@ -71,7 +71,7 @@ export function payloadStore(load, { max = 64 } = {}) {
   };
 }
 
-// THE VISIT READ (?visit=1, ModulationPostComponent#visit_payload): after the
+// THE VISIT READ (?visit=1, PostSurface#visit_payload): after the
 // page shows a post from its prefetch, the read that records the visit
 // carries only what the prefetch lacked -- random's preset, that preset's
 // candidates and the comments. This lays it over the payload being shown and

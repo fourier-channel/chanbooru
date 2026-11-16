@@ -159,7 +159,7 @@ class LandingShowcaseTest < ActiveSupport::TestCase
     end
 
     should "drop a jailed post even if the delete half never landed" do
-      # ModulationPostComponent#jailed? reads the tag rather than the flag for
+      # PostSurface#jailed? reads the tag rather than the flag for
       # this reason; the showcase now agrees with it.
       assert_not_includes new_ids(create(:admin_user)), @jailed.id
     end

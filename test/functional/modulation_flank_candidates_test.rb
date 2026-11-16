@@ -20,7 +20,7 @@ class ModulationFlankCandidatesTest < ActionDispatch::IntegrationTest
   PRESET_KEYS = %w[key label search prev_candidates next_candidates prev_more next_more].freeze
 
   def component(post, viewer, query: "flankq")
-    ModulationPostComponent.new(post: post, viewer: viewer, query: query)
+    PostSurface.new(post: post, viewer: viewer, query: query)
   end
 
   def payload_json(post, user, query: "flankq")
@@ -106,7 +106,7 @@ class ModulationFlankCandidatesTest < ActionDispatch::IntegrationTest
 
       assert_not_empty payload[:candidates]
       payload[:candidates].each do |id, entry|
-        own = as(@viewer) { ModulationPostComponent.new(post: Post.find(id), viewer: @viewer).blacklist_data }
+        own = as(@viewer) { PostSurface.new(post: Post.find(id), viewer: @viewer).blacklist_data }
         assert_equal own, entry[:blacklist], "candidate ##{id}"
         assert_equal Post.find(id).preview_file_url, entry[:thumb]
         assert_equal false, entry[:deleted]
@@ -122,7 +122,7 @@ class ModulationFlankCandidatesTest < ActionDispatch::IntegrationTest
 
       assert_not_empty payload[:candidates]
       payload[:candidates].each do |id, entry|
-        own = as(@viewer) { ModulationPostComponent.new(post: Post.find(id), viewer: @viewer).payload[:media] }
+        own = as(@viewer) { PostSurface.new(post: Post.find(id), viewer: @viewer).payload[:media] }
         assert_equal own.slice(:kind, :src, :poster, :box), entry[:media], "candidate ##{id}"
         assert_predicate entry.dig(:media, :box), :present?
       end
@@ -265,15 +265,15 @@ class ModulationFlankCandidatesTest < ActionDispatch::IntegrationTest
     # sent as it stands, `more` still true, rather than walking the archive.
     should "stop topping a side up after FLANK_FILL_ROUNDS reads" do
       @posts[7..12].each { it.update_columns(is_banned: true) } # rubocop:disable Rails/SkipsModelValidations -- artist bans, as the moderation flag sets them
-      original = ModulationPostComponent::FLANK_FILL_ROUNDS
-      silence_warnings { ModulationPostComponent.const_set(:FLANK_FILL_ROUNDS, 0) }
+      original = PostSurface::FLANK_FILL_ROUNDS
+      silence_warnings { PostSurface.const_set(:FLANK_FILL_ROUNDS, 0) }
 
       body = payload_json(@centre, @viewer)
       search = body.fetch("presets").find { it["key"] == "search" }
       assert_equal [], search["prev_candidates"]
       assert_equal true, search["prev_more"]
     ensure
-      silence_warnings { ModulationPostComponent.const_set(:FLANK_FILL_ROUNDS, original) }
+      silence_warnings { PostSurface.const_set(:FLANK_FILL_ROUNDS, original) }
     end
   end
 end

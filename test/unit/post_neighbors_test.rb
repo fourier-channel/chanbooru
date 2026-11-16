@@ -314,7 +314,7 @@ class PostNeighborsTest < ActiveSupport::TestCase
     should "build a payload without the hidden-id pluck or any statement over 20 KB" do
       CreatorVisibility.forget!
       payload = nil
-      sqls = statements { payload = as(@member) { ModulationPostComponent.new(post: @plain, viewer: @member, query: "rfq").payload } }
+      sqls = statements { payload = as(@member) { PostSurface.new(post: @plain, viewer: @member, query: "rfq").payload } }
 
       listed = payload[:presets].flat_map { (it[:prev_candidates] + it[:next_candidates]).pluck(:id) }
       assert_includes listed, @plain_b.id, "fixture: the flanks were built"

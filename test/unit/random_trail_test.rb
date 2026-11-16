@@ -201,7 +201,7 @@ class RandomTrailTest < ActiveSupport::TestCase
   # first: a post the trail already holds is answered by neighbours_for, which
   # only ever rolls the frontier for it (the next random post in that
   # direction, which the viewer is walking toward); a post it does not hold is
-  # never pushed (ModulationPostComponent#random_neighbours).
+  # never pushed (PostSurface#random_neighbours).
   context "holds?" do
     should "hold every post on the trail, its ends included" do
       t = trail([1, 2, 3])

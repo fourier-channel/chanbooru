@@ -66,14 +66,14 @@ class SignedOutSearchBoxTest < ActionDispatch::IntegrationTest
     end
 
     should "name only a featured creator's tag as a link for a signed-out viewer" do
-      payload = as(User.anonymous) { ModulationPostComponent.new(post: @post, viewer: User.anonymous).payload }
+      payload = as(User.anonymous) { PostSurface.new(post: @post, viewer: User.anonymous).payload }
 
       assert_equal(["featured_maker"], payload[:tag_links])
     end
 
     should "link every tag for a member" do
       member = create(:user)
-      payload = as(member) { ModulationPostComponent.new(post: @post, viewer: member).payload }
+      payload = as(member) { PostSurface.new(post: @post, viewer: member).payload }
 
       assert_nil(payload[:tag_links])
     end

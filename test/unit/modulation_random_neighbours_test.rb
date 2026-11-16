@@ -20,7 +20,7 @@ require "test_helper"
 # identical SQL, and 20 cached picks came back as one post twenty times.
 class ModulationRandomNeighboursTest < ActiveSupport::TestCase
   def component(post, viewer)
-    ModulationPostComponent.new(post: post, viewer: viewer, query: "order:random")
+    PostSurface.new(post: post, viewer: viewer, query: "order:random")
   end
 
   def random_preset(post, viewer)
@@ -63,8 +63,8 @@ class ModulationRandomNeighboursTest < ActiveSupport::TestCase
     should "give no neighbour when the post is the only one its search finds" do
       lone = create(:post, tag_string: "lonely_tag_only_here")
       preset = as(@viewer) do
-        ModulationPostComponent.new(post: lone, viewer: @viewer, query: "lonely_tag_only_here order:random")
-                               .nav_presets.find { |p| p[:key] == "random" }
+        PostSurface.new(post: lone, viewer: @viewer, query: "lonely_tag_only_here order:random")
+                   .nav_presets.find { |p| p[:key] == "random" }
       end
 
       assert_empty(preset[:prev_candidates])

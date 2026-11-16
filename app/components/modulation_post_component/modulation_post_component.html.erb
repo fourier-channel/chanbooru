@@ -40,13 +40,13 @@
         across client-side navigation (only its contents are replaced), so the
         Post object the blacklist attaches to it survives a swap. %>
     <%# Its box is written here, before the script runs: the rendition's own
-        width and height (media_payload's `box`). The centre itself is the
+        width and height (the payload's media `box`). The centre itself is the
         fixed window once sizeStage() has measured the screen (.is-windowed);
         the box is the picture's frame inside it, and the
         centre's own size under the "natural" image setting, which has no
         window. No box, no style: the placeholder's size. renderCenter()
         rewrites it on every step. %>
-    <% box = media_payload[:box] %>
+    <% box = payload[:media][:box] %>
     <div class="mod-stage-center mod-blacklist-target" data-region="center" <%= tag.attributes(blacklist_data.merge(style: box && "--mod-bw:#{box[0]};--mod-bh:#{box[1]}")) %>></div>
     <div class="mod-flank-col mod-flank-col--next" data-region="flank-next"></div>
     <%# The flank candidates, as elements the blocklist engine can see and
@@ -63,7 +63,7 @@
 
   <%# Generation data: the prompt, settings and workflow the tunnel took out of
       this image (operator ruling 2026-09-28). The payload carries it only for
-      the post's creator (ModulationPostComponent#generation_payload,
+      the post's creator (PostSurface#generation_payload,
       FourierCreatorPrivacy), so for everyone else -- admins included -- this
       region stays empty and hidden. %>
   <section class="mod-generation" data-region="generation" hidden></section>

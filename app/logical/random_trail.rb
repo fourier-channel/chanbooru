@@ -139,7 +139,7 @@ class RandomTrail
   # ever rolls the frontier (the next random post in the direction the viewer
   # walks), never pushes. Pushing the post is a visit's, and a prefetch is not
   # one: building neighbours' payloads ahead of the viewer pushed them all, so
-  # the trail filled with posts nobody stood on (ModulationPostComponent
+  # the trail filled with posts nobody stood on (PostSurface
   # #random_neighbours). Writes nothing.
   def holds?(post)
     @ids.include?(post.id)

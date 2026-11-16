@@ -5,7 +5,7 @@
 // re-filters the page in place, no reload (operator, 2026-10-13, 2026-10-17).
 // The flank thumbnails carried no tags, so the engine never saw them and a
 // blocked post sat beside the centre in plain view. So each side now carries a
-// few candidates with their tags (ModulationPostComponent#payload, presets[]
+// few candidates with their tags (PostSurface#payload, presets[]
 // and candidates), the page writes them onto hidden pool elements the engine
 // marks (Blacklist.POST_SELECTOR), and this reads the marks: the first
 // candidate not marked is the pick (GALLERY_WINDOW.md section 2).
