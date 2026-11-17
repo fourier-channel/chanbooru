@@ -10,7 +10,7 @@
 // refresh or a clear, shows the viewer a state the server no longer holds.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mergeVisit, payloadStore } from "../../app/javascript/src/javascripts/modulation_payloads.js";
+import { mergeVisit, payloadStore } from "../../app/interfaces/modulation/javascript/modulation_payloads.js";
 
 // A loader whose answers the test releases by hand, in any order.
 function loader() {

@@ -12,7 +12,7 @@
 // limit of 20."
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GalleryWindow } from "../../app/javascript/src/javascripts/gallery_window_model.js";
+import { GalleryWindow } from "../../app/interfaces/modulation/javascript/gallery_window_model.js";
 
 const CONFIG = { slots: 20, chunk: 40, chunkMax: 100, budgetRaw: 400, budgetFetches: 6, keepBehind: 60, hardCap: 500 };
 const entries = (from, to) => Array.from({ length: to - from }, (_, i) => ({ id: String(from + i), key: `${from + i}~${from + i}` }));

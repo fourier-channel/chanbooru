@@ -1,4 +1,4 @@
-import Notice from "./notice";
+import Notice from "../../../javascript/src/javascripts/notice";
 
 // Hard refresh and purge: the rectangle at the right end of the Modulation
 // header (operator, 2026-10-03). Markup and the reasons are in

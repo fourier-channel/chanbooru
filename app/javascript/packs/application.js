@@ -28,6 +28,7 @@ Rails.start();
 import 'tippy.js/dist/tippy.css';
 
 importAll(require.context('../src/javascripts', true, /\.js(\.erb)?$/));
+importAll(require.context('../../interfaces', true, /\/javascript\/.*\.js(\.erb)?$/));
 importAll(require.context('../src/styles', true, /\.s?css(?:\.erb)?$/));
 importAll(require.context('../../components', true, /\.s?css(?:\.erb)?$/));
 importAll(require.context('../../interfaces', true, /\/components\/.*\.s?css(?:\.erb)?$/));

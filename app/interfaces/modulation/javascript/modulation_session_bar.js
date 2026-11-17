@@ -1,4 +1,4 @@
-import Notice from "./notice";
+import Notice from "../../../javascript/src/javascripts/notice";
 
 // The Manage Session panel: a right-aligned control in the header row, one
 // monitor per session.
@@ -218,7 +218,7 @@ function boot() {
       if (cta) {
         cta.textContent = worst === "alarm" ? "Check"
           : worst === "stale" ? "Re-verify"
-          : !(obs.booru || {}).signed_in ? "Log in" : "";
+            : !(obs.booru || {}).signed_in ? "Log in" : "";
       }
     }
   }

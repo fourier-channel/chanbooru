@@ -8,7 +8,7 @@
 // arriving by another door.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extendRun, flankState, flankWords, runsKey } from "../../app/javascript/src/javascripts/modulation_flanks.js";
+import { extendRun, flankState, flankWords, runsKey } from "../../app/interfaces/modulation/javascript/modulation_flanks.js";
 
 const c = (...ids) => ids.map((id) => ({ id, url: `/posts/${id}` }));
 const blocked = (...ids) => new Set(ids.map(String));

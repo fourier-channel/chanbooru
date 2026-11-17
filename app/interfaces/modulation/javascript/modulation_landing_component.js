@@ -1,7 +1,7 @@
-import Notice from "./notice";
-import { WHEEL_IDLE, wheelStep } from "./fourier_wheel_step";
-import CreatorLamps from "./creator_lamps";
-import { cellView } from "./post_view";
+import Notice from "../../../javascript/src/javascripts/notice";
+import { WHEEL_IDLE, wheelStep } from "../../../javascript/src/javascripts/fourier_wheel_step";
+import CreatorLamps from "../../../javascript/src/javascripts/creator_lamps";
+import { cellView } from "../../../javascript/src/javascripts/post_view";
 
 // The landing carousel, built on the post view's stage.
 //

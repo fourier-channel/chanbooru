@@ -1,4 +1,4 @@
-import Landing from "./modulation_landing_component";
+import Landing from "../../../interfaces/modulation/javascript/modulation_landing_component";
 import {
   BLANK_MINI, HERO_MAX, HERO_MIN, MIN_W, MINI_EFFECTS, MINI_MAX, DIRS, ROW_H, SETS,
   adderRow, bandRule, countIn, groundPlan, setOf, layoutOf, miniLook, miniRole, problemsOf, rowsOf, ruleSentence, slotCount, tagsOf,

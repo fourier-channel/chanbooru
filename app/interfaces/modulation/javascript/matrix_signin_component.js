@@ -1,4 +1,4 @@
-import Notice from "./notice";
+import Notice from "../../../javascript/src/javascripts/notice";
 
 // Drives the Matrix sign-in panel. See MatrixSigninComponent for why the
 // completion signal is a poll of this site's own origin rather than anything

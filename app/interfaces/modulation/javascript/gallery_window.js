@@ -18,7 +18,7 @@
 // per direction; a failure stops that direction with a note that names it
 // and its fix, and a Retry. Nothing is retried by itself.
 import { GalleryWindow } from "./gallery_window_model";
-import { WHEEL_IDLE, wheelStep } from "./fourier_wheel_step";
+import { WHEEL_IDLE, wheelStep } from "../../../javascript/src/javascripts/fourier_wheel_step";
 
 // How long the blocklist engine may take to start before the page says so.
 const ENGINE_WAIT_MS = 5000;

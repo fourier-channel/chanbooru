@@ -10,7 +10,7 @@
 // the image's height, then back down when it landed.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { boundedKeep, centerBoxStyle, lookahead, queuePress, queuedFor, warmSource } from "../../app/javascript/src/javascripts/modulation_lookahead.js";
+import { boundedKeep, centerBoxStyle, lookahead, queuePress, queuedFor, warmSource } from "../../app/interfaces/modulation/javascript/modulation_lookahead.js";
 
 const c = (...ids) => ids.map((id) => ({ id, url: `/posts/${id}` }));
 const marked = (...ids) => new Set(ids.map(String));
