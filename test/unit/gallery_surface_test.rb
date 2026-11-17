@@ -13,10 +13,10 @@ class GallerySurfaceTest < ActiveSupport::TestCase
   include TagQuarantineTestHelper
 
   COMPONENTS = %w[
-    app/components/modulation_gallery_component.rb
-    app/components/modulation_gallery_component/modulation_gallery_component.html.erb
-    app/components/modulation_gallery_component/grid_component.rb
-    app/components/modulation_gallery_component/grid_component.html.erb
+    app/interfaces/modulation/components/modulation_gallery_component.rb
+    app/interfaces/modulation/components/modulation_gallery_component/modulation_gallery_component.html.erb
+    app/interfaces/modulation/components/modulation_gallery_component/grid_component.rb
+    app/interfaces/modulation/components/modulation_gallery_component/grid_component.html.erb
   ].freeze
   # A viewer, a decision, a policy or a query: what the components must leave
   # to the surface. Matched with comments removed, which name the viewer

@@ -48,7 +48,7 @@ class ModulationGalleryComponent < ApplicationComponent
   # identifying kinds (the post page's rule; the stylesheet's compound
   # category selector is what makes artist/character/copyright win).
   def pill_classes(tag)
-    "mod-pill mod-pill--#{surface.page_tag_provenance.dig(tag.name, 0) || 'unsourced'} mod-pill--cat mod-pill--cat-#{surface.category_key(tag)}"
+    "mod-pill mod-pill--#{surface.page_tag_provenance.dig(tag.name, 0) || "unsourced"} mod-pill--cat mod-pill--cat-#{surface.category_key(tag)}"
   end
 
   # The dot's lamp class. No row: no model, a person's white lamp.

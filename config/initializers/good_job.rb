@@ -43,10 +43,12 @@ ActiveSupport.on_load(:good_job_application_controller) do
   before_action :authorize_user
   rescue_from Exception, with: :rescue_exception
 
-  # Fork: the error page in the blank layout. The default layout asks helpers
-  # only ApplicationController has (modulation?, from ExperiencePreset), so
-  # every refusal here rendered as a 500 instead -- measured on production
-  # 2026-10-07: a signed-out GET /good_job answered 500.
+  # Fork: the error page in the blank layout. The default layout asked a
+  # helper only ApplicationController had (modulation?, from ExperiencePreset,
+  # retired when each interface drew its own pages), so every refusal here
+  # rendered as a 500 instead -- measured on production 2026-10-07: a
+  # signed-out GET /good_job answered 500. The default layout is still
+  # ApplicationController's to draw, with its interface plug.
   def render_error_page(status, exception = nil, **options)
     super(status, exception, **options, layout: "blank")
   end
@@ -84,6 +86,6 @@ Rails.application.config.to_prepare do
 
     before_action :set_current_user
     before_action { MembersOnly.admit!(self) }
-    rescue_from(ActiveRecord::RecordNotFound) { head :not_found }
+    rescue_from(ActiveRecord::RecordNotFound) { head 404 }
   end
 end

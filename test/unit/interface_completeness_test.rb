@@ -73,8 +73,9 @@ class InterfaceCompletenessTest < ActiveSupport::TestCase
     [found, unfollowed]
   end
 
-  # The rules in a stylesheet that are not under body[data-preset="<name>"],
-  # as "file:line: selector". A rule inside a scoped rule, a @mixin, a
+  # The rules in a stylesheet that are not under body[data-preset="<name>"]
+  # or :where() of it (the same scope, adding no specificity), as
+  # "file:line: selector". A rule inside a scoped rule, a @mixin, a
   # @function, @keyframes, @font-face or @property paints nothing on its
   # own; @media, @supports, @container, @layer and Sass control flow are
   # looked inside. A top-level @include can emit any rule, so it counts.
@@ -101,7 +102,7 @@ class InterfaceCompletenessTest < ActiveSupport::TestCase
         stack.push(:inside)
       else
         selectors = prelude.split(",").map(&:strip)
-        found << "#{file.relative_path_from(Rails.root)}:#{line}: #{prelude.squish}" unless selectors.all? { |s| s.start_with?(scope, "%") }
+        found << "#{file.relative_path_from(Rails.root)}:#{line}: #{prelude.squish}" unless selectors.all? { |s| s.start_with?(scope, ":where(#{scope})", "%") }
         stack.push(:inside)
       end
     end
@@ -239,9 +240,10 @@ class InterfaceCompletenessTest < ActiveSupport::TestCase
       end
     end
 
-    should "pass Modulation's skin, which is scoped, and find the unscoped rules in a component stylesheet" do
+    should "pass Modulation's skin and its components, which are scoped, and find the unscoped rules in a core component stylesheet" do
       assert_empty(self.class.unscoped(Rails.root.join("app/javascript/src/styles/zz_modulation_skin.scss"), "modulation"))
-      assert_not_empty(self.class.unscoped(Rails.root.join("app/components/matrix_signin_component/matrix_signin_component.scss"), "modulation"))
+      Interface.fetch("modulation").folder.glob("components/**/*.scss").each { |file| assert_empty(self.class.unscoped(file, "modulation"), file.to_s) }
+      assert_not_empty(self.class.unscoped(Rails.root.join("app/components/blocklist_component/blocklist_component.scss"), "modulation"))
     end
   end
 end

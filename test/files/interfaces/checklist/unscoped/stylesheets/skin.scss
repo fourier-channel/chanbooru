@@ -5,6 +5,10 @@ body[data-preset="unscoped"] {
 
 body[data-preset="unscoped"] .also-fine, %placeholder { color: red; }
 
+:where(body[data-preset="unscoped"]) {
+  .fine-without-specificity { color: red; }
+}
+
 @mixin swatch {
   .inside-a-mixin { color: red; }
 }

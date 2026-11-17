@@ -1,3 +1,9 @@
+
+// Modulation's drawing (app/interfaces/modulation): every rule below is
+// scoped to body[data-preset="modulation"], so another interface's page
+// never matches it. :where() adds nothing to a rule's specificity, so each
+// rule wins and loses exactly as it did unscoped.
+:where(body[data-preset="modulation"]) {
 // The Modulation site header: ONE row -- brand hard left, nav pills in the
 // middle, Manage Session hard right (operator ruling 2026-09-06).
 //
@@ -730,3 +736,5 @@
 
   .modnav-tokens-note { color: var(--mod-ink-dim); font-size: 0.72rem; }
 }
+
+} // :where(body[data-preset="modulation"])

@@ -6,8 +6,8 @@ require "test_helper"
 # stage 1, step 4c) and decides nothing of its own.
 class ModulationPostComponentTest < ViewComponent::TestCase
   FILES = %w[
-    app/components/modulation_post_component.rb
-    app/components/modulation_post_component/modulation_post_component.html.erb
+    app/interfaces/modulation/components/modulation_post_component.rb
+    app/interfaces/modulation/components/modulation_post_component/modulation_post_component.html.erb
   ].freeze
   # A viewer read from the thread, a policy, or a decision the surface makes:
   # what the component must leave to it. Matched with comments removed.

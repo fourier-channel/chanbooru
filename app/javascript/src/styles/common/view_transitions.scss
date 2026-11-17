@@ -1,0 +1,42 @@
+// Paging and searching are full document loads on this site, so the tag list
+// used to be replaced outright: one frame it was the old set, the next it was
+// the new one (operator, 2026-09-07 -- "remove the sudden state change").
+//
+// Cross-document view transitions animate ACROSS that navigation, which is why
+// this is a few lines of CSS rather than a client-side router. Each pill
+// carries a view-transition-name keyed on its tag's ID, so the browser can
+// tell which pills are the same tag on both pages: those MORPH to their new
+// position, and the rest pop out or in.
+//
+// A browser without view transitions ignores all of this and navigates exactly
+// as before, which is the behaviour being improved on rather than depended on.
+//
+// Moved from ModulationGalleryComponent's stylesheet when the gallery became
+// Modulation's drawing (app/interfaces/modulation). Neither rule can be
+// scoped to an interface: @view-transition opts a whole DOCUMENT in, and
+// the ::view-transition pseudo-elements belong to the root, not to body.
+// So it stays in core, where it was in effect: every page of every
+// interface opts in, as before. Only the gallery's tag pills carry a
+// view-transition-class, so only they pop; elsewhere the browser's default
+// cross-fade runs. A link to Modulation in core, to be cut in stage 2.
+
+@view-transition {
+  navigation: auto;
+}
+
+// A tag on only one of the two pages: pop, rather than the default cross-fade.
+// Canon's TAG POP (formant mod-tag-pop-*, --mod-tag-pop-*): this file carried
+// a hand copy that had drifted -- no overshoot on the way in, 180ms out where
+// canon says 160.
+::view-transition-new(.modgal-tagpill):only-child {
+  animation: mod-tag-pop-in var(--mod-tag-pop-in-dur) var(--mod-tag-pop-ease);
+}
+
+::view-transition-old(.modgal-tagpill):only-child {
+  animation: mod-tag-pop-out var(--mod-tag-pop-out-dur) ease-in;
+}
+
+// Someone who asked for less motion gets the navigation without the choreography.
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+}

@@ -10,8 +10,8 @@ require "test_helper"
 # component decides nothing.
 class NavSurfaceTest < ActiveSupport::TestCase
   COMPONENT = %w[
-    app/components/modulation_navbar_component.rb
-    app/components/modulation_navbar_component/modulation_navbar_component.html.erb
+    app/interfaces/modulation/components/modulation_navbar_component.rb
+    app/interfaces/modulation/components/modulation_navbar_component/modulation_navbar_component.html.erb
   ].freeze
   # A decision, a policy or a query: what the component must leave to the
   # surface.

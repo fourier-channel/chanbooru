@@ -1,45 +1,17 @@
-// Paging and searching are full document loads on this site, so the tag list
-// used to be replaced outright: one frame it was the old set, the next it was
-// the new one (operator, 2026-09-07 -- "remove the sudden state change").
-//
-// Cross-document view transitions animate ACROSS that navigation, which is why
-// this is a few lines of CSS rather than a client-side router. Each pill
-// carries a view-transition-name keyed on its tag's ID, so the browser can
-// tell which pills are the same tag on both pages: those MORPH to their new
-// position, and the rest pop out or in.
-//
-// A browser without view transitions ignores all of this and navigates exactly
-// as before, which is the behaviour being improved on rather than depended on.
-@use "../../javascript/src/styles/modulation/pill" as *;
+@use "../../../../javascript/src/styles/modulation/pill" as *;
 
-@view-transition {
-  navigation: auto;
-}
-
-// A tag on only one of the two pages: pop, rather than the default cross-fade.
-// Canon's TAG POP (formant mod-tag-pop-*, --mod-tag-pop-*): this file carried
-// a hand copy that had drifted -- no overshoot on the way in, 180ms out where
-// canon says 160.
-::view-transition-new(.modgal-tagpill):only-child {
-  animation: mod-tag-pop-in var(--mod-tag-pop-in-dur) var(--mod-tag-pop-ease);
-}
-
-::view-transition-old(.modgal-tagpill):only-child {
-  animation: mod-tag-pop-out var(--mod-tag-pop-out-dur) ease-in;
-}
-
-// Someone who asked for less motion gets the navigation without the choreography.
-@media (prefers-reduced-motion: reduce) {
-  @view-transition { navigation: none; }
-}
-
+// Modulation's drawing (app/interfaces/modulation): every rule below is
+// scoped to body[data-preset="modulation"], so another interface's page
+// never matches it. :where() adds nothing to a rule's specificity, so each
+// rule wins and loses exactly as it did unscoped.
+:where(body[data-preset="modulation"]) {
 // "Modulation" gallery -- the post index in the Modulation theme. Shares the
 // post view's tokens and pill language; here the pills are coloured by tag
 // category rather than provenance.
 
 // Suppress the upstream sidebar chrome while a Modulation gallery is on screen;
 // the shared header (NavbarComponent) stays.
-body:has(.modgal) {
+&:has(.modgal) {
   #sidebar { display: none; }
   #content { max-width: none; }
 }
@@ -508,3 +480,5 @@ body:has(.modgal) {
     color: var(--mod-ink-faint, var(--mod-ink-dim));
   }
 }
+
+} // :where(body[data-preset="modulation"])

@@ -1,13 +1,18 @@
-@use "../../javascript/src/styles/modulation/stage" as *;
-@use "../../javascript/src/styles/modulation/pill" as *;
+@use "../../../../javascript/src/styles/modulation/stage" as *;
+@use "../../../../javascript/src/styles/modulation/pill" as *;
 
+// Modulation's drawing (app/interfaces/modulation): every rule below is
+// scoped to body[data-preset="modulation"], so another interface's page
+// never matches it. :where() adds nothing to a rule's specificity, so each
+// rule wins and loses exactly as it did unscoped.
+:where(body[data-preset="modulation"]) {
 // "Modulation" -- redesigned single-cell post page. Everything here is driven by
 // CSS custom properties so an experience preset is just a bundle of token
 // overrides. Hardcode frugally; var ahead of need.
 
 // Suppress the upstream sidebar chrome only while a Modulation post is on screen;
 // the shared header (NavbarComponent) stays -- same header on every page.
-body:has(.modulation) {
+&:has(.modulation) {
   #sidebar { display: none; }
   #content { max-width: none; }
 }
@@ -1206,3 +1211,5 @@ body:has(.modulation) {
   .mod-pill--hype::after { animation: none; }
   .mod-pill--hype::after { opacity: 0.6; }
 }
+
+} // :where(body[data-preset="modulation"])

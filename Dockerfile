@@ -392,6 +392,7 @@ COPY --link public/images ./public/images
 COPY --link public/logos ./public/logos
 COPY --link public/fonts ./public/fonts
 COPY --link app/components/ ./app/components
+COPY --link app/interfaces/ ./app/interfaces
 COPY --link app/javascript/ ./app/javascript
 
 RUN <<EOS
