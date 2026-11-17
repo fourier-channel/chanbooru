@@ -34,7 +34,6 @@ class Post < ApplicationRecord
 
   # Each name escaped, so a restricted name shaped like foo_(bar) matches
   # itself rather than mismatching or raising at class load.
-  RESTRICTED_TAGS_REGEX = /(?:^| )(?:#{Danbooru.config.restricted_tags.map { |tag| Regexp.escape(tag) }.join("|")})(?:$| )/o
 
   RATINGS = {
     g: "General",
@@ -2203,8 +2202,12 @@ class Post < ApplicationRecord
   # Danbooru.config.restricted_tags mark material this site will not serve
   # casually, so the question has nothing to do with who is asking. Who is
   # asking is what #hidden_as_gated? decides.
+  #
+  # The list as it stands when asked: a regex built from it when Post loaded
+  # kept whatever config was current then, and a Post first loaded under
+  # another config gated nothing for the life of the process.
   def gated?
-    tag_string.match?(RESTRICTED_TAGS_REGEX)
+    tag_array.intersect?(Danbooru.config.restricted_tags)
   end
 
   # Gate 1: a gated post does not exist for a viewer below Gold -- signed

@@ -185,7 +185,7 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       Danbooru.config.stubs(:gate3_matrix_posts_enforced?).returns(true)
       @uploader = create(:approver_user)
       @room = MatrixRoom.create!(room_id: "!in:41chan.net")
-      @gated = create(:post, tag_string: "a child", uploader: @uploader) # a real restricted tag: Post::RESTRICTED_TAGS_REGEX is fixed when Post loads, and a stub of the list would disagree with it
+      @gated = create(:post, tag_string: "a child", uploader: @uploader) # a real restricted tag
       @gated.update_columns(room_ids: [@room.id]) # rubocop:disable Rails/SkipsModelValidations -- PostMxc's answer
       MatrixViewerRooms.stubs(:ids).returns([MatrixViewerRooms::NOT_MATRIX, @room.id]) # the reader is in the room
     end

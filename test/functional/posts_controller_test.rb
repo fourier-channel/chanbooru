@@ -905,8 +905,7 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
       end
 
       should "not let a user remove restricted tags from a duplicate they can't see" do
-        regex = Post::RESTRICTED_TAGS_REGEX
-        silence_warnings { Post.const_set(:RESTRICTED_TAGS_REGEX, /(?:^| )restricted_tag(?:$| )/) }
+        Danbooru.config.stubs(:restricted_tags).returns(["restricted_tag"])
 
         media_asset = create(:media_asset)
         post1 = create_post!(user: create(:gold_user), rating: "s", tag_string: "restricted_tag", media_asset: media_asset)
@@ -914,8 +913,6 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
 
         assert_equal("restricted_tag", post1.reload.tag_string)
         assert_equal("s", post1.rating)
-      ensure
-        silence_warnings { Post.const_set(:RESTRICTED_TAGS_REGEX, regex) }
       end
 
       should "not let a user in safe mode change the rating of a duplicate they can't see" do

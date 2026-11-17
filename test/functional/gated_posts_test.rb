@@ -35,6 +35,19 @@ class GatedPostsTest < ActionDispatch::IntegrationTest
       assert_includes(Danbooru.config.restricted_tags, GATED_TAG)
     end
 
+    # The list as it is when asked, not as it was when Post loaded. A regex
+    # built from the list at load time kept whatever config was current then:
+    # the interface parity test swaps in a bare Danbooru::Configuration, whose
+    # list is empty, and when Post first loaded inside it nothing was gated
+    # for the rest of that test worker (commit gate, 2026-11-17: the error
+    # page drew a gated post to a signed-out visitor).
+    should "be asked of the configured list at the time it is asked" do
+      Danbooru.config.stubs(:restricted_tags).returns(["gp_asked_now"])
+
+      assert_equal(true, build(:post, tag_string: "a gp_asked_now").gated?)
+      assert_equal(false, build(:post, tag_string: "a #{GATED_TAG}").gated?)
+    end
+
     context "for a signed-out visitor" do
       should "not exist by direct link" do
         get post_path(@gated)
