@@ -1,0 +1,14 @@
+// The error page ("Oh No!") under Modulation: its colour names, which core's
+// specific/error.scss points at upstream's per-theme variables, re-pointed at
+// the formant tokens. Only the names change here; the layout is core's.
+//
+body[data-preset="modulation"] .oh-no {
+  --oh-no-ink: var(--mod-ink);
+  --oh-no-dim: var(--mod-ink-dim);
+  --oh-no-line: var(--mod-line-strong);
+  --oh-no-surface: var(--mod-surface-2);
+  --oh-no-accent: var(--mod-accent);
+  --oh-no-go: var(--mod-accent);
+  --oh-no-mono: var(--mod-mono);
+  --oh-no-radius: var(--mod-radius-sm);
+}

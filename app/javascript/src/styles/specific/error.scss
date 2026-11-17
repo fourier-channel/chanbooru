@@ -9,8 +9,8 @@ ul.backtrace {
 //
 // Colours are the page's own names, pointed at upstream's per-theme variables
 // (so the historical preset's light and dark, and the blank layout, read
-// right) and re-pointed at the formant tokens under the Modulation preset,
-// which is the site. Every rule hangs off #page so it outranks the skin's
+// right); Modulation re-points them at the formant tokens in its own
+// app/interfaces/modulation/stylesheets/error.scss. Every rule hangs off #page so it outranks the skin's
 // bare heading and paragraph rules without reaching into them.
 .oh-no {
   --oh-no-ink: var(--text-color);
@@ -36,17 +36,6 @@ ul.backtrace {
 
   // The rail's node: its centre is where the connector runs.
   --oh-no-node: 1.6rem;
-}
-
-body[data-preset="modulation"] .oh-no {
-  --oh-no-ink: var(--mod-ink);
-  --oh-no-dim: var(--mod-ink-dim);
-  --oh-no-line: var(--mod-line-strong);
-  --oh-no-surface: var(--mod-surface-2);
-  --oh-no-accent: var(--mod-accent);
-  --oh-no-go: var(--mod-accent);
-  --oh-no-mono: var(--mod-mono);
-  --oh-no-radius: var(--mod-radius-sm);
 }
 
 #page .oh-no {

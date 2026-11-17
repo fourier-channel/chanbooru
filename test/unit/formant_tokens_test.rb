@@ -24,7 +24,8 @@ class FormantTokensTest < ActiveSupport::TestCase
   CANON = Rails.root.join("app/javascript/src/styles/formant/_tokens.scss")
   PRESET_SOURCES = [
     Rails.root.join("app/javascript/src/styles/base/040_colors.scss"),
-    Rails.root.join("app/javascript/src/styles/zz_modulation_skin.scss"),
+    Rails.root.join("app/interfaces/modulation/stylesheets/skin.scss"),
+    Rails.root.join("app/interfaces/modulation/stylesheets/error.scss"),
   ].freeze
 
   DECL = /(--mod-[A-Za-z0-9_-]+)\s*:\s*([^;{}]+?)\s*;/

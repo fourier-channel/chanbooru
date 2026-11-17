@@ -241,8 +241,7 @@ class InterfaceCompletenessTest < ActiveSupport::TestCase
     end
 
     should "pass Modulation's skin and its components, which are scoped, and find the unscoped rules in a core component stylesheet" do
-      assert_empty(self.class.unscoped(Rails.root.join("app/javascript/src/styles/zz_modulation_skin.scss"), "modulation"))
-      Interface.fetch("modulation").folder.glob("components/**/*.scss").each { |file| assert_empty(self.class.unscoped(file, "modulation"), file.to_s) }
+      Interface.fetch("modulation").folder.glob("{stylesheets,components}/**/*.scss").each { |file| assert_empty(self.class.unscoped(file, "modulation"), file.to_s) }
       assert_not_empty(self.class.unscoped(Rails.root.join("app/components/blocklist_component/blocklist_component.scss"), "modulation"))
     end
   end

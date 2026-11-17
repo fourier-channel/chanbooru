@@ -21,10 +21,11 @@
  *    starts quietly fighting a component. Where a global rule would land inside
  *    one anyway, it is excluded explicitly.
  *
- * Filename sorts last under the require.context that imports this directory, so
- * it loads after base/, common/ and specific/. The selectors do not DEPEND on
- * that -- body[data-preset] plus an element or class outranks upstream's own
- * rules on its own -- but it removes the ambiguity for anything that ties.
+ * application.js imports interface stylesheets right after core's styles, so
+ * this loads after base/, common/ and specific/, and before every component's
+ * stylesheet. The selectors do not DEPEND on that -- body[data-preset] plus an
+ * element or class outranks upstream's own rules on its own -- but it removes
+ * the ambiguity for anything that ties.
  */
 
 body[data-preset="modulation"] {

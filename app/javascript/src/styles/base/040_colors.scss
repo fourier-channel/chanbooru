@@ -875,7 +875,7 @@ body[data-current-user-theme="dark"] {
 
   /* --- structural tokens the skin reads ----------------------------------
    * Not colours, but they belong with the preset: a preset is a bundle of
-   * token overrides, and the skin (zz_modulation_skin.scss) is written against
+   * token overrides, and Modulation's skin (stylesheets/skin.scss) is written against
    * these so a future preset can retune shape without touching selectors.
    */
   --mod-radius: 10px;
