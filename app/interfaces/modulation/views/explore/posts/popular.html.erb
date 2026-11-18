@@ -1,0 +1,47 @@
+<% page_title "Popular Posts" %>
+<% meta_description "The most popular posts of #{date_range_description(@date, @scale, @min_date, @max_date)}" %>
+
+<%= render "posts/partials/common/secondary_links" %>
+
+<%# Modulation's popular page: upstream's app/views/explore/posts/popular.html.erb
+    drawn as a subject heading, the date navigation and a post strip. The head
+    tags, the secondary links and the #c-explore-posts / #a-popular wrappers
+    are upstream's, unchanged.
+
+    @posts is the controller's relation (Explore::PostsController#popular):
+    already paginated with search_count: false, so it never counts, and
+    already authorized with ExplorePostPolicy. It is handed to the strip as it
+    is; the strip draws exactly the posts upstream's gallery draws, filtered by
+    PostPreviewComponent.drawable?, the predicate upstream's
+    PostPreviewComponent#render? applies to each post render_post_gallery
+    hands it (app/components/post_preview_component.rb:70-72). No check of
+    this page's own. %>
+<div id="c-explore-posts">
+  <div id="a-popular">
+    <div class="mod-ui mod-explore">
+      <div class="mod-explore-head">
+        <%# app/views/explore/posts/popular.html.erb:8 -- "Popular: <date range>". %>
+        <%= render ModulationSubjectHeaderComponent.new(prefix: "Popular:", name: date_range_description(@date, @scale, @min_date, @max_date)) %>
+
+        <%# app/views/explore/posts/popular.html.erb:10, verbatim: day, week and
+            month, each with its prev and next. explore.scss draws each scale
+            as a segmented control with every link kept; the selected scale's
+            prev and next carry #paginator-prev / #paginator-next and their
+            shortcuts. %>
+        <%= render "explore/posts/nav_links", path: :popular_explore_posts_path, date: @date, scale: @scale %>
+      </div>
+
+      <% surface = PostStripSurface.new(relation: @posts, viewer: CurrentUser.user, query: nil) %>
+      <%# app/components/post_gallery_component/post_gallery_component.html.erb:2-3:
+          "No posts found." when the relation holds no post at all; then the
+          footer (:12) regardless, so a page past the end still offers the way
+          back. The strip draws its footer with no card. %>
+      <%= render ModulationPostStripComponent.new(surface: surface, empty_text: ("No posts found." if @posts.empty?)) do |strip| %>
+        <%# app/views/explore/posts/popular.html.erb:13-15, verbatim. %>
+        <% strip.with_footer do %>
+          <%= numbered_paginator(@posts) %>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

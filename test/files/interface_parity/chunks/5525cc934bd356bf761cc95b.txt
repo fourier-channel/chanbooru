@@ -1,0 +1,410 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Danbooru</title>
+
+  <link href="/favicon.ico" rel="icon" sizes="16x16" type="image/x-icon">
+  <link href="/favicon.svg" rel="icon" sizes="any" type="image/svg+xml">
+  <link rel="canonical" href="http://www.example.com/">
+  <link rel="search" type="application/opensearchdescription+xml" href="http://www.example.com/opensearch.xml?version=2" title="Search posts">
+
+  
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <meta name="autocomplete-tag-prefixes" content="[&quot;ch:&quot;,&quot;co:&quot;,&quot;gen:&quot;,&quot;char:&quot;,&quot;copy:&quot;,&quot;art:&quot;,&quot;meta:&quot;,&quot;general:&quot;,&quot;character:&quot;,&quot;copyright:&quot;,&quot;artist:&quot;]">
+  <meta name="tag-visibility" content="288250887223">
+
+  <script src="/packs-test/js/runtime.js"></script>
+<script src="/packs-test/js/vendors-node_modules_alpinejs_morph_dist_module_esm_js-node_modules_alpinejs_persist_dist_mod-370228.js"></script>
+<script src="/packs-test/js/application.js"></script>
+
+  <link rel="stylesheet" href="/packs-test/css/application.css" />
+
+
+  
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Danbooru">
+  <meta property="og:title" content="Danbooru">
+  
+  <meta property="og:url" content="http://www.example.com/posts?variant=tooltip">
+
+
+  <meta name="twitter:title" content="Danbooru">
+  
+
+  <meta name="git-hash" content="0000000000000000000000000000000000000000">
+  <meta name="theme-color" content="hsl(213, 100%, 50%)">
+
+  <link rel="alternate" type="application/atom+xml" title="Posts" href="http://www.example.com/posts.atom" />
+    <meta property="og:image" content="https://41chan.net/41chan.png">
+    <meta name="twitter:card" content="summary">
+  
+</head>
+
+<body lang="en" class="c-posts a-index flex flex-col" spellcheck="false" data-controller="posts" data-action="index" data-layout="sidebar" data-current-user-ip-addr="127.0.0.1" data-current-user-save-data="false" data-preset="historical" data-current-user-id="50001" data-current-user-name="pv_restricted" data-current-user-level="10" data-current-user-level-string="Restricted" data-current-user-theme="auto" data-current-user-comment-threshold="-8" data-current-user-default-image-size="large" data-current-user-time-zone="Eastern Time (US &amp; Canada)" data-current-user-per-page="20" data-current-user-is-banned="false" data-current-user-receive-email-notifications="false" data-current-user-new-post-navigation-layout="true" data-current-user-enable-private-favorites="false" data-current-user-show-deleted-children="false" data-current-user-disable-categorized-saved-searches="false" data-current-user-disable-tagged-filenames="false" data-current-user-disable-mobile-gestures="false" data-current-user-enable-safe-mode="false" data-current-user-enable-desktop-mode="false" data-current-user-disable-post-tooltips="false" data-current-user-requires-verification="true" data-current-user-is-verified="false" data-current-user-show-deleted-posts="false" data-current-user-is-admin="false" data-current-user-is-anonymous="false" data-current-user-is-approver="false" data-current-user-is-builder="false" data-current-user-is-contributor="false" data-current-user-is-gold="false" data-current-user-is-member="false" data-current-user-is-moderator="false" data-current-user-is-owner="false" data-current-user-is-platinum="false" data-current-user-is-restricted="true" data-cookie-news-ticker="null" data-cookie-hide-upgrade-account-notice="null" data-cookie-hide-dmail-notice="null" data-cookie-dab="null" data-cookie-show-relationship-previews="null" data-cookie-post-preview-size="null" data-cookie-post-preview-show-votes="null">
+  
+
+    <header id="top" class="md:space-y-0 mt-2" x-data="{ menuOpen: false }">
+  <div class="relative flex items-center justify-between mx-8 sm:mx-2 text-xxl">
+    <div id="app-name-header" class="inline-flex items-center gap-2">
+      <a id="app-logo" href="/"><img class="h-9 hover:brightness-125" src="/packs-test/static/danbooru-logo-128x128-ea111b6658173e847734.png" /></a>
+      <a id="app-name" class="font-header font-bold leading-none" href="/">Danbooru</a>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <div id="blacklist-box" class="blocklist"
+     x-data="{ blacklist: new Danbooru.Blacklist($root), open: false }"
+     x-init="blacklist.initialize([], { signedIn: true })"
+     x-on:keydown.escape="if (open && !$event.defaultPrevented) { open = false; $refs.trigger.focus(); }"
+     x-on:keydown.escape.window="if (open && !$root.contains($event.target)) { open = false; $refs.trigger.focus(); }"
+     x-on:pointerdown.window="if (open && !$root.contains($event.target)) open = false"
+     x-on:focusout="if (open && $event.relatedTarget && !$root.contains($event.relatedTarget)) open = false">
+  <button type="button" id="blocklist-trigger" class="blocklist-trigger" x-ref="trigger" data-shortcut="b"
+          aria-haspopup="dialog" aria-controls="blocklist-panel" aria-expanded="false"
+          x-bind:aria-expanded="open.toString()"
+          aria-label="Blocklist"
+          x-bind:aria-label="`Blocklist: ${blacklist.blacklistedPostCount} hidden in this view, ${blacklist.rules.length} blocks`"
+          x-on:click="open = !open; if (open) $nextTick(() => $refs.input.focus())">
+    <svg class="blocklist-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg>
+    <span class="blocklist-count" x-bind:class="blacklist.blacklistedPostCount > 0 && 'is-shown'"
+          x-text="blacklist.blacklistedPostCount > 99 ? '99+' : blacklist.blacklistedPostCount"></span>
+  </button>
+
+  <div id="blocklist-panel" class="blocklist-panel" role="dialog" aria-label="Your blocklist" hidden x-bind:hidden="!open">
+    <div class="blocklist-head">
+      <h2 class="blocklist-title">Blocklist</h2>
+      <span class="blocklist-hidden" x-text="`${blacklist.blacklistedPostCount} hidden in this view`"></span>
+    </div>
+
+    <form class="blocklist-add ui-front" x-on:submit.prevent="const input = $refs.input; $(input).data('ui-autocomplete')?.close(); blacklist.add(input.value).then((ok) => { if (ok) input.value = '' })">
+      <input type="text" x-ref="input" class="blocklist-input" aria-label="Block a tag" placeholder="block a tag"
+             autocomplete="off" spellcheck="false" data-autocomplete=tag-query>
+      <button type="submit" class="blocklist-block">Block</button>
+    </form>
+
+    <p class="blocklist-error" role="alert" x-show="blacklist.error" x-text="blacklist.error"></p>
+
+    <ul class="blocklist-pills" x-show="blacklist.rules.length > 0">
+      <template x-for="rule in blacklist.rules" x-bind:key="rule.string">
+        <li class="blocklist-pill" x-bind:class="rule.locked && 'is-locked'">
+          <span class="blocklist-pill-rule" x-text="rule.string" x-bind:title="rule.string"></span>
+          <span class="blocklist-pill-count" x-show="rule.matchCount > 0" x-text="rule.matchCount"
+                x-bind:title="`${rule.matchCount} hidden in this view`"></span>
+          <button type="button" class="blocklist-pill-lock"
+                  x-bind:aria-pressed="rule.locked.toString()"
+                  x-bind:aria-label="(rule.locked ? 'Unlock ' : 'Lock ') + rule.string"
+                  x-bind:title="rule.locked ? 'Locked: unlock it before it can be removed' : 'Lock it, so it cannot be removed by accident'"
+                  x-on:click="blacklist.setLocked(rule, !rule.locked)">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="5" y="11" width="14" height="10" rx="2"/>
+              <path x-show="rule.locked" d="M8 11V7a4 4 0 0 1 8 0v4"/>
+              <path x-show="!rule.locked" d="M8 11V7a4 4 0 0 1 7.6-1.8"/>
+            </svg>
+          </button>
+          <button type="button" class="blocklist-pill-remove" x-show="!rule.locked"
+                  x-bind:aria-label="'Unblock ' + rule.string" title="Unblock"
+                  x-on:click="const input = $refs.input; blacklist.remove(rule).then(() => input.focus())">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7l10 10M17 7L7 17"/></svg>
+          </button>
+        </li>
+      </template>
+    </ul>
+
+    <p class="blocklist-empty" x-show="blacklist.rules.length === 0">
+      Nothing blocked. Type a tag and press Enter. Tags on one line hide only posts that have all of them;
+      start a tag with - to exempt it.
+    </p>
+
+    <p class="blocklist-foot">
+        Kept on your account, on every page.
+        <a href="/settings#user_blacklisted_tags">Edit as text</a>
+    </p>
+  </div>
+</div>
+
+      <a class="mobile-only cursor-pointer" x-on:click="menuOpen = !menuOpen">
+        <svg class="icon svg-icon menu-icon block w-6" viewBox="0 0 448 512" x-show="!menuOpen"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#menu" /></svg>
+        <svg class="icon svg-icon close-icon block w-6" viewBox="0 0 320 512" x-show="menuOpen" x-cloak="true"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#close" /></svg>
+      </a>
+    </div>
+  </div>
+
+  <nav id="nav" class="desktop-only mt-2" x-bind:class="{ 'desktop-only': !menuOpen }">
+    <div id="main-menu" class="flex flex-wrap items-center px-5 sm:p-2">
+        <a id="nav-my-account" class="py-1.5 px-3 " href="/profile">My Account </a>
+
+      <a id="nav-posts" class="py-1.5 px-3  current font-bold" href="/posts">Posts</a>
+      <a id="nav-comments" class="py-1.5 px-3 " href="/comments">Comments</a>
+      <a id="nav-notes" class="py-1.5 px-3 " href="/notes">Notes</a>
+      <a id="nav-artists" class="py-1.5 px-3 " href="/artists">Artists</a>
+      <a id="nav-tags" class="py-1.5 px-3 " href="/tags">Tags</a>
+      <a id="nav-pools" class="py-1.5 px-3 " href="/pools/gallery">Pools</a>
+      <a id="nav-wiki" class="py-1.5 px-3 " href="/wiki_pages/help:home">Wiki</a>
+      <a id="nav-forum" class="py-1.5 px-3 " href="/forum_topics">Forum</a>
+
+      
+
+
+      <a id="nav-more" class="py-1.5 px-3 " href="/static/site_map">More \u{bb}</a>
+    </div>
+
+      <div id="subnav-menu" class="flex flex-wrap items-center px-5 sm:p-2">
+          <a id="subnav-listing" class="py-1.5 px-3 " href="/posts">Listing</a>
+  <a id="subnav-hot" class="py-1.5 px-3 " href="/posts?d=1&amp;tags=order%3Arank">Hot</a>
+    <a id="subnav-fav-groups" class="py-1.5 px-3 " href="/favorite_groups?search%5Bcreator_name%5D=pv_restricted">Fav groups</a>
+    <a id="subnav-saved-searches" class="py-1.5 px-3 " href="/posts?tags=search%3Aall">Saved searches</a>
+  <a id="subnav-changes" class="py-1.5 px-3 " href="/post_versions">Changes</a>
+  <a id="subnav-help" class="py-1.5 px-3 " href="/wiki_pages/help:posts">Help</a>
+
+      </div>
+  </nav>
+</header>
+
+
+  <div id="page" class="relative flex-1 mx-8 mt-4 sm:mx-2 sm:mt-2">
+
+
+
+
+
+    <div id="notice"
+      class="notice flex fixed top-2 left-2 right-2 p-2 mx-auto max-w-720px max-h-150px thin-scrollbar z-9999 shadow-lg sm:text-sm"
+      x-init="$root.notice = $data.notice"
+      x-data="{ notice: new Danbooru.Notice(null) }"
+      x-bind:class="notice.type === 'error' ? 'notice-error' : 'notice-info'"
+      x-show="notice.isOpen"
+      x-transition.opacity.400ms
+      x-cloak>
+  <span class="prose flex-1" x-html="notice.message"></span>
+  <a href="javascript:void(0)" id="close-notice-link" class="flex self-center text-lg" data-shortcut="esc" x-on:click="notice.close()"><svg class="icon svg-icon close-icon" viewBox="0 0 320 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#close" /></svg></a>
+</div>
+
+
+    
+
+<div id="saved-searches-nav">
+  <div id="save-search-dialog" title="Save Search" style="display: none;">
+
+  <form class="simple_form new_saved_search" id="new_saved_search" autocomplete="off" novalidate="novalidate" action="/saved_searches" accept-charset="UTF-8" data-remote="true" method="post">
+    <div class="input stacked-input string optional saved_search_query"><label class="string optional" for="saved_search_query">Query</label><input class="w-full max-w-360px string optional" data-autocomplete="tag-query" type="text" name="saved_search[query]" id="saved_search_query" /></div>
+    <div class="input stacked-input string optional saved_search_label_string field_with_hint"><label class="string optional" for="saved_search_label_string">Labels</label><input class="w-full max-w-360px string optional" data-autocomplete="saved-search-label" type="text" value="" name="saved_search[label_string]" id="saved_search_label_string" /><span class="hint fineprint">A list of tags to help categorize this search. Space delimited.</span></div>
+    <div class="input inline-input inline-toggle-switch boolean optional saved_search_disable_labels"><label class="boolean optional" for="saved_search_disable_labels">Don&#39;t show this dialog again</label><input name="saved_search[disable_labels]" type="hidden" value="0" /><input class="toggle-switch boolean optional" type="checkbox" value="1" name="saved_search[disable_labels]" id="saved_search_disable_labels" /></div>
+</form></div>
+
+</div>
+
+  
+
+
+  <div id="c-posts">
+    <div id="a-index">
+
+      <div class="sidebar-container flex sm:flex-col gap-3">
+        <aside id="sidebar" class="flex-0 break-words sm:order-2">
+            
+<section id="search-box">
+  <h2>Search</h2>
+
+
+  <form id="search-box-form" class="flex" action="/posts" accept-charset="UTF-8" method="get">
+
+
+
+    <input type="text" name="tags" id="tags" class="flex-auto" data-shortcut="q" data-autocomplete="tag-query" autocapitalize="none" />
+    <input type="hidden" name="z" id="z" value="5" />
+
+    <button id="search-box-submit" type="submit"><svg class="icon svg-icon search-icon" viewBox="0 0 512 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#search" /></svg></button>
+</form></section>
+
+
+
+    <section id="tag-box">
+      <h2>Tags</h2>
+      <ul class="tag-list search-tag-list">
+    <li class="tag-type-1" data-tag-name="pv_artist" data-is-deprecated="false">
+        <a class="wiki-link" href="/artists/show_or_new?name=pv_artist&amp;z=2">?</a>
+
+      <a class="search-tag" href="/posts?tags=pv_artist&amp;z=2">pv artist</a>
+      <span class="post-count" title="6">6</span>
+    </li>
+    <li class="tag-type-1" data-tag-name="pv_banned_artist" data-is-deprecated="false">
+        <a class="wiki-link" href="/artists/show_or_new?name=pv_banned_artist&amp;z=2">?</a>
+
+      <a class="search-tag" href="/posts?tags=pv_banned_artist&amp;z=2">pv banned artist</a>
+      <span class="post-count" title="1">1</span>
+    </li>
+    <li class="tag-type-0" data-tag-name="landscape" data-is-deprecated="false">
+        <a class="wiki-link" href="/wiki_pages/landscape?z=2">?</a>
+
+      <a class="search-tag" href="/posts?tags=landscape&amp;z=2">landscape</a>
+      <span class="post-count" title="9">9</span>
+    </li>
+    <li class="tag-type-0" data-tag-name="scenery" data-is-deprecated="false">
+        <a class="wiki-link" href="/wiki_pages/scenery?z=2">?</a>
+
+      <a class="search-tag" href="/posts?tags=scenery&amp;z=2">scenery</a>
+      <span class="post-count" title="2">2</span>
+    </li>
+    <li class="tag-type-0" data-tag-name="sky" data-is-deprecated="false">
+        <a class="wiki-link" href="/wiki_pages/sky?z=2">?</a>
+
+      <a class="search-tag" href="/posts?tags=sky&amp;z=2">sky</a>
+      <span class="post-count" title="1">1</span>
+    </li>
+</ul>
+
+    </section>
+
+    <section id="options-box">
+      <h2>Options</h2>
+      <ul>
+          <li><button name="button" type="submit" id="save-search"><svg class="icon svg-icon bookmark-icon" viewBox="0 0 384 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#bookmark" /></svg> Save search</button></li>
+      </ul>
+    </section>
+
+    <section id="related-box">
+      <h2>Related</h2>
+      <ul id="related-list">
+
+        <li><a rel="nofollow" href="/posts?tags=+status%3Adeleted">Deleted</a></li>
+        <li><a id="random-post" data-shortcut="r" rel="nofollow" href="/posts/random">Random</a></li>
+        <li><a rel="nofollow" href="/counts/posts">Count</a></li>
+      </ul>
+    </section>
+
+        </aside>
+
+        <section id="content" class="flex-1 min-w-0 sm:order-1">
+            <menu id="post-sections" class="flex items-center mb-2">
+    <li class="flex-grow-1 space-x-2">
+      <a href="#" id="show-posts-link" class="active">Posts</a>
+
+
+      <a class="mobile-only" href="#search-box">Search &raquo;</a>
+    </li>
+
+    <li class="flex items-center gap-2">
+      <div class="popup-menu inline-flex items-center h-full preview-size-menu" data-hide-on-click="true">
+  <a class="popup-menu-button default-popup-menu-button" x-on:mousedown.prevent="true" href="javascript:void(0)">
+          <span class="rounded flex gap-1 items-center leading-none">
+      <svg class="icon svg-icon image-icon" viewBox="0 0 512 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#image" /></svg> <span class="text-sm">Size</span> <svg class="icon svg-icon caret-down-icon text-xs self-center" viewBox="0 0 320 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#caret-down" /></svg>
+    </span>
+
+</a>
+  <ul class="popup-menu-content">
+      <li>    <a rel="nofollow" href="/posts?size=150&amp;variant=tooltip">Small</a>
+</li>
+      <li>    <a class="font-bold" rel="nofollow" href="/posts?size=180&amp;variant=tooltip">Medium</a>
+</li>
+      <li>    <a rel="nofollow" href="/posts?size=225&amp;variant=tooltip">Large</a>
+</li>
+      <li>    <a class="mobile-only" rel="nofollow" href="/posts?size=360&amp;variant=tooltip">Huge</a>
+</li>
+      <li>    <a class="desktop-only" rel="nofollow" href="/posts?size=270&amp;variant=tooltip">Huge</a>
+</li>
+      <li>    <a class="desktop-only" rel="nofollow" href="/posts?size=360&amp;variant=tooltip">Gigantic</a>
+</li>
+      <li>    <a class="desktop-only" rel="nofollow" href="/posts?size=720&amp;variant=tooltip">Absurd</a>
+</li>
+  </ul>
+</div>
+
+      <div class="popup-menu inline-flex items-center h-full post-preview-options-menu" data-hide-on-click="true">
+  <a class="popup-menu-button default-popup-menu-button" x-on:mousedown.prevent="true" href="javascript:void(0)">
+      <svg class="icon svg-icon ellipsis-icon" viewBox="0 0 448 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#ellipsis" /></svg>
+</a>
+  <ul class="popup-menu-content">
+      <li>            <a class="post-preview-show-votes" rel="nofollow" href="/posts?show_votes=true">Show scores</a>
+</li>
+  </ul>
+</div>    </li>
+  </menu>
+
+  <div id="quick-edit-div" style="display: none;">
+    <h2>Edit</h2>
+
+    <form autocomplete="off" novalidate="novalidate" id="quick-edit-form" class="simple_form post" action="/posts" accept-charset="UTF-8" method="post">
+      <div class="input stacked-input hidden post_old_tag_string"><input class="hidden" type="hidden" name="post[old_tag_string]" id="post_old_tag_string" /></div>
+      <div class="input stacked-input text required post_tag_string"><label class="text required" for="post_tag_string"><abbr title="required">*</abbr> Tags</label><textarea class="text required text-sm" data-autocomplete="tag-edit" required="required" name="post[tag_string]" id="post_tag_string">
+</textarea></div>
+      <input type="submit" name="commit" value="Submit" />
+      <button name="cancel" type="button" class="btn">Cancel</button>
+</form>  </div>
+
+  <div id="excerpt" style="display: none;">
+  </div>
+
+  <div id="posts">
+    <div class="post-gallery post-gallery-grid post-gallery-180">
+    <div class="posts-container gap-2">
+<article id="post_50003" class="post-preview post-status-has-parent post-preview-fit-compact post-preview-180" data-id="50003" data-tags="landscape pv_artist" data-rating="s" data-flags="" data-score="0" data-uploader-id="50000">  <div class="post-preview-container">
+    <a class="post-preview-link" draggable="false" href="/posts/50003">
+      <picture>
+              <source type="image/jpeg" srcset="https://www.example.com/data/180x180/7b/a2/7ba29bf74e99919289b37d551ad266a4.jpg 1x, https://www.example.com/data/360x360/7b/a2/7ba29bf74e99919289b37d551ad266a4.jpg 2x">
+
+          <img src="https://www.example.com/data/180x180/7b/a2/7ba29bf74e99919289b37d551ad266a4.jpg" width="180" height="135" class="post-preview-image" title="landscape pv_artist rating:s score:0" alt="post #50003" draggable="false">      </picture>
+</a>  </div>
+
+  
+</article><article id="post_50002" class="post-preview post-status-has-children post-preview-fit-compact post-preview-180" data-id="50002" data-tags="landscape pv_artist scenery sky" data-rating="g" data-flags="" data-score="0" data-uploader-id="50000">  <div class="post-preview-container">
+    <a class="post-preview-link" draggable="false" href="/posts/50002">
+      <picture>
+              <source type="image/jpeg" srcset="https://www.example.com/data/180x180/40/61/4061873d3d26d2e376d866cfd87c3325.jpg 1x, https://www.example.com/data/360x360/40/61/4061873d3d26d2e376d866cfd87c3325.jpg 2x">
+
+          <img src="https://www.example.com/data/180x180/40/61/4061873d3d26d2e376d866cfd87c3325.jpg" width="180" height="135" class="post-preview-image" title="landscape pv_artist scenery sky rating:g score:0" alt="post #50002" draggable="false">      </picture>
+</a>  </div>
+
+  
+</article><article id="post_50000" class="post-preview post-preview-fit-compact post-preview-180" data-id="50000" data-tags="landscape pv_artist scenery" data-rating="s" data-flags="" data-score="0" data-uploader-id="50000">  <div class="post-preview-container">
+    <a class="post-preview-link" draggable="false" href="/posts/50000">
+      <picture>
+              <source type="image/jpeg" srcset="https://www.example.com/data/180x180/c3/c8/c3c8931feacf7bca68cb91cf861e2609.jpg 1x, https://www.example.com/data/360x360/c3/c8/c3c8931feacf7bca68cb91cf861e2609.jpg 2x">
+
+          <img src="https://www.example.com/data/180x180/c3/c8/c3c8931feacf7bca68cb91cf861e2609.jpg" width="180" height="135" class="post-preview-image" title="landscape pv_artist scenery rating:s score:0" alt="post #50000" draggable="false">      </picture>
+</a>  </div>
+
+  
+</article>    </div>
+
+            <div class="fineprint hidden-posts-notice">
+
+
+          </div>
+
+          
+
+        <div class="paginator numbered-paginator mt-8 mb-4 space-x-2 flex justify-center items-center">
+  <span class="paginator-prev" rel="prev" data-shortcut="a left"><svg class="icon svg-icon chevron-left-icon" viewBox="0 0 384 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#chevron-left" /></svg></span>
+
+      <span class="paginator-current font-bold">1</span>
+
+  <span class="paginator-next" rel="next" data-shortcut="d right"><svg class="icon svg-icon chevron-right-icon" viewBox="0 0 384 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#chevron-right" /></svg></span>
+</div>
+
+
+</div>
+  </div>
+
+        </section>
+      </div>
+    </div>
+  </div>
+
+  </div>
+
+  <div id="tooltips"></div>
+
+  <footer id="page-footer" class="text-sm text-center flex-initial mt-4 py-3 w-full border-t flex flex-wrap items-center justify-center gap-1 leading-none">
+    <a href="/terms_of_service">Terms</a>
+    / <a title="Policies and Pledges" href="https://41chan.net/pip2.html">PIP<sup>2</sup></a>
+    / <a href="https://41chan.net/about.html">About</a>
+    / <a href="/upgrade">Upgrade</a>
+    / <a href="/contact">Contact</a>
+    /
+      <a title="Running commit: 000000000" class="social-icon" href="https://github.com/fourier-channel/chanbooru">
+        <img class="icon inline-block h-4" src="/packs-test/static/github-logo-c932001442ab985405de.png" />
+</a>  </footer>
+</body></html>
+

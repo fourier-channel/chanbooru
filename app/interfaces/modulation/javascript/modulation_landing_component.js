@@ -165,7 +165,9 @@ function initLanding(root) {
   // worth of belt is another column's worth of cards. Measured, not assumed --
   // a 1440px screen is 1.3 columns, a 2560px one is 2.3 -- so the setting's
   // count still means what the admin set on a band that has not been widened.
-  const COLUMN_W = 1120;
+  // The gallery column, .modgal's --mod-col, which is the frame's --mod-page
+  // (skin.scss) since 2026-11-18 -- it was 1120. Change them together.
+  const COLUMN_W = 1180;
   // THE BELT'S SIZE IS READ ONLY WHEN IT MAY HAVE CHANGED. render() wrote a
   // cell's variables and then asked the belt's size again for the next cell,
   // and a read after a write makes the browser lay the page out before it can

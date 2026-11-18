@@ -29,7 +29,8 @@
       50000,
       50002,
       50003,
-      50007
+      50007,
+      50008
     ],
     "secrets": [
       "banned_artist"
@@ -43,7 +44,8 @@
       50000,
       50002,
       50003,
-      50007
+      50007,
+      50008
     ],
     "secrets": [
       "banned_artist"
@@ -165,7 +167,8 @@
       50000,
       50002,
       50003,
-      50007
+      50007,
+      50008
     ],
     "secrets": [
       "banned_artist"
@@ -253,7 +256,8 @@
       "candidates": [
         50000,
         50003,
-        50007
+        50007,
+        50008
       ],
       "notices": [
         {
@@ -316,7 +320,8 @@
       "candidates": [
         50000,
         50003,
-        50007
+        50007,
+        50008
       ],
       "notices": [
         {
@@ -364,7 +369,8 @@
       "candidates": [
         50000,
         50003,
-        50007
+        50007,
+        50008
       ],
       "notices": [
         {
@@ -442,6 +448,101 @@
         "tokens"
       ]
     }
+  },
+  "artist_show": {
+    "status": 200,
+    "posts": [
+      50000,
+      50002,
+      50003,
+      50008
+    ],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "artist_banned": {
+    "status": 200,
+    "posts": [
+      50007
+    ],
+    "secrets": [
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "artist_show_or_new": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "wiki_show": {
+    "status": 200,
+    "posts": [
+      50000,
+      50002
+    ],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "wiki_landscape": {
+    "status": 404,
+    "posts": [
+      50000,
+      50002,
+      50003,
+      50007,
+      50008
+    ],
+    "secrets": [
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "wiki_banned_artist": {
+    "status": 404,
+    "posts": [
+      50007
+    ],
+    "secrets": [
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "wiki_missing": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "tag_show": {
+    "status": 200,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "explore_popular": {
+    "status": 200,
+    "posts": [
+      50000,
+      50002,
+      50003,
+      50007,
+      50008
+    ],
+    "secrets": [
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
   },
   "session_keys": [
     "login_id",

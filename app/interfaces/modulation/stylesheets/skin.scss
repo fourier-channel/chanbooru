@@ -28,6 +28,8 @@
  * the ambiguity for anything that ties.
  */
 
+@use "../../../javascript/src/styles/modulation/panel" as *;
+
 body[data-preset="modulation"] {
   /* Native widgets -- scrollbars, select popups, date pickers, form controls we
      never see the internals of -- follow this. One declaration does what a
@@ -76,7 +78,20 @@ body[data-preset="modulation"] {
     margin-left: auto;
     margin-right: auto;
     padding-bottom: 3rem;
+
+    /* THE SIDE GUTTER. The auto margins above replaced upstream's mx-8, and
+       with it the only space between a fall-through page and the window edge.
+       Border-box with a 1rem inline padding puts the content on the column
+       the header's subnav uses (1180px, 1rem in), so the first secondary
+       link, the h1 and the content share one left edge. */
+    box-sizing: border-box;
+    padding-inline: 1rem;
   }
+
+  /* The gallery, the post view and the creator page carry their own gutter
+     (.modgal pads itself; the post view is the full stage; .modcreator's
+     bands pad with --cg-gutter), so the frame's would double it. */
+  #page:has(.modgal, .modulation, .modcreator) { padding-inline: 0; }
 
   /* ---------------------------------------------------------------- header */
 
@@ -101,13 +116,10 @@ body[data-preset="modulation"] {
      uses over its facet tags ("IN THIS SEARCH"). */
   #sidebar section > h1,
   #sidebar section > h2,
-  #sidebar section > h3 {
-    font-family: var(--mod-mono);
-    font-size: 0.72rem;
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--mod-ink-dim);
+  #sidebar section > h3,
+  #sidebar > h2 {
+    @include modulation-label;
+
     margin-bottom: 0.55rem;
   }
 
@@ -121,15 +133,38 @@ body[data-preset="modulation"] {
      whitespace text nodes and :empty would never match. */
   #sidebar:not(:has(*)) { display: none; }
 
+  /* The one Modulation panel (modulation-panel: the gallery's facet panel
+     values, operator ruling 2026-11-18). */
   #sidebar > section {
-    background: var(--mod-surface-2);
-    border: 1px solid var(--mod-line);
-    border-radius: var(--mod-radius);
-    padding: 0.8rem 0.9rem;
+    @include modulation-panel;
+
     margin-bottom: 0.8rem;
   }
 
   #sidebar ul { margin: 0; }
+
+  /* A sidebar list outside a section -- the wiki's "Options" under a bare h2,
+     the help pages' lists -- gets the same panel. After #sidebar ul, which it
+     ties on specificity, so its margin stands. */
+  #sidebar > h2 + ul,
+  #sidebar > ul {
+    @include modulation-panel;
+
+    list-style: none;
+    margin-bottom: 0.8rem;
+  }
+
+  /* One sidebar width on every fall-through sidebar page, from the point the
+     sidebar layout stops stacking (its sm: breakpoint). Upstream steps it
+     230/245/280px by window width; min-width is set too, because a larger
+     min-width would beat this max-width. */
+  @media (width >= 660px) {
+    #sidebar {
+      flex: 0 0 15rem;
+      min-width: 15rem;
+      max-width: 15rem;
+    }
+  }
 
   #sidebar li {
     line-height: 1.5;
@@ -360,8 +395,18 @@ body[data-preset="modulation"] {
 
   /* Section headings inside a page body get a hairline so a stack of sections
      reads as a stack rather than as one run of text. Prose opts out below --
-     inside an article the headings are content, not furniture. */
-  #page h2 {
+     inside an article the headings are content, not furniture.
+
+     Not inside a drawn page's roots (.mod-ui, .modstrip): their headings are
+     labels with their own margins (ui.scss), all under :where() and so one
+     class strong, and this ID rule's margin outranked every one of them.
+     Excluded from the match, so their own rules decide. The older roots in
+     the list below keep this rule's margin, which they were drawn with.
+     The exclusion is under :where() so the rule stays #page h2 strong: a
+     bare :not() raised it past the reset below, and the post view's tag
+     heading took this hairline back, which its stage measures (2026-11-18,
+     the stage 7px shorter). */
+  #page h2:where(:not(:is(.mod-ui, .modstrip) h2)) {
     padding-bottom: 0.35rem;
     border-bottom: 1px solid var(--mod-line);
     margin-bottom: 0.7rem;
@@ -375,18 +420,36 @@ body[data-preset="modulation"] {
      above no matter how many classes it names. Add a root here when a new
      Modulation component lands. */
   #page {
-    .modulation, .modgal, .creator-gallery, .oh-no {
+    .modulation, .modgal, .creator-gallery, .oh-no, .mod-ui, .modstrip {
       h1, h2, h3 {
         padding-bottom: 0;
         border-bottom: 0;
       }
     }
+
+    /* A sidebar label sits inside a panel: the panel is its edge, so it takes
+       no hairline of its own. */
+    #sidebar section > h1, #sidebar section > h2, #sidebar section > h3, #sidebar > h2 {
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+  }
+
+  /* --------------------------------------------------------------- forms */
+
+  /* Upstream's data-entry forms (artist, wiki and tag edit, and the rest)
+     keep a readable measure, flush with the column's left edge rather than
+     centred in it. */
+  .fixed-width-container {
+    max-width: 48rem;
+    margin-inline: 0;
   }
 
   /* ------------------------------------------------------------- paginator */
 
   .paginator {
     gap: 0.4rem;
+    justify-content: flex-start;
 
     a, span {
       display: inline-flex;
@@ -440,6 +503,33 @@ body[data-preset="modulation"] {
     }
 
     .post-preview-image { display: block; }
+  }
+
+  /* One square crop for upstream thumbnails on the frame-only pages
+     (favourites, recommended, an artist's recent posts, staff tables), so a
+     row of them is a row of equal tiles like the gallery's. The side is the
+     gallery size the preview was drawn at. CSS only, and never display:none:
+     blacklist hiding stays with .blacklisted-hidden. */
+  @each $size, $side in ("150": 150px, "180": 180px, "225": 225px, "225w": 225px, "270": 270px,
+                         "270w": 270px, "360": 360px, "540": 540px, "720": 720px) {
+    article.post-preview-#{$size} { --thumb: #{$side}; }
+  }
+
+  .post-gallery, .recent-posts, td {
+    article.post-preview .post-preview-link {
+      aspect-ratio: 1 / 1;
+      width: var(--thumb, 180px);
+      max-width: 100%;
+
+      picture { display: block; width: 100%; height: 100%; }
+
+      .post-preview-image {
+        width: 100%;
+        height: 100%;
+        max-height: none;
+        object-fit: cover;
+      }
+    }
   }
 
   /* ------------------------------------------------------------ tag lists */
@@ -502,16 +592,62 @@ body[data-preset="modulation"] {
     border-radius: var(--mod-radius);
   }
 
+  /* ---------------------------------------------------------------- subnav */
+
+  /* On a page that falls through, the subnav starts on the page column: the
+     inner box is the column #page uses (1180px, a 1rem gutter), so the first
+     secondary link sits on the line the h1 and the content start from instead
+     of floating centred over them. Every link stays a visible <a>:
+     subnav_link_to carries remote:, method: and data-confirm, which rails-ujs
+     needs on a real anchor. #top outranks the navbar component's own rule.
+     The sign-in page (.modlogin) is a centred layout drawn as a whole, so it
+     keeps the centred subnav and the upstream footer it was drawn with. */
+  &:not(:has(.modlogin)) #top .modnav-subnav-inner {
+    box-sizing: border-box;
+    justify-content: flex-start;
+
+    a {
+      padding: 0.25rem 0.55rem;
+      border-radius: var(--mod-radius-sm, 6px);
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+
+      /* Upstream draws no shortcut badge on a secondary link; nothing here
+         may start to. */
+      &[data-shortcut]::after { content: none; }
+    }
+
+    /* The quick search is the first thing on most subnavs, and upstream pads
+       its form px-3: the field's edge sat 12px in from the column the links,
+       the h1 and the content start on (measured 70.5 vs 58.5 at 1280px, 28
+       vs 16 at 400px). The field starts on the column; the gap before the
+       next link is the row's own gap and the form's right padding. */
+    form.quick-search-form { padding-inline-start: 0; }
+  }
+
   /* ---------------------------------------------------------------- footer */
 
-  footer#footer, #footer {
-    border-top: 1px solid var(--mod-line);
+  /* The default layout's footer is #page-footer (PIP2, Terms); this rule
+     named #footer, which no layout renders, so the footer fell back to
+     upstream's. On the page column, under a hairline in the skin's line. */
+  &:not(:has(.modlogin)) #page-footer {
+    box-sizing: border-box;
+    max-width: var(--mod-page);
+    margin-inline: auto;
     margin-top: 2rem;
-    padding: 1rem 0;
+    padding: 1rem;
+    border-top: 1px solid var(--mod-line);
     font-size: 0.8rem;
     color: var(--mod-ink-dim);
 
-    a { color: var(--mod-ink-dim); &:hover { color: var(--link-color); } }
+    a {
+      font-family: var(--mod-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+      color: var(--mod-ink-dim);
+
+      &:hover { color: var(--link-color); }
+    }
   }
 }
 

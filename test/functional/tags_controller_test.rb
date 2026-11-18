@@ -91,6 +91,31 @@ class TagsControllerTest < ActionDispatch::IntegrationTest
         get tag_path(@tag)
         assert_response :success
       end
+
+      # Modulation draws its own tags/show (app/interfaces/modulation/views);
+      # the test default is historical, so this asks for it by name.
+      should "render the Modulation page, with the deprecation notice for a deprecated tag" do
+        @tag.update!(is_deprecated: true, updater: @user)
+        get_auth tag_path(@tag, preset: "modulation", preset_sticky: 0), @user
+
+        assert_response :success
+        assert_select "#c-tags #a-show .mod-ui h1.mod-subject", count: 1
+        assert_select "h1.mod-subject .mod-subject-prefix", text: "Tag:"
+        assert_select "h1.mod-subject a.mod-pill--subject[href=?]", posts_path(tags: @tag.name), text: @tag.name
+        assert_select "h1.mod-subject .mod-subject-count", text: @tag.post_count.to_s
+        assert_select "h1.mod-subject .mod-badge", text: "deprecated"
+        assert_select ".mod-tag-facts .mod-tag-count", text: @tag.post_count.to_s
+        assert_select ".mod-tag-deprecated a[href=?]", wiki_page_path("help:deprecation_notice")
+      end
+
+      should "render the Modulation page with no deprecation notice for a tag that is not" do
+        get_auth tag_path(@tag, preset: "modulation", preset_sticky: 0), @user
+
+        assert_response :success
+        assert_select "h1.mod-subject", count: 1
+        assert_select ".mod-badge", count: 0
+        assert_select ".mod-tag-deprecated", count: 0
+      end
     end
 
     context "edit action" do

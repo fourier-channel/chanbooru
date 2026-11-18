@@ -30,10 +30,24 @@ class StaticControllerTest < ActionDispatch::IntegrationTest
           assert_response :success
           locs = response.parsed_body.css("sitemap loc").map { |loc| Addressable::URI.parse(loc.text) }
           assert_not_empty(locs)
-          locs.each do |uri|
+          ranges = locs.map do |uri|
             range = uri.query_values["tags"]&.delete_prefix("id:") || uri.query_values["search[id]"]
             lo, hi = range.split("..").map(&:to_i)
             assert_operator(hi - lo + 1, :<=, viewer.listing_per_page_limit, "#{viewer.level_string}: #{uri} is wider than one page")
+            [uri, lo, hi]
+          end
+          # The ranges tile 0..max id with no gap, so every row is in one.
+          assert_equal(0, ranges.first[1])
+          ranges.each_cons(2) { |(_, _, hi), (uri, lo, _)| assert_equal(hi + 1, lo, "#{viewer.level_string}: gap before #{uri}") }
+          assert_operator(ranges.last[2], :>=, relation.maximum(:id))
+
+          # Fetch only the files that hold rows. The test database's sequences
+          # climb run after run and are never reset, so at a page of 2 the
+          # index lists max id / 2 files: at a posts sequence of 151,125
+          # (2026-11-18) fetching every one ran for over half an hour and
+          # stalled the gate. An empty file has nothing to serve.
+          ids = relation.pluck(:id)
+          ranges.select { |_, lo, hi| ids.any? { |id| id.between?(lo, hi) } }.each do |uri, lo, hi|
             get uri.request_uri
             assert_response :success, uri.to_s
             served = Nokogiri::XML(response.body).remove_namespaces!.css("url > loc").size

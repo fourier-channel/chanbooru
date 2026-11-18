@@ -1,0 +1,61 @@
+@use "../../../javascript/src/styles/modulation/panel" as *;
+
+// Modulation: the explore family pages. Every rule sits under
+// :where(body[data-preset="modulation"]) (interface_completeness_test).
+//
+// explore/posts/popular: the shared roots (.mod-ui, the subject heading, the
+// strip, .mod-panel) come from ui.scss; this is only the page's own
+// arrangement, and the restyle of upstream's date navigation, whose markup
+// (explore/posts/_nav_links, _nav_links_for_scale) is rendered verbatim.
+:where(body[data-preset="modulation"]) {
+  // The heading on the left, the date navigation on its right; the
+  // navigation wraps under it on a narrow screen.
+  .mod-explore-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem 1rem;
+    min-width: 0;
+  }
+
+  // Upstream's three scale groups (day, week, month), each "prev | Scale |
+  // next", drawn as three segmented controls in a row. Every link is the
+  // partial's own; only the paint changes. Upstream's utility classes on
+  // the groups (text-center, md:inline-block, mb-2, md:space-x-8, font-bold,
+  // mx-2) are overruled here, not removed.
+  .mod-explore .date-nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    text-align: start;
+
+    > * {
+      @include modulation-segmented("> a");
+
+      margin: 0;
+    }
+
+    // The scale's own name, between its prev and next.
+    > * > a.font-bold {
+      margin: 0;
+      font-weight: 600;
+      color: var(--mod-ink);
+    }
+
+    // The scale on show: its prev and next are the ones carrying
+    // #paginator-prev / #paginator-next (and the a / d shortcuts), so the
+    // group that holds them is the selected one. A selector, not a decision.
+    > *:has(#paginator-prev) {
+      border-color: var(--mod-line-strong);
+
+      > a.font-bold { background: var(--mod-surface-2); }
+    }
+  }
+
+  // The paginator under the strip (or under "No posts found."): the page's
+  // gap spaces it, not upstream's mt-8.
+  .mod-explore .paginator {
+    margin-top: 0.6rem;
+  }
+}

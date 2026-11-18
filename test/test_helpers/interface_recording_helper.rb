@@ -251,8 +251,17 @@ module InterfaceRecordingHelper
     @gallery = CreatorGallery.create!(slug: "pvcreator", matrix_id: CREATOR, title: "PV Creator", user: @viewers["creator"],
                                       promoted_at: EPOCH - 1.day)
     CreatorPostAudience.set!(@closed, gallery: @gallery, audience: "private", by: @viewers["creator"])
+    # A wiki page with a strip (Modulation families): on "scenery", which no
+    # other surface searches, so no recording made before it moves. Last, so
+    # no id above it moves either.
+    as(@viewers["admin"]) { create(:wiki_page, title: "scenery", body: "pv scenery wiki") }
+    # A taken-down post (Post#banblocked? below Moderator), which no metatag
+    # names: the gallery omits it and the window's rows leave it out
+    # (PostSets::Post#window_query), so no card and no cursor names it.
+    # After the wiki page, so no id above it moves.
+    @taken_down = make_post(9, "#{ARTIST} landscape", is_taken_down: true)
     CreatorVisibility.forget!
-    [@older, @deleted, @art, @child, @jailed, @closed, @flagged, @banned].each(&:reload)
+    [@older, @deleted, @art, @child, @jailed, @closed, @flagged, @banned, @taken_down].each(&:reload)
   end
 
   # A fresh browser for `viewer`: signed in to the booru for a booru viewer,
@@ -310,6 +319,18 @@ module InterfaceRecordingHelper
       "json_creator_activity" => [:get, "/modulation/creator_activity?tags=#{ARTIST},#{BANISHED}"],
       "json_session_status" => [:get, "/modulation/session_status"],
       "json_session_tokens" => [:post, "/modulation/session_tokens"],
+      # The subject pages Modulation draws (Modulation families). Each strip
+      # is on a tag every secret case of the world carries -- deleted,
+      # banished, closed, banned -- so the privacy rules read its cards.
+      "artist_show" => [:get, "/artists/#{Artist.find_by!(name: ARTIST).id}"],
+      "artist_banned" => [:get, "/artists/#{Artist.find_by!(name: BANNED_ARTIST).id}"],
+      "artist_show_or_new" => [:get, "/artists/show_or_new?name=pv_nobody"],
+      "wiki_show" => [:get, "/wiki_pages/scenery"],
+      "wiki_landscape" => [:get, "/wiki_pages/landscape"],
+      "wiki_banned_artist" => [:get, "/wiki_pages/#{BANNED_ARTIST}"],
+      "wiki_missing" => [:get, "/wiki_pages/nonesuch"],
+      "tag_show" => [:get, "/tags/#{Tag.find_by!(name: "landscape").id}"],
+      "explore_popular" => [:get, "/explore/posts/popular"],
     }
     # GoodJob's own dashboard is a gem's page, drawn from live job rows; what
     # the carve must keep is who is let in, which a signed-out visitor shows.

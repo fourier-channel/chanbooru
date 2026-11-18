@@ -62,6 +62,73 @@ class GallerySurfaceTest < ActiveSupport::TestCase
       assert_not_includes(surface.page_tag_categories.keys, "gs_banished", "a banished name reached the card categories; fix: GallerySurface#page_tag_categories filters through TagBanishment")
     end
 
+    # The leak this closes (2026-11-18): the gallery drew a gated card for a
+    # banned post, so a Member's page named the id upstream omits.
+    should "omit a banned post below Approver, and draw it for an Approver" do
+      banned = as(@owner) { create(:post, tag_string: "gsurface", is_banned: true) }
+
+      [create(:restricted_user), create(:user), create(:gold_user)].each do |viewer|
+        listed = surface_for(viewer, "gsurface").posts.map(&:id)
+
+        assert_includes(listed, @post.id, "fixture: the ordinary post is listed for #{viewer.level_string}")
+        assert_not_includes(listed, banned.id, "a banned post was handed to the gallery for #{viewer.level_string}, which draws its id; fix: GallerySurface#posts selects through PostPreviewComponent.listed?")
+      end
+
+      approver = surface_for(create(:approver_user), "gsurface")
+
+      assert_includes(approver.posts.map(&:id), banned.id, "a banned post was withheld from an Approver, who may see it")
+      assert_not_nil(approver.thumb_for(approver.posts.find { |post| post.id == banned.id }), "an Approver's banned post was drawn gated; upstream draws it")
+    end
+
+    # The query drops a banned and a taken-down post from the window too
+    # (PostSets::Post#window_query), so this hands the surface rows that hold
+    # them directly: the surface is the guard that does not depend on the
+    # query.
+    should "omit every post the viewer may not list from rows the query hands it" do
+      banned = as(@owner) { create(:post, tag_string: "gsurface", is_banned: true) }
+      taken_down = as(@owner) { create(:post, tag_string: "gsurface", is_taken_down: true) }
+      member = create(:user)
+      surface = surface_for(member, "gsurface")
+      surface.post_set.stubs(:posts).returns(Post.where(id: [@post.id, banned.id, taken_down.id]).order(id: :desc).to_a)
+
+      assert_equal([@post.id], surface.posts.map(&:id), "a post the Member may not list reached the gallery; fix: GallerySurface#posts selects through PostPreviewComponent.listed?")
+      [banned, taken_down].each do |post|
+        assert_equal(false, PostPreviewComponent.listed?(post, member), "fixture: post ##{post.id} is not listed for a Member")
+      end
+    end
+
+    # A listed post whose image is withheld keeps its designed gated face.
+    # The one real case is safe mode (Post#safeblocked?): the post exists
+    # for the viewer, only its image is withheld. Stubbed on the post, since
+    # a safe-mode search leaves a non-g post out of the rows itself.
+    should "keep a listed post it may not show in safe mode, drawn as gated" do
+      member = create(:user)
+      Post.any_instance.stubs(:safeblocked?).returns(true)
+      surface = surface_for(member, "gsurface")
+      drawn = surface.posts.find { |post| post.id == @post.id }
+
+      assert_not_nil(drawn, "a listed post whose image safe mode withholds was dropped; the gallery draws it as a gated card")
+      assert_equal(false, drawn.levelblocked?(member), "fixture: the post is not level-gated")
+      assert_equal(true, PostPreviewComponent.listed?(drawn, member))
+      assert_equal(false, PostPreviewComponent.drawable?(drawn, member), "fixture: upstream omits this post")
+      assert_nil(surface.thumb_for(drawn), "a post whose image is withheld was handed a thumbnail; fix: GallerySurface#thumb_for answers nil, drawn as gated")
+    end
+
+    # A level-gated post (Post#levelblocked?, which is Gate 1's
+    # hidden_as_gated?) does not exist for the viewer, so it is omitted, as
+    # upstream omits it -- never drawn gated. Gate 1 stubbed on the post: the
+    # search's own gated terms (PostQuery#gated_metatags) would leave a real
+    # one out of the rows before the surface is asked.
+    should "omit a level-gated post, never draw it gated" do
+      member = create(:user)
+      Post.any_instance.stubs(:hidden_as_gated?).returns(true)
+      surface = surface_for(member, "gsurface")
+
+      assert_equal(true, @post.levelblocked?(member), "fixture: the post is level-gated")
+      assert_equal(false, PostPreviewComponent.listed?(@post, member), "a level-gated post was listed; fix: PostPreviewComponent.listed? asks Post#hidden_beyond_deletion?, which holds Gate 1")
+      assert_not_includes(surface.posts.map(&:id), @post.id, "a level-gated post reached the gallery, which would draw its id on a gated card; fix: GallerySurface#posts selects through PostPreviewComponent.listed?")
+    end
+
     should "draw a card it cannot decide as gated, and log the post, the error and the fix" do
       surface = surface_for(@owner, "gsurface")
       @post.stubs(:visible?).raises(ActiveRecord::ConnectionNotEstablished, "injected")

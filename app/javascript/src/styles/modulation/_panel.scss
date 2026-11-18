@@ -1,0 +1,75 @@
+// THE PANEL, THE LABEL, THE SEGMENTED CONTROL AND THE KEY/VALUE LIST, ONCE.
+//
+// Mixins rather than shared selectors, like _pill.scss and _stage.scss and for
+// the same reason: each surface includes them under its own root, so the
+// specificity is what it would be written there and no page can style another.
+// A file of mixins emits no rules, so the packs glob bundling it is harmless.
+//
+// One panel for every Modulation surface (operator ruling, 2026-11-18): the
+// gallery's own facet panel (.modgal-tags) is the reference, so its ground,
+// line, radius and padding are the values here. The skin's sidebar panel, the
+// drawn pages' .mod-panel and anything later all include this rather than
+// restating a near copy that drifts.
+@mixin modulation-panel {
+  background: var(--mod-surface);
+  border: 1px solid var(--mod-line);
+  border-radius: var(--mod-radius);
+  padding: 0.85rem 1rem;
+}
+
+// The small uppercase mono label: the gallery's "IN THIS SEARCH", the sign-in
+// page's panel labels and the skin's sidebar section headings.
+@mixin modulation-label {
+  font-family: var(--mod-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mod-ink-dim);
+}
+
+// A segmented control: one outline, the borders on the segments. Lifted from
+// the gallery's board filter (.modgal-boards / .modgal-board). $segment is the
+// selector of one part, relative to the element including this.
+@mixin modulation-segmented($segment) {
+  display: inline-flex;
+  border: 1px solid var(--mod-line);
+  border-radius: var(--mod-pill-radius);
+  overflow: hidden;
+
+  #{$segment} {
+    font-size: 0.75rem;
+    line-height: 1.2;
+    padding: 0.28rem 0.85rem;
+    text-decoration: none;
+    white-space: nowrap;
+    color: var(--mod-ink-dim);
+    background: transparent;
+    border-right: 1px solid var(--mod-line);
+
+    &:last-child { border-right: 0; }
+    &:hover { color: var(--mod-ink); background: color-mix(in srgb, var(--mod-surface-2) 60%, transparent); }
+    &.is-active { background: var(--mod-surface-2); color: var(--mod-ink); }
+  }
+}
+
+// A key/value list, written as a <dl>: the keys are the label, the values are
+// ink. Two columns that stay two columns at phone width.
+@mixin modulation-kv {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.35rem 1rem;
+  align-items: baseline;
+  margin: 0;
+
+  dt {
+    @include modulation-label;
+  }
+
+  dd {
+    margin: 0;
+    color: var(--mod-ink);
+    font-size: 0.86rem;
+    overflow-wrap: anywhere;
+  }
+}

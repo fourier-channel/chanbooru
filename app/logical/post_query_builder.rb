@@ -143,6 +143,8 @@ class PostQueryBuilder
     # Fork: the hidden tags as one row filter, on every implicit query
     # (PostQuery#hidden_tags_condition).
     relation = relation.where(post_query.hidden_tags_condition) if post_query.hidden_tags_condition
+    # Fork: the gallery window's taken-down rows (PostQuery#without_taken_down).
+    relation = relation.merge(Post.bit_flags_match(:is_taken_down, false)) if post_query.taken_down_dropped?
 
     case (order = effective_order(post_query))
     when :custom

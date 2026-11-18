@@ -1,0 +1,45 @@
+<% page_title "Tag: #{@tag.pretty_name.startcase}" %>
+<%= render "secondary_links" %>
+
+<%# Modulation's tag page: the same facts upstream's app/views/tags/show.html.erb
+    lists -- the name, the count, the category and the deprecation notice --
+    drawn as the subject heading over one panel. The head tag and the secondary
+    links above are upstream's, unchanged: the subnav keeps Posts (N), Edit and
+    History. No post strip (operator ruling 2). The controller's
+    `authorize Tag.find` decides who reaches this page; the view decides
+    nothing. %>
+<div id="c-tags">
+  <div id="a-show">
+    <div class="mod-ui mod-tag">
+      <%# app/views/tags/show.html.erb:6 -- "Tag: <name>", the raw name as upstream
+          prints it, with its post count as the artist and wiki headings carry
+          theirs; the panel below keeps upstream's own Count line. The pill links to the tag's posts, the same search the
+          subnav's "Posts (N)" link carries (app/views/tags/_secondary_links.html.erb:13).
+          The deprecated chip is upstream's own condition, show.html.erb:11. %>
+      <%= render ModulationSubjectHeaderComponent.new(
+        prefix: "Tag:",
+        name: @tag.name,
+        href: posts_path(tags: @tag.name),
+        category_key: PostCards.category_key(@tag),
+        count: @tag.post_count,
+        badges: [("deprecated" if @tag.is_deprecated?)],
+      ) %>
+
+      <%= render ModulationPanelComponent.new(classes: "mod-tag-facts") do %>
+        <dl class="mod-kv">
+          <%# app/views/tags/show.html.erb:9. %>
+          <dt>Count</dt>
+          <dd class="mod-tag-count"><%= @tag.post_count %></dd>
+          <%# app/views/tags/show.html.erb:10. %>
+          <dt>Category</dt>
+          <dd><%= @tag.category_name %></dd>
+        </dl>
+
+        <%# app/views/tags/show.html.erb:11-13, verbatim, under the same condition. %>
+        <% if @tag.is_deprecated? %>
+          <p class="mod-tag-deprecated">This tag is <%= link_to "deprecated", wiki_page_path("help:deprecation_notice") %> and can't be added to new posts.</p>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

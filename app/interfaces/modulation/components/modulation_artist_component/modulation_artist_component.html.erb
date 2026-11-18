@@ -1,0 +1,126 @@
+<div class="mod-ui mod-artist">
+  <%# app/views/artists/show.html.erb:7 -- the takedown gate, before anything else. %>
+  <% if taken_down? %>
+    <p class="mod-panel mod-artist-takedown">This page has been removed because of a takedown request.</p>
+  <% else %>
+    <div class="mod-artist-head">
+      <%# app/views/artists/_summary.html.erb:3-15: the badges, the name linking to its posts in its tag's paint, the count. %>
+      <%= render ModulationSubjectHeaderComponent.new(name: artist.pretty_name, href: posts_path(tags: artist.name), category_key: PostCards.category_key(artist.tag), count: artist.tag&.post_count, badges: badges) %>
+
+      <%# app/views/artists/_summary.html.erb:73-78: the edit links, for an existing entry (the else branch at :21). %>
+      <% unless artist.new_record? %>
+        <nav class="mod-segmented mod-artist-edit" aria-label="Edit">
+          <% if artist.wiki_page.present? %>
+            <%= link_to "Edit wiki", edit_wiki_page_path(artist.wiki_page), id: "view-wiki-link" %>
+          <% end %>
+          <%= link_to "Edit artist", edit_artist_path(artist), id: "view-artist-link" %>
+        </nav>
+      <% end %>
+    </div>
+
+    <% if artist.new_record? %>
+      <%# app/views/artists/_summary.html.erb:19-20. %>
+      <%= render ModulationPanelComponent.new(classes: "mod-artist-missing") do %>
+        <p>This artist entry does not exist. <%= link_to "Create new artist entry", new_artist_path(artist: { name: artist.name }), rel: "nofollow" %>.</p>
+      <% end %>
+    <% else %>
+      <%# app/views/artists/_summary.html.erb:81: the relations a viewer may see (the partial hides hidden names); drawn only when it says something. %>
+      <% relationships = render("tag_relationships/alias_and_implication_list", tag: artist.tag) %>
+
+      <div class="mod-artist-body<%= " mod-artist-body--wiki" if show_wiki? %>">
+        <% if show_wiki? %>
+          <%= render ModulationPanelComponent.new(label: "Wiki", classes: "mod-artist-wiki-panel") do %>
+            <div class="artist-wiki prose">
+              <%= artist.wiki_page.dtext_body.format_text(current_user: viewer) %>
+            </div>
+          <% end %>
+        <% end %>
+
+        <div class="mod-artist-side">
+          <% if names? %>
+            <%= render ModulationPanelComponent.new(label: "Names", classes: "mod-artist-names") do %>
+              <dl class="mod-kv">
+                <%# app/views/artists/_summary.html.erb:23-29. %>
+                <% if artist.other_names.present? %>
+                  <dt>Other names</dt>
+                  <dd class="mod-artist-pills">
+                    <% artist.other_names.map do |other_name| %>
+                      <%= link_to other_name, artists_path(search: { any_name_matches: other_name }), class: "artist-other-name mod-pill", rel: "nofollow" %>
+                    <% end %>
+                  </dd>
+                <% end %>
+
+                <%# app/views/artists/_summary.html.erb:31-36. %>
+                <% if artist.group_name.present? %>
+                  <dt>Group</dt>
+                  <dd class="mod-artist-pills">
+                    <%= link_to artist.group_name, artists_path(search: { group_name: artist.group_name }), class: "artist-other-name mod-pill" %>
+                  </dd>
+                <% end %>
+
+                <%# app/views/artists/_summary.html.erb:38-45. %>
+                <% if artist.members.present? %>
+                  <dt>Members</dt>
+                  <dd class="mod-artist-pills">
+                    <% artist.members.each do |member| %>
+                      <%= link_to member.name, artists_path(search: { name: member.name }), class: "artist-other-name mod-pill" %>
+                    <% end %>
+                  </dd>
+                <% end %>
+              </dl>
+            <% end %>
+          <% end %>
+
+          <%# app/views/artists/_summary.html.erb:54-71. %>
+          <% if artist.urls.present? %>
+            <%= render ModulationPanelComponent.new(label: "URLs", classes: "mod-artist-urls") do %>
+              <ul>
+                <% artist.sorted_urls.each do |url| %>
+                  <li>
+                    <%= external_link_to url.url, external_site_icon(url.site_name, class: "h-4") %>
+                    <% if url.is_active? %>
+                      <%= external_link_to url.url %>
+                    <% else %>
+                      <%= external_link_to url.url, class: "inactive-artist-url underline decoration-dotted" %>
+                    <% end %>
+                  </li>
+                <% end %>
+              </ul>
+            <% end %>
+          <% end %>
+
+          <% if relationships.present? %>
+            <%= render ModulationPanelComponent.new(label: "Relationships", classes: "mod-artist-relationships") do %>
+              <%= relationships %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <%# app/views/artists/show.html.erb:12-28: a creator under a hidden prefix -- the release box, for an admin or the creator themselves (approved claim). For a new entry too, as upstream. %>
+    <% entry = (CreatorPrefixes.lookup(artist.name) rescue nil) %>
+    <% if entry && entry.visible_to != "everyone" && CreatorTagRelease.may_set?(viewer, artist.name) %>
+      <% release = CreatorTagRelease.find_by(tag_name: artist.name) %>
+      <%= render ModulationPanelComponent.new(label: "Creator visibility", classes: "creator-release-box") do %>
+        <% if release&.released %>
+          <p><strong>Released.</strong> These posts follow their creator's own settings, not the <%= entry.prefix %> default (<%= entry.visible_to %> only).</p>
+        <% else %>
+          <p><strong>Hidden by default.</strong> Posts under <%= entry.prefix %> are visible to <%= entry.visible_to %> only. Releasing moves these posts to their creator's own settings -- public, until narrowed.</p>
+        <% end %>
+        <%= form_tag(update_release_creator_prefixes_path, method: :post) do %>
+          <%= hidden_field_tag :tag_name, artist.name %>
+          <%= hidden_field_tag :released, release&.released ? "false" : "true" %>
+          <%= submit_tag(release&.released ? "Return to the default" : "Release my posts") %>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <%# app/views/artists/show.html.erb:30-39: the artist's posts, with_implicit_metatags so the viewer's hidden posts (jailed, deleted, gated, under a hidden creator prefix) stay out, as on the post index. %>
+    <%# Upstream still draws its "Posts" heading over an empty gallery, and
+        says "No posts found." (PostGalleryComponent): the strip's empty_text. %>
+    <% if show_posts? %>
+      <%= render ModulationPostStripComponent.new(surface: post_strip, title: "Posts", href: posts_path(tags: artist.name), empty_text: "No posts found.") %>
+    <% end %>
+  <% end %>
+</div>

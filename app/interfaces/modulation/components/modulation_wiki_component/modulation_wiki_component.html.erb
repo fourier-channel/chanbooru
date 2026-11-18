@@ -1,0 +1,71 @@
+<div class="mod-ui modwiki">
+  <%# The title, as upstream's h1#wiki-page-title (wiki_pages/show.html.erb:13-23):
+      the link to the tag's posts in its category's paint, and its state. The id
+      stays: the system test and upstream's script key off it. %>
+  <%= render ModulationSubjectHeaderComponent.new(
+    name: wiki_page.pretty_title,
+    href: posts_path(tags: wiki_page.title),
+    category_key: category_key,
+    count: post_count,
+    badges: badges,
+    id: "wiki-page-title",
+  ) %>
+
+  <%# Upstream wiki_pages/show.html.erb:25, the partial itself: it decides whose
+      character this is and what the viewer is told. %>
+  <%= render "wiki_pages/original_character", title: wiki_page.title, wiki_page: wiki_page %>
+
+  <%# Upstream wiki_pages/show.html.erb:27: other names only when there are some. %>
+  <% if wiki_page.other_names.present? %>
+    <%= render ModulationPanelComponent.new(label: "Other names", classes: "modwiki-names") do %>
+      <%= helpers.wiki_page_other_names_list(wiki_page) %>
+    <% end %>
+  <% end %>
+
+  <section class="mod-panel modwiki-article">
+    <div id="wiki-page-body" class="prose">
+      <%# Upstream wiki_pages/show.html.erb:32-40. The Create link only under
+          policy(@wiki_page).create? (wiki_pages/show.html.erb:34), the same
+          predicate on the same page, asked for the same user. %>
+      <% if wiki_page.new_record? %>
+        <p class="modwiki-missing">This wiki page does not exist.<% if policy(wiki_page).create? %>
+          <%= link_to "Create new wiki page", new_wiki_page_path(wiki_page: { title: wiki_page.title }), rel: "nofollow" %>.<% end %></p>
+      <% else %>
+        <%= wiki_page.dtext_body.format_text(current_user: viewer) %>
+      <% end %>
+
+      <%# The notes under the article, each under upstream's own condition
+          (wiki_pages/show.html.erb:42-53); drawn as a block only when one of
+          them says something. %>
+      <% notes = capture do %>
+        <%# Upstream wiki_pages/show.html.erb:42. %>
+        <% if wiki_page.artist.present? && !wiki_page.artist.is_deleted? %>
+          <p class="modwiki-artist"><%= link_to "View artist", wiki_page.artist, class: "mod-pill mod-pill--cat mod-pill--cat-artist" %></p>
+        <% end %>
+
+        <%# Upstream wiki_pages/show.html.erb:46, the partial itself. %>
+        <%= render "tag_relationships/alias_and_implication_list", tag: wiki_page.tag %>
+
+        <%# Upstream wiki_pages/show.html.erb:48. %>
+        <% if wiki_page.tag&.is_deprecated? %>
+          <p class="fineprint">This tag is <%= link_to "deprecated", wiki_page_path("help:deprecation_notice") %> and can't be added to new posts.</p>
+        <% end %>
+
+        <%# Upstream wiki_pages/show.html.erb:52: the helper, so the notice's
+            cache stays in core (TagChangeNoticeComponent). %>
+        <%= helpers.render_tag_change_notice(tag: wiki_page.tag, current_user: viewer) %>
+      <% end %>
+      <% if notes.present? && notes.strip.present? %>
+        <div class="modwiki-notes"><%= notes %></div>
+      <% end %>
+    </div>
+  </section>
+
+  <%# Upstream wiki_pages/_posts.html.erb, drawn as the gallery's cards: the
+      same condition, the same relation, the posts its gallery would draw. %>
+  <%# Upstream PostGalleryComponent's empty text, under the same link: the
+      strip's empty_text. %>
+  <% if show_posts? %>
+    <%= render ModulationPostStripComponent.new(surface: strip_surface, title: "Posts", href: posts_path(tags: wiki_page.title), empty_text: "No posts found.") %>
+  <% end %>
+</div>

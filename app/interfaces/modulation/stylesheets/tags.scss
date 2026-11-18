@@ -1,0 +1,28 @@
+// Modulation: the tags family pages. Every rule sits under
+// :where(body[data-preset="modulation"]) (interface_completeness_test).
+//
+// tags/show: the subject heading and one facts panel, both from ui.scss
+// (.mod-subject, .mod-panel, .mod-kv). This is only the page's own measure
+// and the deprecation line's spacing.
+:where(body[data-preset="modulation"]) {
+  // Two short facts: the panel keeps a reading measure instead of stretching
+  // a two-row list across the whole column. Never wider than the column, so a
+  // phone keeps its gutter.
+  .mod-tag .mod-tag-facts {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 32rem;
+  }
+
+  .mod-tag .mod-tag-count {
+    font-family: var(--mod-mono);
+  }
+
+  .mod-tag .mod-tag-deprecated {
+    margin: 0.7rem 0 0;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--mod-line);
+    font-size: 0.86rem;
+    color: var(--mod-ink-dim);
+  }
+}

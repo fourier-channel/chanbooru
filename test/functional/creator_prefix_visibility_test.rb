@@ -122,10 +122,32 @@ class CreatorPrefixVisibilityTest < ActionDispatch::IntegrationTest
     should "not show a hidden post to a visitor or a member, and show it to an admin" do
       [nil, @member].each do |user|
         user ? get_auth(wiki_page_path(@wiki), user) : (reset!; get(wiki_page_path(@wiki)))
-        assert_select "article#post_#{@hidden.id}", false, "wiki page, #{user&.name || "anonymous"}"
+        # A card in either interface's drawing: upstream's article, or
+        # Modulation's gallery card (ModulationPostStripComponent).
+        assert_select "article#post_#{@hidden.id}, .modgal-card[data-id='#{@hidden.id}']", false, "wiki page, #{user&.name || "anonymous"}"
       end
       get_auth artist_path(@artist), @admin
-      assert_select "article#post_#{@hidden.id}"
+      assert_select "article#post_#{@hidden.id}, .modgal-card[data-id='#{@hidden.id}']"
+    end
+
+    # The same doors drawn by Modulation (ModulationPostStripComponent): the
+    # test default is historical, so this asks for it by name. The admin's
+    # cards are the witness that the selector reads Modulation's drawing.
+    should "not draw a hidden post on Modulation's strips for a visitor or a member, and draw it for an admin" do
+      modulation = { preset: "modulation", preset_sticky: 0 }
+      [nil, @member].each do |user|
+        if user
+          get_auth(wiki_page_path(@wiki, modulation), user)
+        else
+          reset!
+          get(wiki_page_path(@wiki, modulation))
+        end
+        assert_select ".modgal-card[data-id='#{@hidden.id}']", false, "Modulation wiki page, #{user&.name || "anonymous"}"
+      end
+      get_auth wiki_page_path(@wiki, modulation), @admin
+      assert_select ".mod-ui .modgal-card[data-id='#{@hidden.id}']", 1, "Modulation wiki page, admin"
+      get_auth artist_path(@artist, modulation), @admin
+      assert_select ".mod-ui .modgal-card[data-id='#{@hidden.id}']", 1, "Modulation artist page, admin"
     end
 
     # 2026-11-05: the entry itself names the creator, as the tag index row

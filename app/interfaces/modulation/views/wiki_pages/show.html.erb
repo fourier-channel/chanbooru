@@ -1,0 +1,18 @@
+<% page_title "#{@wiki_page.pretty_title.startcase} Wiki" %>
+<% meta_description DText.new(@wiki_page.body).excerpt %>
+<% seo_canonical_url wiki_page_path(@wiki_page) %>
+
+<% if @wiki_page.artist.present? && @wiki_page.artist.is_banned? %>
+  <% noindex %>
+<% end %>
+
+<%= render "secondary_links" %>
+<%= render "sidebar" %>
+
+<%# Modulation's wiki page: ModulationWikiComponent draws upstream's body
+    (app/views/wiki_pages/show.html.erb) and decides nothing. The head tags,
+    the noindex for a banned artist's page, the secondary links and the
+    sidebar above are upstream's lines, unchanged. %>
+<% content_for(:content) do %>
+  <%= render ModulationWikiComponent.new(wiki_page: @wiki_page, viewer: CurrentUser.user) %>
+<% end %>

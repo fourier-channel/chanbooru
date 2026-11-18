@@ -71,8 +71,36 @@ class PostQuery
 
   # Build a new PostQuery from the given AST and the current settings.
   def build(ast)
-    PostQuery.new(ast, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: @implicit)
+    query = PostQuery.new(ast, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: @implicit)
+    @drop_taken_down ? query.drop_taken_down! : query
   end
+
+  # This query with its taken-down posts left out for a viewer below
+  # Moderator. A taken-down post has no metatag, so it cannot be negated in
+  # the AST as status:banned and status:deleted are; it is a row filter on
+  # the bit flag instead (PostQueryBuilder#posts). Only the gallery window
+  # asks (PostSets::Post#window_query); #build carries it to the copies it
+  # makes.
+  def without_taken_down
+    PostQuery.new(ast, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: @implicit, estimated: @estimated).drop_taken_down!
+  end
+
+  # Whether the rows leave out taken-down posts: asked for
+  # (#without_taken_down), and the viewer is one Post#banblocked? hides them
+  # from.
+  def taken_down_dropped?
+    @drop_taken_down.present? && !current_user.is_moderator?
+  end
+
+  protected
+
+  # Set on a fresh copy only, before anything is memoized (#without_taken_down, #build).
+  def drop_taken_down!
+    @drop_taken_down = true
+    self
+  end
+
+  public
 
   def builder
     @builder ||= PostQueryBuilder.new(self, current_user, tag_limit: tag_limit, safe_mode: safe_mode)
@@ -591,7 +619,7 @@ class PostQuery
     # that newly gained a name already hidden. First, so no search's text can
     # end in what looks like another viewer's digest.
     def count_cache_key
-      hidden = Cache.hash(hidden_tags_condition.to_s)
+      hidden = Cache.hash("#{hidden_tags_condition}#{" -taken_down" if taken_down_dropped?}")
       if is_user_dependent_search?
         "post-count-for-user:#{current_user.id.to_i}:#{hidden}:#{self}"
       else

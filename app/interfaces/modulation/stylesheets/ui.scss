@@ -1,0 +1,120 @@
+@use "../../../javascript/src/styles/modulation/panel" as *;
+@use "../../../javascript/src/styles/modulation/cards" as *;
+@use "../../../javascript/src/styles/modulation/pill" as *;
+
+// THE DRAWN PAGES' SHARED ROOTS (Modulation families, Unit 0). A drawn page --
+// artists/show, wiki_pages/show, tags/show, explore/posts/popular -- puts its
+// body in a .mod-ui root and builds it from these: .mod-panel, .mod-label,
+// .mod-kv, the tag pill, the subject heading and the post strip (.modstrip).
+// Each page's own stylesheet adds only what is its own.
+//
+// :where() on the scope, so these class rules carry no body or id
+// specificity and never outrank the skin's #page rules or a component's own.
+// The pill is included under .mod-ui only, never under a bare body: there it
+// would outrank the post view's own pill states.
+:where(body[data-preset="modulation"]) {
+  .mod-ui {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+
+    /* #page carries an inline gutter but no top padding, so without this the
+       subject heading sits on the frame's top edge. The gallery's first row
+       sits 1rem in (.modgal's search bar); a drawn page starts where it does. */
+    padding-block-start: 1rem;
+    max-width: var(--mod-page);
+    color: var(--mod-ink);
+
+    @include modulation-pill;
+  }
+
+  .mod-ui .mod-panel {
+    @include modulation-panel;
+
+    > .mod-panel-label { margin: 0 0 0.6rem; }
+  }
+
+  .mod-ui .mod-label,
+  .modstrip .mod-label {
+    @include modulation-label;
+  }
+
+  .mod-ui .mod-kv {
+    @include modulation-kv;
+  }
+
+  .mod-ui .mod-segmented {
+    @include modulation-segmented("> a");
+  }
+
+  // --- the subject heading (ModulationSubjectHeaderComponent) -------------
+  .mod-ui .mod-subject {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    font-size: 1.2rem;
+    line-height: 1.3;
+
+    .mod-pill { font-size: 1rem; padding: 0.3rem 0.85rem; }
+  }
+
+  // A subject pill no category paints (a general or meta tag, a wiki page
+  // with no tag) still reads as a pill: the meta ground. The category rules
+  // are three classes and win over this one.
+  .mod-ui .mod-pill--subject {
+    background: var(--mod-surface-2);
+    border-color: var(--mod-line);
+  }
+
+  // A subject is a raw name (underscores, no spaces). The pill mixin's
+  // nowrap + overflow: hidden would clip a long one at phone width and lose
+  // part of it; it wraps inside the pill instead, never wider than the line.
+  .mod-ui .mod-subject .mod-pill--subject {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .mod-ui .mod-subject-count {
+    font-family: var(--mod-mono);
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: var(--mod-ink-dim);
+  }
+
+  .mod-ui .mod-badge {
+    padding: 0.1rem 0.45rem;
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-radius-sm);
+  }
+
+  // --- the post strip (ModulationPostStripComponent) ----------------------
+  .modstrip {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    @include modulation-cards(".modstrip-grid");
+  }
+
+  // What the strip says when it draws no card (empty_text: upstream's "No
+  // posts found.").
+  .modstrip-empty {
+    margin: 0;
+    font-size: 0.86rem;
+    color: var(--mod-ink-dim);
+  }
+
+  .modstrip-title {
+    margin: 0;
+
+    a { color: inherit; text-decoration: none; }
+    a:hover { color: var(--mod-ink); }
+  }
+}

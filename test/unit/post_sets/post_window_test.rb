@@ -81,6 +81,28 @@ module PostSets
         assert_equal deleted.map(&:id).sort.reverse.first(PostSets::Post::WINDOW_CHUNK_MAX), shown.posts.map(&:id), "a viewer who asked for deleted posts walks them"
       end
 
+      # A taken-down post has no metatag; the window's query leaves it out as
+      # a row filter below Moderator (PostQuery#without_taken_down), so the
+      # prev cursor, minted from the rows behind the first card, never names
+      # a post the gallery omits (PostPreviewComponent.listed?).
+      should "leave a taken-down post out of every row it pages by, below Moderator" do
+        extras = create_list(:post, PostSets::Post::WINDOW_SLOTS + 1, tag_string: "wintest").map(&:id).sort
+        taken = extras[PostSets::Post::WINDOW_SLOTS - 1]
+        ::Post.find(taken).update!(is_taken_down: true)
+        anchor = "#{@ids[0]}~#{@ids[0]}"
+
+        assert_not_includes set.window_query.posts.pluck(:id), taken, "a taken-down post was in a Member's window rows; fix: PostSets::Post#window_query drops it (PostQuery#without_taken_down)"
+        assert_not_includes set.posts.map(&:id), taken
+        behind = set(anchor: anchor)
+        assert behind.window_more_behind?
+        assert_equal "#{extras.last}~#{extras.last}", behind.window_prev_cursor, "prev must land #{PostSets::Post::WINDOW_SLOTS} LISTED posts back, past the taken-down one"
+
+        moderator = create(:moderator_user)
+        assert_includes set(user: moderator).window_query.posts.pluck(:id), taken, "a Moderator, who may see a taken-down post, lost it from the window"
+        assert_equal "#{taken}~#{taken}", set(user: moderator, anchor: anchor).window_prev_cursor
+        assert_includes set(window: nil).posts.map(&:id), taken, "outside the window the search is upstream's, rows unchanged"
+      end
+
       should "refuse a bare anchor the same way for every post this search does not hold" do
         Danbooru.config.stubs(:restricted_tags).returns(["wingated"])
         gated = create(:post, tag_string: "wintest wingated")

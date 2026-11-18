@@ -16,6 +16,8 @@
 # browse check and the 21st-row probe hold a viewer below the browsing tier
 # to their one page.
 class GallerySurface
+  include PostCards
+
   attr_reader :post_set, :viewer, :request
 
   # Display order for the category buckets.
@@ -135,16 +137,27 @@ class GallerySurface
   # Dropped in the query now (PostSets::Post#window_query), not here: the
   # gallery window pages by cursors minted from the cards it drew, and a
   # chunk of deleted posts dropped at render would draw nothing and name no
-  # place past them.
-  delegate :posts, to: :post_set
+  # place past them. A banned post below Approver and a taken-down post below
+  # Moderator are dropped there too (Post#banblocked?), for the same reason
+  # and one more: the prev cursor is minted from the rows behind, so a row
+  # the viewer may not list would name its id in a data-key or an anchor.
+  #
+  # And every post that does not exist for this viewer in a list
+  # (PostPreviewComponent.listed?) is dropped HERE as well, on the page and
+  # in every window chunk, whatever the query let through: the gated face is
+  # for a post the viewer may list but not see (safe mode), never for one
+  # that is not there for them -- a level-gated post, a banished one --
+  # whose card would name its id (2026-11-18: post 50007 was drawn gated to
+  # members while upstream omits it). A drawn card's cursor is still its own
+  # place in the search (window_cursors is keyed by id over every row
+  # fetched), so paging from it skips nothing and repeats nothing; the
+  # row-count questions (#truncated?) ask the rows, not the cards.
+  def posts
+    @posts ||= post_set.posts.select { |post| PostPreviewComponent.listed?(post, viewer, show_deleted: post_set.show_deleted?) }
+  end
 
   def query_string
     post_set.tag_string.to_s.strip
-  end
-
-  # The post view link, carrying the search so its nav follows this exact search.
-  def post_link(post)
-    routes.post_path(post, q: query_string.presence)
   end
 
   # The facet tags this viewer may be shown: banished names withheld from
@@ -172,160 +185,12 @@ class GallerySurface
     visible_sidebar_tags.any?
   end
 
-  # Blacklist rules are matched client-side against these attributes, so every
-  # card has to carry them or the viewer's blacklist silently does not apply --
-  # which is what happened for as long as this gallery rendered bare <a> cards
-  # and the blacklist's selector list knew nothing about them.
-  #
-  # data-tags comes from FourierTagSource.blacklist_tags_for, NOT post.tag_string:
-  # the post's creator also sees their private tags, which tag_string does not
-  # carry, and a quarantined name stays out of the page.
-  #
-  # data-key is the card's place in the search (PostNeighbors::Seek), which
-  # the gallery window pages from; none where the viewer has no window.
+  # The gallery's card: PostCards#card_data with data-key, the card's place
+  # in the search (PostNeighbors::Seek), which the gallery window pages
+  # from; none where the viewer has no window. Second in the attributes, as
+  # it always was, so the gallery's bytes do not move.
   def card_data(post)
-    {
-      "data-id" => post.id,
-      "data-key" => post_set.window_cursors[post.id],
-      "data-tags" => blacklist_tags[post].to_a.join(" "),
-      "data-rating" => post.rating,
-      "data-flags" => post.status_flags,
-      "data-score" => post.score,
-      "data-uploader-id" => post.uploader_id,
-      "data-tag-marks" => card_tag_marks.fetch(post.id, {}).to_json,
-    }
-  end
-
-  # Each card's tags, for the hover panel: name -> [bucket, lamp], the same
-  # two answers the facet pills get, per post rather than per page. Public
-  # rows, one pluck for the page. A tag with no row is left out -- the panel
-  # draws it unsourced with a white lamp, which is what no row means.
-  #
-  # Fork: only rows for a tag the card carries (card_tags). A row stays
-  # behind when its tag leaves the post -- a hand edit, a bulk update and the
-  # private-tag cleanup write tag_string, never the sidecar -- and such a
-  # dormant row is provenance for nothing here; its name was written into
-  # the page source all the same (BUR review 2026-10-19).
-  #
-  # Fork: a "both" row (CREATOR | AUTO) is public and says "both" on every
-  # card, to every viewer: its colouring says the model agrees with what the
-  # creator asked for (operator, 2026-10-19). Only a creator-ONLY row is
-  # private, and publicly_visible already leaves it out.
-  def card_tag_marks
-    @card_tag_marks ||= FourierTagSource.publicly_visible
-      .where(post_id: posts.map(&:id))
-      .pluck(:post_id, :tag, :source, :status)
-      .select { |post_id, tag, _, _| card_tags.fetch(post_id, Set.new).include?(tag) }
-      .group_by(&:first)
-      .transform_values do |rows|
-        rows.to_h { |_, tag, source, status| [tag, [provenance_bucket(source, status == FourierTagSource::PENDING), FourierTagSource.lamp_of(source).to_s]] }
-      end
-  end
-
-  def blacklist_tags
-    @blacklist_tags ||= FourierTagSource.blacklist_tags_for(posts, viewer)
-  end
-
-  # Fork: post id -> the Set of tags its card carries (data-tags), which a
-  # provenance row must name to count for that card.
-  def card_tags
-    @card_tags ||= posts.to_h { |post| [post.id, blacklist_tags[post].to_a.to_set] }
-  end
-
-  # The card's thumbnail, or nil for a gated card. Fails closed: a post whose
-  # visibility or preview cannot be decided draws as gated, and says so in
-  # the log, where it was once dropped without a word.
-  def thumb_for(post)
-    post.visible?(viewer) ? post.preview_file_url : nil
-  rescue StandardError => e
-    Rails.logger.error("GallerySurface#thumb_for: post ##{post.id} drew as gated for #{viewer&.id ? "user ##{viewer.id}" : "a signed-out viewer"}: " \
-                       "#{e.class}: #{e.message} (#{e.backtrace&.first}); fix: repair what raised -- Post#visible? or " \
-                       "the post's media asset (preview_file_url) -- and the card draws its thumbnail again")
-    nil
-  end
-
-  # name -> category key for every tag on this page's cards, one batched
-  # lookup (Tag.categories_for is a memcache multi-get -- never per-card).
-  # Built from the same gated projection as data-tags, then banished names
-  # are withheld: the map doubles as the hover panel's DISPLAY gate, so the
-  # client shows only tags it can find here and never learns the banished
-  # vocabulary at all.
-  def page_tag_categories
-    @page_tag_categories ||= begin
-      names = TagBanishment.filter(blacklist_tags.values.flatten.uniq, viewer)
-      ints = Tag.categories_for(names)
-      keys = {
-        TagCategory::ARTIST => "artist",
-        TagCategory::COPYRIGHT => "copyright",
-        TagCategory::CHARACTER => "character",
-        TagCategory::META => "meta",
-      }
-      names.index_with { |n| keys[ints[n]] || "general" }
-    end
-  end
-
-  # name -> post count, for the same names the category map admits (operator
-  # ruling 2026-09-07: the hover panel shows each tag's count after it). One
-  # query for the page, never one per tag, and keyed off page_tag_categories so
-  # a banished name cannot reappear here after being withheld there.
-  def page_tag_counts
-    @page_tag_counts ||= begin
-      names = page_tag_categories.keys
-      counts = names.any? ? Tag.where(name: names).pluck(:name, :post_count).to_h : {}
-      names.index_with { |n| counts[n].to_i }
-    end
-  end
-
-  # The card's bottom-right credit: the post's first artist tag, if the
-  # viewer may see one.
-  def artist_for(post)
-    blacklist_tags[post].to_a.find { |t| page_tag_categories[t] == "artist" }
-  end
-
-  # PROVENANCE, for the page. name -> [bucket, lamp]: bucket "creator" |
-  # "both" | "auto" | "meta" | "pending", for every sidebar tag that has a
-  # public provenance row on a post of this page that carries it; a name with
-  # none is unsourced. One query for the page: the OR of the source flags says
-  # who put the name there anywhere on the page, which is the honest answer
-  # for a list that aggregates the page. Public rows only -- a private row is
-  # the creator's prompt, and the pill's colour must not tell anyone else
-  # what it holds.
-  #
-  # Fork: and only rows whose tag the post still carries (card_tags). A row
-  # left behind when its tag left its post coloured every other card's pill
-  # for that name (BUR review 2026-10-19). A both row is public and counts
-  # as both for every viewer, as on the card (card_tag_marks).
-  #
-  # And THE LAMP, from the same OR: which model put the name there
-  # anywhere on the page (FourierTagSource.lamp_of) -- the pill's dot, per
-  # formant. A name with no row is unsourced, manual.
-  def page_tag_provenance
-    @page_tag_provenance ||= begin
-      names = page_tag_categories.keys
-      if names.empty? || posts.empty?
-        {}
-      else
-        FourierTagSource.publicly_visible
-          .where(post_id: posts.map(&:id), tag: names)
-          .pluck(:post_id, :tag, :source, :status)
-          .select { |post_id, tag, _, _| card_tags.fetch(post_id, Set.new).include?(tag) }
-          .group_by { |_, tag, _, _| tag }
-          .to_h do |tag, rows|
-            source = rows.map { |_, _, bits, _| bits }.reduce(0, :|)
-            pending = rows.all? { |_, _, _, status| status == FourierTagSource::PENDING }
-            [tag, [provenance_bucket(source, pending), FourierTagSource.lamp_of(source)]]
-          end
-      end
-    end
-  end
-
-  def category_key(tag)
-    return "artist" if tag.artist?
-    return "copyright" if tag.copyright?
-    return "character" if tag.character?
-    return "meta" if tag.meta?
-
-    "general"
+    { "data-id" => post.id, "data-key" => post_set.window_cursors[post.id] }.merge(super)
   end
 
   # --- the pager ---------------------------------------------------------
@@ -342,6 +207,10 @@ class GallerySurface
     return nil unless windowing?
     return routes.posts_path(tags: query_string.presence) if window_kind == :draw
 
+    # The first CARD past the box (#posts, as drawn): its cursor is its own
+    # place in the search, so the next box opens on the first post the
+    # viewer was not shown. Never a cursor of a post not listed for them,
+    # which would carry its id.
     cursor = post_set.window_cursors[posts[PostSets::Post::WINDOW_SLOTS]&.id]
     place_href(cursor) if cursor
   end
@@ -405,30 +274,23 @@ class GallerySurface
   # Shown when there are more results than this viewer is allowed to page
   # through, so the cut-off is explained where it happens rather than being
   # discovered as a missing button.
+  #
+  # Asked of the ROWS the page fetched (post_set.posts), not the cards drawn
+  # (#posts): a page whose 20 rows held one post not listed for the viewer
+  # draws 19 cards, and is still a full page with a 21st row past it.
   def truncated?
     return false if can_browse?
-    return false if posts.size < post_set.per_page
+
+    rows = post_set.posts.size
+    return false if rows < post_set.per_page
 
     # A further post THIS viewer may see, not the count: a tag's count includes
     # posts nobody at this level can see (operator, 2026-10-17), and a full
     # account would not show those either. Unordered: whether a 21st row exists
     # does not depend on the order, and order:random would sort every matching
     # row (the page itself samples instead; PostQueryBuilder#paginated_posts).
-    post_set.normalized_query.posts.reorder(nil).offset(posts.size).limit(1).pluck(:id).any?
-  end
-
-  private
-
-  def routes
-    Rails.application.routes.url_helpers
-  end
-
-  def provenance_bucket(source, pending)
-    return "pending" if pending
-    return "meta" if source & FourierTagSource::META > 0
-    return "both" if source & FourierTagSource::CREATOR > 0 && source & FourierTagSource::AUTO > 0
-    return "creator" if source & FourierTagSource::CREATOR > 0
-
-    "auto"
+    # The query the page was fetched from, so the probe and the page count
+    # the same rows.
+    post_set.window_query.posts.reorder(nil).offset(rows).limit(1).pluck(:id).any?
   end
 end

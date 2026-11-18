@@ -1,0 +1,131 @@
+// Modulation: the artists family pages. Every rule sits under
+// :where(body[data-preset="modulation"]) (interface_completeness_test).
+//
+// artists/show and artists/show_or_new (ModulationArtistComponent): the
+// shared roots (.mod-ui, .mod-panel, .mod-kv, the pill, the subject heading,
+// the strip) come from ui.scss; this is only the page's own arrangement.
+:where(body[data-preset="modulation"]) {
+  // The heading on the left, the edit links on its right; they wrap under it
+  // on a narrow screen.
+  .mod-artist-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem 1rem;
+    min-width: 0;
+  }
+
+  .mod-artist .mod-artist-edit {
+    flex: 0 0 auto;
+  }
+
+  // The entry: its wiki beside the names, URLs and relationships when there
+  // is a wiki; the side panels on one row of their own when there is none.
+  .mod-artist-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .mod-artist-side {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+    gap: 1rem;
+    align-items: start;
+    min-width: 0;
+
+    &:empty { display: none; }
+  }
+
+  @media (width >= 900px) {
+    .mod-artist-body--wiki {
+      grid-template-columns: minmax(0, 1fr) 20rem;
+
+      .mod-artist-side { grid-template-columns: minmax(0, 1fr); }
+    }
+  }
+
+  .mod-artist-wiki-panel .artist-wiki {
+    font-size: 0.92rem;
+    overflow-wrap: anywhere;
+
+    > :first-child { margin-top: 0; }
+    > :last-child { margin-bottom: 0; }
+  }
+
+  // Names: the other names, group and members as pills.
+  .mod-artist-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-width: 0;
+
+    .mod-pill {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  // URLs: one row each, the site icon then the link; an inactive URL stays
+  // dimmed and dotted, as upstream marks it.
+  .mod-artist-urls ul {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .mod-artist-urls li {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    font-size: 0.86rem;
+
+    > a:first-child { flex: 0 0 auto; line-height: 0; }
+    > a:last-child { min-width: 0; overflow-wrap: anywhere; }
+  }
+
+  .mod-artist-urls .inactive-artist-url { color: var(--mod-ink-dim); }
+
+  .mod-artist-relationships .fineprint {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--mod-ink-dim);
+
+    + .fineprint { margin-top: 0.45rem; }
+  }
+
+  .mod-artist-missing p,
+  .mod-artist .creator-release-box p,
+  .mod-artist-takedown {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+
+  // The release box: its words, then its one button as a pill.
+  .mod-artist .creator-release-box {
+    form { margin-top: 0.7rem; }
+
+    p + p { margin-top: 0.5rem; }
+
+    input[type="submit"] {
+      font: inherit;
+      font-size: 0.82rem;
+      padding: 0.35rem 1rem;
+      border: 1px solid var(--mod-line-strong);
+      border-radius: var(--mod-pill-radius);
+      background: var(--mod-surface-2);
+      color: var(--mod-ink);
+      cursor: pointer;
+
+      &:hover { background: var(--mod-surface-3); border-color: var(--mod-ink-dim); }
+    }
+  }
+}

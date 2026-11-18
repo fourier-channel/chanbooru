@@ -23,7 +23,14 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
   include TagQuarantineTestHelper
 
   DECISIONS = InterfaceRecordingHelper::ROOT.join("decisions")
-  POST_ID = /\bid="post_(\d+)"/
+  POST_ID = /\bid="post_(\d+)"|<a class="modgal-card[^"]*"[^>]*?\bdata-id="(\d+)"/
+  # A post id a page carries as a place rather than a card: a gallery
+  # card's data-key and an anchor= cursor in a pager href (PostNeighbors::
+  # Seek's "<id>~<key>"). Read for the standing rules only, not recorded.
+  CURSOR_ID = /\bdata-key="(\d+)~|[?&;]anchor=(\d+)(?:~|%7E)/
+  # The surfaces whose cards the id reader is witnessed on: the post index
+  # (article or gallery card) and the strips of the subject pages.
+  CARD_SURFACES = %w[posts artist_show wiki_show explore_popular].freeze
 
   def secrets
     { "creator_private_tag" => SECRET_TAG, "generation_prompt" => PROMPT, "banished_name" => BANISHED,
@@ -37,10 +44,11 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
     logged_before = admin_views
     fetch(method, path, **options)
     body = response.body.to_s
+    (@bodies ||= {})[@deciding] = body if @deciding
     decision = {
       "status" => response.status,
       "redirect" => (response.location if response.redirect?),
-      "posts" => body.scan(POST_ID).flatten.map(&:to_i).uniq.sort,
+      "posts" => body.scan(POST_ID).flatten.compact.map(&:to_i).uniq.sort,
       "secrets" => secrets.select { |_, text| body.include?(text) }.keys,
       "blacklist_box" => body.include?('id="blacklist-box"'),
       "admin_views_logged" => admin_views - logged_before,
@@ -77,7 +85,12 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
 
   def decisions_for(viewer)
     become(viewer)
-    surfaces = interface_surfaces(viewer).transform_values { |method, path, options| decide(method, path, **options.to_h) }
+    @bodies = {}
+    surfaces = interface_surfaces(viewer).to_h do |surface, (method, path, options)|
+      @deciding = surface
+      [surface, decide(method, path, **options.to_h)]
+    end
+    @deciding = nil
     surfaces.merge("session_keys" => session.to_hash.keys.sort - %w[session_id _csrf_token started_at])
   end
 
@@ -100,6 +113,53 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
     if %w[signed_out restricted member].include?(viewer)
       assert_not_includes(visible_ids, @closed.id, "#{viewer} was shown the post its creator hid")
       assert_equal(404, surfaces["json_closed_opened"]["status"], "the hidden post's JSON door answered #{viewer}")
+    end
+
+    # Every post any surface lists for a viewer is one that exists for them
+    # in a list (PostPreviewComponent.listed?: not banned or taken down past
+    # their level, not banished, not hidden beyond deletion; deleted is the
+    # rule above). Not "visible": a listed post whose image is withheld may
+    # keep a designed gated face, which names an id the viewer may list. The
+    # ids are read from the cards themselves, so a card of any face counts.
+    # The leak this names (2026-11-18): Modulation's gallery drew a gated
+    # card for the banned post, so a Member's page carried its id.
+    #
+    # The places a page carries count as listing too (CURSOR_ID): a cursor
+    # names a post's id and its sort key, so a pager whose prev or next is
+    # built from a row the cards omit names that post as surely as a card.
+    user = (viewer == "signed_out") ? User.anonymous : @viewers.fetch(viewer)
+    cursor_ids = @bodies.transform_values { |body| body.scan(CURSOR_ID).flatten.compact.map(&:to_i).uniq }
+    named = surfaces.to_h { |surface, d| [surface, (d["posts"].to_a | cursor_ids[surface].to_a)] }
+    world = Post.where(id: named.values.flatten.uniq).index_by(&:id)
+    unlistable = named.filter_map do |surface, ids|
+      ids = ids.reject { |id| world[id] && PostPreviewComponent.listed?(world[id], user, show_deleted: true) }
+      "#{surface}: #{ids.join(", ")}" if ids.any?
+    end
+    assert_empty(unlistable, "#{viewer} was listed posts that do not exist for them, as cards or as cursors; fix: the interface draws its list through PostPreviewComponent.listed? (GallerySurface#posts, PostStripSurface#posts), and the window's rows are the listed rows (PostSets::Post#window_query)")
+    named_ids = named.values.flatten.uniq
+    assert_not_includes(named_ids, @banned.id, "#{viewer} (below Approver) was listed the banned post") unless user.is_approver?
+    assert_not_includes(named_ids, @taken_down.id, "#{viewer} (below Moderator) was listed the taken-down post") unless user.is_moderator?
+
+    # The id reader above is the witness of every rule on ids: a page whose
+    # cards it cannot read would pass them all with an empty list. On the
+    # post index and the subject pages' strips, which list the world's
+    # ordinary posts to every signed-in viewer, the ids it read are as many
+    # as the cards drawn, and not none.
+    if viewer != "signed_out"
+      CARD_SURFACES.each do |surface|
+        next unless surfaces.dig(surface, "status") == 200
+
+        cards = @bodies.fetch(surface).scan(/<article\b[^>]*\bid="post_\d+"|<a class="modgal-card\b/).size
+        read = surfaces[surface]["posts"].to_a
+
+        assert_operator(cards, :>, 0, "#{surface} drew no cards for #{viewer}; fixture: the world's ordinary posts are listed to every signed-in viewer")
+        assert_equal(cards, read.size, "#{surface} drew #{cards} cards for #{viewer} and POST_ID read #{read.size} ids; fix: POST_ID must read every card's id, or every rule on ids passes blind")
+      end
+
+      # And the cursor reader: every gallery card's data-key is read.
+      keys = @bodies.fetch("posts").scan(/<a class="modgal-card[^"]*"[^>]*?\bdata-key="\d+~/).size
+      assert_operator(keys, :>, 0, "posts drew no keyed cards for #{viewer} under Modulation; fixture: the gallery window keys every card for a viewer who may browse") if Danbooru.config.default_experience_preset == "modulation" && user.can_browse_freely?
+      assert_equal(keys, cursor_ids["posts"].size, "posts drew #{keys} keyed cards for #{viewer} and CURSOR_ID read #{cursor_ids["posts"].size}; fix: CURSOR_ID must read every data-key, or the rule on cursors passes blind")
     end
 
     # A signed-out visitor never meets a creator's secret.

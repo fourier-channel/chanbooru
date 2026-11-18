@@ -58,9 +58,30 @@ class PostPreviewComponent < ApplicationComponent
   # creator's panel, 2026-10-08): the parent/children strip and other lists
   # built without the implicit metatags would draw it otherwise. Not the
   # whole of hidden_from?: show_deleted is this method's own rule.
+  #
+  # Class methods, so they are the ONE answer an interface's own card list
+  # asks (GallerySurface, PostStripSurface) rather than restating them.
+  #
+  # Two questions, split (2026-11-18). listed?: does this post exist for this
+  # viewer in a list at all -- not banned or taken down past their level
+  # (Post#banblocked?), not deleted unless the list asks for deleted posts,
+  # not banished, not hidden beyond deletion. A post that fails it is never
+  # drawn in any form: a card for it, even a gated one, names its id and so
+  # its existence. drawable?: listed and visible (Post#visible?), which is
+  # upstream's render? unchanged -- visible? repeats banblocked?. A listed
+  # post that is not visible (safe mode) is one an interface may still draw
+  # as a gated face, where upstream omits it.
+  def self.listed?(post, viewer, show_deleted: false)
+    post.present? && !post.banblocked?(viewer) && (!post.is_deleted? || show_deleted) && !post.hidden_as_banished?(viewer) &&
+      !post.hidden_beyond_deletion?(viewer)
+  end
+
+  def self.drawable?(post, viewer, show_deleted: false)
+    listed?(post, viewer, show_deleted: show_deleted) && post.visible?(viewer)
+  end
+
   def render?
-    post.present? && post.visible?(current_user) && (!post.is_deleted? || show_deleted) && !post.hidden_as_banished?(current_user) &&
-      !post.hidden_beyond_deletion?(current_user)
+    self.class.drawable?(post, current_user, show_deleted: show_deleted)
   end
 
   def article_attrs

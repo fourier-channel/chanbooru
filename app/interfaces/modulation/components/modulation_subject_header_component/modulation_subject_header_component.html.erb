@@ -1,0 +1,16 @@
+<%= tag.h1 class: "mod-subject", id: id do %>
+  <% if prefix.present? %>
+    <span class="mod-label mod-subject-prefix"><%= prefix %></span>
+  <% end %>
+  <% if href.present? %>
+    <%= link_to name, href, class: pill_classes %>
+  <% else %>
+    <span class="<%= pill_classes %>"><%= name %></span>
+  <% end %>
+  <% unless count.nil? %>
+    <span class="mod-subject-count"><%= count %></span>
+  <% end %>
+  <% badges.each do |badge| %>
+    <span class="mod-label mod-badge"><%= badge %></span>
+  <% end %>
+<% end %>

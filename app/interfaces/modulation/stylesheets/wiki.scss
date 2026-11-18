@@ -1,0 +1,80 @@
+// Modulation: the wiki family pages. Every rule sits under
+// :where(body[data-preset="modulation"]) (interface_completeness_test).
+//
+// wiki_pages/show (ModulationWikiComponent): the heading, the shared panel
+// and the post strip come from ui.scss. What is the wiki page's own is here:
+// the article inside its panel, the notes under the article, the other names
+// as pills, and the strip's empty line. Tokens only, so both schemes hold.
+:where(body[data-preset="modulation"]) {
+  // The original-character line (wiki_pages/_original_character) sits
+  // between the heading and the article: a quiet line, no margin of its own,
+  // since .mod-ui's gap spaces the stack.
+  .modwiki > .fineprint {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--mod-ink-dim);
+  }
+
+  // Other names (wiki_page_other_names_list): each name a chip with its
+  // lookup menu; drawn as the base pill, without the helper's bottom margin.
+  .modwiki-names > div {
+    margin: 0;
+    gap: 0.4rem;
+  }
+
+  .modwiki-names .chip-primary {
+    align-items: center;
+    height: auto;
+    padding: 0.18rem 0.7rem;
+    border: 1px solid var(--mod-line);
+    border-radius: var(--mod-pill-radius);
+    background: var(--mod-surface-2);
+    font-size: 0.8rem;
+
+    .wiki-other-name { color: var(--mod-ink); cursor: pointer; }
+    &:hover { border-color: var(--mod-line-strong); }
+  }
+
+  // The article: the wiki text inside the panel.
+  .modwiki-article {
+    padding: 1rem 1.15rem;
+    min-width: 0;
+  }
+
+  .modwiki-article > #wiki-page-body {
+    overflow-wrap: anywhere;
+
+    > :first-child { margin-top: 0; }
+    > :last-child { margin-bottom: 0; }
+  }
+
+  .modwiki-missing {
+    color: var(--mod-ink-dim);
+  }
+
+  // Under the article: View artist, the alias and implication lines, the
+  // deprecation line and the tag change notice, below one hairline.
+  .modwiki-notes {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+    margin-top: 1rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--mod-line);
+    line-height: 1.5;
+
+    p { margin: 0; }
+
+    .fineprint {
+      font-size: 0.8rem;
+      color: var(--mod-ink-dim);
+    }
+
+    .notice { width: 100%; box-sizing: border-box; }
+  }
+
+  .modwiki-artist .mod-pill {
+    text-decoration: none;
+  }
+}

@@ -1,0 +1,13 @@
+<% page_title "#{@artist.pretty_name.startcase} | Artist Profile" %>
+<% noindex if @artist.is_banned? %>
+<%= render "secondary_links" %>
+
+<%# Modulation's artist page: ModulationArtistComponent draws the body
+    upstream's app/views/artists/show.html.erb and artists/_summary draw, with
+    every condition copied from them. The head tags and the secondary links
+    above are upstream's, unchanged. %>
+<div id="c-artists">
+  <div id="a-show">
+    <%= render ModulationArtistComponent.new(artist: @artist, viewer: CurrentUser.user) %>
+  </div>
+</div>

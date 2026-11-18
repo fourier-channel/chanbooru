@@ -196,10 +196,26 @@ module PostSets
     # deleted-visibility level deleted_metatags already did -- rather than at
     # render: a chunk that fetched a page of deleted posts would draw nothing
     # and name no cursor past them.
+    #
+    # A banned post is dropped here below Approver for the same reason: the
+    # gallery never draws it for them (PostPreviewComponent.listed?,
+    # Post#banblocked?), so a chunk of a banned artist's run would arrive
+    # empty and the window would stall on it.
+    #
+    # And a taken-down post below Moderator (Post#banblocked?), which has no
+    # metatag, as a row filter (PostQuery#without_taken_down). With all three
+    # the rows this query hands back are the rows the gallery lists
+    # (PostPreviewComponent.listed?), so every answer asked of rows -- the
+    # prev cursor (#window_behind), the head, more behind and ahead, the
+    # truncated? probe -- agrees with the cards and names no post they omit.
     def window_query
-      return normalized_query if window.nil? || show_deleted? || !current_user.can_see_deleted_posts?
+      return normalized_query if window.nil?
 
-      normalized_query.build(PostQuery::AST.new(:and, [normalized_query.ast, -PostQuery::AST.metatag("status", "deleted")]))
+      dropped = []
+      dropped << -PostQuery::AST.metatag("status", "deleted") if !show_deleted? && current_user.can_see_deleted_posts?
+      dropped << -PostQuery::AST.metatag("status", "banned") unless current_user.is_approver?
+      query = dropped.empty? ? normalized_query : normalized_query.build(PostQuery::AST.new(:and, [normalized_query.ast, *dropped]))
+      current_user.is_moderator? ? query : query.without_taken_down
     end
 
     # The cursor this set pages from: an anchor, a before, an old `page=N`
