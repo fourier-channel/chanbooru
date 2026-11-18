@@ -1,4 +1,4 @@
-artist_banned 200 3a86470a1d0aba0b14cfdb8e
+artist_banned 200 ba112129a2d2e0b2b50e66d7
 artist_show 200 6fc5c75768b581b8e995a5d0
 artist_show_or_new 200 44b5e265e14fd03b745e230a
 explore_popular 200 df205fb5dd943385c5bbbf6b

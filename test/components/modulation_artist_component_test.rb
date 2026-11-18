@@ -33,8 +33,8 @@ class ModulationArtistComponentTest < ViewComponent::TestCase
 
       assert_no_css(".mod-artist-takedown")
       assert_css("h1.mod-subject .mod-pill--subject", text: "macomp flagged")
-      assert_css(".mod-subject .mod-badge", text: "BANNED")
-      assert_css(".mod-subject .mod-badge", text: "DELETED")
+      assert_css(".mod-subject .mod-badge.is-banned", text: "BANNED")
+      assert_css(".mod-subject .mod-badge.is-deleted", text: "DELETED")
     end
   end
 

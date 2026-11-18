@@ -88,10 +88,11 @@ body[data-preset="modulation"] {
     padding-inline: 1rem;
   }
 
-  /* The gallery, the post view and the creator page carry their own gutter
-     (.modgal pads itself; the post view is the full stage; .modcreator's
-     bands pad with --cg-gutter), so the frame's would double it. */
-  #page:has(.modgal, .modulation, .modcreator) { padding-inline: 0; }
+  /* The gallery, the post view, the home page and the creator page carry
+     their own gutter (.modgal and .modland pad themselves; the post view is
+     the full stage; .modcreator's bands pad with --cg-gutter), so the frame's
+     would double it. */
+  #page:has(.modgal, .modulation, .modland, .modcreator) { padding-inline: 0; }
 
   /* ---------------------------------------------------------------- header */
 
@@ -672,7 +673,7 @@ body[data-preset="modulation"] .modlogin {
      account to the rest of the site. */
   .modlogin-panels {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
     gap: 1rem;
     align-items: start;
   }

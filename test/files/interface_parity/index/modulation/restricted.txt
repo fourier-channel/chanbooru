@@ -1,4 +1,4 @@
-artist_banned 200 38cc45029fa6ca2402cb2de4
+artist_banned 200 117cf94302b3999d19abf3e6
 artist_show 200 5e401a3fac631b6da6e4995b
 artist_show_or_new 200 4f2b5d7e256c1d4ece607a18
 explore_popular 200 3ffa09a76877b216ca7347e8

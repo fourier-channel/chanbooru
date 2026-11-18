@@ -91,6 +91,17 @@
     border-radius: var(--mod-radius-sm);
   }
 
+  /* A state that warns keeps upstream's fill (artists.scss: banned-artist-label,
+     deleted-artist-label), so a banned artist does not read like a locked wiki. */
+  .mod-ui .mod-badge.is-banned,
+  .mod-ui .mod-badge.is-deleted {
+    border-color: transparent;
+    color: var(--inverse-text-color);
+  }
+
+  .mod-ui .mod-badge.is-banned { background-color: var(--banned-artist-label-color); }
+  .mod-ui .mod-badge.is-deleted { background-color: var(--deleted-artist-label-color); }
+
   // --- the post strip (ModulationPostStripComponent) ----------------------
   .modstrip {
     box-sizing: border-box;
