@@ -1,468 +1,450 @@
 <!-- phase:S-69015a -->
-# Content gating on chanbooru
+# Content Gating
 
 How 41chan's image board decides, on every request, who may see each post,
-each image and each tag.
+each image and each tag. Thirteen gates, numbered 0 to 12, each answer one
+question; a request meets them in order, and the first that says no
+decides. The numbers are names, not the order.
 
-Access is scoped by thirteen separate layers, numbered 0 to 12, which this page
-calls gates. Each gate checks one kind of thing: whether you have an account,
-what a post is, who made it and what they chose, which rooms you are in,
-whether you are signed in at all. The gates run independently and share no
-switch. A post is shown only when every gate that applies to it agrees, so a
-mistake in one gate cannot open what another one keeps closed.
+Pick who is asking above the diagram and what the post is on the right, or
+start from an example post. The line runs left to right in the order a
+request meets the gates, through every gate that lets it pass, and stops at
+the first that refuses. Every gate still runs, so the dashed line shows what
+the rest would say. Click a gate for its reason; each gate is written out in
+full below, and its lamp there follows what you pick above.
 
-## Every gate at once
+## How a request meets the gates
 
-{tags: https://booru.41chan.net/posts?tags=}
+A request travels through the gates in order. At Cloudflare's edge, gate 7
+turns away anything that is not a browser. On the board, gate 10 decides
+whether a signed-out visitor may reach the page at all, and gate 2 limits
+how much a new account can list. Then the post's own rules are asked: what
+it is (gates 1, 5, 12), whether it was deleted or jailed (4), where it came
+from (8), what its creator chose (9), and for a Matrix post, which rooms it
+lives in (3). The image is answered separately, by the media gate, and
+follows the post's answer (3). Tag names are filtered the same way (1, 5, 6,
+8, 12). Last, in your own browser, your blocklist hides what you chose not
+to see (5).
 
-One example per row; the columns are kinds of viewer, described under the
-matrix. Each cell is a button showing what that viewer gets:
+Images are not behind the edge check. The media service (gate 3) answers
+them and treats a robot exactly as a signed-out visitor: a robot that
+already holds an image's address gets the answer a signed-out visitor would,
+and finding that address takes a page it cannot open. That is why nearly
+every signed-out refusal comes from gate 10.
 
-- **VISIBLE** -- the button is up and its top row is lit: the post appears
-  and its image loads. A note under the button qualifies it.
-- **BLOCKED** -- the button is down and its bottom row is lit: the post is
-  absent everywhere (search, counts, paging, its own page) and its image is
-  refused. GATE reads the first gate that stops this viewer, and HTTP the
-  error they are answered with (404 not found, 403 forbidden, 401 not signed
-  in). Where a post's page and its image are stopped by different gates, or
-  answered with different errors, the readout shows both, the page's first.
+**A refusal gives nothing away.** A hidden post answers 404, exactly as a
+post that never existed. A board image answers 404 whenever it is refused,
+whatever the reason. Only a Matrix image says more, because Matrix's own
+media address does: 401 when you are not signed in through Matrix, 403 when
+you are but not in its room. The one 403 that is not about a room is the
+edge check's, which a robot meets on every page.
 
-The errors are chosen so that a refusal gives nothing away: a hidden post
-answers 404, exactly as a post that never existed. A board image answers 404
-whenever it is refused, whatever the reason. Only a Matrix image says more,
-because Matrix's own media address does: 401 when you are not signed in
-through Matrix, 403 when you are but not in its room. The one 403 that is
-not about a room is the edge check's (gate 7), which a robot meets on every
-page.
+---
 
-A request meets the gates in a fixed order. The edge check (gate 7) comes
-first: it lets every browser through and turns away every robot -- a script,
-crawler or monitor, anything that is not a browser -- before the board sees
-the request, so a robot opens no page at all. Images are not behind it. They
-are answered by the media service (gate 3), which treats a robot exactly as a
-signed-out visitor: a robot that already holds an image's address gets the
-answer a signed-out visitor would, and finding that address takes a page it
-cannot open. Next comes the signed-out rule (gate 10), and only then the rules
-about the post itself -- which is why nearly every signed-out cell says
-gate 10.
+#### The principles
 
-| example | An robot | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
-|---|---|---|---|---|---|---|---|---|
-| a general-rated {tag: 1girl} {tag: standing} on the landing page or a creator gallery | {no: gate 7, 403}{*} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| the same post, once it leaves the hero band | {no: gate 7, 403} / {no: gate 10, 404} | {no: gate 10, 404} / {no: gate 10, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| an explicit-rated {tag: 1girl} {tag: butthole} on the landing page or a creator gallery | {no: gate 7, 403} / {no: gate 10, 404} | {no: gate 10, 404} / {no: gate 10, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| a sensitive tag, {tag: loli} | {no: gate 7, 403} / {no: gate 10, 404} | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 1, 404} / {no: gate 1, 404} | {no: gate 1, 404} / {no: gate 1, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| deleted by a moderator | {no: gate 7, 403} / {no: gate 10, 404} | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {yes} / {yes} | {yes: its own} / {yes: its own} |
-| jailed, {tag: troll_jail, inert} | {no: gate 7, 403} / {no: gate 10, 404} | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {yes} / {yes} |
-| a banished tag, {tag: gore, inert} | {no: gate 7, 403} / {no: gate 10, 404} | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {yes} / {yes} |
-| a hidden source, {tag: aichan_someone, inert} | {no: gate 7, 403} / {no: gate 10, 404} | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {yes} / {yes} | {yes} / {yes} |
-| set private by its creator | {no: gate 7, 403} / {no: gate 10, 404} | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {yes: logged} / {yes: logged} | {yes} / {yes} |
-| a flagged tag | {no: gate 7, 403} / {no: gate 10, 404} | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {yes} / {yes} | {yes: its own} / {yes: its own} |
-| a Matrix upload, viewer not in its room | {no: gate 7, 403} / {no: gate 3, 401} | {no: gate 10, 404} / {no: gate 3, 401} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {yes} / {yes: via R2} |
-| a Matrix upload with a sensitive tag, {tag: loli}, viewer in its room | {no: gate 7, 403} / {no: gate 3, 401} | {no: gate 10, 404} / {no: gate 3, 401} | {no: gate 1, 404} / {no: gate 1, 404} | {no: gate 1, 404} / {no: gate 1, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes: via R2} |
-| that upload, on its creator's public gallery | {no: gate 7, 403}{*} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes} / {yes: via R2} |
+- **Every gate runs for every viewer.** A gate that lets you through has
+  still checked and said yes; none is skipped because of who you are. When
+  something looks wrong there is always an answer to "which gate said no?".
+- **Hidden means hidden everywhere.** A hidden post is removed from the
+  database query itself, so it is absent from search, counts, paging and
+  next/previous, not drawn as a gap. Its page, image, history, favourites,
+  pools, related tags, image search and the moderation log all answer as if
+  it did not exist.
+- **The image follows the post.** The image server asks the board, as the
+  reader, whether the post may be seen. There is no way to load an image
+  whose post you could not open.
+- **Words go with their posts.** A tag you may not see is also missing from
+  autocomplete, tag lists and tag pages.
+- **Failures close, not open.** If a gate cannot make its check (a service
+  is unreachable, a list cannot be refreshed), the answer is no.
+- **Only "yes" is cached, and briefly.** Allows are remembered for a minute
+  or two to keep pages fast; refusals never are. A post that has just been
+  hidden stops loading within about three minutes.
+- **One view, two layers.** Your board account and your Matrix account are
+  separate but joined. What each rank may see is tuned in two layers, the
+  board's gates and the rooms, and what you can see on the board you can see
+  in Matrix. Together they keep unwanted content out of public spaces, and a
+  signed-out visitor never sees an image above general.
 
-{*} The media is technically reachable, but nothing the robot can access points to it, and it cannot be derived, so it is functionally blocked.
+## Who is asking
 
-**The columns.**
+**Every post is uploaded by a bot, never by a person.** The `sample` account
+posts what is collected from 4chan; the `tunnel` account posts what is
+shared on Matrix and Discord. So when a bot can see a post, it is the bot
+that uploaded it, keeping its work going (tagging, jailing, releasing),
+never a person. The bots read Matrix images straight from storage.
 
-| column | who |
+"Signed in" means any of: a board session, an API key, or a verified Matrix
+identity. The last is how Technetium reads the board. A Matrix account with
+no linked board account yet counts as a new one.
+
+---
+
+| viewer | who |
 |---|---|
-| An robot | anything that is not a browser -- a script, crawler, scraper or monitor -- holding no session |
+| Robot | anything that is not a browser (a script, crawler, scraper or monitor) holding no session |
 | Signed out | no account session, no API key and no Matrix sign-in |
-| Restricted | a signed-in account at level 10, where every new account starts |
+| Restricted | level 10, where every new account starts |
 | Member | level 20 |
 | Gold+ | levels 30 to 37: Gold, Platinum, Builder, Contributor, Approver |
 | Moderator | level 40 |
 | Admin | levels 50 and 60: Admin and Owner |
 | Pipeline | the board's system account and its posting bots, `sample` and `tunnel` |
 
-**Every post is uploaded by a bot, never by a person.** The `sample` account
-posts what is collected from 4chan; the `tunnel` account posts what is shared
-on Matrix and Discord. So a cell like "its own" means the bot that uploaded the
-post can keep working on it -- tag it, jail it, release it -- and never that a
-person can see it. "Logged" means every admin view of a post its creator hid is
-written to the moderation log. "Via R2" means the bots read Matrix images
-straight from storage.
+## 0. Getting an account: invite codes
 
-Two gates are not rows, because they do not depend on the viewer's level:
-creator-private tags (gate 6) and published pages (gate 11).
-
-## The gates at a glance
-
-| gate | what it decides |
-|---|---|
-| 0 | who can create an account: invite codes only |
-| 1 | sensitive tags: such posts do not exist below Gold |
-| 2 | the browsing tier: how much a new account can list |
-| 3 | images follow their posts; Matrix images and posts follow their rooms |
-| 4 | deleted and jailed posts |
-| 5 | banished tags, and your own blocklist |
-| 6 | creator-private tags and generation data |
-| 7 | the edge check: browsers only |
-| 8 | creator prefixes: whole sources hidden by default |
-| 9 | creator visibility: what each creator chooses |
-| 10 | signed out: closed by default, general-rated posts only |
-| 11 | published pages and creators' timed links: a deliberate, expiring grant |
-| 12 | flagged tags: a review quarantine |
-
-## How the gates work together
-
-A request travels through them in order. At Cloudflare's edge, gate 7 turns
-away anything that is not a browser. On the board, gate 10 decides whether a
-signed-out visitor may reach the page at all, and gate 2 limits how much a new
-account can list. Then the post's own rules are asked -- what it is (gates 1,
-5, 12), whether it was deleted or jailed (4), where it came from (8), what its
-creator chose (9), and for a Matrix post, which rooms it lives in (3). The
-image is answered separately, by the media gate, and follows the post's answer
-(3). Tag names are filtered the same way (1, 5, 6, 8, 12). Last, in your own
-browser, your blocklist hides what you chose not to see (5).
-
-The gates hold to a few principles, and those are what keep access tightly
-scoped:
-
-- **Every gate runs for every viewer.** A gate that lets you through has still
-  checked and said yes; none is ever skipped because of who you are. When
-  something looks wrong there is always an answer to "which gate said no?".
-- **Hidden means hidden everywhere.** A hidden post is removed from the
-  database query itself, so it is absent from search, counts, paging and
-  next/previous, not drawn as a gap. Every route that names a post asks the
-  same question -- its page, its image, its history, favourites, pools, related
-  tags, image search, the moderation log -- and answers as if a hidden post did
-  not exist.
-- **The image follows the post.** The image server asks the board, as the
-  reader, whether the post may be seen. There is no way to load an image whose
-  post you could not open.
-- **Words go with their posts.** A tag you may not see is also missing from
-  autocomplete, tag lists and tag pages.
-- **Failures close, not open.** If a gate cannot make its check -- a service is
-  unreachable, a list cannot be refreshed -- the answer is no.
-- **Only "yes" is cached, and briefly.** Decisions to allow are remembered for
-  a minute or two to keep pages fast; refusals never are. A post that has just
-  been hidden stops loading within about three minutes.
-
----
-
-## 0. Getting an account -- invite codes
+*who can create an account: invite codes only*
 
 41chan is not open for public signup. An admin issues **invite codes** that
 allow one registration, several or any number, and that can expire or be
 revoked. The signup page asks for one, and a request without a valid code is
-refused before any account is created. Using the code and creating the account
-happen as a single step, so a code cannot be used up by a signup that then
-fails. Matrix registration on 41chan works the same way.
+refused before any account is created. Using the code and creating the
+account happen as a single step, so a code cannot be used up by a signup
+that then fails. Matrix registration on 41chan works the same way.
 
-A new account starts at **Restricted**, and staff raise it to Member (see
-gate 2). A signup that looks suspicious -- from a banned address, a likely
-duplicate account, a recently used address or a proxy -- starts Restricted
+A new account starts at **Restricted**, and staff raise it to Member (gate
+2). A signup that looks suspicious (from a banned address, a likely
+duplicate account, a recently used address or a proxy) starts Restricted
 too.
 
-**Example:** this gate is about who exists, not what they see.
+This gate is about who exists, not what they see, so it is not on the path
+above: every viewer there has got past it, or holds no account.
 
-| | can register |
+---
+
+|  | can register |
 |---|---|
 | holds a valid, unused, unexpired code | yes, as Restricted |
 | holds no code, or a used, expired or revoked one | no |
 
----
+## 1. Sensitive tags: a property of the post
 
-## 1. Sensitive tags -- a property of the post
+*such posts do not exist below Gold*
 
 These tags mark material the site does not serve casually. They describe the
 **content**, not the viewer. `loli` is one.
 
-**Below Gold, a post carrying any of them does not exist** -- signed out,
+**Below Gold, a post carrying any of them does not exist**, signed out,
 Restricted and Member alike. It is left out of results, counts, paging and
 post-to-post navigation, its page answers 404, and its image is refused. The
 tag names themselves are absent from tag lists, autocomplete, tag pages and
 the search sidebar; they appear only on a post the viewer may open.
 
-Below Gold, the only ways past this gate are: the bot that uploaded the post;
-a viewer the post's **creator lets in** (gate 9), which opens the post and its
-image -- never for a signed-out or banned viewer, and never for a jailed post;
-and a reader of a live published page that shows the image (gate 11).
-
-| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
-|---|---|---|---|---|---|---|---|
-| a sensitive tag, {tag: loli} | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 1, 404} / {no: gate 1, 404} | {no: gate 1, 404} / {no: gate 1, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-
 ---
 
-## 2. Browsing tier -- a property of the viewer
+#### Below Gold, the only ways past
 
-Below Member -- signed out, signed in only through Matrix, or Restricted --
+- the bot that uploaded the post;
+- a viewer the post's **creator lets in** ([gate 9](#gate-9)), which opens
+  the post and its image, never for a signed-out or banned viewer, and never
+  for a jailed post;
+- a reader of a live published page that shows the image ([gate
+  11](#gate-11)).
+
+## 2. Browsing tier: a property of the viewer
+
+*how much a new account can list*
+
+Below Member (signed out, signed in only through Matrix, or Restricted)
 **every list is at most 20 results and one page**: posts, tags, users, wiki
 pages, artists, pools, favourites, histories and the rest. Asking for more
 results per page is clamped to the same 20, asking for a second page is
 refused (410), and there is no post-to-post navigation. Lists embedded in a
-response carry their first 20 as well, except that the creator of a favourite
-group always gets the whole of their own group. A creator's page shows its
-first 20 posts, then "Sign in to see more!" over placeholders that carry no
-link, tag or address. The front page's showcase is the one exemption. A full
-account sees 200 per page everywhere.
+response carry their first 20 as well, except that the creator of a
+favourite group always gets the whole of their own group. A creator's page
+shows its first 20 posts, then "Sign in to see more!" over placeholders that
+carry no link, tag or address. The front page's showcase is the one
+exemption. A full account sees 200 per page everywhere.
 
 Raising a Restricted account to Member is a deliberate act by staff.
 
-**Retired sections** are closed to everyone but the Owner:
+**Retired sections** are closed to everyone but the Owner. Comments, notes
+and the forum are not part of this site. The media and metadata sections
+listed uploaded images by their checksum, including images their posts'
+rules would have hidden, so they were closed. Each answers 404 exactly like
+a missing post, including through the API. The server status page is for
+admins only.
 
-    comments  comment_votes  forum_topics  forum_posts  forum_post_votes
-    forum_topic_visits  notes  note_versions  media_assets  ai_tags
-    media_metadata  metrics  jobs
-
-Comments, notes and the forum are not part of this site. The media and
-metadata sections listed uploaded images by their checksum, including images
-their posts' rules would have hidden, so they were closed. Each answers 404
-exactly like a missing post, including through the API. The server status page
-is for admins only.
-
-**Example:** an ordinary post, `1girl solo`, with no sensitive tag.
-
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
-|---|---|---|---|---|---|---|---|
-| the post | see gate 10 | 20 results, one page | visible | visible | visible | visible | visible |
-| any list (tags, users, pools...) | see gate 10 | 20, one page | 200 a page | 200 a page | 200 a page | 200 a page | 200 a page |
-| a retired section | 404 | 404 | 404 | 404 | 404 | 404 (Owner: opens) | 404 |
+This gate limits listings. It never stops a single post, so on the path
+above it always passes.
 
 ---
 
-## 3. Images -- they follow their post
+|  | below Member | Member and above |
+|---|---|---|
+| any list | 20, one page; page 2 is 410 | 200 a page |
+| a retired section | 404 | 404 (the Owner: opens) |
+
+#### Retired sections
+
+`comments` `comment_votes` `forum_topics` `forum_posts` `forum_post_votes`
+`forum_topic_visits` `notes` `note_versions` `media_assets` `ai_tags`
+`media_metadata` `metrics` `jobs`
+
+## 3. Images: they follow their post
+
+*images follow their posts; Matrix images and posts follow their rooms*
 
 The board keeps no images of its own. Every image lives in object storage
-(Cloudflare R2), and every request for one is answered at Cloudflare's edge by
-our media service. It asks the access gate for a decision and, only on a yes,
-streams the file from storage itself, so no image passes through the board's
-server or the gate's. Only the edge service receives a storage link; anything
-else asking the gate gets the decision alone.
+(Cloudflare R2), and every request for one is answered at Cloudflare's edge
+by our media service. It asks the access gate for a decision and, only on a
+yes, streams the file from storage itself, so no image passes through the
+board's server or the gate's. Only the edge service receives a storage link;
+anything else asking the gate gets the decision alone.
 
-There are two kinds of image, decided differently:
+This is one gate with two doors. On the page, a Matrix post is visible only
+to members of its rooms; on the image, the media gate answers.
 
-| image | where it is fetched | decided by |
-|---|---|---|
-| a Matrix upload | Matrix's own media address, `matrix.41chan.net/_matrix/client/v1/media/...` | membership of the room it was posted in |
-| everything else | `/fourier/booru/<checksum>`, and the 180, 360 and 720 thumbnails | the board's answer: may THIS reader see a post with this image? |
+#### Board images follow their post
 
-**Board images follow their post.** The gate asks the board first as a
-signed-out reader and, only if that is a no, as you. So an image is served
-exactly to the viewers its post is visible to: a sensitive image to Gold and
-above, a deleted one to admins, a hidden one to nobody. A thumbnail is refused
-like its original. A refused image answers 404, the same as one that does not
-exist. If the board cannot be reached, the gate refuses (503). A
-Matrix upload's file is never served on this route unless a visible post that
-is not a Matrix upload holds the same file.
+The gate asks the board first as a signed-out reader and, only if that is a
+no, as you. So an image is served exactly to the viewers its post is visible
+to: a sensitive image to Gold and above, a deleted one to admins, a hidden
+one to nobody. A thumbnail is refused like its original. A refused image
+answers 404, the same as one that does not exist. If the board cannot be
+reached, the gate refuses (503). A Matrix upload's file is never served on
+this route unless a visible post that is not a Matrix upload holds the same
+file.
 
-**Matrix images follow their room -- and the quarantine.** A Matrix image
-whose post is jailed, or carries a banished or flagged tag (gates 4, 5, 12), is
-refused to everyone, admins included; it is reviewed only in the moderation
-console's jail panel, which reads it from storage. Otherwise the gate checks
-which rooms the image was posted in and whether you are joined to one. The gate
-re-reads the quarantine list every 30 seconds; if it cannot, it keeps the last
-good list for 30 minutes and then refuses every Matrix image until it can. A
-refused Matrix image answers 401 to a reader not signed in through Matrix, 403
-to one outside its rooms, 404 while it is quarantined or its post is hidden
-from you (next), and 503 while the gate cannot decide.
+#### Matrix images follow their room, and the quarantine
 
-**In its rooms, a Matrix image follows its post too** (operator,
-2026-11-11). Being in the room is not enough: when the board hides the
-image's post from you by any other gate -- a sensitive tag below Gold
-(gate 1), deleted or jailed (gate 4), a hidden source, its creator's choice,
-a flagged tag -- the gate refuses you the image with 404, as it refuses a
-board image. A new image shows until the tagger has tagged it, moments after
-it is posted; in Technetium the picture then visibly pops out of the room,
-so the room sees that it does not belong there. Another Matrix client keeps
-the message without its picture: only its text and details are left. The
+A Matrix image whose post is jailed, or carries a banished or flagged tag
+(gates 4, 5, 12), is refused to everyone, admins included; it is reviewed
+only in the moderation console's jail panel, which reads it from storage.
+Otherwise the gate checks which rooms the image was posted in and whether
+you are joined to one. The gate re-reads the quarantine list every 30
+seconds; if it cannot, it keeps the last good list for 30 minutes and then
+refuses every Matrix image until it can.
+
+#### In its rooms, a Matrix image follows its post too
+
+Being in the room is not enough: when the board hides the image's post from
+you by any other gate (a sensitive tag below Gold, deleted or jailed, a
+hidden source, its creator's choice, a flagged tag), the gate refuses you
+the image with 404, as it refuses a board image. A new image shows until the
+tagger has tagged it, moments after it is posted; in Technetium the picture
+then visibly pops out of the room, so the room sees that it does not belong
+there. Another Matrix client keeps the message without its picture. The
 level that counts is your linked board account's; a Matrix account that has
 none yet counts as a new one. An image no post holds is decided by its rooms
-alone. If the board cannot be asked, the gate refuses (503). Encrypted
-rooms -- today only direct messages -- are outside this: their images are
-never matched to a post.
+alone. If the board cannot be asked, the gate refuses (503). Encrypted rooms
+(today only direct messages) are outside this: their images are never
+matched to a post.
 
-**Matrix posts follow their image.** A post whose image came from Matrix is
-visible to exactly the viewers who can see the image: the rooms it was posted
-in (including forwards by members, less messages since deleted), intersected
-with the rooms you have joined. A site asset -- an avatar, a room icon, an
-emote -- is visible to any signed-in viewer with a verified Matrix identity.
-Everyone else gets no post: not in search, paging or next/previous, and its
-page answers 404. **Admins are not exempt**; Matrix posts are moderated in the
-jail panel. Signed in with a board account but no verified Matrix identity,
-there are no Matrix posts at all; signed out, none either. For every viewer
-the exception is what a creator placed on a public gallery (below). A tag name found only on
+#### Matrix posts follow their image
+
+A post whose image came from Matrix is visible to exactly the viewers who
+can see the image: the rooms it was posted in (including forwards by
+members, less messages since deleted), intersected with the rooms you have
+joined. A site asset (an avatar, a room icon, an emote) is visible to any
+signed-in viewer with a verified Matrix identity. Everyone else gets no
+post: not in search, paging or next/previous, and its page answers 404.
+**Admins are not exempt**; Matrix posts are moderated in the jail panel.
+Signed in with a board account but no verified Matrix identity, there are no
+Matrix posts at all; signed out, none either. A tag name found only on
 Matrix posts you cannot see is absent from your tag lists. Counts are not
-narrowed: a tag's count may include Matrix posts you cannot see. If the board
-cannot learn which rooms you have joined, you get no Matrix posts.
+narrowed: a tag's count may include Matrix posts you cannot see. If the
+board cannot learn which rooms you have joined, you get no Matrix posts.
 
-**Deleting a message takes its image out of that room.** A room counts only
-while the message that placed the image there still stands. Once it is
-deleted, that room's members are refused the image within the caching window
-below. The same holds for a deleted avatar, room icon or emote.
+#### Deleting a message takes its image out of that room
 
-**A creator's public gallery lets its own pictures out.** A Matrix post a
-creator placed on a gallery that is not private -- a hero pick, a miniband
-picture, the banner, a Tuner picture -- passes this gate for everyone, signed
-in or out, for about two hours after the gallery is viewed, and the next view
-renews it. The grant belongs to the gallery, not to whoever viewed it. It
-passes this gate only: a deleted, jailed, flagged or otherwise hidden post
-stays hidden, a post whose every message was deleted stays hidden, and a
-private gallery grants nothing. And it passes only a post a signed-out
-visitor could see but for this gate, for everyone: a picture behind a
-sensitive tag is not let out even to Gold, since its image could only be
-asked for as a signed-out visitor. Its card is simply absent, as on the
-front page, and the gallery shows the rest; inside its rooms it shows as
-ever. Signed out, its page opens like any other
-signed-out post's: while the site is showing it (gate 10). Its image opens to
-anyone while the grant is fresh.
+A room counts only while the message that placed the image there still
+stands. Once it is deleted, that room's members are refused the image within
+the caching window. The same holds for a deleted avatar, room icon or emote.
+
+#### A creator's public gallery lets its own pictures out
+
+A Matrix post a creator placed on a gallery that is not private (a hero
+pick, a miniband picture, the banner, a Tuner picture) passes this gate for
+everyone, signed in or out, for about two hours after the gallery is viewed,
+and the next view renews it. The grant belongs to the gallery, not to
+whoever viewed it. While it is placed, the board decides through its own
+gates for the reader's rank: the creator's placement makes the board the
+more permissive surface, so a Gold reader outside the rooms sees a placed
+sensitive post and its image. Signed out still sees general-rated posts only
+(gate 10). It passes this gate only: a deleted, jailed, flagged or otherwise
+hidden post stays hidden, a post whose every message was deleted stays
+hidden, and a private gallery grants nothing. When the grant lapses, the
+post is hidden again; inside its rooms it shows as ever.
+
+> Rolling out 2026-11-11: until it is live, a placed picture behind a
+> sensitive tag stays off the gallery for every rank.
 
 **An upload that never became a post** is visible only to admins and to the
 bot that uploaded it.
 
-### Is Synapse's own media service used?
+---
 
-Not for reading. Matrix apps fetch images from Matrix's standard
-authenticated-media address, and on 41chan that address is answered by our edge
-service, never by Synapse. Synapse's own handler checks only that you are
-signed in, not which rooms you are in, so it cannot be reached from the
-internet at all. The older unauthenticated media addresses are closed (404),
-and media requests from other servers are refused (403) -- this server does
-not federate. Synapse still receives uploads; it writes each one straight to
-storage and frees its local copy within a day.
+#### Two kinds of image
 
-Measured against production on 2026-10-20 with a freshly posted image: a room
-member got the image; an account outside the room was refused on the
-authenticated address (403), on its thumbnail (403), on every malformed variant
-of the address (404), on the old unauthenticated addresses (404) and on the
-federation address (403); a request with no account was refused (401).
+| image | fetched from | decided by |
+|---|---|---|
+| a Matrix upload | Matrix's own media address, `matrix.41chan.net/_matrix/client/v1/media/...` | membership of the room it was posted in |
+| everything else | `/fourier/booru/<checksum>`, and the 180, 360 and 720 thumbnails | the board's answer: may THIS reader see a post with this image? |
 
-**Caching.** Only allows are cached: the edge keeps one for 60 seconds for
-board images and 150 for Matrix images, and the gate keeps its own for 120.
-So an image that has just been jailed or flagged, or whose message was just
-deleted, can stay readable for about three minutes. Your list of joined rooms
-is cached for five minutes, so after you leave a room its images can stay
-readable for up to about seven and a half.
+#### A refused Matrix image answers
+
+| answer | meaning |
+|---|---|
+| 401 | not signed in through Matrix |
+| 403 | signed in, but outside its rooms |
+| 404 | quarantined, or its post is hidden from you |
+| 503 | the gate cannot decide right now |
+
+#### Caching
+
+Only allows are cached: the edge keeps one for 60 seconds for board images
+and 150 for Matrix images, and the gate keeps its own for 120. So an image
+that has just been jailed or flagged, or whose message was just deleted, can
+stay readable for about three minutes. Your list of joined rooms is cached
+for five minutes, so after you leave a room its images can stay readable for
+up to about seven and a half.
 
 `?w=` and `?h=` pick the 180, 360 or 720 thumbnail made at upload; with
 neither, the original is served; `?dl=1` serves it as a download.
 
-**Nothing is kept on the homeserver, and there is no fallback.** An image that
-storage does not hold is refused (404); there is no second source.
+#### Is Synapse's own media service used?
 
-| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
-|---|---|---|---|---|---|---|---|
-| a general-rated {tag: 1girl} {tag: standing} on the landing page or a creator gallery | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| the same post, once it leaves the hero band | {no: gate 10, 404} / {no: gate 10, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| a Matrix upload, viewer not in its room | {no: gate 10, 404} / {no: gate 3, 401} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {no: gate 3, 404} / {no: gate 3, 403} | {yes} / {yes: via R2} |
-| that upload, on its creator's public gallery | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes: about 2 h} / {yes: about 2 h} | {yes} / {yes: via R2} |
+Not for reading. Matrix apps fetch images from Matrix's standard
+authenticated-media address, and on 41chan that address is answered by our
+edge service, never by Synapse. Synapse's own handler checks only that you
+are signed in, not which rooms you are in, so it cannot be reached from the
+internet at all. The older unauthenticated media addresses are closed (404),
+and media requests from other servers are refused (403); this server does
+not federate. Synapse still receives uploads; it writes each one straight to
+storage and frees its local copy within a day.
 
----
+Measured against production on 2026-10-20 with a freshly posted image: a
+room member got the image; an account outside the room was refused on the
+authenticated address (403), on its thumbnail (403), on every malformed
+variant of the address (404), on the old unauthenticated addresses (404) and
+on the federation address (403); a request with no account was refused
+(401).
+
+**Nothing is kept on the homeserver, and there is no fallback.** An image
+that storage does not hold is refused (404); there is no second source.
 
 ## 4. Deleted and jailed posts
 
+*deleted posts are gone below Admin; jailed posts from everyone but the
+bots*
+
 Below Admin, deleted posts are left out of every query, and a deleted post's
 page answers as if it did not exist. Standard Danbooru is looser: it still
-returns and counts deleted posts and only declines to draw them. The bot that
-uploaded a post can still open it by direct link and keep working on it; no
-person can.
+returns and counts deleted posts and only declines to draw them. The bot
+that uploaded a post can still open it by direct link and keep working on
+it; no person can.
 
-**A jailed post is a deleted post carrying `troll_jail`**, and it is withheld
-from **everyone except the bots**, admins included -- even if its deletion
-did not go through, because the tag alone withholds it. Jailed posts are
-reviewed and released only in the moderation console's jail panel; the board
-itself refuses to remove the jail tag or the deletion. When the board jails a
-post on its own (a moderator's tag, a banished tag's safety net, a banish from
-the flagged-tag queue), it reports the jailing to the panel, so no jailing goes
-unseen by the place that controls it.
+**A jailed post is a deleted post carrying `troll_jail`**, and it is
+withheld from **everyone except the bots**, admins included, even if its
+deletion did not go through, because the tag alone withholds it. Jailed
+posts are reviewed and released only in the moderation console's jail panel;
+the board itself refuses to remove the jail tag or the deletion. When the
+board jails a post on its own (a moderator's tag, a banished tag's safety
+net, a banish from the flagged-tag queue), it reports the jailing to the
+panel, so no jailing goes unseen by the place that controls it.
 
 Inherited from standard Danbooru and unchanged: a taken-down post is hidden
 below Moderator, and a banned post below Approver.
 
-| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
-|---|---|---|---|---|---|---|---|
-| deleted by a moderator | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {yes} / {yes} | {yes: its own} / {yes: its own} |
-| jailed, {tag: troll_jail, inert} | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {no: gate 4, 404} / {no: gate 4, 404} | {yes} / {yes} |
-
-A published page never shows a jailed image (gate 11).
-
 ---
+
+|  | who still sees it |
+|---|---|
+| deleted | Admin and Owner; the uploading bot, by direct link |
+| jailed | the bots only; reviewed in the jail panel |
+| taken down | Moderator and above |
+| banned | Approver and above |
+
+A published page never shows a jailed image ([gate 11](#gate-11)).
 
 ## 5. Banished tags, and your blocklist
 
+*words removed from the site, and your own filter*
+
 Two mechanisms, and only the first is a gate.
 
-**Banished tags** are words removed from the site, and with them every post
-that carries one.
+#### Banished tags
 
-- A tag is banished with one click from the flagged-tag queue (gate 12). The
-  board then jails every post carrying it, and a post that gains the tag later
-  is jailed the moment it does.
-- **The words are gone for everyone but the bots** -- tag lists,
-  autocomplete, tag panels, related tags -- admins included. No setting
-  reveals them; banished tags are moderated only in the jail panel.
+Words removed from the site, and with them every post that carries one.
+
+- A tag is banished with one click from the flagged-tag queue ([gate
+  12](#gate-12)). The board then jails every post carrying it, and a post
+  that gains the tag later is jailed the moment it does.
+- **The words are gone for everyone but the bots** (tag lists, autocomplete,
+  tag panels, related tags), admins included. No setting reveals them;
+  banished tags are moderated only in the jail panel.
 - **The posts are withheld from everyone but the bots**, deleted or not. A
   post released from the jail keeps its tags and stays withheld while it
   carries a banished one: releasing lifts the jail, not the banishment.
 - A tag is unbanished only in the jail panel. Unbanishing releases no post;
   each jailed post is still released on its own.
 
-**Your blocklist** is your own filter, and the only one. There is no
-site-wide blacklist: banished posts are withheld on the server, so a second
-filter in the browser could only hide a bug.
+#### Your blocklist
+
+Your own filter, and the only one. There is no site-wide blacklist: banished
+posts are withheld on the server, so a second filter in the browser could
+only hide a bug.
 
 - It sits in a panel next to the refresh and purge buttons. Add and remove
   tags at will and the view updates as you go.
 - A rule can be **locked** so it is not removed by accident.
-- It starts empty. Tags on one line must all match; `-` excludes. Signed out,
-  the list lives in your browser and joins your account when you sign in.
+- It starts empty. Tags on one line must all match; `-` excludes. Signed
+  out, the list lives in your browser and joins your account when you sign
+  in.
 - Other apps can read it from your profile.
 
-**It is a filter in your browser, not a gate on the server.** The board still
-sends a blocked post to everyone allowed to see it, and your browser hides its
-thumbnail and image. Its page, tags and image address are still served. It
-decides what you choose not to see; who MAY see a post is decided by the
-gates.
+**It is a filter in your browser, not a gate on the server.** The board
+still sends a blocked post to everyone allowed to see it, and your browser
+hides its thumbnail and image. Its page, tags and image address are still
+served. It decides what you choose not to see; who may see a post is decided
+by the gates.
 
-| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
-|---|---|---|---|---|---|---|---|
-| a banished tag, {tag: gore, inert} | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {no: gate 5, 404} / {no: gate 5, 404} | {yes} / {yes} |
+---
 
-**Your blocklist, for a post tagged `insect`.**
+#### Your blocklist, for a post tagged `insect`
 
-| | the viewer who blocked `insect` | every other viewer |
+|  | you, who blocked `insect` | every other viewer |
 |---|---|---|
 | its thumbnail in listings | hidden in the browser | shown, as their gates allow |
 | its own page | opens, image hidden in the browser | opens, as their gates allow |
 | its image file, by address | loads | loads, as their gates allow |
 
----
-
 ## 6. Creator-private tags and generation data
+
+*tags from a creator's prompt are the creator's alone*
 
 Some tags on a post are **private**: the ones that came from its creator's
 generation prompt, and the generation data itself (the prompt and settings).
 **The creator decides, and until there is a control for sharing them, the
-creator alone sees them** -- not admins, not moderators, not the bots. The
+creator alone sees them**: not admins, not moderators, not the bots. The
 creator is the Matrix account recorded for the post, matched to the viewer's
 verified Matrix identity, never anything inferred from the post's tags.
 
-The private tags are left out of the page entirely, including the part of the
-page a blocklist matches against. So **your blocklist cannot match a tag you
-are not allowed to see.** A post with no private tags keeps all of them.
+The private tags are left out of the page entirely, including the part of
+the page a blocklist matches against. So **your blocklist cannot match a tag
+you are not allowed to see.** A post with no private tags keeps all of them.
 
 This gate decides tags, not the image: the image follows the post's other
-gates.
+gates. It does not depend on the viewer's level, so on the path above it is
+drawn inside the Tag names column.
 
 **Tag grants** let staff give one user the ability to edit the one artist a
 tag names. There is no grant that reveals private tags.
 
-**Example: `masterpiece` on a Matrix upload by `41chan_alice`, there only
-because her prompt contained it.**
-
-| | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
-|---|---|---|---|---|---|---|---|
-| the tag `masterpiece` on that post | absent | absent | absent | absent | absent | absent | absent |
-
-Visible only to **alice herself**, along with her generation data.
-
 ---
 
-## 7. The edge check -- browsers only
+#### Example
+
+`masterpiece` on a Matrix upload by `41chan_alice`, there only because her
+prompt contained it. Every column of viewer, Admin and Pipeline included,
+sees the post without that tag. Only **alice herself** sees it, along with
+her generation data.
+
+## 7. The edge check: browsers only
+
+*anything that is not a browser is turned away before the board*
 
 This gate is not part of the board; a request meets it before the board is
 involved. **Every signed-out request to `booru.41chan.net` gets an invisible
@@ -472,227 +454,243 @@ request that carries neither a session nor that clearance, so the rule holds
 even while a change to it is still reaching every part of Cloudflare's
 network.
 
-A few paths are exempt, each for a reason:
+The cost is that the board is closed to anything that will not run a
+browser: scripts, crawlers and command-line tools. That is acceptable here
+and would not be on an open site. **A 403 carrying a `cf-mitigated` header
+is this gate working, not an outage.**
 
-- **Form submissions** are never checked at the edge, because a check can lose
-  what was submitted. A person is checked on the form's page, and the submit
-  that follows goes straight through.
-- **The sign-in and signup pages** are exempt at the server too: they are the
-  only pages a person must reach before holding any session, so nothing may
-  ever stand between a new person and registering.
-- **The media and sign-in exchange paths** enforce their own rules (gate 3).
+#### Exempt, each for a reason
+
+- **Form submissions** are never checked at the edge, because a check can
+  lose what was submitted. A person is checked on the form's page, and the
+  submit that follows goes straight through.
+- **The sign-in and signup pages** are exempt at the server too: they are
+  the only pages a person must reach before holding any session, so nothing
+  may ever stand between a new person and registering.
+- **The media and sign-in exchange paths** enforce their own rules ([gate
+  3](#gate-3)).
 - **`robots.txt`** stays readable, so the refusal it declares can be read.
-- **Discord's link previews** may fetch the front page, so a link pasted into
-  Discord shows a preview.
+- **Discord's link previews** may fetch the front page, so a link pasted
+  into Discord shows a preview.
 
-The cost is that the board is closed to anything that will not run a browser:
-scripts, crawlers and command-line tools. That is acceptable here and would not
-be on an open site. **A 403 carrying a `cf-mitigated` header is this gate
-working, not an outage.**
+---
 
-**Example:** any page, say a `1girl` post's page.
+#### Any page, say a `1girl` post's
 
-| | reaches the board |
+|  | reaches the board |
 |---|---|
 | a signed-in browser | yes, unchecked |
 | a signed-out browser | yes, after an invisible check; then gate 10 applies |
 | scripts, crawlers, monitoring | no: 403 with `cf-mitigated` |
 | Discord fetching a preview of the front page | yes |
 
----
+## 8. Creator prefixes: whole sources hidden by default
 
-## 8. Creator prefixes -- whole sources hidden by default
+*a post's source decides who sees it first*
 
-Every post's creator tag carries a prefix naming where it came from: `4chan_`
-(collected from 4chan), `41chan_` (posted on Matrix) or `aichan_` (posted on
-the AIchan Discord). Each prefix is visible to everyone, to members, or to
-admins.
+Every post's creator tag carries a prefix naming where it came from. Each
+prefix is visible to everyone, to members, or to admins.
 
-**`aichan_` is admins only.** A post whose creator tag carries a hidden prefix
-is hidden at every door, and the tag names are withheld from tag lists and
-autocomplete. Admins and the bots always see them. There are two ways out: the
-creator, once their claim on exactly that tag is approved, sees their own
-posts; and an admin or that creator can **release** the tag, after which its
-posts follow the ordinary rules. Prefix tags are locked: only an admin or a
-bot can add or remove one.
+**`aichan_` is admins only.** A post whose creator tag carries a hidden
+prefix is hidden at every door, and the tag names are withheld from tag
+lists and autocomplete. Admins and the bots always see them.
 
-| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
-|---|---|---|---|---|---|---|---|
-| a hidden source, {tag: aichan_someone, inert} | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {no: gate 8, 404} / {no: gate 8, 404} | {yes} / {yes} | {yes} / {yes} |
-
-Also visible to `someone`, once their claim on `aichan_someone` is approved.
-Once the tag is released, the post follows the other gates like any other.
+There are two ways out: the creator, once their claim on exactly that tag is
+approved, sees their own posts; and an admin or that creator can **release**
+the tag, after which its posts follow the ordinary rules. Prefix tags are
+locked: only an admin or a bot can add or remove one.
 
 ---
 
-## 9. Creator visibility -- the creator's own choice
+| prefix | came from |
+|---|---|
+| `4chan_` | collected from 4chan |
+| `41chan_` | posted on Matrix |
+| `aichan_` | posted on the AIchan Discord; admins only |
+
+A post tagged `aichan_someone` is also visible to `someone`, once their
+claim on that tag is approved. Once the tag is released, the post follows
+the other gates like any other.
+
+## 9. Creator visibility: the creator's own choice
+
+*what each creator chooses*
 
 A creator chooses who sees their posts, for all of them or post by post:
 
-- **public** -- whoever the site's other gates allow. Narrows nothing.
-- **groups** -- members of the groups they list, plus people they name.
-- **private** -- only the people they name. No group ever opens a private post.
+- **public**: whoever the site's other gates allow. Narrows nothing.
+- **groups**: members of the groups they list, plus people they name.
+- **private**: only the people they name. No group ever opens a private
+  post.
 
 Creators can also **allow** and **block** named people, and **a block beats
-every allow**. An explicit allow -- a named viewer, a member of a listed group,
-or the creator -- can also open a post that gate 1 would hide from that viewer,
-post and image alike, but never for a signed-out or banned viewer or a jailed
-post. A narrowed post is hidden at query level and its page answers as a
-missing post. **Admins always see**, and every admin view of a post its
-creator hid is written to the moderation log. Moderators can neither see nor
-act on it.
+every allow**. An explicit allow (a named viewer, a member of a listed
+group, or the creator) can also open a post that gate 1 would hide from that
+viewer, post and image alike, but never for a signed-out or banned viewer or
+a jailed post. A narrowed post is hidden at query level and its page answers
+as a missing post.
 
-| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
-|---|---|---|---|---|---|---|---|
-| set private by its creator | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {no: gate 9, 404} / {no: gate 9, 404} | {yes: logged} / {yes: logged} | {yes} / {yes} |
-
-Say the post is by `41chan_alice` and she named bob: bob sees it too, and so
-does alice herself. If alice blocks carol, carol cannot see it, even through a
-group alice opened.
+**Admins always see**, and every admin view of a post its creator hid is
+written to the moderation log. Moderators can neither see nor act on it.
 
 ---
 
-## 10. Signed out -- closed by default, general-rated only
+#### Example
+
+Say the post is by `41chan_alice` and she named bob: bob sees it too, and so
+does alice herself. If alice blocks carol, carol cannot see it, even through
+a group alice opened.
+
+## 10. Signed out: closed by default, general-rated only
+
+*every page not on an explicit list is closed*
 
 A signed-out visitor is refused **every page that is not on an explicit
 list**, with the same 404 a hidden post gets; a 403 or a redirect to sign in
 would confirm there is something there. A page added to the site later is
 closed until someone opens it on purpose, and an automated test walks every
-route to hold that. "Signed in" means any of: a board session, an API key, or
-a verified Matrix identity -- the last is how Technetium reads the board.
+route to hold that.
 
-What stays open, narrowed so that none of it can be used to walk the board:
-
-- the front page;
-- the newest posts, or one featured creator's first page;
-- a post's own page, only while the site is showing it to signed-out visitors:
-  it is among the newest posts, in a promoted creator's curated set, or was
-  shown to a signed-out visitor within roughly the last hour or two;
-- promoted creator galleries.
-
-Every other listing -- popular, favourites, pools and the rest -- is for
+Every other listing (popular, favourites, pools and the rest) is for
 members. Everything that is open still passes the other gates: a sensitive
 post is not on the front page either.
 
-**Signed out sees general-rated posts only** (operator 2026-11-08). Every open
-page above browses in safe mode for a signed-out visitor: only posts rated
+**Signed out sees general-rated posts only** (operator, 2026-11-08). Every
+open page browses in safe mode for a signed-out visitor: only posts rated
 general (`rating:g`) are drawn, listed, opened or have their image loaded. A
 post rated sensitive, questionable or explicit is absent for them, as if
-hidden, wherever it would otherwise appear -- a creator's gallery bands
-included. Signing in lifts it. One exception, unchanged: a **published page**
-(gate 11) shows exactly what it showed before; this rule neither closes nor
-opens anything there. A Matrix reader whom a room refuses still gets a public
-creator gallery's placed posts at every rating (gate 3's temporary grant):
-they are signed in, only not in that room.
+hidden, wherever it would otherwise appear, a creator's gallery bands
+included. Signing in lifts it.
 
-**Images follow pages.** A signed-out visitor loads a post's image only while
-that post's page would open for them. A cached answer can outlast a post's
-"being shown" status by about three minutes.
+A **published page** ([gate 11](#gate-11)) shows exactly what it showed
+before; this rule neither closes nor opens anything there. A Matrix reader
+whom a room refuses is signed in, only not in that room, so a public creator
+gallery's placed posts still reach them by their rank ([gate 3](#gate-3)).
 
-| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
-|---|---|---|---|---|---|---|---|
-| a general-rated {tag: 1girl} {tag: standing} on the landing page or a creator gallery | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| the same post, once it leaves the hero band | {no: gate 10, 404} / {no: gate 10, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
-| an explicit-rated {tag: 1girl} {tag: butthole} on the landing page or a creator gallery | {no: gate 10, 404} / {no: gate 10, 404} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} | {yes} / {yes} |
+**Images follow pages.** A signed-out visitor loads a post's image only
+while that post's page would open for them. A cached answer can outlast a
+post's "being shown" status by about three minutes.
 
 ---
 
-## 11. Published pages -- a grant, not a loophole
+#### What stays open
+
+Narrowed so that none of it can be used to walk the board:
+
+- the front page;
+- the newest posts, or one featured creator's first page;
+- a post's own page, only while the site is showing it to signed-out
+  visitors: it is among the newest posts, in a promoted creator's curated
+  set, or was shown to a signed-out visitor within roughly the last hour or
+  two;
+- promoted creator galleries.
+
+## 11. Published pages: a grant, not a loophole
+
+*published threads and creators' timed links: a deliberate, expiring grant*
 
 Moderators can **publish** a thread as a page with a random, unguessable
-address, which can expire. Publishing is a deliberate grant, separate from the
-board's browsing rules: while the page is live, a reader holding the address
-can see each image it shows -- including one the board would hide from that
-reader, such as a sensitive one. **A jailed, banished or flagged image is never
-released:** the page withholds it, with no checksum or tag name in what it
-sends. The publishing service re-reads the quarantine list every 60 seconds; if
-it cannot, the last good list holds for 30 minutes, and after that the page
-withholds every image. When the page expires or is taken down, the grant ends
-with it. If the service cannot be reached, the gate refuses.
+address, which can expire. Publishing is a deliberate grant, separate from
+the board's browsing rules: while the page is live, a reader holding the
+address can see each image it shows, including one the board would hide from
+that reader, such as a sensitive one. **A jailed, banished or flagged image
+is never released:** the page withholds it, with no checksum or tag name in
+what it sends. The publishing service re-reads the quarantine list every 60
+seconds; if it cannot, the last good list holds for 30 minutes, and after
+that the page withholds every image. When the page expires or is taken down,
+the grant ends with it. If the service cannot be reached, the gate refuses.
 
-**A creator's timed link is the same grant** (CREATOR_REACH sec 2, built
-2026-11-08). A creator picks up to 24 of their own posts, at any rating, on
-their gallery's edit screen, and an end date at most 30 days out; the booru
-hands that list to the same publishing service once, and the service serves
-the page and the grant exactly as for a published thread: the same withholding
-of jailed, banished and flagged images on every view, the same end. The
-creator can end it early with End now; a creator has at most 5 live links.
-Both numbers are settings. The booru, not the service, decides which posts are
-the creator's own. A post hidden later for any other reason stays on a live
-link until it ends or is ended (the operator's accepted trade).
+**A creator's timed link is the same grant.** A creator picks up to 24 of
+their own posts, at any rating, on their gallery's edit screen, and an end
+date at most 30 days out; the booru hands that list to the same publishing
+service once, and the service serves the page and the grant exactly as for a
+published thread: the same withholding of jailed, banished and flagged
+images on every view, the same end. The creator can end it early with End
+now; a creator has at most 5 live links. Both numbers are settings. The
+booru, not the service, decides which posts are the creator's own. A post
+hidden later for any other reason stays on a live link until it ends or is
+ended.
 
 The moderation console itself is separate: it opens only to a Matrix account
 at power level 70 or above in the moderators' room, and fails closed.
 
-**Example: a published thread showing a `loli` image and a `troll_jail` image.**
+This grant sits beside the board, not in its order. Tick "Via a published
+page" above to draw its own lane.
 
-| | holding the live address | after it expires |
+---
+
+#### A published thread showing a `loli` image and a `troll_jail` image
+
+|  | holding the live address | after it expires |
 |---|---|---|
 | the `loli` image | visible, signed in or not | refused unless the viewer's own gates allow it |
 | the `troll_jail` image | never on the page | refused |
 | an image carrying a flagged tag | withheld on the page | refused |
 
----
+## 12. Flagged tags: a review quarantine
 
-## 12. Flagged tags -- a review quarantine
+*a tag and its posts disappear at once, pending review*
 
 An admin can **flag** any tag for review. The tag and every post carrying it
-disappear at once -- less severe than a banishment, because the point is a
-quick review.
+disappear at once. It is less severe than a banishment, because the point is
+a quick review.
 
-- **Still visible to:** Admins and the Owner, on every post -- a Matrix post
-  only in the rooms they have joined (gate 3); the board's system account; and
-  the bots, on the posts they uploaded (which is every post), and the names
-  everywhere, because they tag with them.
-- **Everyone else:** every post carrying the tag, and the tag's name, are gone
-  at every door -- search, counts, pages, images, tag lists, autocomplete --
-  including posts that gain the tag later.
+- **Everyone else:** every post carrying the tag, and the tag's name, are
+  gone at every door (search, counts, pages, images, tag lists,
+  autocomplete), including posts that gain the tag later.
 - **Review:** a "Flagged tags" queue on the admin console shows who flagged
-  it, when, and how many posts carry it; Matrix posts, which admins see only in
-  their own rooms, are reviewed in the jail panel's Flagged tab. **Release**
-  puts everything back at once. **Banish** is one click: the tag becomes
-  banished (gate 5) and its posts are jailed. Both work from either place and
-  are written to the moderation log, naming who pressed them.
+  it, when, and how many posts carry it; Matrix posts, which admins see only
+  in their own rooms, are reviewed in the jail panel's Flagged tab.
+  **Release** puts everything back at once. **Banish** is one click: the tag
+  becomes banished ([gate 5](#gate-5)) and its posts are jailed. Both work
+  from either place and are written to the moderation log, naming who
+  pressed them.
 - **Reach:** everywhere the jail reaches. The media gate refuses a flagged
-  image on Matrix and on published pages, the moderation console withholds it
-  from its outside views, and the Matrix bridge stops writing the tag's name
-  into rooms.
-- A flag jails nothing and hides nothing from an admin. That is the difference
-  from a banishment.
+  image on Matrix and on published pages, the moderation console withholds
+  it from its outside views, and the Matrix bridge stops writing the tag's
+  name into rooms.
 
-| example | Signed out | Restricted | Member | Gold+ | Moderator | Admin | Pipeline |
-|---|---|---|---|---|---|---|---|
-| a flagged tag | {no: gate 10, 404} / {no: gate 10, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {no: gate 12, 404} / {no: gate 12, 404} | {yes} / {yes} | {yes: its own} / {yes: its own} |
+A flag jails nothing and hides nothing from an admin. That is the difference
+from a banishment.
 
 ---
+
+#### Still visible to
+
+- Admins and the Owner, on every post; a Matrix post only in the rooms they
+  have joined ([gate 3](#gate-3));
+- the board's system account;
+- the bots, on the posts they uploaded (which is every post), and the names
+  everywhere, because they tag with them.
 
 ## If something does not load
 
-| what you see | which gate |
-|---|---|
-| a 403 with a `cf-mitigated` header, on any page | 7 -- the edge check, working |
-| a script gets 403 where a browser works | 7 -- only browsers pass |
-| signed out, a page answers 404 that opens when signed in | 10 -- closed by default |
-| a list stops at 20, or page 2 answers 410 | 2 -- below Member every list is one page of 20 |
-| cannot register | 0 -- no code, or a used, expired or revoked one |
-| a board image answers 404 but the post's page opens | 3 -- the image follows its post; a 503 means a service was unreachable |
-| a Matrix image answers 401 | 3 -- you are not signed in through Matrix |
-| a Matrix image answers 403 | 3 -- you are not in the room it was posted in |
-| a Matrix image answers 404 for everyone, admins included | 4, 5 or 12 -- jailed, or carrying a banished or flagged tag |
-| a Matrix post opens for one viewer and 404s for another, admins included | 3 -- the post follows its image's rooms |
-| a tag's count is higher than the posts you can page through | 3 -- counts include Matrix posts outside your rooms |
-| a Matrix image stopped loading in a room it was posted in | 3 -- the message that posted it there was deleted |
-| a just-jailed or just-flagged image still loads for a minute or two | 3 -- allows are cached for about three minutes at most |
-| a section 404s for everyone | 2 -- retired |
-| a post opens for one viewer and 404s for another | 1, 4, 8, 9, 10 or 12 |
-| nobody, admins included, can see a jailed or banished post | 4 and 5 -- by design; it is moderated in the jail panel |
-| signed out, an image link stopped working | 10 -- a signed-out image loads only while its post is being shown signed out |
-| a post is missing from a count as well as a page | 1, 4, 5, 8, 9 or 12 -- hidden in the query, not on the page |
-| a post is hidden in listings but its page opens | 5 -- your own blocklist, in your browser |
-| a tag is on a post but nowhere in autocomplete | 1, 5, 8 or 12 |
-| a tag and its posts vanished for everyone but admins | 12 -- flagged for review |
-| a tag shows for one viewer and not another on the same post | 6 -- a creator-private tag |
-| an image loads on a published page but not on the board | 11 -- the published page is its own grant |
+| what you see | gate | why |
+|---|---|---|
+| a 403 with a `cf-mitigated` header, on any page | [7](#gate-7) | the edge check, working |
+| a script gets 403 where a browser works | [7](#gate-7) | only browsers pass |
+| signed out, a page answers 404 that opens when signed in | [10](#gate-10) | closed by default |
+| a list stops at 20, or page 2 answers 410 | [2](#gate-2) | below Member every list is one page of 20 |
+| cannot register | [0](#gate-0) | no code, or a used, expired or revoked one |
+| a board image answers 404 but the post's page opens | [3](#gate-3) | the image follows its post; a 503 means a service was unreachable |
+| a Matrix image answers 401 | [3](#gate-3) | you are not signed in through Matrix |
+| a Matrix image answers 403 | [3](#gate-3) | you are not in the room it was posted in |
+| a Matrix image answers 404 for everyone, admins included | [4](#gate-4), [5](#gate-5), [12](#gate-12) | jailed, or carrying a banished or flagged tag |
+| a Matrix image answers 404 in its own room | [3](#gate-3) | its post is hidden from you by another gate |
+| a Matrix post opens for one viewer and 404s for another, admins included | [3](#gate-3) | the post follows its image's rooms |
+| a tag's count is higher than the posts you can page through | [3](#gate-3) | counts include Matrix posts outside your rooms |
+| a Matrix image stopped loading in a room it was posted in | [3](#gate-3) | the message that posted it there was deleted |
+| a just-jailed or just-flagged image still loads for a minute or two | [3](#gate-3) | allows are cached for about three minutes at most |
+| a section 404s for everyone | [2](#gate-2) | retired |
+| a post opens for one viewer and 404s for another | 1, 4, 8, 9, 10 or 12 | see each gate |
+| nobody, admins included, can see a jailed or banished post | [4](#gate-4), [5](#gate-5) | by design; it is moderated in the jail panel |
+| signed out, an image link stopped working | [10](#gate-10) | a signed-out image loads only while its post is being shown signed out |
+| a post is missing from a count as well as a page | 1, 4, 5, 8, 9 or 12 | hidden in the query, not on the page |
+| a post is hidden in listings but its page opens | [5](#gate-5) | your own blocklist, in your browser |
+| a tag is on a post but nowhere in autocomplete | 1, 5, 8 or 12 | words go with their posts |
+| a tag and its posts vanished for everyone but admins | [12](#gate-12) | flagged for review |
+| a tag shows for one viewer and not another on the same post | [6](#gate-6) | a creator-private tag |
+| an image loads on a published page but not on the board | [11](#gate-11) | the published page is its own grant |
 
 CANON. Lives in `fourier-basis`; hydrated into chanbooru and fourier-domain,
 and rendered into the public page at 41chan.net/content-gating.html. Everything
