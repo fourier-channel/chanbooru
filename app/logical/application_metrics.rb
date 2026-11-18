@@ -745,7 +745,7 @@ class ApplicationMetrics
   #
   # @return [Danbooru::Metric::Set] The combined set of metrics from each Puma worker process.
   def instance_metrics
-    metrics = Dir.glob("tmp/drb-process-metrics-*.sock").map do |filename|
+    metrics = Dir.glob("#{process_metrics_dir}/drb-process-metrics-*.sock").map do |filename|
       application_metrics = DRbObject.new_with_uri("drbunix:#{filename}")
       application_metrics.update_process_metrics
     rescue IOError, DRb::DRbConnError
@@ -759,9 +759,16 @@ class ApplicationMetrics
   # Makes metrics for the current process available to other Puma worker processes. Starts a background thread serving process
   # metrics on a Unix domain socket under tmp/. Called by each process on startup in config/puma.rb.
   def serve_process_metrics
-    filename = "tmp/drb-process-metrics-#{puma_worker_id}.sock"
+    filename = "#{process_metrics_dir}/drb-process-metrics-#{puma_worker_id}.sock"
     FileUtils.rm_f(filename)
     DRb.start_service("drbunix:#{filename}", ApplicationMetrics.instance, UNIXFileMode: 0o600)
+  end
+
+  # The directory holding every process's metrics socket. One Puma server's processes must share it and no other server
+  # may: instance_metrics merges every socket it finds there. Servers started side by side from one checkout (the parallel
+  # test suite) each set PUMA_METRICS_DIR, or one reads the other's sockets.
+  def process_metrics_dir
+    ENV.fetch("PUMA_METRICS_DIR", "tmp")
   end
 
   class << self

@@ -165,6 +165,9 @@ class PumaTest < ActiveSupport::TestCase
       PUMA_PORT: port,
       PUMA_CONTROL_SOCKET: "#{dir}/control.sock",
       PUMA_STATE_PATH: "#{dir}/puma.state",
+      # Its own metrics sockets: parallel workers run these tests side by side, and with the shared tmp/ one server's
+      # /metrics/instance merged another's (a single-mode server's unlabelled `puma_workers 0` in place of this master's).
+      PUMA_METRICS_DIR: dir,
       PUMA_WORKERS: 0,
       **env,
     }.stringify_keys.transform_values(&:to_s)
