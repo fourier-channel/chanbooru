@@ -456,6 +456,14 @@ CMD ["bin/rails", "server"]
 
 # The production layer. Contains the final /danbooru directory on top of the base Danbooru layer.
 FROM danbooru-base AS production
+
+# Fork: apt cannot run in the served image -- base empties /var/lib/dpkg, so it
+# has no package database -- and nothing here calls it, but its binaries carry
+# ELF package notes (FDO_PACKAGING_METADATA) that the nightly scanner reads as
+# an installed apt with its CVEs (CVE-2026-109518, 2026-11-18). Production only:
+# the development stage below runs apt-get on top of danbooru-base.
+RUN rm -rf /usr/bin/apt /usr/bin/apt-* /usr/lib/apt /usr/lib/*-linux-gnu*/libapt-*
+
 USER danbooru
 
 COPY --chown=danbooru:danbooru . /danbooru
