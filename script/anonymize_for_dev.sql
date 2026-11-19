@@ -449,8 +449,12 @@ SELECT s.name, m[1] || n.fake, 'prefixed'
 -- (d) Original-character tags <name>_(<localpart>) (FourierTagSource::ORIGINAL_CHARACTER),
 -- on evidence only: the qualifier is a creator's localpart AND the tag is
 -- claimed or filed as a character. A general <x>_(<word>) is never touched.
+-- The localpart is also replaced where it stands as a word of the name part
+-- (<x>_<localpart>_(<localpart>)): the 2026-11-19 drill kept one there.
 INSERT INTO anon_tagmap (real, fake, kind)
-SELECT s.name, m[1] || '_(' || n.fake || ')', 'oc'
+SELECT s.name,
+       regexp_replace(m[1], '(?<![a-z0-9])' || regexp_replace(lower(m[2]), '([^a-z0-9])', '\\\1', 'g') || '(?![a-z0-9])', n.fake, 'gi')
+         || '_(' || n.fake || ')', 'oc'
   FROM anon_tagname_src s
  CROSS JOIN LATERAL regexp_match(s.name, '^([a-z0-9][^()]*)_\(([^()]+)\)$') m
   JOIN anon_namemap n ON n.real = lower(m[2])

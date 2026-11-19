@@ -560,16 +560,23 @@ SELECT DISTINCT w FROM (
 CREATE TABLE anon_snapshot.ledger_scan AS
   SELECT DISTINCT kind, value FROM anon_snapshot.ledger
    WHERE kind <> 'bcrypt' AND length(value) >= 3
-     AND NOT (kind IN ('name', 'email_local') AND value IN (SELECT value FROM anon_snapshot.collision));
+     AND NOT (kind IN ('name', 'email_local') AND value IN (SELECT value FROM anon_snapshot.collision))
+     -- An all-digit name cannot be told from a number: the 2026-11-19 drill
+     -- failed on a creator-tag suffix that equals a post id, found in the
+     -- filler label 'Commentary <post_id>'. Such a name is still caught where
+     -- it names someone: as a tag suffix (creator-tag rule) and a localpart
+     -- (Matrix-id rule).
+     AND NOT (kind = 'name' AND value ~ '^[0-9]+$');
 CREATE INDEX ON anon_snapshot.ledger_scan (value);
 ANALYZE anon_snapshot.ledger_scan;
 
 DO $report$
 BEGIN
-  RAISE NOTICE '[verify before] ledger: % entries; % bare names also vocabulary words (covered by the Matrix-id, creator-tag and closed-world rules only); % names of 2 characters or fewer (not scanned bare)',
+  RAISE NOTICE '[verify before] ledger: % entries; % bare names also vocabulary words (covered by the Matrix-id, creator-tag and closed-world rules only); % names of 2 characters or fewer and % all-digit names (not scanned bare)',
     (SELECT count(*) FROM anon_snapshot.ledger_scan),
     (SELECT count(DISTINCT value) FROM anon_snapshot.ledger WHERE kind = 'name' AND value IN (SELECT value FROM anon_snapshot.collision)),
-    (SELECT count(DISTINCT value) FROM anon_snapshot.ledger WHERE kind = 'name' AND length(value) < 3);
+    (SELECT count(DISTINCT value) FROM anon_snapshot.ledger WHERE kind = 'name' AND length(value) < 3),
+    (SELECT count(DISTINCT value) FROM anon_snapshot.ledger WHERE kind = 'name' AND length(value) >= 3 AND value ~ '^[0-9]+$');
 END
 $report$;
 
