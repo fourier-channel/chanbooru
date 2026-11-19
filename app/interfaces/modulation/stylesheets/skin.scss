@@ -96,15 +96,16 @@ body[data-preset="modulation"] {
 
   /* THE TOP OF THE FRAME. #page has no top padding: every drawn page opens
      its own room (.mod-ui and .modgal-search 1rem, .modland its band, the
-     sign-in card and the error page their own margins). A page Modulation
-     does not draw has nothing of its own and sat flush against the header,
-     so the frame gives it 1rem -- the room the drawn pages open with.
-     Every root that already spaces itself is named, so no drawn page moves
-     by a pixel: the gutter exemption's roots above, plus .mod-ui (which
-     keeps the side gutter but pads its own top), .modlogin and .oh-no.
-     A new drawn root lands in this list as well as wherever else it pads.
-     padding-block-start, not the shorthand: padding-bottom above stays. */
-  #page:not(:has(.modgal, .modulation, .modland, .modcreator, .mod-ui, .modlogin, .oh-no)) { padding-block-start: 1rem; }
+     sign-in card, the signup-closed card and the error page their own
+     margins). A page Modulation does not draw has nothing of its own and
+     sat flush against the header, so the frame gives it 1rem -- the room
+     the drawn pages open with. Every root that already spaces itself is
+     named, so no drawn page moves by a pixel: the gutter exemption's roots
+     above, plus .mod-ui (which keeps the side gutter but pads its own top),
+     .modlogin, .modclosed and .oh-no. A new drawn root lands in this list
+     as well as wherever else it pads. padding-block-start, not the
+     shorthand: padding-bottom above stays. */
+  #page:not(:has(.modgal, .modulation, .modland, .modcreator, .mod-ui, .modlogin, .modclosed, .oh-no)) { padding-block-start: 1rem; }
 
   /* ---------------------------------------------------------------- header */
 
