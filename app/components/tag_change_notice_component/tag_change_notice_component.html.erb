@@ -1,4 +1,5 @@
-<% cache("tag-change-notice:#{tag.name}", expires_in: 4.hours) do %>
+<%# skip_digest: a component's template is not on the view paths, so ActionView's Digestor logged "Couldn't find template for digesting" at ERROR on every new lookup context, and the digest it found nothing to read for added nothing to the key. The key names the tag and expires in four hours, which is all the invalidation this fragment had. %>
+<% cache("tag-change-notice:#{tag.name}", expires_in: 4.hours, skip_digest: true) do %>
   <% if pending_burs.present? %>
     <p class="fineprint tag-change-notice mt-3">
       <%# Fork: each request links itself, not its forum topic: a request filed while the forum is retired has none, and a topic link is a 404 to all but the owner. The fragment is cached by tag name, so it cannot vary by viewer. %>

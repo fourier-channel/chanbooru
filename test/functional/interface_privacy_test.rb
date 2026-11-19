@@ -31,6 +31,26 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
   # The surfaces whose cards the id reader is witnessed on: the post index
   # (article or gallery card) and the strips of the subject pages.
   CARD_SURFACES = %w[posts artist_show wiki_show explore_popular].freeze
+  # Paging, which no surface above reaches: the world holds fewer posts than
+  # a page. Under a box of two (PostSets::Post::WINDOW_SLOTS) and limit=2,
+  # each of these is fetched, then the page its own next link leads to, as
+  # "<surface>_next" -- the second page a visitor walks to, cursor and all.
+  # The newest rows are the banned child, the taken-down post and the
+  # banned post, so a page whose rows are not the listed rows (classic's
+  # index, either popular) fetches them and draws fewer than two; the
+  # walk crosses them on every interface.
+  # The next link is the paginator's (a.paginator-next) or the gallery's
+  # (a.modgal-page[rel=next]), never a bare rel=next: popular's date
+  # navigation is #paginator-next, which goes to the next DAY.
+  PAGED_SURFACES = {
+    "posts_paged" => "/posts?limit=2",
+    "posts_tag_search_paged" => "/posts?tags=landscape&limit=2",
+    "explore_popular_paged" => "/explore/posts/popular?limit=2",
+  }.freeze
+  NEXT_LINK = "a.paginator-next[href], a.modgal-page[rel=next][href]"
+  # The cards a page shows, as against draws: the gallery draws a chunk and
+  # marks the cards outside its box is-off.
+  BOX_CARDS = "article[id^='post_'], a.modgal-card[data-id]:not(.is-off)"
 
   def secrets
     { "creator_private_tag" => SECRET_TAG, "generation_prompt" => PROMPT, "banished_name" => BANISHED,
@@ -64,15 +84,26 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
 
   # What a JSON door decided for this viewer, reduced to the parts that are
   # a decision rather than a drawing.
+  #
+  # The flank candidates are split by who offered them. Random's are the
+  # session's RandomTrail (PostSurface#random_neighbours), which Modulation's
+  # post pages extend and classic's do not, so the same door asks the trail
+  # a different question per interface; the keyset modes are not session
+  # state. An id any keyset mode offers counts as keyset, and an id no
+  # preset names stays in "candidates", so nothing unexplained is set aside.
   def payload_decisions(json)
     if json.key?("tags")
+      candidates = json["candidates"].to_h.keys.map(&:to_i).sort
+      by_random = Array(json["presets"]).partition { it["key"] == "random" }.map { |presets| presets.flat_map { (it["prev_candidates"].to_a + it["next_candidates"].to_a).map { |ref| ref["id"].to_i } } }
+      random_only = ((by_random[0] - by_random[1]) & candidates).sort
       {
         "tags" => json["tags"].to_h.transform_values { |list| Array(list).map { |t| t.is_a?(Hash) ? t["name"] : t }.compact.map(&:to_s).sort },
         "generation" => json["generation"].present?,
         "audience" => json["audience"],
         "quarantine" => json["quarantine"],
         "can_edit" => json["can_edit"],
-        "candidates" => json["candidates"].to_h.keys.map(&:to_i).sort,
+        "candidates" => candidates - random_only,
+        "random_candidates" => random_only,
         "notices" => json["notices"],
         "status" => json["status"],
         "logs_admin_view" => json["logs_admin_view"],
@@ -90,8 +121,37 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
       @deciding = surface
       [surface, decide(method, path, **options.to_h)]
     end
+    surfaces.merge!(paged_decisions)
     @deciding = nil
     surfaces.merge("session_keys" => session.to_hash.keys.sort - %w[session_id _csrf_token started_at])
+  end
+
+  # PAGED_SURFACES, each fetched and then followed to its next page.
+  def paged_decisions
+    small_window do
+      PAGED_SURFACES.each_with_object({}) do |(surface, path), decided|
+        @deciding = surface
+        decided[surface] = decide(:get, path)
+        href = Nokogiri::HTML5(@bodies[surface]).at_css(NEXT_LINK)&.[]("href")
+        next if href.blank?
+
+        @deciding = "#{surface}_next"
+        decided[@deciding] = decide(:get, href)
+      end
+    end
+  end
+
+  # A box of two from a chunk of four, so three listed posts span two pages.
+  def small_window(&)
+    stub_const(PostSets::Post, :WINDOW_SLOTS, 2) do
+      stub_const(PostSets::Post, :WINDOW_CHUNK, 4) do
+        stub_const(PostSets::Post, :WINDOW_CHUNK_MAX, 4, &)
+      end
+    end
+  end
+
+  def box_ids(body)
+    Nokogiri::HTML5(body).css(BOX_CARDS).map { |card| (card["data-id"] || card["id"].delete_prefix("post_")).to_i }
   end
 
   # The rules this recording must never be the only witness to.
@@ -127,9 +187,15 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
     # The places a page carries count as listing too (CURSOR_ID): a cursor
     # names a post's id and its sort key, so a pager whose prev or next is
     # built from a row the cards omit names that post as surely as a card.
+    #
+    # So do a JSON door's flank candidates, keyset and random alike: each is
+    # a post the viewer is offered to step to. The cross-interface check
+    # sets "random_candidates" aside (it compares two different session
+    # trails), so this is the rule that holds them.
     user = (viewer == "signed_out") ? User.anonymous : @viewers.fetch(viewer)
     cursor_ids = @bodies.transform_values { |body| body.scan(CURSOR_ID).flatten.compact.map(&:to_i).uniq }
-    named = surfaces.to_h { |surface, d| [surface, (d["posts"].to_a | cursor_ids[surface].to_a)] }
+    flank_ids = surfaces.transform_values { |d| d["payload"].is_a?(Hash) ? d["payload"]["candidates"].to_a | d["payload"]["random_candidates"].to_a : [] }
+    named = surfaces.to_h { |surface, d| [surface, (d["posts"].to_a | cursor_ids[surface].to_a | flank_ids[surface])] }
     world = Post.where(id: named.values.flatten.uniq).index_by(&:id)
     unlistable = named.filter_map do |surface, ids|
       ids = ids.reject { |id| world[id] && PostPreviewComponent.listed?(world[id], user, show_deleted: true) }
@@ -139,6 +205,19 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
     named_ids = named.values.flatten.uniq
     assert_not_includes(named_ids, @banned.id, "#{viewer} (below Approver) was listed the banned post") unless user.is_approver?
     assert_not_includes(named_ids, @taken_down.id, "#{viewer} (below Moderator) was listed the taken-down post") unless user.is_moderator?
+    assert_not_includes(named_ids, @banned_child.id, "#{viewer} (below Approver) was listed the banned child of the art post") unless user.is_approver?
+    # ... and the flank reader is live: from Member up the art post's JSON
+    # door offers the older post as a flank, so an empty read is a broken
+    # reader, not a clean page.
+    unless %w[signed_out restricted].include?(viewer)
+      assert_includes(flank_ids["json_art"], @older.id, "#{viewer}'s json_art offered no flank candidate the rule above could read; fix: payload_decisions reads json[\"candidates\"] and the presets' prev/next_candidates")
+    end
+    # ... and the fixture is live: Modulation's post view draws @art's family,
+    # so from Approver up the banned child is a card there. Without this the
+    # rule above passes when no family is drawn at all.
+    if user.is_approver? && Danbooru.config.default_experience_preset == "modulation"
+      assert_includes(surfaces.dig("post_art", "posts").to_a, @banned_child.id, "#{viewer} met no family card for the banned child on the art post; fixture: ModulationPostFamilyComponent draws @art's children")
+    end
 
     # The id reader above is the witness of every rule on ids: a page whose
     # cards it cannot read would pass them all with an empty list. On the
@@ -160,6 +239,33 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
       keys = @bodies.fetch("posts").scan(/<a class="modgal-card[^"]*"[^>]*?\bdata-key="\d+~/).size
       assert_operator(keys, :>, 0, "posts drew no keyed cards for #{viewer} under Modulation; fixture: the gallery window keys every card for a viewer who may browse") if Danbooru.config.default_experience_preset == "modulation" && user.can_browse_freely?
       assert_equal(keys, cursor_ids["posts"].size, "posts drew #{keys} keyed cards for #{viewer} and CURSOR_ID read #{cursor_ids["posts"].size}; fix: CURSOR_ID must read every data-key, or the rule on cursors passes blind")
+    end
+
+    # Paging: a viewer who may browse past the first page walks from the
+    # first page of each paged surface to a second, and the two show no
+    # post in common. The rules above already hold both pages' cards and
+    # cursors (a cursor in page one's next link names the post page two
+    # starts at), so this is their witness that a second page was read.
+    # Below the browsing tier (User#can_browse_freely?: signed out,
+    # Restricted) the list is one page with no next link; the recording
+    # holds that. How many cards a page shows is fixed only where its rows
+    # are the listed rows -- Modulation's gallery box (PostSets::Post#
+    # window_query) -- so only there is a page of two two cards; elsewhere
+    # banned and taken-down rows are fetched and not drawn.
+    if user.can_browse_freely?
+      PAGED_SURFACES.each_key do |surface|
+        first, second = surfaces[surface], surfaces["#{surface}_next"]
+        assert_equal(200, first&.dig("status"), "#{surface} answered #{viewer} with #{first&.dig("status").inspect}")
+        assert_equal(200, second&.dig("status"), "#{surface} led #{viewer} to no second page (#{second&.dig("status").inspect}); fixture: the world holds more rows than a page of two; fix: the page draws a next link (#{NEXT_LINK})")
+
+        shown = box_ids(@bodies.fetch(surface))
+        shown_next = box_ids(@bodies.fetch("#{surface}_next"))
+        assert_operator((shown | shown_next).size, :>, 0, "#{surface} showed #{viewer} no posts on either page; fixture: the world's ordinary posts are listed to every viewer who may browse")
+        assert_empty(shown & shown_next, "#{surface}'s second page showed #{viewer} posts the first page showed")
+        if @bodies.fetch(surface).include?('class="modgal-grid')
+          assert_equal(2, shown.size, "#{surface}'s gallery box showed #{viewer} #{shown.size} posts in a box of two; fix: the window's rows are the listed rows (PostSets::Post#window_query) and the grid reads the box per request (GridComponent#off?)")
+        end
+      end
     end
 
     # A signed-out visitor never meets a creator's secret.
@@ -228,7 +334,8 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
   # ?visit=1 door: it answers from the session's random trail, which
   # Modulation's post pages extend and classic's do not, so the two
   # recordings ask it different questions. Each interface's recording and
-  # the standing rules still hold it.
+  # the standing rules still hold it. Every other door's random flank is set
+  # aside the same way, by name ("random_candidates", payload_decisions).
   SESSION_TRAIL_DOORS = %w[json_art_visit].freeze
 
   should "decide the same at every JSON door under both interfaces" do
@@ -239,7 +346,8 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
 
     differing = paths.flat_map do |viewer, files|
       historical, modulation = files.map { |path| JSON.parse(path.read) }
-      (historical.keys.grep(/\Ajson_/) - SESSION_TRAIL_DOORS).reject { |door| historical[door] == modulation[door] }.map { |door| "#{viewer} #{door}" }
+      keyset = ->(decision) { decision.is_a?(Hash) && decision["payload"].is_a?(Hash) ? decision.merge("payload" => decision["payload"].except("random_candidates")) : decision }
+      (historical.keys.grep(/\Ajson_/) - SESSION_TRAIL_DOORS).reject { |door| keyset.call(historical[door]) == keyset.call(modulation[door]) }.map { |door| "#{viewer} #{door}" }
     end
     assert_empty(differing, "a JSON door decided differently by interface")
   end

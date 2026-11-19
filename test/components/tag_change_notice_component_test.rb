@@ -48,5 +48,24 @@ class TagChangeNoticeComponentTest < ViewComponent::TestCase
 
       assert_css(".tag-change-notice a[href='/bulk_update_requests/#{bur.id}']", text: "bulk update request ##{bur.id}")
     end
+
+    # The fragment is cached by tag name with skip_digest. A component's
+    # template is not on the view paths, so a digested cache call made
+    # ActionView's Digestor log "Couldn't find template for digesting" at
+    # ERROR on every new lookup context. The cache helper only digests when
+    # the controller performs caching, which the test default turns off.
+    should "cache its fragment without asking the Digestor for its template" do
+      user = create(:user)
+      tag = create(:tag, name: "aaa")
+      create(:bulk_update_request, user: user, script: "create alias aaa -> bbb")
+      log = StringIO.new
+      vc_test_controller.stubs(:perform_caching).returns(true)
+      ActionView::Base.stubs(:logger).returns(ActiveSupport::Logger.new(log))
+
+      render_inline(TagChangeNoticeComponent.new(tag: tag, current_user: user))
+
+      assert_css(".tag-change-notice")
+      assert_no_match(/digesting/, log.string, "the cache call digested; fix: skip_digest: true on the component's cache call")
+    end
   end
 end

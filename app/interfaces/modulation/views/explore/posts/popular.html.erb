@@ -33,13 +33,18 @@
 
       <% surface = PostStripSurface.new(relation: @posts, viewer: CurrentUser.user, query: nil) %>
       <%# app/components/post_gallery_component/post_gallery_component.html.erb:2-3:
-          "No posts found." when the relation holds no post at all; then the
-          footer (:12) regardless, so a page past the end still offers the way
-          back. The strip draws its footer with no card. %>
+          "No posts found." when the relation holds no post at all. Upstream
+          then draws the footer (:12) regardless; here only where there is
+          somewhere to go. The controller paginates with search_count: false,
+          so the count is infinite and an empty first page still offered a
+          live "next" to a page just as empty. A page past the end keeps its
+          way back (prev_page), and the strip draws that footer with no card. %>
       <%= render ModulationPostStripComponent.new(surface: surface, empty_text: ("No posts found." if @posts.empty?)) do |strip| %>
-        <%# app/views/explore/posts/popular.html.erb:13-15, verbatim. %>
-        <% strip.with_footer do %>
-          <%= numbered_paginator(@posts) %>
+        <%# app/views/explore/posts/popular.html.erb:13-15. %>
+        <% if @posts.any? || @posts.prev_page %>
+          <% strip.with_footer do %>
+            <%= numbered_paginator(@posts) %>
+          <% end %>
         <% end %>
       <% end %>
     </div>

@@ -1,0 +1,18 @@
+// The post's family under the post view (ModulationPostFamilyComponent): the
+// post column's width and gutter, so its strips line up with the stage and
+// the comments above them. The strips themselves are ui.scss's .modstrip.
+:where(body[data-preset="modulation"]) {
+  .modfamily {
+    box-sizing: border-box;
+    max-width: 960px; // .modulation's --mod-col, which is scoped to it
+    margin: 0 auto;
+    padding: 0 1rem 3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  // The section is a flex box, which outranks the hidden attribute's UA
+  // rule; modulation_post_family.js hides it after a client-side step.
+  .modfamily[hidden] { display: none; }
+}

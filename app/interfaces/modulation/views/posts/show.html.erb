@@ -13,6 +13,13 @@
   <% surface = PostSurface.new(post: @post, viewer: CurrentUser.user, query: params[:q], settings: ModulationSetting.for_viewer(CurrentUser.user, session), session: session, request: request) %>
   <%= render ModulationPostComponent.new(surface: surface) %>
 
+  <%# The parent, siblings and children as cards, as upstream's relationship
+      notices draw them: the posts the controller decided for this viewer
+      (Post#relatives_shown_to), outside #modulation-root because the viewer
+      redraws only what is inside it. Hidden after a client-side step
+      (modulation_post_family.js). %>
+  <%= render ModulationPostFamilyComponent.new(post: @post, viewer: CurrentUser.user, relatives: { parent: @parent_post, siblings: @sibling_posts, children: @child_posts }) %>
+
   <%# THE EDIT FORM LIVES HERE TOO, so Modulation's "contribute" links can be
       plain #edit anchors instead of a detour through ?preset=historical.
       Operator ruling 2026-09-20: "Nothing should be preset=historical."

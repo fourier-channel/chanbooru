@@ -34,7 +34,8 @@
       50005,
       50006,
       50007,
-      50008
+      50008,
+      50009
     ],
     "secrets": [
       "flagged_name",
@@ -73,7 +74,8 @@
   "posts_banned_artist": {
     "status": 200,
     "posts": [
-      50007
+      50007,
+      50009
     ],
     "secrets": [
       "banned_artist"
@@ -90,7 +92,8 @@
       50005,
       50006,
       50007,
-      50008
+      50008,
+      50009
     ],
     "secrets": [
       "flagged_name",
@@ -109,7 +112,11 @@
   },
   "post_art": {
     "status": 200,
-    "posts": [],
+    "posts": [
+      50002,
+      50003,
+      50009
+    ],
     "secrets": [
       "flagged_name",
       "banned_artist"
@@ -119,7 +126,11 @@
   },
   "post_child": {
     "status": 200,
-    "posts": [],
+    "posts": [
+      50002,
+      50003,
+      50009
+    ],
     "secrets": [
       "flagged_name",
       "banned_artist"
@@ -201,7 +212,8 @@
       50005,
       50006,
       50007,
-      50008
+      50008,
+      50009
     ],
     "secrets": [
       "flagged_name",
@@ -309,8 +321,10 @@
         50005,
         50006,
         50007,
-        50008
+        50008,
+        50009
       ],
+      "random_candidates": [],
       "notices": [
         {
           "kind": "child",
@@ -393,8 +407,10 @@
         50005,
         50006,
         50007,
-        50008
+        50008,
+        50009
       ],
+      "random_candidates": [],
       "notices": [
         {
           "kind": "child",
@@ -459,8 +475,10 @@
         50005,
         50006,
         50007,
-        50008
+        50008,
+        50009
       ],
+      "random_candidates": [],
       "notices": [
         {
           "kind": "child",
@@ -521,8 +539,10 @@
         50003,
         50006,
         50007,
-        50008
+        50008,
+        50009
       ],
+      "random_candidates": [],
       "notices": [],
       "status": "active",
       "logs_admin_view": true,
@@ -584,6 +604,9 @@
         50006,
         50007,
         50008
+      ],
+      "random_candidates": [
+        50009
       ],
       "notices": [
         {
@@ -655,7 +678,8 @@
   "artist_banned": {
     "status": 200,
     "posts": [
-      50007
+      50007,
+      50009
     ],
     "secrets": [
       "banned_artist"
@@ -701,7 +725,8 @@
   "wiki_banned_artist": {
     "status": 404,
     "posts": [
-      50007
+      50007,
+      50009
     ],
     "secrets": [
       "banned_artist"
@@ -732,7 +757,92 @@
       50005,
       50006,
       50007,
+      50008,
+      50009
+    ],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_paged": {
+    "status": 200,
+    "posts": [
+      50006,
+      50007,
+      50008,
+      50009
+    ],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_paged_next": {
+    "status": 200,
+    "posts": [
+      50003,
+      50005,
+      50006,
+      50007
+    ],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_tag_search_paged": {
+    "status": 200,
+    "posts": [
+      50005,
+      50006,
+      50007,
       50008
+    ],
+    "secrets": [
+      "flagged_name",
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_tag_search_paged_next": {
+    "status": 200,
+    "posts": [
+      50002,
+      50003,
+      50005,
+      50006
+    ],
+    "secrets": [
+      "flagged_name"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "explore_popular_paged": {
+    "status": 200,
+    "posts": [
+      50008,
+      50009
+    ],
+    "secrets": [
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "explore_popular_paged_next": {
+    "status": 200,
+    "posts": [
+      50006,
+      50007
     ],
     "secrets": [
       "flagged_name",

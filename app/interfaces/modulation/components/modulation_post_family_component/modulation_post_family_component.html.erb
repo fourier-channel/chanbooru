@@ -1,0 +1,5 @@
+<section class="modfamily" data-post-id="<%= post.id %>" aria-label="Related posts">
+  <% groups.each do |group| %>
+    <%= render ModulationPostStripComponent.new(surface: group[:surface], title: group[:title], href: group[:href]) %>
+  <% end %>
+</section>

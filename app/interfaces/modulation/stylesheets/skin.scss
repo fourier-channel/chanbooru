@@ -16,7 +16,7 @@
  *    is to be the unmodified thing to compare against.
  *
  *  - Never reach INTO a bespoke component (.modulation, .modgal,
- *    .creator-gallery). They own their own layout; a component rule is more
+ *    .modcreator). They own their own layout; a component rule is more
  *    specific than the selectors here, but relying on that is how a global skin
  *    starts quietly fighting a component. Where a global rule would land inside
  *    one anyway, it is excluded explicitly.
@@ -93,6 +93,18 @@ body[data-preset="modulation"] {
      the full stage; .modcreator's bands pad with --cg-gutter), so the frame's
      would double it. */
   #page:has(.modgal, .modulation, .modland, .modcreator) { padding-inline: 0; }
+
+  /* THE TOP OF THE FRAME. #page has no top padding: every drawn page opens
+     its own room (.mod-ui and .modgal-search 1rem, .modland its band, the
+     sign-in card and the error page their own margins). A page Modulation
+     does not draw has nothing of its own and sat flush against the header,
+     so the frame gives it 1rem -- the room the drawn pages open with.
+     Every root that already spaces itself is named, so no drawn page moves
+     by a pixel: the gutter exemption's roots above, plus .mod-ui (which
+     keeps the side gutter but pads its own top), .modlogin and .oh-no.
+     A new drawn root lands in this list as well as wherever else it pads.
+     padding-block-start, not the shorthand: padding-bottom above stays. */
+  #page:not(:has(.modgal, .modulation, .modland, .modcreator, .mod-ui, .modlogin, .oh-no)) { padding-block-start: 1rem; }
 
   /* ---------------------------------------------------------------- header */
 
@@ -398,7 +410,7 @@ body[data-preset="modulation"] {
      reads as a stack rather than as one run of text. Prose opts out below --
      inside an article the headings are content, not furniture.
 
-     Not inside a drawn page's roots (.mod-ui, .modstrip): their headings are
+     Not inside a drawn page's roots (.mod-ui, .modstrip, .modcreator): their headings are
      labels with their own margins (ui.scss), all under :where() and so one
      class strong, and this ID rule's margin outranked every one of them.
      Excluded from the match, so their own rules decide. The older roots in
@@ -407,7 +419,7 @@ body[data-preset="modulation"] {
      bare :not() raised it past the reset below, and the post view's tag
      heading took this hairline back, which its stage measures (2026-11-18,
      the stage 7px shorter). */
-  #page h2:where(:not(:is(.mod-ui, .modstrip) h2)) {
+  #page h2:where(:not(:is(.mod-ui, .modstrip, .modcreator) h2)) {
     padding-bottom: 0.35rem;
     border-bottom: 1px solid var(--mod-line);
     margin-bottom: 0.7rem;
@@ -421,7 +433,7 @@ body[data-preset="modulation"] {
      above no matter how many classes it names. Add a root here when a new
      Modulation component lands. */
   #page {
-    .modulation, .modgal, .creator-gallery, .oh-no, .mod-ui, .modstrip {
+    .modulation, .modgal, .modcreator, .oh-no, .mod-ui, .modstrip {
       h1, h2, h3 {
         padding-bottom: 0;
         border-bottom: 0;

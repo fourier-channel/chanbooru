@@ -29,7 +29,8 @@
       50000,
       50002,
       50003,
-      50007
+      50007,
+      50009
     ],
     "secrets": [
       "banned_artist"
@@ -63,7 +64,8 @@
   "posts_banned_artist": {
     "status": 200,
     "posts": [
-      50007
+      50007,
+      50009
     ],
     "secrets": [
       "banned_artist"
@@ -90,9 +92,12 @@
     "status": 200,
     "posts": [
       50002,
-      50003
+      50003,
+      50009
     ],
-    "secrets": [],
+    "secrets": [
+      "banned_artist"
+    ],
     "blacklist_box": true,
     "admin_views_logged": 0
   },
@@ -100,9 +105,12 @@
     "status": 200,
     "posts": [
       50002,
-      50003
+      50003,
+      50009
     ],
-    "secrets": [],
+    "secrets": [
+      "banned_artist"
+    ],
     "blacklist_box": true,
     "admin_views_logged": 0
   },
@@ -165,7 +173,8 @@
       50000,
       50002,
       50003,
-      50007
+      50007,
+      50009
     ],
     "secrets": [
       "banned_artist"
@@ -253,8 +262,10 @@
       "candidates": [
         50000,
         50003,
-        50007
+        50007,
+        50009
       ],
+      "random_candidates": [],
       "notices": [
         {
           "kind": "child",
@@ -316,8 +327,10 @@
       "candidates": [
         50000,
         50003,
-        50007
+        50007,
+        50009
       ],
+      "random_candidates": [],
       "notices": [
         {
           "kind": "child",
@@ -364,8 +377,10 @@
       "candidates": [
         50000,
         50003,
-        50007
+        50007,
+        50009
       ],
+      "random_candidates": [],
       "notices": [
         {
           "kind": "child",
@@ -457,7 +472,8 @@
   "artist_banned": {
     "status": 200,
     "posts": [
-      50007
+      50007,
+      50009
     ],
     "secrets": [
       "banned_artist"
@@ -499,7 +515,8 @@
   "wiki_banned_artist": {
     "status": 404,
     "posts": [
-      50007
+      50007,
+      50009
     ],
     "secrets": [
       "banned_artist"
@@ -526,6 +543,74 @@
     "posts": [
       50000,
       50002,
+      50003,
+      50007,
+      50009
+    ],
+    "secrets": [
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_paged": {
+    "status": 200,
+    "posts": [
+      50009
+    ],
+    "secrets": [
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_paged_next": {
+    "status": 200,
+    "posts": [
+      50003,
+      50007
+    ],
+    "secrets": [
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_tag_search_paged": {
+    "status": 200,
+    "posts": [
+      50007
+    ],
+    "secrets": [
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_tag_search_paged_next": {
+    "status": 200,
+    "posts": [
+      50002,
+      50003
+    ],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "explore_popular_paged": {
+    "status": 200,
+    "posts": [
+      50009
+    ],
+    "secrets": [
+      "banned_artist"
+    ],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "explore_popular_paged_next": {
+    "status": 200,
+    "posts": [
       50003,
       50007
     ],

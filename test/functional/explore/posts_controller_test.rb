@@ -43,6 +43,20 @@ module Explore
             assert_select "section.modstrip p.modstrip-empty", text: "No posts found."
             assert_select "section.modstrip a.paginator-prev"
           end
+
+          # search_count: false makes the count infinite, so a numbered
+          # paginator over an empty first page offered a live "next" to a
+          # page just as empty. With nowhere to go there is no footer.
+          should "draw no paginator over an empty first page" do
+            get_auth popular_explore_posts_path(date: "2001-01-01", preset: "modulation", preset_sticky: 0), @member
+
+            assert_response :success
+            assert_select "a.modgal-card", count: 0
+            assert_select "section.modstrip p.modstrip-empty", text: "No posts found."
+            assert_select "section.modstrip .modstrip-footer", count: 0
+            assert_select "section.modstrip a.paginator-next", count: 0
+            assert_select "a#paginator-prev[data-shortcut]"
+          end
         end
       end
     end

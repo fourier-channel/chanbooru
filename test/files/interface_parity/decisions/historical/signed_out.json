@@ -330,5 +330,28 @@
     "blacklist_box": false,
     "admin_views_logged": 0
   },
+  "posts_paged": {
+    "status": 200,
+    "posts": [
+      50002
+    ],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_tag_search_paged": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "explore_popular_paged": {
+    "status": 404,
+    "posts": [],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
   "session_keys": []
 }

@@ -118,17 +118,67 @@
   // -- the card is a link, so the reveal belongs on the post view where the
   // choice is about one image. The card already crops with overflow: hidden,
   // which is what keeps the blur from showing a soft edge inside the frame.
-  .modgal-card--spoiler {
-    .modgal-thumb {
-      filter: grayscale(1) blur(14px);
-      transform: scale(1.12);
+  // Its word, "deleted", is one of the states below.
+  .modgal-card--spoiler .modgal-thumb {
+    filter: grayscale(1) blur(14px);
+    transform: scale(1.12);
+  }
+
+  // A POST'S STATE, ON THE CARD: pending, flagged, deleted and banned each
+  // put a word in a chip stacked on the id chip and a 3px edge along the
+  // card's top. Stacked, not inline after the id: at 2 and 4 columns a
+  // card is 145-170px wide, and "#22 deleted" beside a 62% artist credit
+  // ran under it (seen at 400px, 2026-11-19). The id chip is the word's
+  // containing block, so bottom: 100% sits it on the chip at any width.
+  // The word keeps its leading space: it collapses at the start of the
+  // line, and keeps the link's accessible name "#22 deleted", not
+  // "#22deleted".
+  // Keyed on data-flags (PostCards#card_data, post.status_flags), which
+  // every card already carries for the blacklist's status: terms -- so
+  // there is no markup for this, the gallery's JS-imported cards get it
+  // unchanged, and gallery and strip are one rule. Reading the attribute
+  // does not change it; the blacklist's contract is untouched.
+  //
+  // One state shows when several apply, the most serious: the four rules
+  // share one specificity, so source order is the priority -- pending <
+  // flagged < deleted < banned, later wins. The word is generated content,
+  // which is part of the link's accessible name, so state is never colour
+  // alone.
+  //
+  // The edge is ::after because ::before is the hover sweep, and it is
+  // drawn over the thumb, not as a border, so THE RAISE's border-color and
+  // ring still own hover. Flagged shows to everyone in the warn colour, as
+  // upstream draws flagged to everyone; upstream has no banned border at
+  // all, so banned's red edge is new here.
+  .modgal-card[data-flags~="pending"],
+  .modgal-card[data-flags~="flagged"],
+  .modgal-card[data-flags~="deleted"],
+  .modgal-card[data-flags~="banned"] {
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      height: 3px;
+      z-index: 1;
+      pointer-events: none;
+      background: var(--modgal-card-state);
     }
 
     .modgal-card-id::after {
-      content: " deleted";
-      color: var(--mod-tag-artist-fg);
+      position: absolute;
+      left: 0;
+      bottom: 100%;
+      padding: 0.1rem 0.4rem;
+      white-space: nowrap;
+      color: var(--modgal-card-state);
+      background: color-mix(in srgb, var(--mod-surface) 80%, transparent);
+      border-top-right-radius: 6px;
     }
   }
+  .modgal-card[data-flags~="pending"] { --modgal-card-state: var(--mod-pending-fg); .modgal-card-id::after { content: " pending"; } }
+  .modgal-card[data-flags~="flagged"] { --modgal-card-state: var(--mod-warn-fg); .modgal-card-id::after { content: " flagged"; } }
+  .modgal-card[data-flags~="deleted"] { --modgal-card-state: var(--mod-tag-artist-fg); .modgal-card-id::after { content: " deleted"; } }
+  .modgal-card[data-flags~="banned"] { --modgal-card-state: var(--mod-tag-artist-fg); .modgal-card-id::after { content: " banned"; } }
 
   .modgal-thumb--gated {
     display: grid; place-items: center; width: 100%; height: 100%;

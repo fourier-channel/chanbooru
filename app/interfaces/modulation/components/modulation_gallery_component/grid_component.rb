@@ -14,10 +14,12 @@
 # (budget: raw posts and fetches), how many cards it keeps behind the box
 # and how many in all.
 class ModulationGalleryComponent::GridComponent < ApplicationComponent
-  WINDOW_CONFIG = {
-    slots: PostSets::Post::WINDOW_SLOTS,
-    chunk: PostSets::Post::WINDOW_CHUNK,
-    chunkMax: PostSets::Post::WINDOW_CHUNK_MAX,
+  # The window's own tuning. The box and chunk sizes are not here: they are
+  # PostSets::Post's, read per request (window_config), because the query
+  # that fills the box reads them there too. A copy frozen at class load
+  # kept 20 while a stubbed query used 2 (interface_privacy_test's small
+  # window), and the grid's box disagreed with the next link.
+  WINDOW_TUNING = {
     budgetRaw: 400,
     budgetFetches: 6,
     keepBehind: 60,
@@ -43,8 +45,12 @@ class ModulationGalleryComponent::GridComponent < ApplicationComponent
 
   def chunk? = @chunk
 
+  def window_config
+    { slots: PostSets::Post::WINDOW_SLOTS, chunk: PostSets::Post::WINDOW_CHUNK, chunkMax: PostSets::Post::WINDOW_CHUNK_MAX, **WINDOW_TUNING }
+  end
+
   def off?(index)
-    chunk? || index >= WINDOW_CONFIG[:slots]
+    chunk? || index >= PostSets::Post::WINDOW_SLOTS
   end
 
   # The grid's attributes: the hover panel's maps, and the window's state
@@ -57,7 +63,7 @@ class ModulationGalleryComponent::GridComponent < ApplicationComponent
     return data unless post_set.windowing?
 
     data.merge!(
-      "data-window" => WINDOW_CONFIG.to_json,
+      "data-window" => window_config.to_json,
       "data-window-v" => WINDOW_VERSION,
       "data-window-kind" => post_set.window_kind,
       "data-window-tags" => post_set.tag_string.to_s.strip,

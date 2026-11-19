@@ -76,14 +76,20 @@
   },
   "post_art": {
     "status": 200,
-    "posts": [],
+    "posts": [
+      50002,
+      50003
+    ],
     "secrets": [],
     "blacklist_box": true,
     "admin_views_logged": 0
   },
   "post_child": {
     "status": 200,
-    "posts": [],
+    "posts": [
+      50002,
+      50003
+    ],
     "secrets": [],
     "blacklist_box": true,
     "admin_views_logged": 0
@@ -226,6 +232,7 @@
       "quarantine": null,
       "can_edit": false,
       "candidates": [],
+      "random_candidates": [],
       "notices": [
         {
           "kind": "child",
@@ -283,6 +290,7 @@
       "quarantine": null,
       "can_edit": false,
       "candidates": [],
+      "random_candidates": [],
       "notices": [
         {
           "kind": "child",
@@ -325,6 +333,7 @@
       "quarantine": null,
       "can_edit": false,
       "candidates": [],
+      "random_candidates": [],
       "notices": [
         {
           "kind": "child",
@@ -480,6 +489,33 @@
       50002,
       50003
     ],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_paged": {
+    "status": 200,
+    "posts": [
+      50002,
+      50003
+    ],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "posts_tag_search_paged": {
+    "status": 200,
+    "posts": [
+      50002,
+      50003
+    ],
+    "secrets": [],
+    "blacklist_box": true,
+    "admin_views_logged": 0
+  },
+  "explore_popular_paged": {
+    "status": 200,
+    "posts": [],
     "secrets": [],
     "blacklist_box": true,
     "admin_views_logged": 0
