@@ -21,7 +21,8 @@
 #   environment), with every rule that branches on Rails.env read from that
 #   same default as Rails.env "production" would answer it (PRODUCTION_RULES).
 # - THE DATA IS SEEDED. Ids, names, md5s, sources and file keys are chosen,
-#   never drawn: every sequence restarts at ID_BASE, time is frozen at EPOCH,
+#   never drawn: every sequence restarts at ID_BASE (inside the test's
+#   transaction, restart_sequences!), time is frozen at EPOCH,
 #   and both random sources (Ruby's and Postgres's) are reseeded before every
 #   request, so random's flank and the layout's gift pick land the same way.
 # - NOTHING IS NORMALISED beyond what changes per run by design: CSRF tokens,
@@ -44,6 +45,9 @@ module InterfaceRecordingHelper
 
   EPOCH = Time.utc(2026, 1, 15, 12, 0, 0)
   ID_BASE = 50_000
+  # The ids the world may take from each sequence: ID_BASE up to, not
+  # including, ID_BASE + WORLD_SPAN. Checked after every build (world_fits!).
+  WORLD_SPAN = 1_000
 
   INTERFACES = %w[historical modulation].freeze
   VIEWERS = %w[signed_out restricted member gold approver moderator admin owner creator].freeze
@@ -149,6 +153,7 @@ module InterfaceRecordingHelper
     Cache.clear
     CreatorVisibility.forget!
     build_world!
+    world_fits!
   end
 
   def leave_recorded_world!
@@ -157,32 +162,92 @@ module InterfaceRecordingHelper
     # class: a later test in this worker whose proxy is elsewhere would see
     # its 127.0.0.1 peer as the proxy and honour the identity header.
     FourierIdentity.instance_variable_set(:@proxy_addresses, nil)
-    restore_sequences!
+    # Recorded as a failure, never raised: a raise here would end the
+    # teardown chain before test_helper's own (Cache.clear, the temp dir).
+    if @sequences_restarted && (overflow = world_overflow)
+      failure = Minitest::Assertion.new(overflow)
+      failure.set_backtrace(caller)
+      failures << failure
+    end
+    @sequences_restarted = nil
   end
 
-  # Sequences are not transactional: the test's rollback leaves them where the
-  # recording took them. Rails truncates a test database's tables between runs
-  # but keeps its sequences, and the seed's system user is created afresh from
-  # them, so a sequence left behind ID_BASE hands out that user's id again
-  # (users_pkey violations and User.last answering with the seed, fork-set
-  # gate 2026-11-16). Each is put back where it stood, or where the recording
-  # took it if that is further: never behind a value it has handed out.
+  # THE WORLD'S IDS ARE ON LOAN FROM THE TEST'S TRANSACTION.
+  #
+  # Every sequence is restarted at ID_BASE with ALTER SEQUENCE ... RESTART,
+  # which is transactional (setval is not; Postgres 10+): the rollback that
+  # ends the test puts each sequence back where it stood, and so does the
+  # abort when a killed run's connection drops. It was setval, put back by
+  # teardown -- which a killed run never reaches. A record run stopped
+  # mid-recording (2026-11-19) left the sequences inside the world; the next
+  # run's seed system user was created at 50003 and 50009, and the world's
+  # own users collided with it: 33 users_pkey errors in a fork-set deploy
+  # gate on a commit that had not touched these tests.
+  #
+  # Rows the rollback does not remove -- the seed, created at the start of
+  # every run from wherever the sequences stand -- must therefore never be
+  # inside the world's ids. Before the restart, any sequence standing below
+  # ID_BASE + WORLD_SPAN is advanced past it with setval, which outlives the
+  # rollback by design (verified on 16.15: a setval before the RESTART in
+  # the same transaction survives it), so every later seed lands clear of
+  # the world. A row already in the world's ids is named, with its fix,
+  # before the world collides with it.
   def restart_sequences!
     connection = ActiveRecord::Base.connection
-    @sequence_marks ||= connection.select_rows("SELECT schemaname || '.' || sequencename, last_value FROM pg_sequences WHERE schemaname = 'public'")
-    @sequence_marks.map(&:first).each do |sequence|
-      connection.execute("SELECT setval(#{connection.quote(sequence)}, #{ID_BASE}, false)")
+    raise "the recorded world restarts sequences inside the test's transaction, and none is open; fix: call enter_recorded_world! from the test body or setup of a transactional test" unless connection.transaction_open?
+
+    world_end = ID_BASE + WORLD_SPAN
+    sequences = connection.select_values("SELECT format('%I.%I', schemaname, sequencename) FROM pg_sequences WHERE schemaname = 'public'")
+    # The value each hands out next, read from the sequence itself:
+    # pg_sequences says NULL for one set with setval(..., false), which
+    # cannot be told from one never used, and only ever advanced.
+    upcoming = connection.select_rows(sequences.map { |sequence| "(SELECT #{connection.quote(sequence)}, CASE WHEN is_called THEN last_value + 1 ELSE last_value END FROM #{sequence})" }.join(" UNION ALL "))
+    upcoming.each do |sequence, value|
+      connection.execute("SELECT setval(#{connection.quote(sequence)}, #{world_end}, false)") if value.to_i < world_end
     end
+
+    squatters = world_squatters(connection)
+    raise "rows outside this test already hold ids the recorded world takes (#{ID_BASE}...#{world_end}): #{squatters.join(", ")}. " \
+          "A run that restarted the sequences without rolling them back created them (the seed system user is the usual one). " \
+          "Every sequence has just been advanced past #{world_end}, so no row made from now on lands there, but these rows stay until removed. " \
+          "Fix: delete them, or recreate this test database (bin/rails db:test:prepare; a parallel worker's database is rebuilt from the schema when it changes, else only truncated), then rerun." if squatters.any?
+
+    sequences.each { |sequence| connection.execute("ALTER SEQUENCE #{sequence} RESTART WITH #{ID_BASE}") }
+    @sequences_restarted = true
   end
 
-  def restore_sequences!
-    return unless @sequence_marks
+  # "table.column=id" for each row whose id a sequence-owned column holds
+  # inside the world's range.
+  def world_squatters(connection)
+    owned = connection.select_rows(<<~SQL.squish)
+      SELECT format('%I.%I', tns.nspname, tbl.relname), quote_ident(att.attname)
+      FROM pg_class seq
+      JOIN pg_namespace ns ON ns.oid = seq.relnamespace
+      JOIN pg_depend dep ON dep.objid = seq.oid AND dep.classid = 'pg_class'::regclass AND dep.refclassid = 'pg_class'::regclass AND dep.deptype IN ('a', 'i')
+      JOIN pg_class tbl ON tbl.oid = dep.refobjid
+      JOIN pg_namespace tns ON tns.oid = tbl.relnamespace
+      JOIN pg_attribute att ON att.attrelid = tbl.oid AND att.attnum = dep.refobjsubid
+      WHERE seq.relkind = 'S' AND ns.nspname = 'public'
+    SQL
+    return [] if owned.empty?
 
-    connection = ActiveRecord::Base.connection
-    @sequence_marks.each do |sequence, mark|
-      connection.execute("SELECT setval(#{connection.quote(sequence)}, GREATEST(#{mark.to_i}, last_value), true) FROM #{sequence}")
+    probes = owned.map do |table, column|
+      "(SELECT #{connection.quote("#{table}.#{column}")} || '=' || #{column} FROM #{table} WHERE #{column} >= #{ID_BASE} AND #{column} < #{ID_BASE + WORLD_SPAN} LIMIT 1)"
     end
-    @sequence_marks = nil
+    connection.select_values(probes.join(" UNION ALL "))
+  end
+
+  # The test took its ids from ID_BASE up and stayed inside WORLD_SPAN, so
+  # the advance in restart_sequences! keeps every seed clear of it. Asked
+  # after the build and again at teardown, for the rows the requests made.
+  def world_fits!
+    overflow = world_overflow
+    raise overflow if overflow
+  end
+
+  def world_overflow
+    over = ActiveRecord::Base.connection.select_rows("SELECT sequencename, last_value FROM pg_sequences WHERE schemaname = 'public' AND last_value >= #{ID_BASE + WORLD_SPAN}")
+    "the recorded world took ids past ID_BASE + WORLD_SPAN (#{ID_BASE + WORLD_SPAN}): #{over.map { |name, value| "#{name}=#{value}" }.join(", ")}; fix: raise InterfaceRecordingHelper::WORLD_SPAN past them" if over.any?
   end
 
   # Both random sources, the same before every request.
@@ -260,8 +325,14 @@ module InterfaceRecordingHelper
     # (PostSets::Post#window_query), so no card and no cursor names it.
     # After the wiki page, so no id above it moves.
     @taken_down = make_post(9, "#{ARTIST} landscape", is_taken_down: true)
+    # A banned child of @art: Post#relatives_shown_to does not drop banned
+    # posts, so this witnesses that Modulation's family strips on the post
+    # view draw through PostPreviewComponent.drawable? and show it to no
+    # one below Approver. Not "landscape", so no tag search moves; last, so
+    # no id above it moves.
+    @banned_child = make_post(10, "#{BANNED_ARTIST} family", parent_id: @art.id)
     CreatorVisibility.forget!
-    [@older, @deleted, @art, @child, @jailed, @closed, @flagged, @banned, @taken_down].each(&:reload)
+    [@older, @deleted, @art, @child, @jailed, @closed, @flagged, @banned, @taken_down, @banned_child].each(&:reload)
   end
 
   # A fresh browser for `viewer`: signed in to the booru for a booru viewer,
