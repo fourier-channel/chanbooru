@@ -21,7 +21,13 @@ class Upload < ApplicationRecord
   attr_accessor :files
 
   belongs_to :uploader, class_name: "User"
-  has_many :upload_media_assets, dependent: :destroy
+  # In the order they were saved: an archive's files in natural filename
+  # order (process_file_upload!), a source's images in the site's order.
+  # Unordered, Postgres returns them in heap order, which an update to any
+  # one of them reshuffles -- the upload page, its JSON and "the first file"
+  # then named a different file (a .7z upload test failed a deploy gate on
+  # it, 2026-11-19).
+  has_many :upload_media_assets, -> { order(:id) }, dependent: :destroy
   has_many :media_assets, through: :upload_media_assets
   has_many :posts, through: :media_assets
 

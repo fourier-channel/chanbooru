@@ -6,6 +6,26 @@ class UploadTest < ActiveSupport::TestCase
   end
 
   context "Upload" do
+    context "listing its files" do
+      # Unordered, Postgres returns rows in storage order, and an UPDATE can
+      # move a row to the end of it -- but whether one does depends on the
+      # page and the plan (an in-page update an index scan never sees moved),
+      # so a test that updates a row cannot be relied on to reorder them.
+      # Here the files are stored in the reverse of their id order, so any
+      # plan returns them reversed unless the association asks for id order.
+      should "list them by id whatever order the table holds them in" do
+        upload = create(:upload, media_asset_count: 3)
+        # One query: the query cache answers a repeated identical SELECT
+        # from memory, so three nextval calls returned one id three times.
+        ids = UploadMediaAsset.connection.select_values("SELECT nextval(pg_get_serial_sequence('upload_media_assets', 'id')) FROM generate_series(1, 3)").map(&:to_i).sort
+        ids.reverse.each { |id| create(:upload_media_asset, id: id, upload: upload, source_url: "file://a.zip/#{id}.jpg") }
+
+        assert_equal(ids, upload.reload.upload_media_assets.map(&:id))
+        assert_equal(ids, Upload.includes(:upload_media_assets).find(upload.id).upload_media_assets.map(&:id))
+        assert_equal(ids.first, upload.upload_media_assets.first.id)
+      end
+    end
+
     context "searching" do
       setup do
         @asset1 = create(:media_asset, image_width: 720, image_height: 1280, file_size: 1.megabyte, file_ext: "jpg", media_metadata: build(:media_metadata, metadata: { "File:FileType" => "JPEG" }))
