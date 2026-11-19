@@ -57,7 +57,10 @@ class StaticController < ApplicationController
       @relation = Pool.undeleted
       @search = { is_deleted: "false" }
     when "posts"
-      @relation = Post.order(id: :asc)
+      # Fork: of the posts the viewer may see -- the index listed a block
+      # that only a deleted newest post filled, showing its id to anyone
+      # (2026-11-19).
+      @relation = Post.without_hidden_posts(CurrentUser.user).order(id: :asc)
       @search = {}
     when "tags"
       @relation = Tag.nonempty

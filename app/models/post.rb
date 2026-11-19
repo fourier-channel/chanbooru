@@ -862,26 +862,28 @@ class Post < ApplicationRecord
     end
 
     # The children that exist for `viewer`: every child but those hidden
-    # from them beyond deletion (#hidden_beyond_deletion? -- a creator's
-    # narrowing, a hidden creator prefix, gated below Gold);
-    # deleted ones stay, as the stored flags count them. Read fresh, not
+    # from them (#hidden_from? -- deleted past what they may see, a
+    # creator's narrowing, a hidden creator prefix, gated below Gold). Read
+    # fresh, not
     # through the children association, which a save's own validations load
     # before child: metatags change it; and only for a post whose flag says
     # it has children, so a gallery pays one query per parent, not per post.
     def children_shown_to(viewer)
       return [] unless has_children?
 
-      (@children_shown_to ||= {})[viewer&.id] ||= Post.unscoped.where(parent_id: id).reject { |child| child.hidden_beyond_deletion?(viewer) }
+      (@children_shown_to ||= {})[viewer&.id] ||= Post.unscoped.where(parent_id: id).reject { |child| child.hidden_from?(viewer) }
     end
 
     # parent_id, unless the parent does not exist for `viewer` (as above).
     def parent_id_shown_to(viewer)
-      parent_id unless parent_id.present? && parent&.hidden_beyond_deletion?(viewer)
+      parent_id unless parent_id.present? && parent&.hidden_from?(viewer)
     end
 
     # The stored relationship columns as `viewer` may be told them -- what a
     # post's JSON and its page's data attributes carry. A deleted relative is
-    # still named, as upstream names it.
+    # named only to a viewer who may see it: a visible child's JSON and page
+    # named its deleted parent's id to anyone (2026-11-19; jailed means
+    # deleted, operator 2026-10-10).
     def relationship_attributes_shown_to(viewer)
       shown = children_shown_to(viewer)
       {
@@ -1283,13 +1285,13 @@ class Post < ApplicationRecord
         when "is"
           is_matches(value, current_user)
         when "has"
-          has_matches(value)
+          has_matches(value, current_user)
         when "status"
           status_matches(value, current_user)
         when "parent"
           parent_matches(value, current_user)
         when "child"
-          child_matches(value)
+          child_matches(value, current_user)
         when "rating"
           rating_matches(value)
         when "embedded"
@@ -1370,9 +1372,9 @@ class Post < ApplicationRecord
       def is_matches(value, current_user = User.anonymous)
         case value.downcase
         when "parent"
-          where(has_children: true)
+          child_matches("any", current_user)
         when "child"
-          where.not(parent: nil)
+          parent_matches("any", current_user)
         when "wiki_image"
           where(id: DtextLink.wiki_page.embedded_post.select("link_target::integer"))
         when *AutocompleteService::POST_STATUSES
@@ -1388,12 +1390,12 @@ class Post < ApplicationRecord
         end
       end
 
-      def has_matches(value)
+      def has_matches(value, current_user = User.anonymous)
         case value.downcase
         when "parent"
-          where.not(parent: nil)
+          parent_matches("any", current_user)
         when "child", "children"
-          where(has_children: true)
+          child_matches("any", current_user)
         when "source"
           where.not(source: "")
         when "appeals"
@@ -1440,21 +1442,25 @@ class Post < ApplicationRecord
         end
       end
 
+      # Fork: a parent hidden from the searcher is no parent
+      # (#parent_id_shown_to). Its id matches what a missing id matches,
+      # nothing -- parent:<id of a post its creator hid> listed its visible
+      # children (second review, 2026-10-08), and so did parent:<id of a
+      # deleted post> (2026-11-19) -- and its children are parent:none, not
+      # parent:any (Post.unnamed_parent_sql).
       def parent_matches(parent, current_user = User.anonymous)
+        unnamed = Post.unnamed_parent_sql(current_user)
+
         case parent.downcase
         when "none"
-          where(parent: nil)
+          unnamed ? where(parent: nil).or(where(unnamed)) : where(parent: nil)
         when "any"
-          where.not(parent: nil)
+          unnamed ? where.not(parent: nil).where.not(unnamed) : where.not(parent: nil)
         when "pending", "flagged", "appealed", "modqueue", "deleted", "banned", "active", "unmoderated"
-          where.not(parent: nil).where(parent: status_matches(parent))
+          found = where.not(parent: nil).where(parent: status_matches(parent))
+          unnamed ? found.where.not(unnamed) : found
         when /\A\d+\z/
-          # Fork: the id of a post that does not exist for the searcher
-          # (#hidden_beyond_deletion?) matches what a missing id matches,
-          # nothing -- parent:<id of a post its creator hid> listed its
-          # visible children (second review, 2026-10-08). A deleted parent's
-          # children are still found, as upstream finds them.
-          parent = "0" if Post.unscoped.find_by(id: parent)&.hidden_beyond_deletion?(current_user)
+          parent = "0" if Post.unscoped.find_by(id: parent)&.hidden_from?(current_user)
           # XXX must use `attribute_matches(parent, :parent_id)` instead of `where(parent_id: parent)` so that `-parent:1` works
           where(id: parent).or(attribute_matches(parent, :parent_id))
         else
@@ -1462,14 +1468,21 @@ class Post < ApplicationRecord
         end
       end
 
-      def child_matches(child)
+      # Fork: of the children the searcher may be told of
+      # (Post.named_child_sql), not the stored flag, which counts a deleted
+      # child too.
+      def child_matches(child, current_user = User.anonymous)
+        named = Post.named_child_sql(current_user)
+
         case child.downcase
         when "none"
-          where(has_children: false)
+          named ? where(has_children: false).or(where.not(named)) : where(has_children: false)
         when "any"
-          where(has_children: true)
+          named ? where(has_children: true).where(named) : where(has_children: true)
         when "pending", "flagged", "appealed", "modqueue", "deleted", "banned", "active", "unmoderated"
-          where(has_children: true).where(children: status_matches(child))
+          among = status_matches(child)
+          named = Post.named_child_sql(current_user, among)
+          named ? where(has_children: true).where(named) : where(has_children: true).where(children: among)
         else
           none
         end
@@ -1915,6 +1928,9 @@ class Post < ApplicationRecord
       end
 
       def search(params, current_user)
+        params = (params.try(:to_unsafe_h) || params.to_h).with_indifferent_access
+        relationship_keys = params.keys.grep(/\A(parent_id(_.+)?|has_parent|has_children)\z/)
+
         # Only allow exact md5 matches for non-moderators (see MediaAsset.search).
         attributes = %i[
           id created_at updated_at rating source pixiv_id fav_count score up_score down_score file_ext
@@ -1924,7 +1940,8 @@ class Post < ApplicationRecord
         ]
         attributes += [:md5] if current_user.is_moderator?
 
-        q = search_attributes(params, attributes, current_user: current_user)
+        q = search_attributes(params.except(*relationship_keys), attributes, current_user: current_user)
+        q = q.relationship_search(params.slice(*relationship_keys), current_user)
         q = q.where(md5: params[:md5].to_s) if params[:md5].present? && !current_user.is_moderator?
 
         if params[:tags].present?
@@ -1938,6 +1955,61 @@ class Post < ApplicationRecord
         end
 
         q
+      end
+
+      # Fork: search[parent_id*], search[has_parent] and search[has_children]
+      # -- from /posts.json and from every nested search[post][...] of a
+      # model that belongs to a post -- read a post's relationship as the
+      # searcher may be told it, as parent: and child: do. Searchable matched
+      # the stored columns, so /comments.json?search[post][parent_id]=<a
+      # deleted post> found its visible children's comments where a missing
+      # id found none, to anyone, signed out included (2026-11-19). A hidden
+      # parent is no parent: its exact id becomes 0, which no post has, and
+      # its children are has_parent=false -- and one of the posts whose
+      # parent is NOT the one named, as a post with no parent is.
+      # search[has_children] read the stored flag AND an EXISTS that
+      # Searchable#search_has_include built over posts against itself, which
+      # no post satisfied; it reads child_matches now.
+      def relationship_search(params, current_user)
+        q = all
+        unnamed = Post.unnamed_parent_sql(current_user)
+        named = params.slice(*params.keys.grep(/\Aparent_id(_|\z)/)).compact_blank.transform_values { |value| parent_ids_named_to(value, current_user) }
+
+        if named.except(:parent_id_not).present?
+          q = q.search_attributes(named.except(:parent_id_not), [:parent_id], current_user: current_user)
+          q = q.where.not(unnamed) if unnamed
+        end
+
+        if named[:parent_id_not].present?
+          matched = Post.unscoped.where_numeric_matches(:parent_id, named[:parent_id_not], :integer)
+          matched = matched.where.not(unnamed) if unnamed
+          q = q.where.not(id: matched)
+        end
+
+        if params[:has_parent].to_s.truthy?
+          q = q.parent_matches("any", current_user)
+        elsif params[:has_parent].to_s.falsy?
+          q = q.parent_matches("none", current_user)
+        end
+
+        if params[:has_children].to_s.truthy?
+          q = q.child_matches("any", current_user)
+        elsif params[:has_children].to_s.falsy?
+          q = q.child_matches("none", current_user)
+        end
+
+        q
+      end
+
+      # A search[parent_id] value with each exact id of a post hidden from
+      # `user` (Post.hidden_ids_among) as 0; anything else (a range, a
+      # comparison) as given, which unnamed_parent_sql narrows.
+      def parent_ids_named_to(value, user)
+        return value unless value.to_s.match?(/\A[\d,\s]+\z/)
+
+        ids = value.to_s.scan(/\d+/).map(&:to_i)
+        gone = Post.hidden_ids_among(ids, user)
+        ids.map { |id| gone.include?(id) ? 0 : id }.join(",")
       end
     end
   end
@@ -2504,13 +2576,44 @@ class Post < ApplicationRecord
     literal = CreatorVisibility.hidden_ids_literal(user) if by_creator
     terms << where("posts.id IN (SELECT unnest(?::integer[]))", literal) if literal
 
-    if user.nil? || !user.can_see_deleted_posts?
-      deleted = where(is_deleted: true)
-      deleted = deleted.where.not(uploader_id: user.id) unless user.nil? || user.is_anonymous?
-      terms << deleted
-    end
+    deleted = hidden_as_deleted_sql(user)
+    terms << where(deleted) if deleted
 
     terms.reduce(:or)
+  end
+
+  # The deleted term of hidden_from (#hidden_as_deleted?) as SQL over
+  # `table`, a name or alias for posts -- for a condition on a post's
+  # relative, which reads a second copy of posts and so cannot use the
+  # relation hidden_from builds over `posts`. nil when `user` sees deleted
+  # posts. Both columns are NOT NULL, so NOT of it is exact.
+  def self.hidden_as_deleted_sql(user, table = "posts")
+    return nil if user.present? && user.can_see_deleted_posts?
+
+    sql = "#{table}.is_deleted = TRUE"
+    sql += " AND #{table}.uploader_id <> #{user.id.to_i}" unless user.nil? || user.is_anonymous?
+    sql
+  end
+
+  # A post whose parent is deleted past what `user` may see -- a post that,
+  # to them, has no parent (#parent_id_shown_to); nil when they see deleted
+  # posts. parent:none, parent:any and search[has_parent] ask it, so a
+  # deleted parent's id is answered as a missing one's (2026-11-19).
+  def self.unnamed_parent_sql(user)
+    deleted = hidden_as_deleted_sql(user, "parents")
+    "EXISTS (SELECT 1 FROM posts parents WHERE parents.id = posts.parent_id AND #{deleted})" if deleted
+  end
+
+  # A post with a child `user` may be told of (#children_shown_to), among
+  # `among` if given; nil when they see deleted posts, for whom the stored
+  # has_children flag is the answer. The flag counts a deleted child, so
+  # child:any found a visible post whose only child was deleted (2026-11-19).
+  def self.named_child_sql(user, among = nil)
+    deleted = hidden_as_deleted_sql(user, "children")
+    return nil if deleted.nil?
+
+    among = " AND children.id IN (#{among.select(:id).to_sql})" if among
+    "EXISTS (SELECT 1 FROM posts children WHERE children.parent_id = posts.id AND NOT (#{deleted})#{among})"
   end
 
   # ApplicationRecord.without_hidden_posts, for posts themselves: the posts
@@ -2588,10 +2691,10 @@ class Post < ApplicationRecord
   # @return [Hash{Symbol => Object}] parent: a Post or nil; siblings: and
   #   children: Arrays of Post
   def relatives_shown_to(viewer)
-    shown_parent = parent unless parent.nil? || parent.hidden_beyond_deletion?(viewer)
+    shown_parent = parent unless parent.nil? || parent.hidden_from?(viewer)
     include_deleted = is_deleted? || shown_parent&.is_deleted? || viewer.show_deleted_children?
     shown = lambda do |posts|
-      found = (include_deleted ? posts : posts.undeleted).includes(:media_asset).reject { |post| post.hidden_beyond_deletion?(viewer) }
+      found = (include_deleted ? posts : posts.undeleted).includes(:media_asset).reject { |post| post.hidden_from?(viewer) }
       viewer.can_browse_freely? ? found : found.first(viewer.listing_per_page_limit)
     end
 
@@ -2635,6 +2738,14 @@ class Post < ApplicationRecord
     regex = params.keys.grep(/\Aany_((added|removed)_)?post_id_matches_regex\z/).find { |key| params[key].present? }
     raise ActionController::BadRequest, "search[#{regex}] is refused here: it would match posts hidden from you. Search with post_ids_include_any instead." if regex
 
+    # And search[post_id_count] (Searchable's #{singular}_count), which
+    # counted the stored list -- the deleted posts in it included, so a pool
+    # whose visible posts numbered one matched post_id_count=3 (2026-11-19).
+    # Refused only where something is hidden from `user`; the count is
+    # exact for everyone else.
+    count = params.keys.grep(/\A((added|removed)_)?post_id_count\z/).find { |key| params[key].present? }
+    raise ActionController::BadRequest, "search[#{count}] is refused here: it would count posts hidden from you. Search with post_ids_include_any, or order by post_count." if count && !unscoped { hidden_from(user) }.nil?
+
     keys = params.keys.grep(/\A((added|removed)_)?post_ids_include_(any|all)(_lower)?(_array)?\z/)
     keys << "post_id" if params[:post_id].present?
     return params if keys.empty?
@@ -2645,6 +2756,18 @@ class Post < ApplicationRecord
       ids = ids.map { |id| gone.include?(id) ? 0 : id }
       [key, key.end_with?("_array") ? ids : ids.join(" ")]
     end)
+  end
+
+  # The number of the posts in `column` (an integer[] of post ids, as SQL)
+  # that `user` may see, as an SQL expression -- what a pool or a favorite
+  # group orders by for order=post_count. cardinality(column) counted the
+  # deleted posts in the list too, so the order ranked a pool by posts the
+  # searcher could not see (2026-11-19). The bare cardinality when nothing
+  # is hidden from them.
+  def self.visible_count_sql(column, user)
+    return "cardinality(#{column})" if unscoped { hidden_from(user) }.nil?
+
+    "(#{unscoped.where("posts.id = ANY(#{column})").without_hidden_posts(user).select("COUNT(*)").to_sql})"
   end
 
   # Whether an upload of this post's file by `user` is REFUSED, rather than

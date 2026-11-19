@@ -13,6 +13,10 @@ class Reaction < ApplicationRecord
   belongs_to :model, polymorphic: true
   belongs_to :creator, class_name: "User"
 
+  # Fork: a reaction to a post the viewer may not see, or to a comment of
+  # one, is not theirs to read (ApplicationRecord.names_posts_through).
+  names_posts_through :model
+
   validates :creator, uniqueness: { scope: [:model_type, :model_id, :creator_id, :reaction_id], message: ->(_reaction, _data) { "already used this reaction." }}, on: :create
   validates :model_type, inclusion: { in: MODEL_TYPES }
   validates :reaction_id, inclusion: { in: REACTION_IDS }

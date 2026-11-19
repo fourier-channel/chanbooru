@@ -87,7 +87,7 @@ class Pool < ApplicationRecord
       when "created_at"
         q = q.order("pools.created_at desc")
       when "post_count"
-        q = q.order(Arel.sql("cardinality(post_ids) desc")).default_order
+        q = q.order(Arel.sql("#{Post.visible_count_sql("pools.post_ids", current_user)} desc")).default_order
       else
         q = q.apply_default_order(params)
       end

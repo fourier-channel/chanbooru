@@ -87,14 +87,16 @@ class PostVersion < ApplicationRecord
         q = q.none if searched_tag_names(params).intersect?(TagQuarantine.hidden_names_for(current_user))
       end
 
-      q.apply_default_order(params).redacting_private_tags_for(current_user, CurrentUser.request)
+      q.apply_default_order(params).redacting_private_tags_for(current_user, CurrentUser.request).withholding_unnamed_parents_for(current_user)
     end
 
     # The search's own conditions, upstream's, with no fork guard: search
     # runs them over the table, and private_history_ids_hidden_from over the
     # rows as a viewer is shown them.
     def matching(params, current_user)
-      q = search_attributes(params, %i[id updated_at updater_id post_id tags added_tags removed_tags rating rating_changed parent_id parent_changed source source_changed version], current_user: current_user)
+      parent_keys = params.keys.grep(/\Aparent_id(_|\z)/)
+      q = search_attributes(params.except(*parent_keys), %i[id updated_at updater_id post_id tags added_tags removed_tags rating rating_changed parent_id parent_changed source source_changed version], current_user: current_user)
+      q = q.parent_search(params.slice(*parent_keys), current_user) if parent_keys.any?
 
       if params[:changed_tags]
         q = q.changed_tags_include_all(params[:changed_tags].scan(/[^[:space:]]+/))
@@ -342,6 +344,75 @@ class PostVersion < ApplicationRecord
         by_post.select { |_, by_version| by_version.any? }
       end
 
+      # Fork: search[parent_id*] as Post.relationship_search reads it -- a
+      # parent hidden from the searcher is no parent. Its exact id becomes 0
+      # (Post.parent_ids_named_to), a version naming a deleted parent the
+      # searcher may not see matches no parent_id and is one of the versions
+      # whose parent is NOT the one named. The child's history answered a
+      # deleted parent's id differently from a missing one (2026-11-19).
+      def parent_search(params, current_user)
+        params = (params.try(:to_unsafe_h) || params.to_h).with_indifferent_access
+        named = params.compact_blank.transform_values { |value| Post.parent_ids_named_to(value, current_user) }
+        unnamed = unnamed_parent_condition(current_user)
+        q = all
+
+        if named.except(:parent_id_not).present?
+          q = q.search_attributes(named.except(:parent_id_not), [:parent_id], current_user: current_user)
+          q = q.where.not(unnamed) if unnamed
+        end
+
+        if named[:parent_id_not].present?
+          matched = PostVersion.unscoped.where_numeric_matches(:parent_id, named[:parent_id_not], :integer)
+          matched = matched.where.not(unnamed) if unnamed
+          q = q.where.not(id: matched)
+        end
+
+        q
+      end
+
+      # A version whose parent_id names a post deleted past what `user` may
+      # see (Post.hidden_as_deleted_sql), or nil when they see deleted posts:
+      # correlated when the versions share the posts' database, else by the
+      # deleted ids themselves, as ApplicationRecord.without_hidden_posts
+      # does for the archive database.
+      def unnamed_parent_condition(user)
+        deleted = Post.hidden_as_deleted_sql(user, "parents")
+        return nil if deleted.nil?
+
+        if shares_database_with?(Post)
+          Arel.sql("EXISTS (SELECT 1 FROM posts parents WHERE parents.id = post_versions.parent_id AND #{deleted})")
+        else
+          arel_table[:parent_id].in(Post.unscoped.from("posts parents").where(deleted).pluck(Arel.sql("parents.id")))
+        end
+      end
+
+      # A relation whose rows show no parent hidden from `user`
+      # (withhold_unnamed_parents) when it loads -- and nor do the versions
+      # preloaded beside them (post: :versions), which #previous reads. On
+      # the relation for the reason redacting_private_tags_for gives.
+      def withholding_unnamed_parents_for(user)
+        extending(Module.new do
+          define_method(:load) do |&block|
+            fresh = !loaded?
+            super(&block)
+            if fresh
+              preloaded = @records.flat_map { |version| (version.association(:post).loaded? && version.post&.association(:versions)&.loaded?) ? version.post.versions.to_a : [] }
+              PostVersion.withhold_unnamed_parents(@records + preloaded, user)
+            end
+            self
+          end
+        end)
+      end
+
+      # Mark each of `versions` whose parent is hidden from `user`
+      # (Post.hidden_ids_among) so that #parent_id reads nil, in one query.
+      # A version already asked about is not asked again.
+      def withhold_unnamed_parents(versions, user)
+        versions = versions.compact.reject(&:parent_checked?)
+        gone = Post.hidden_ids_among(versions.filter_map { |version| version.read_attribute(:parent_id) }.uniq, user)
+        versions.each { |version| version.withhold_parent_from!(gone) }
+      end
+
       # A relation whose rows have redact_private_tags applied when it loads.
       # On the relation rather than in the controller, because the API's
       # respond_with re-derives the relation (it adds the ?only= includes)
@@ -385,6 +456,27 @@ class PostVersion < ApplicationRecord
           version.withhold_tags!(names) if names.present?
         end
       end
+    end
+
+    # Fork: a parent hidden from the viewer is no parent
+    # (withhold_unnamed_parents): the version's JSON, its page and #changes
+    # read nil, as Post#parent_id_shown_to answers for the post itself. In
+    # memory only: the row is marked readonly. #undo! reads #changes, so an
+    # undo by a viewer who may not see the parent does not restore it.
+    def withhold_parent_from!(gone)
+      @parent_checked = true
+      return unless gone.include?(read_attribute(:parent_id))
+
+      @parent_withheld = true
+      readonly!
+    end
+
+    def parent_checked?
+      @parent_checked.present?
+    end
+
+    def parent_id
+      @parent_withheld ? nil : super
     end
 
     def withhold_tags!(names)
@@ -441,11 +533,13 @@ class PostVersion < ApplicationRecord
     @previous ||= begin
       # HACK: if all the post versions for this post have already been preloaded,
       # we can use that to avoid a SQL query.
-      if association(:post).loaded? && post&.association(:versions)&.loaded?
+      found = if association(:post).loaded? && post&.association(:versions)&.loaded?
         [post.versions.sort_by(&:version).reverse.find { |v| v.version < version }]
       else
         PostVersion.where("post_id = ? and version < ?", post_id, version).order(version: :desc).limit(1).to_a
       end
+      PostVersion.withhold_unnamed_parents(found, CurrentUser.user)
+      found
     end
     @previous.first
   end
@@ -485,7 +579,8 @@ class PostVersion < ApplicationRecord
 
     latest_tags = post.tag_array
     latest_tags << "rating:#{post.rating}" if post.rating.present?
-    latest_tags << "parent:#{post.parent_id}" if post.parent_id.present?
+    shown_parent_id = post.parent_id_shown_to(CurrentUser.user)
+    latest_tags << "parent:#{shown_parent_id}" if shown_parent_id.present?
     latest_tags << "source:#{post.source}" if post.source.present?
 
     if parent_changed

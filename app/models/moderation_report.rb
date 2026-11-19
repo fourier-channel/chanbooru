@@ -13,6 +13,10 @@ class ModerationReport < ApplicationRecord
 
   belongs_to :model, polymorphic: true
   belongs_to :creator, class_name: "User"
+
+  # Fork: a report on a comment of a post the viewer may not see is not
+  # theirs to read (ApplicationRecord.names_posts_through).
+  names_posts_through :model
   has_many :mod_actions, as: :subject, dependent: :destroy
 
   before_validation(on: :create) { model.lock! }

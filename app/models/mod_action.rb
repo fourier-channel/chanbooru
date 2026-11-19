@@ -205,8 +205,10 @@ class ModAction < ApplicationRecord
 
   normalizes :category, with: ->(category) { category.to_s.parameterize.underscore.presence }
 
+  # Fork: MediaAsset added -- MediaAsset#trash! and #expunge! log with the
+  # asset as subject, and names_posts_through asks only these types.
   def self.model_types
-    %w[Artist Comment CommentVote ForumPost ForumTopic IpBan ModerationReport NewsUpdate Pool Post PostVote SiteCredential Tag TagAlias TagImplication User]
+    %w[Artist Comment CommentVote ForumPost ForumTopic IpBan MediaAsset ModerationReport NewsUpdate Pool Post PostVote SiteCredential Tag TagAlias TagImplication User]
   end
 
   def self.visible(user)
@@ -226,20 +228,37 @@ class ModAction < ApplicationRecord
   end
 
   # Fork: a mod action whose subject is a post the viewer may not see is not
-  # shown -- "deleted post #N, reason: troll jail: shock" names the post and
-  # why it went. The ApplicationRecord rule keys on belongs_to :post; a mod
-  # action names its post through the polymorphic subject instead.
+  # shown -- "deleted post #N, reason: ..." names the post and why it went --
+  # nor one whose subject is a row filed on such a post: "deleted post vote
+  # #N on post #M", "deleted media asset #N (md5=...)", a comment, a comment
+  # vote, a report on a comment (names_posts_through). Until 2026-11-19 only
+  # a Post subject was asked here.
+  names_posts_through :subject
+
+  # A favorites move names a SECOND post, the parent, in its description
+  # ("moved favorites from post #<child> to post #<parent>",
+  # Post#give_favorites_to_parent), and the subject rule sees only the
+  # child: a parent deleted after the move was named to every viewer who
+  # could see the child once it was undeleted. That description is written
+  # by that one line of code and by nobody else, so its trailing id is read
+  # as data here, and only for that category (the CASE keeps the cast off
+  # every other description).
   #
-  # And one whose subject is a tag, alias, implication or artist entry
-  # (an artist claim's decision) naming a tag the
-  # viewer may not be shown (TagQuarantine: flagged below admin, banished to
-  # all but the pipeline) -- "deprecated tag [[secret_(thing)]]" names it as
-  # plainly as the tag index would.
+  # And one whose subject is a tag, alias, implication or artist entry (an
+  # artist claim's decision) naming a tag the viewer may not be shown
+  # (TagQuarantine: flagged below admin, banished to all but the pipeline)
+  # -- "deprecated tag [[secret_(thing)]]" names it as plainly as the tag
+  # index would.
+  #
+  # Overrides the rule names_posts_through defined, so it is also what
+  # #hidden_by_post_from? (which asks this listing rule of one row) answers.
   def self.without_hidden_posts(user)
-    relation = all
+    relation = without_hidden_polymorphic_posts(user, :subject)
     hidden = Post.hidden_from(user)
-    # Correlated, for the reason ApplicationRecord.without_hidden_posts gives.
-    relation = relation.where.not(hidden.where(Post.arel_table[:id].eq(arel_table[:subject_id])).where(arel_table[:subject_type].eq("Post")).arel.exists) unless hidden.nil?
+    unless hidden.nil?
+      target = Arel.sql("CASE WHEN mod_actions.category = #{categories.fetch("post_move_favorites").to_i} THEN NULLIF(substring(mod_actions.description from 'to post #([0-9]+)$'), '')::integer END")
+      relation = relation.where.not(hidden.where(Post.arel_table[:id].eq(target)).arel.exists)
+    end
 
     names = TagQuarantine.hidden_names_for(user)
     return relation if names.empty?
@@ -250,14 +269,6 @@ class ModAction < ApplicationRecord
       OR (COALESCE(mod_actions.subject_type, '') = 'TagImplication' AND COALESCE(mod_actions.subject_id, 0) IN (SELECT id FROM tag_implications WHERE antecedent_name IN (:names) OR consequent_name IN (:names)))
       OR (COALESCE(mod_actions.subject_type, '') = 'Artist' AND COALESCE(mod_actions.subject_id, 0) IN (SELECT id FROM artists WHERE name IN (:names)))
     SQL
-  end
-
-  def hidden_by_post_from?(user)
-    case subject_type
-    when "Post" then subject.present? && subject.hidden_from?(user)
-    when "Tag", "TagAlias", "TagImplication", "Artist" then subject.present? && subject.hidden_by_post_from?(user)
-    else false
-    end
   end
 
   def self.search(params, current_user)

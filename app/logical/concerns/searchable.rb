@@ -686,11 +686,15 @@ module Searchable
           source_association = association.source_reflection
           through_association = association.through_reflection
 
-          source_subquery = source_association.klass.visible(current_user).search(params[attr], current_user).reorder(nil)
-          through_subquery = through_association.klass.visible(current_user).where(source_association.name => source_subquery)
+          source_subquery = source_association.klass.visible(current_user).search(params[attr], current_user).without_hidden_posts(current_user).reorder(nil)
+          through_subquery = through_association.klass.visible(current_user).without_hidden_posts(current_user).where(source_association.name => source_subquery)
           relation = visible(relation, attr).where(through_association.name => through_subquery)
         else
-          relation = visible(relation, attr).where(attr => model.visible(current_user).search(params[attr], current_user).reorder(nil))
+          # Fork: the nested rows are the ones the searcher may see
+          # (without_hidden_posts), as a listing of them would be:
+          # search[post][parent][id]=<a deleted post> found the comments of
+          # its visible children, where a missing id found none (2026-11-19).
+          relation = visible(relation, attr).where(attr => model.visible(current_user).search(params[attr], current_user).without_hidden_posts(current_user).reorder(nil))
         end
       end
 
@@ -708,7 +712,7 @@ module Searchable
         # Returning none here for the same reason specified above
         return none if params["#{attr}_type"].present? && params["#{attr}_type"] != model_key
         model = Kernel.const_get(model_key)
-        relation = visible(relation, attr).where(attr => model.visible(current_user).search(params[model_key], current_user))
+        relation = visible(relation, attr).where(attr => model.visible(current_user).search(params[model_key], current_user).without_hidden_posts(current_user))
       end
 
       relation = search_context(relation).search_attribute("#{attr}_id")
@@ -729,7 +733,7 @@ module Searchable
       primary_key, foreign_key = foreign_key, primary_key if association.macro == :belongs_to
       return relation if primary_key.nil? || foreign_key.nil?
 
-      model_exists = model.visible(current_user).model_restriction.where(model.arel_table[foreign_key].eq(relation.arel_table[primary_key])).arel.exists
+      model_exists = model.visible(current_user).without_hidden_posts(current_user).model_restriction.where(model.arel_table[foreign_key].eq(relation.arel_table[primary_key])).arel.exists
       if exists
         visible(relation, name).attribute_restriction(name).where(model_exists)
       else

@@ -45,7 +45,17 @@ class PoolTest < ActiveSupport::TestCase
       @post1 = create(:post, tag_string: "pool:pool1")
       @post2 = create(:post, tag_string: "pool:pool1")
 
-      assert_search_equals(@pool1, post_id_count: 2)
+      assert_search_equals(@pool1, post_id_count: 2, current_user: create(:admin_user))
+    end
+
+    # A count over the stored list counts the posts hidden from the searcher
+    # too (Post.searchable_post_id_params), so it is refused wherever
+    # something is hidden from them; the order by post_count counts only what
+    # they may see (Post.visible_count_sql).
+    should "refuse a post id count to a searcher from whom posts are hidden" do
+      Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
+
+      assert_raises(ActionController::BadRequest) { Pool.search({ post_id_count: 2 }, create(:user)) }
     end
 
     should "find pools by post tags" do

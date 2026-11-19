@@ -37,6 +37,25 @@ class MediaMetadata < ApplicationRecord
     where(media_asset_id: posted).or(where(media_asset_id: uploaded))
   end
 
+  # Fork: the metadata of an asset whose post is hidden from the viewer is
+  # hidden with it, by the asset's own rule (MediaAsset.without_hidden_posts,
+  # by md5), correlated on the asset. ApplicationRecord's rule keys on
+  # belongs_to :post, and metadata reaches its post through the asset, so
+  # /media_metadata listed a deleted post's ExifTool output -- dimensions,
+  # size, the file's own timestamps -- under its asset id, which
+  # /media_assets answers nothing for (2026-11-19). An asset that is gone
+  # keeps its row, as a missing post does.
+  def self.without_hidden_posts(user)
+    kept = MediaAsset.unscoped.without_hidden_posts(user)
+    return all if kept.where_clause.empty?
+
+    where.not(kept.invert_where.where(MediaAsset.arel_table[:id].eq(arel_table[:media_asset_id])).arel.exists)
+  end
+
+  def hidden_by_post_from?(user)
+    media_asset.present? && media_asset.hidden_by_post_from?(user)
+  end
+
   def self.search(params, current_user)
     q = search_attributes(params, [:id, :created_at, :updated_at, :media_asset, :metadata], current_user: current_user)
     # fourier: a search naming a generation key (a prompt, a workflow) finds

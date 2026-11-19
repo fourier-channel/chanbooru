@@ -99,6 +99,63 @@ class ApplicationRecord < ActiveRecord::Base
         reflection.foreign_key.to_s
       end
 
+      # Fork: for a model that names its post through a polymorphic
+      # association `name` (a mod action's subject, a report's or a
+      # reaction's model): the listing rule drops the rows whose target is a
+      # post hidden from the viewer, or a row the target's own model drops (a
+      # comment, a vote, a report on a comment of such a post), and the
+      # single-record answers ask the same rule. Until 2026-11-19 a mod
+      # action asked only a Post subject, and a report and a reaction asked
+      # nothing: "deleted comment #N" of a deleted post, "deleted media asset
+      # #N (md5=...)" of its file, a report on its comment and a reaction to
+      # it were listed to viewers the post itself answers nothing to.
+      def names_posts_through(name)
+        define_singleton_method(:without_hidden_posts) { |user| without_hidden_polymorphic_posts(user, name) }
+
+        # Asked of the listing rule itself, so the two agree row for row; a
+        # row not yet saved (a report's form) by what it points at.
+        define_method(:hidden_by_post_from?) do |user|
+          next !self.class.unscoped.where(id: id).without_hidden_posts(user).exists? if persisted?
+
+          target = public_send(name)
+          target.is_a?(Post) ? target.hidden_from?(user) : target.present? && target.hidden_by_post_from?(user)
+        end
+
+        define_method(:refuses_write_from?) do |user|
+          target = public_send(name)
+          target.present? && target.refuses_write_from?(user)
+        end
+      end
+
+      # The rows whose polymorphic `name` points at a hidden post, or at a
+      # row the pointed-at model's own rule drops. A model with no rule of
+      # its own (a forum post, a user) is left whole, as is a row whose
+      # target is gone. Correlated, for the reason without_hidden_posts
+      # gives.
+      def without_hidden_polymorphic_posts(user, name)
+        hidden = Post.hidden_from(user)
+        return all if hidden.nil?
+
+        type_column = arel_table["#{name}_type"]
+        id_column = arel_table["#{name}_id"]
+        conditions = model_types.filter_map do |type|
+          model = type.constantize
+          if model == Post
+            dropped = hidden
+          else
+            kept = model.unscoped.without_hidden_posts(user)
+            # No rule of its own: inverting nothing would drop every row.
+            next if kept.where_clause.empty?
+
+            dropped = kept.invert_where
+          end
+          # The type is asked INSIDE the EXISTS: a row with no target (a
+          # NULL type) must be kept, and NOT (NULL AND ...) would drop it.
+          dropped.where(model.arel_table[model.primary_key].eq(id_column)).where(type_column.eq(type)).arel.exists
+        end
+        conditions.empty? ? all : where.not(conditions.reduce(:or))
+      end
+
       def shares_database_with?(other)
         return true if connection_pool.equal?(other.connection_pool)
 

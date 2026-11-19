@@ -20,8 +20,14 @@ class ModeratorDashboard
       .to_h
   end
 
+  # Fork: votes on a comment of a post the viewer may not see are not
+  # counted here, so the comment and its body are not shown
+  # (CommentVote.without_hidden_posts); nor is a mod action about such a
+  # post (ModAction.without_hidden_posts). The dashboard is moderators' and
+  # a moderator does not see deleted posts in production (2026-11-19).
   def comments
     CommentVote
+      .without_hidden_posts(CurrentUser.user)
       .joins(comment: [:creator])
       .where("comments.score < 0")
       .where("comment_votes.created_at > ?", min_date)
@@ -35,7 +41,7 @@ class ModeratorDashboard
   end
 
   def mod_actions
-    ModAction.visible(CurrentUser.user).includes(:creator).order(id: :desc).limit(10)
+    ModAction.visible(CurrentUser.user).without_hidden_posts(CurrentUser.user).includes(:creator).order(id: :desc).limit(10)
   end
 
   def notes
