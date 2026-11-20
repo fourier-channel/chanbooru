@@ -3425,6 +3425,13 @@ class Post < ApplicationRecord
       # deleted post takes no new flag).
       deletion = flags.succeeded.order(:id).last
       return if jailing_stands? || jail_deletion_flag?(deletion)
+      # A jail account tagging a deleted post is the jail acting, not a
+      # booru-side jailing: the panel's account (sample) tags the md5s
+      # sampling already holds, and the system user tags through
+      # #add_jail_tag! (the backfill script re-tagging untagged jailings).
+      # Reported, the feed sent the panel its own act back under another
+      # name -- a rejail or a jail row "by sample" (boo.122, 2026-11-20).
+      return if entered == :tagged && Post.jail_account_names.include?(CurrentUser.user&.name.to_s.downcase)
 
       if entered == :tagged
         reason = "#{JAIL_DELETION_REASON}#{CurrentUser.user&.name || "an unknown account"} tagged a deleted post #{Danbooru.config.troll_jail_tag}"

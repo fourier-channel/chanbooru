@@ -125,6 +125,54 @@ class JailTagOnlyByTheJailTest < ActionDispatch::IntegrationTest
       assert @post.is_deleted?
     end
 
+    # The jail acting is not a booru-side jailing (boo.122, 2026-11-20): the
+    # panel's account tagging a post someone else deleted wrote a post_jail
+    # row as the system user, and the jail feed sent the panel its own act
+    # back -- a rejail, or a jail row "by sample".
+    should "not report the jail panel's account tagging a post a moderator deleted" do
+      as(@moderator) { @post.delete!("spam", user: @moderator) }
+
+      assert_no_difference(-> { ModAction.where(subject: @post, category: "post_jail").count }) do
+        put_auth post_path(@post, format: :json), @sample, params: { post: { tag_string: "landscape #{JAIL}" }}
+      end
+      assert_response :success
+      assert @post.reload.jailed?
+    end
+
+    should "not report the system user re-tagging a deleted post through Post#add_jail_tag!" do
+      as(@moderator) { @post.delete!("spam", user: @moderator) }
+
+      assert_no_difference(-> { ModAction.where(subject: @post, category: "post_jail").count }) do
+        CurrentUser.scoped(User.system) { @post.reload.add_jail_tag! }
+      end
+      assert_includes @post.reload.tag_array, JAIL
+    end
+
+    should "still report a moderator deleting a live post that carries it" do
+      put_auth post_path(@post, format: :json), @sample, params: { post: { tag_string: "landscape #{JAIL}" }}
+      assert_response :success
+
+      assert_difference(-> { ModAction.where(subject: @post, category: "post_jail").count }, 1) do
+        as(@moderator) { @post.reload.delete!("spam", user: @moderator) }
+      end
+    end
+
+    should "report the pill's jail-on once" do
+      login_as(@moderator)
+      patch modulation_moderation_path(@post), params: { jail: true }, as: :json
+
+      assert_response :success
+      assert_equal 1, ModAction.where(subject: @post, category: "post_jail").count
+    end
+
+    should "report the banished-tag failsafe's jailing once" do
+      banish_tags!("gore")
+      post = as(@member) { create(:post, tag_string: "landscape gore") }.reload
+
+      assert post.jailed?
+      assert_equal 1, ModAction.where(subject: post, category: "post_jail").count
+    end
+
     should "make Post#add_jail_tag! raise, naming the remedy, when an alias takes it away" do
       TagAlias.new(antecedent_name: JAIL, consequent_name: "jail_elsewhere_r2", creator: @admin, status: "active").save!(validate: false)
 
