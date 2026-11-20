@@ -228,7 +228,7 @@ class TagQuarantineTest < ActiveSupport::TestCase
       @plain_mxc = as(@uploader) { create(:post, tag_string: "landscape", md5: md5, source: "mxc://41chan.net/def", uploader: @uploader) }
       @flagged_web = as(@uploader) { create(:post, tag_string: "landscape secret_(thing)", md5: md5, source: "https://boards.4chan.org/x", uploader: @uploader) }
       @banished_mxc = as(@uploader) { create(:post, tag_string: "landscape secret_(thing) gore_thing", md5: md5, source: "mxc://41chan.net/ghi", uploader: @uploader) }
-      @jailed_mxc = as(@uploader) { create(:post, tag_string: "landscape secret_(thing) troll_jail", md5: md5, source: "mxc://41chan.net/jkl", uploader: @uploader) }
+      @jailed_mxc = as(@uploader) { as_the_jail { create(:post, tag_string: "landscape secret_(thing) troll_jail", md5: md5, source: "mxc://41chan.net/jkl", uploader: @uploader) } }
       @own_mxc = as(@tunnel) { create(:post, tag_string: "landscape secret_(thing)", md5: md5, source: "mxc://41chan.net/pqr", uploader: @tunnel) }
       @asset_md5 = md5
       @asset = create(:media_asset, md5: @asset_md5, file_ext: "jpg")

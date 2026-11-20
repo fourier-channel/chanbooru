@@ -759,10 +759,11 @@
     }
 
     // THE MODERATION PILL: ( jail | delete ), for an approver. Lit means
-    // true, desaturated means false. jailed implies deleted, so delete is
-    // inert while jail is lit and lights with it; jail can go out on its own
-    // and leaves the post deleted (operator, 2026-09-19). The server enforces
-    // the rule; this only draws it and asks.
+    // true, desaturated means false. jailed implies deleted, so delete lights
+    // with jail; and only the jail panel releases a jailed post (operator
+    // 2026-10-09), so while jail is lit both segments are inert and say so
+    // (boo.122 F: the pill offered an unjail the server always refused).
+    // The server enforces the rule; this only draws it and asks.
     function moderationHTML() {
       const m = cur.moderation;
       if (!m || !m.can) return "";
@@ -770,8 +771,8 @@
         '<button type="button" class="mod-modpill-seg mod-modpill-seg--' + key + (on ? " is-lit" : "") + '" data-act="moderate" data-key="' + key + '" data-on="' + (on ? 1 : 0) + '"' +
           (disabled ? " disabled" : "") + ' title="' + esc(title) + '" aria-pressed="' + on + '">' + label + "</button>";
       return '<span class="mod-modpill" role="group" aria-label="Moderation">' +
-        seg("jail", m.jailed, "jail", false, m.jailed ? "Unjail (the post stays deleted)" : "Jail (deletes the post too)") +
-        seg("deleted", m.deleted, "delete", m.jailed, m.jailed ? "A jailed post stays deleted; unjail first" : (m.deleted ? "Undelete (approves the post)" : "Delete (recoverable)")) +
+        seg("jail", m.jailed, "jail", m.jailed, m.jailed ? "Jailed: only the jail panel releases it" : "Jail (deletes the post too)") +
+        seg("deleted", m.deleted, "delete", m.jailed, m.jailed ? "A jailed post stays deleted until the jail panel releases it" : (m.deleted ? "Undelete (approves the post)" : "Delete (recoverable)")) +
         "</span>";
     }
     function moderate(btn) {

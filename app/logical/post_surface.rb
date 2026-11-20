@@ -241,8 +241,11 @@ class PostSurface
     { count: post.fav_count, faved: post.favorited_by?(viewer), can_fav: !anonymous? }
   end
 
+  # Post#jailed? -- deleted, and the jail's -- never the bare tag (R2,
+  # operator 2026-11-20): only the jail adds troll_jail, and a live post that
+  # carries it anyway is not jailed and is not called so.
   def jailed?
-    post.has_tag?(Danbooru.config.troll_jail_tag)
+    post.jailed?
   end
 
   # The reason recorded on the deletion flag, as a sentence, or nil.
@@ -273,9 +276,10 @@ class PostSurface
 
     # First, above the deletion notice, because it is the REASON for it: an
     # operator sent this image to troll jail from the curation surface, and the
-    # deletion is that decision arriving on the booru. Driven by the tag rather
-    # than by the deleted flag, so a jailing whose delete half failed still says
-    # so -- which is exactly the state 38 posts were in when this was written.
+    # deletion is that decision arriving on the booru. Post#jailed?, so a post
+    # is called jailed only once it is deleted: a live post carrying the tag
+    # (a jailing whose delete half failed) is not jailed (R2, operator
+    # 2026-11-20), and the jail panel finishes or releases it.
     list << { kind: "jailed", text: "This post is in troll jail." } if jailed?
 
     case status

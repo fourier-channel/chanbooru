@@ -26,6 +26,7 @@ class Pool < ApplicationRecord
   validates :post_ids, length: { maximum: MAX_POST_COUNT, too_long: "can't have more than #{MAX_POST_COUNT} posts" }, if: :post_ids_changed?
   validates :category, inclusion: { in: %w[series collection] }
   validate :updater_can_edit_deleted
+  validate :added_posts_exist_for_writer, if: -> { post_ids_changed? || relisted_unseen_post_ids.present? }
   after_save :create_version
 
   has_many :mod_actions, as: :subject, dependent: :destroy
@@ -142,7 +143,24 @@ class Pool < ApplicationRecord
       raise RevertError, "You cannot revert to a previous version of another pool."
     end
 
-    self.post_ids = version.post_ids
+    # A version can name a post since hidden from the reverter (boo.122 D5).
+    # Refusing the revert named that id back to someone the version's page
+    # does not show it to, and left the version unrevertable for good; the
+    # revert restores the rest and says how many it left out, never which.
+    keep = post_ids.to_set | Post.visible_ids_among(version.post_ids, CurrentUser.user || User.anonymous)
+    keep |= Post.where(id: version.post_ids - keep.to_a).select { |post| post.writable_by?(CurrentUser.user) }.map(&:id)
+    restored = version.post_ids.select { |id| keep.include?(id) }
+    left_out = version.post_ids.size - restored.size
+    warnings.add(:base, "#{left_out} #{"post".pluralize(left_out)} in that version no longer #{(left_out == 1) ? "exists" : "exist"} for you and #{(left_out == 1) ? "was" : "were"} left out") if left_out > 0
+
+    self.post_ids = restored
+    # And a current member hidden from the reverter stays where it is, as an
+    # edit keeps it (PostIdList#keep_unseen_post_ids): taking it out is a
+    # write on a post that does not exist for them (R1, operator 2026-11-20).
+    keep_unseen_post_ids(CurrentUser.user || User.anonymous)
+    # Those it keeps are the pool's own members, named by the revert, not by
+    # the reverter.
+    self.relisted_unseen_post_ids = nil
     self.name = version.name
     self.description = version.description
     save!
@@ -154,6 +172,34 @@ class Pool < ApplicationRecord
 
   def page_number(post_id)
     visible_post_ids.find_index(post_id).to_i + 1
+  end
+
+  # Fork (boo.122 D5, 2026-11-20): an id added to a pool must be a post
+  # that exists for whoever adds it (Post.visible_ids_among), as
+  # FavoriteGroup#validate_posts holds a favorite group to its creator. A
+  # pool edit, a revert and a pool:N metatag seated any id at all -- a
+  # missing post, or a jailed or deleted one the writer is told does not
+  # exist -- and the pool's versions and post_ids_include searches then
+  # answered for it. One message for missing and hidden ids, so the refusal
+  # does not tell them apart. Ids already in the pool are not judged again:
+  # a post hidden after it was added stays, as it does in a favorite group.
+  # Unless the writer names it again (PostIdList#keep_unseen_post_ids): then
+  # it is judged as if added, so a hidden member and a hidden non-member get
+  # one answer.
+  def added_posts_exist_for_writer
+    added = (post_ids - post_ids_was.to_a) | relisted_unseen_post_ids.to_a
+    return if added.empty?
+
+    writer = CurrentUser.user || User.anonymous
+    bad = added - Post.visible_ids_among(Post.where(id: added).pluck(:id), writer)
+    # A post the writer may write though it is hidden from them -- the
+    # pipeline approver and a deleted post (Post#writable_by?) -- may be
+    # added. A BUR "convert tag -> pool:N" runs as the system user and would
+    # otherwise lose every deleted post's tag without a word.
+    bad -= Post.where(id: bad).select { |post| post.writable_by?(writer) }.map(&:id)
+    return if bad.empty?
+
+    errors.add(:base, "Cannot add invalid post(s) to pool: #{bad.to_sentence}. Remove them from the list: a post that does not exist for you cannot be added")
   end
 
   def updater_can_edit_deleted

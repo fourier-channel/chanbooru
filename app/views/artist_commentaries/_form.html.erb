@@ -5,7 +5,7 @@
     <label for="commentary_source" class="whitespace-nowrap">Copy from</label>
     <%= select_tag :commentary_source_type, options_for_select(%w[Source Post]), "x-model": "from" %>
     <%= text_field_tag :commentary_source, post.source, class: "!w-auto flex-grow-1", placeholder: "Enter source URL", "x-show": "from === 'Source'" %>
-    <%= text_field_tag :commentary_post_id, post.parent_id, style: "display: none;", class: "!w-auto flex-grow-1", placeholder: "Enter post ID", "x-show": "from === 'Post'" %>
+    <%= text_field_tag :commentary_post_id, post.parent_id_shown_to(CurrentUser.user), style: "display: none;", class: "!w-auto flex-grow-1", placeholder: "Enter post ID", "x-show": "from === 'Post'" %>
     <%= button_tag "Fetch", class: "button-primary", "x-on:click.prevent": "Danbooru.ArtistCommentary.fetch_commentary()" %>
   </div>
 </form>

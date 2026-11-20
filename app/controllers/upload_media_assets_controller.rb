@@ -10,6 +10,9 @@ class UploadMediaAssetsController < ApplicationController
     @preview_size = params[:size].presence || cookies[:post_preview_size].presence || MediaAssetGalleryComponent::DEFAULT_SIZE
 
     @upload = Upload.find(params[:upload_id]) if params[:upload_id].present?
+    # Not authorized here, so asked here: an upload holding a post hidden
+    # from the viewer is not found (boo.122 D4), source panel and all.
+    raise ActiveRecord::RecordNotFound if @upload&.hidden_by_post_from?(CurrentUser.user)
     @upload_media_assets = authorize UploadMediaAsset.visible(CurrentUser.user).includes(:post, :media_asset, upload: :uploader).paginated_search(params, limit: @limit, count_pages: true, defaults: @defaults)
 
     respond_with(@upload_media_assets)

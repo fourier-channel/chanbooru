@@ -5,10 +5,10 @@ module Moderator
     class PostsController < ApplicationController
       respond_to :html, :json, :xml, :js
 
-      # Fork: every action finds its post with Post.find_writable! -- the
-      # moderation tier acts on deleted and jailed posts, never on one its
-      # creator hid (CREATOR_VISIBILITY Q2: moderators see nothing a creator
-      # hid; 2026-10-08), and ban and unban answer with the whole post.
+      # Fork: every action finds its post with Post.find_writable! -- a post
+      # hidden from the moderator is not found (R1, operator 2026-11-20: a
+      # write is refused like the read), and ban and unban answer with the
+      # whole post.
 
       def confirm_move_favorites
         @post = authorize ::Post.find_writable!(params[:id])
@@ -17,7 +17,7 @@ module Moderator
       def move_favorites
         @post = authorize ::Post.find_writable!(params[:id])
         if params[:commit] == "Submit"
-          @post.give_favorites_to_parent
+          @post.give_favorites_to_parent(CurrentUser.user)
         end
         redirect_to(post_path(@post))
       end

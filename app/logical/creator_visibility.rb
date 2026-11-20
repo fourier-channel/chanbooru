@@ -368,17 +368,27 @@ module CreatorVisibility
     candidates = Tag.where(name: names, post_count: 1..name_hiding_ids(viewer).size).pluck(:name)
     return [] if candidates.empty?
 
-    elsewhere = Post.where("string_to_array(posts.tag_string, ' ') @> ARRAY[candidate]").where("posts.id NOT IN (SELECT unnest(?::integer[]))", literal).select(1)
+    # Unscoped for the reason memoized gives: inside a caller's relation the
+    # NOT EXISTS would ask only its posts, and hide a name carried elsewhere.
+    elsewhere = Post.unscoped { Post.where("string_to_array(posts.tag_string, ' ') @> ARRAY[candidate]").where("posts.id NOT IN (SELECT unnest(?::integer[]))", literal).select(1) }
     Post.connection.select_values(Post.sanitize_sql_array(["SELECT candidate FROM unnest(ARRAY[?]::text[]) AS candidate WHERE NOT EXISTS (#{elsewhere.to_sql})", candidates]))
   end
 
   # The posts whose tags are withheld with them, for the two methods above:
-  # those a creator hid from `viewer` and those carrying a flagged tag they
-  # may not see (TagQuarantine, 2026-10-12) -- so a character used only on
-  # flagged posts is not listed, offered or counted to someone those posts
-  # do not exist for. A Set, and its '{1,2,3}' literal or nil, per request.
+  # those a creator hid from `viewer`, those carrying a flagged tag they
+  # may not see (TagQuarantine, 2026-10-12), and the jailed posts, from
+  # everyone they are withheld from (R3, operator 2026-11-20: "Tag names
+  # carried only by jailed posts are hidden like creator-hidden ones";
+  # Post.withheld_by_jail_ids, which adds every live post carrying the jail
+  # tag or a banished one) -- so a character used only on flagged or jailed posts
+  # is not listed, offered or counted to someone those posts do not exist
+  # for. A Set, and its '{1,2,3}' literal or nil, per request.
   def name_hiding_ids(viewer)
-    memoized(:name_hiding_ids, viewer) { hidden_ids(viewer) | TagQuarantine.hidden_post_ids_for(viewer) }
+    memoized(:name_hiding_ids, viewer) do
+      ids = hidden_ids(viewer) | TagQuarantine.hidden_post_ids_for(viewer)
+      ids |= Post.withheld_by_jail_ids if TagBanishment.withholds_posts_from?(viewer)
+      ids
+    end
   end
 
   def name_hiding_ids_literal(viewer)
@@ -433,7 +443,13 @@ module CreatorVisibility
     at, value = sets[key]
     return value if at && now - at < MEMO_TTL
 
-    value = yield
+    # Outside any relation the caller is inside of: a class method called on
+    # a relation (Post.where(...).user_tag_match) runs in that relation's
+    # scope, so every Post query below it -- the posts decided one by one,
+    # the flagged and jailed sets, the hidden tag names -- inherited the
+    # caller's conditions, and the narrowed set was memoized for every query
+    # after it in the request (review 2026-11-20).
+    value = Post.unscoped { yield }
     sets[key] = [now, value]
     value
   end

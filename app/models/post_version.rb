@@ -370,19 +370,18 @@ class PostVersion < ApplicationRecord
         q
       end
 
-      # A version whose parent_id names a post deleted past what `user` may
-      # see (Post.hidden_as_deleted_sql), or nil when they see deleted posts:
-      # correlated when the versions share the posts' database, else by the
-      # deleted ids themselves, as ApplicationRecord.without_hidden_posts
-      # does for the archive database.
+      # A version whose parent_id names a post hidden from `user`
+      # (Post.hidden_relative_sql, the whole rule since boo.122 D2), or nil
+      # when nothing is hidden from them: correlated when the versions share
+      # the posts' database, else by the hidden ids themselves, as
+      # ApplicationRecord.without_hidden_posts does for the archive database.
       def unnamed_parent_condition(user)
-        deleted = Post.hidden_as_deleted_sql(user, "parents")
-        return nil if deleted.nil?
-
         if shares_database_with?(Post)
-          Arel.sql("EXISTS (SELECT 1 FROM posts parents WHERE parents.id = post_versions.parent_id AND #{deleted})")
+          hidden = Post.hidden_relative_sql(user, "post_versions.parent_id")
+          Arel.sql(hidden) if hidden
         else
-          arel_table[:parent_id].in(Post.unscoped.from("posts parents").where(deleted).pluck(Arel.sql("parents.id")))
+          hidden = Post.unscoped { Post.hidden_from(user) }
+          arel_table[:parent_id].in(Post.unscoped.merge(hidden).pluck(:id)) if hidden
         end
       end
 

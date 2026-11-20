@@ -59,7 +59,13 @@ class FourierGenerationMetadataController < ApplicationController
     # record this post's creator does not own, too) and "not yours". The
     # error page carries the exception's class, message and backtrace, so two
     # raise sites would answer from two lines and tell the cases apart.
-    raise ActiveRecord::RecordNotFound unless record && FourierCreatorPrivacy.visible_to?(post, CurrentUser.user, request)
+    # "Jailed or banished" is one more of those cases (boo.122 E2): such a
+    # post is withheld from everyone but the pipeline, its creator and
+    # uploader included, and skip_authorization above means the central
+    # hidden-post 404 never runs here. Not hidden_from?: the creator is known
+    # here by identity, often with no booru session, and hidden_from? of a
+    # signed-out viewer would refuse them their own gated or private post.
+    raise ActiveRecord::RecordNotFound unless record && !post.hidden_as_banished?(CurrentUser.user) && FourierCreatorPrivacy.visible_to?(post, CurrentUser.user, request)
 
     render json: record.api_payload, status: 200
   end
@@ -75,6 +81,11 @@ class FourierGenerationMetadataController < ApplicationController
     end
 
     md5 = FourierGenerationMetadata.where(raw_md5: raw_md5).pick(:md5)
+    # "This original was posted" names a post. Of a post hidden from the
+    # caller it answers as for an original never filed (boo.122 R1), except
+    # to the pipeline, which must still find a jailed post's duplicate. A post
+    # made before stripping holds the raw_md5 itself (FourierGenerationMetadata.for_post).
+    md5 = nil if md5 && !TagBanishment.pipeline?(CurrentUser.user) && Post.where(md5: [md5, raw_md5]).any? { |post| post.hidden_from?(CurrentUser.user) }
     if md5.nil?
       return render json: {
         error: "no record for raw_md5 #{raw_md5}",
@@ -163,6 +174,15 @@ class FourierGenerationMetadataController < ApplicationController
     render json: { error: error, fix: fix, reason: reason }, status: 409
   end
 
+  # Whether the post these md5s name is hidden from the caller, so not
+  # theirs to write (R1, operator 2026-11-20: refused as not found, like the
+  # read). A post made before stripping holds the raw md5 itself
+  # (FourierGenerationMetadata.for_post). Post#writable_by? lets the pipeline
+  # past deletion and the jail: it files every post's record.
+  def refuses_write_to?(*md5s)
+    Post.where(md5: md5s.compact.uniq).any? { |post| post.refuses_write_from?(CurrentUser.user) }
+  end
+
   # Upsert by md5, under the write rules on FourierGenerationMetadata. Two
   # sends racing for a new md5 both miss the find and one loses the unique
   # index; that one retries once and lands on the existing-record branch.
@@ -170,8 +190,15 @@ class FourierGenerationMetadataController < ApplicationController
     attempts = 0
     begin
       record = FourierGenerationMetadata.find_by(md5: md5)
+      # Asked whether or not a record exists yet: a first send for a hidden
+      # post's md5 (or naming one as its raw_md5) filed a row for it, a write
+      # on a post that does not exist for the sender (R1, review 2026-11-20).
+      raise ActiveRecord::RecordNotFound if refuses_write_to?(md5, raw_md5, record&.raw_md5)
       if record.nil?
         taken = FourierGenerationMetadata.where(raw_md5: raw_md5).pick(:md5)
+        # The 409 names the post the original was filed under, which #raw
+        # answers as never filed when that post is hidden from the caller.
+        raise ActiveRecord::RecordNotFound if taken && refuses_write_to?(taken, raw_md5)
         if taken
           return conflict("raw_md5_conflict", "raw_md5 #{raw_md5} is already filed under md5 #{taken}",
                           "this original was posted before: look it up with GET /fourier/generation_metadata/raw/#{raw_md5}.json and treat this upload as a duplicate of that post; nothing was recorded for md5 #{md5}")

@@ -22,6 +22,15 @@ class MediaAsset < ApplicationRecord
     post.present? && post.hidden_from?(user)
   end
 
+  # A write on the file of a post the writer may not write is refused as not
+  # found, as the read is (ApplicationController#reject_hidden_post_record;
+  # R1, operator 2026-11-20). ApplicationRecord's rule keys on belongs_to
+  # :post and so answered false here: an admin's DELETE /media_assets/:id
+  # trashed a jailed post's file (boo.122).
+  def refuses_write_from?(user)
+    post.present? && post.refuses_write_from?(user)
+  end
+
   class Error < StandardError; end
 
   # No swf (removed 2026-11-10): a Flash file is a program, and playing one on

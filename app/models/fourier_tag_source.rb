@@ -217,9 +217,10 @@ class FourierTagSource < ApplicationRecord
     resolved = FourierTagResolver.resolve(wanted.values.flat_map { |l| l[:spectrum] + l[:hydra] })
     resolve = ->(names) { names.map(&:to_s).compact_blank.to_set { |n| resolved.fetch(Tag.normalize_name(n), n) } }
 
-    # A flagged post the caller may not see (TagQuarantine: another bot's
-    # upload) is a missing post here, as on every other door.
-    tag_strings = Post.where(id: wanted.keys).where.not(id: TagQuarantine.hidden_post_ids_for(user)).pluck(:id, :tag_string).to_h
+    # A post hidden from the caller is a missing post here, as on every
+    # other door (R1, operator 2026-11-20; Post#writable_by?): jailed,
+    # deleted past what it may write, or another bot's flagged upload.
+    tag_strings = Post.where(id: wanted.keys).reject { |post| post.refuses_write_from?(user) }.to_h { |post| [post.id, post.tag_string] }
     result = { updated: 0, inserted: 0, skipped: 0, missing_posts: wanted.keys - tag_strings.keys }
     now = Time.zone.now
 

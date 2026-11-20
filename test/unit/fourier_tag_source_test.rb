@@ -339,7 +339,7 @@ class FourierTagSourceTest < ActiveSupport::TestCase
     end
 
     should "show a tag that has no provenance row instead of dropping it" do
-      @post.update!(tag_string: "a troll_jail")
+      as_the_jail { @post.update!(tag_string: "a troll_jail") }
       FourierTagSource.record_partition!(@post, { "auto" => ["a"] }, @user)
 
       buckets = FourierTagSource.for_viewer(@post, @user)
@@ -453,7 +453,7 @@ class FourierTagSourceTest < ActiveSupport::TestCase
     end
 
     should "keep the unsourced fallback out of the public matrix projection" do
-      @post.update!(tag_string: "a troll_jail")
+      as_the_jail { @post.update!(tag_string: "a troll_jail") }
       FourierTagSource.record_partition!(@post, { "auto" => ["a"] }, @user)
 
       proj = FourierTagSource.matrix_projection(@post)

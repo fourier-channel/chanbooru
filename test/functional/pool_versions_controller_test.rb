@@ -12,8 +12,10 @@ class PoolVersionsControllerTest < ActionDispatch::IntegrationTest
         @user2 = create(:user)
         @user3 = create(:user)
 
-        as(@user2) { @pool.update(post_ids: "1 2") }
-        as(@user3) { @pool.update(post_ids: "1 2 3 4") }
+        # Real posts: a pool refuses an id that is not a post (boo.122 D5).
+        posts = as(@user) { create_list(:post, 4) }.map(&:id)
+        as(@user2) { @pool.update!(post_ids: posts.first(2)) }
+        as(@user3) { @pool.update!(post_ids: posts) }
 
         @versions = @pool.versions
       end

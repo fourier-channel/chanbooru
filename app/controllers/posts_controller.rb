@@ -124,8 +124,13 @@ class PostsController < ApplicationController
 
       # Don't let users edit posts they can't see, so they can't make them visible by removing restricted tags or changing the rating.
       if policy(@original_post).update?
-        @original_post.update(rating: @post.rating.presence || @original_post.rating, parent_id: @post.parent_id || @original_post.parent_id, tag_string: "#{@original_post.tag_string} #{params.dig(:post, :tag_string)}")
-        flash[:notice] = "Duplicate of post ##{@original_post.id}; merging tags"
+        # The merge is a post save, which may refuse (a tag only the jail
+        # adds, R2; a locked tag): say so rather than claim the merge.
+        if @original_post.update(rating: @post.rating.presence || @original_post.rating, parent_id: @post.parent_id || @original_post.parent_id, tag_string: "#{@original_post.tag_string} #{params.dig(:post, :tag_string)}")
+          flash[:notice] = "Duplicate of post ##{@original_post.id}; merging tags"
+        else
+          flash[:notice] = "Duplicate of post ##{@original_post.id}; tags not merged: #{@original_post.errors.full_messages.join("; ")}"
+        end
       else
         flash[:notice] = "Duplicate of post ##{@original_post.id}"
       end
@@ -139,15 +144,28 @@ class PostsController < ApplicationController
 
   def update
     @post = authorize Post.find_writable!(params[:id])
-    @post.update(permitted_attributes(@post))
+    # Under the post's row lock, which reloads it (boo.122 D3, 2026-11-20).
+    # The edit is merged into the post as read (old_tag_string, the three-way
+    # merge in Post#merge_old_changes) and saved whole, so two writers that
+    # each read it before the other saved left only the later one's tags.
+    # sampling's tag push and its jail run 250 ms apart as one account, and
+    # 429 production posts the jail deleted carry no troll_jail (counted
+    # 2026-11-20; how each lost it was not traced). Locked, the second writer
+    # reads the first one's save. Writable is asked again of the copy the lock read: a
+    # post jailed or deleted in between is not written either (R1).
+    @post.with_lock do
+      raise ActiveRecord::RecordNotFound unless @post.writable_by?(CurrentUser.user)
+
+      @post.update(permitted_attributes(@post))
+    end
     @show_votes = (params[:show_votes].presence || cookies[:post_preview_show_votes].presence || "false").truthy?
     @preview_size = params[:size].presence || cookies[:post_preview_size].presence || PostGalleryComponent::DEFAULT_SIZE
     respond_with_post_after_update(@post)
   end
 
   def destroy
-    # find_writable!: a moderator acts on deleted and jailed posts, never on
-    # one its creator hid -- this answers with the whole post (Q2, 2026-10-08).
+    # find_writable!: a post hidden from the deleter is not found -- this
+    # answers with the whole post (R1, operator 2026-11-20).
     @post = authorize Post.find_writable!(params[:id])
 
     if params[:commit] == "Delete"
@@ -344,8 +362,14 @@ class PostsController < ApplicationController
         redirect_to post_path(post, { q: params[:q] }.compact_blank)
       end
 
+      # A refused save answers 422 with why (R2, 2026-11-20): it answered 200
+      # with the unsaved post, and sampling's client read that as written.
       format.json do
-        render json: post.to_json
+        if post.errors.any?
+          render json: { success: false, message: post.errors.full_messages.join("; "), errors: post.errors.full_messages }, status: 422
+        else
+          render json: post.to_json
+        end
       end
     end
   end

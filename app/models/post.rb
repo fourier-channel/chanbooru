@@ -32,6 +32,10 @@ class Post < ApplicationRecord
   # script/fourier_merge_matrix_duplicates.rb leaves them to each post.
   AUTOMATIC_TAGS = %w[incredibly_absurdres absurdres highres lowres flash video ugoira animated_gif animated_png exif_rotation non-repeating_animation non-web_source wide_image tall_image].freeze
 
+  # Post#give_favorites_to_parent's refusal: the same words for a post with
+  # no parent and one whose parent is hidden from the mover.
+  NO_PARENT_FOR_FAVORITES = "This post has no parent you can move its favorites to; delete it without 'Move favorites to parent'."
+
   # Each name escaped, so a restricted name shaped like foo_(bar) matches
   # itself rather than mismatching or raising at class load.
 
@@ -65,6 +69,7 @@ class Post < ApplicationRecord
   validate :validate_changed_tags
   validate :validate_creator_prefixed_tags
   validate :validate_flagged_tags
+  validate :validate_jail_tag_change
   validate :validate_tag_count
   validates :md5, uniqueness: { message: ->(post, _data) { "Duplicate of post ##{Post.find_by_md5(post.md5).id}" }}, on: :create
   validates :rating, presence: { message: "not selected" }
@@ -89,8 +94,11 @@ class Post < ApplicationRecord
   after_save :update_parent_on_save
   after_save :apply_post_metatags
   after_save :report_jailing_entered
+  after_save :note_jail_state_change # fork: boo.122 D3, see Post.untagged_jailed_ids
   after_save :jail_on_banished_tags # fork: LAST, because it saves again (see create_version)
   after_create_commit :update_iqdb
+  after_commit :announce_jail_state_change # fork: boo.122 D3
+  after_rollback :forget_jail_state_change # fork: boo.122 D3
 
   belongs_to :approver, class_name: "User", optional: true
   belongs_to :uploader, class_name: "User", counter_cache: "post_upload_count"
@@ -527,31 +535,34 @@ class Post < ApplicationRecord
         case [metatag.name, metatag.value]
         in "-pool", /^\d+$/ => pool_id
           pool = Pool.find_by_id(pool_id)
-          pool&.remove!(self)
+          remove_from_pool_or_warn(pool, pool_id)
 
         in "-pool", name
           pool = Pool.find_by_name(name)
-          pool&.remove!(self)
+          remove_from_pool_or_warn(pool, name)
 
         in "pool", /^\d+$/ => pool_id
           pool = Pool.find_by_id(pool_id)
-          pool&.add!(self)
+          add_to_pool_or_warn(pool, pool_id)
 
         in "pool", "none"
           remove_from_all_pools
 
         in "pool", name
           pool = Pool.find_by_name(name)
-          pool&.add!(self)
+          add_to_pool_or_warn(pool, name)
 
         in "newpool", name
           pool = Pool.find_by_name(name)
 
           # XXX race condition
           if pool.nil?
-            Pool.create!(name: name, description: "This pool was automatically generated", post_ids: [id])
+            # Said, not swallowed by the rescue below (boo.122 D5): a pool
+            # that will not take this post, or a name it refuses.
+            pool = Pool.new(name: name, description: "This pool was automatically generated", post_ids: [id])
+            warnings.add(:base, "Couldn't create pool #{name}: #{pool.errors.full_messages.join("; ")}") unless pool.save
           else
-            pool.add!(self)
+            add_to_pool_or_warn(pool, name)
           end
 
         in "newfavgroup", name
@@ -635,6 +646,34 @@ class Post < ApplicationRecord
       # the edit fail because then it will create a new post version even if
       # the edit didn't go through.
       nil
+    end
+
+    # Fork (boo.122 D5): a pool:N or newpool: the pool refuses is said, not
+    # dropped -- a full pool, or one that will not take this post
+    # (Pool#added_posts_exist_for_writer). A missing pool stays silent, as
+    # upstream left it.
+    # A pool that is missing or deleted refuses too, and says so: Pool#add!
+    # answers nil for a deleted pool and a nil pool was skipped, so a
+    # "pool:typo" edit, or a convert into a pool deleted since, took the tag
+    # off and seated the post nowhere without a word (boo.122).
+    # -pool's half of the above: a missing pool, or a save the pool refused
+    # (a deleted pool, for an editor its policy does not let update one),
+    # said nothing, so a "-pool:typo" edit took the post out of nothing
+    # without a word (boo.122). A post not in the pool has nothing to take out.
+    def remove_from_pool_or_warn(pool, name)
+      return warnings.add(:base, "Couldn't remove from pool #{name}: no pool has that name or id; check it") if pool.nil?
+      return if pool.remove!(self) != false
+
+      warnings.add(:base, "Couldn't remove from pool ##{pool.id}: #{pool.errors.full_messages.join("; ")}")
+    end
+
+    def add_to_pool_or_warn(pool, name)
+      return warnings.add(:base, "Couldn't add to pool #{name}: no pool has that name or id; check it, or use newpool:#{name} to create one") if pool.nil?
+      return if pool.contains?(id)
+      return warnings.add(:base, "Couldn't add to pool ##{pool.id}: the pool is deleted; undelete it first") if pool.is_deleted?
+      return if pool.add!(self) != false
+
+      warnings.add(:base, "Couldn't add to pool ##{pool.id}: #{pool.errors.full_messages.join("; ")}")
     end
 
     def apply_pre_metatags
@@ -794,6 +833,24 @@ class Post < ApplicationRecord
       ancestors.size + child_height + 1
     end
 
+    # #parent_hierarchy_depth over the relatives `viewer` may be told of: a
+    # hidden parent is no parent (#parent_id_shown_to) and a hidden child no
+    # child (#children_shown_to). Every post, with no viewer.
+    def parent_hierarchy_depth_shown_to(viewer)
+      return parent_hierarchy_depth if viewer.nil?
+
+      ancestors_shown_to(viewer).size + child_height_shown_to(viewer) + 1
+    end
+
+    def ancestors_shown_to(viewer)
+      ancestors.take_while { |ancestor| !ancestor.hidden_from?(viewer) }
+    end
+
+    def child_height_shown_to(viewer)
+      shown = children.reject { |child| child.hidden_from?(viewer) }
+      shown.empty? ? 0 : shown.map { |child| child.child_height_shown_to(viewer) }.max + 1
+    end
+
     # @return [Integer] The number of levels of child posts this post has. A post with no children has height 0; a post
     # with children but no grandchildren has height 1; a post with grandchildren but no great-grandchildren has height 2; etc.
     def child_height
@@ -828,12 +885,17 @@ class Post < ApplicationRecord
       nil
     end
 
-    # Fork: not onto a parent the mover may not write to (#writable_by?) --
-    # a moderator moving a deleted child's favorites wrote them onto a post
-    # its creator hid from them (second review, 2026-10-08). As for a post
-    # with no parent, nothing moves.
+    # Fork: only onto a parent the mover may write to (#writable_by?) -- a
+    # moderator moving a deleted child's favorites wrote them onto a post its
+    # creator hid from them (second review, 2026-10-08). With no parent, or
+    # one hidden from the mover, the move is REFUSED with
+    # NO_PARENT_FOR_FAVORITES, in the same words for both so the refusal
+    # cannot tell a hidden parent from none. Raised inside #delete!'s lock, it
+    # undoes the delete it was asked to come with: until 2026-11-20 it
+    # returned quietly and a "delete and move favorites" reported success
+    # having moved nothing.
     def give_favorites_to_parent(current_user = CurrentUser.user)
-      return if parent.nil? || !parent.writable_by?(current_user)
+      raise User::PrivilegeError, NO_PARENT_FOR_FAVORITES if parent.nil? || !parent.writable_by?(current_user)
 
       transaction do
         favorites.each do |fav|
@@ -937,7 +999,7 @@ class Post < ApplicationRecord
         update!(is_deleted: true, is_pending: false, is_flagged: false)
 
         # XXX This must happen *after* the `is_deleted` flag is set to true (issue #3419).
-        give_favorites_to_parent if move_favorites
+        give_favorites_to_parent(user) if move_favorites
 
         uploader.upload_limit.update_limit!(is_pending?, false)
 
@@ -1929,12 +1991,12 @@ class Post < ApplicationRecord
 
       def search(params, current_user)
         params = (params.try(:to_unsafe_h) || params.to_h).with_indifferent_access
-        relationship_keys = params.keys.grep(/\A(parent_id(_.+)?|has_parent|has_children)\z/)
+        relationship_keys = params.keys.grep(/\A(parent_id(_.+)?|has_parent|has_(active_)?children)\z/)
 
         # Only allow exact md5 matches for non-moderators (see MediaAsset.search).
         attributes = %i[
           id created_at updated_at rating source pixiv_id fav_count score up_score down_score file_ext
-          file_size image_width image_height tag_count has_children has_active_children is_pending is_flagged is_deleted
+          file_size image_width image_height tag_count is_pending is_flagged is_deleted
           is_banned last_comment_bumped_at last_commented_at last_noted_at uploader approver parent artist_commentary
           flags appeals notes comments children approvals replacements media_metadata
         ]
@@ -1970,6 +2032,9 @@ class Post < ApplicationRecord
       # search[has_children] read the stored flag AND an EXISTS that
       # Searchable#search_has_include built over posts against itself, which
       # no post satisfied; it reads child_matches now.
+      # search[has_active_children] matched the stored flag, which counts a
+      # live child hidden from the searcher (boo.122 D2); it asks
+      # named_child_sql for a live child they may be told of.
       def relationship_search(params, current_user)
         q = all
         unnamed = Post.unnamed_parent_sql(current_user)
@@ -1996,6 +2061,14 @@ class Post < ApplicationRecord
           q = q.child_matches("any", current_user)
         elsif params[:has_children].to_s.falsy?
           q = q.child_matches("none", current_user)
+        end
+
+        active = Post.named_child_sql(current_user, undeleted_only: true)
+        if params[:has_active_children].to_s.truthy?
+          q = q.where(has_active_children: true)
+          q = q.where(active) if active
+        elsif params[:has_active_children].to_s.falsy?
+          q = active ? q.where("posts.has_active_children = FALSE OR NOT (#{active})") : q.where(has_active_children: false)
         end
 
         q
@@ -2067,6 +2140,10 @@ class Post < ApplicationRecord
       association(:parent).target = nil
     end
 
+    # Walks every post, hidden ones too: a cycle would hang #child_height and
+    # every walk after it, so it is refused whoever cannot see the posts it
+    # runs through. That refusal is the one answer a hidden relative still
+    # shapes, and only by closing a loop through the editor's own post.
     def validate_no_parent_cycles
       return unless parent_id_changed?
 
@@ -2076,10 +2153,15 @@ class Post < ApplicationRecord
       end
     end
 
+    # The depth and the child count are of the relatives the editor may be
+    # told of (#ancestors_shown_to, #child_height_shown_to): counted through
+    # hidden posts, the refusal named a hidden chain above or below, or a
+    # hidden child at the 30-child edge, that a missing post never does
+    # (boo.122 D2). Both limits keep a family readable; neither guards data.
     def validate_parent_depth
       return unless parent_id_changed?
 
-      if parent_hierarchy_depth > MAX_PARENT_DEPTH
+      if parent_hierarchy_depth_shown_to(CurrentUser.user) > MAX_PARENT_DEPTH
         errors.add(:base, "Post cannot have a parent-child chain more than #{MAX_PARENT_DEPTH} levels deep")
       end
     end
@@ -2087,7 +2169,9 @@ class Post < ApplicationRecord
     def validate_child_count
       return unless parent_id_changed? && parent.present?
 
-      if parent.children.count >= MAX_CHILD_POSTS
+      children = parent.children
+      children = children.without_hidden_posts(CurrentUser.user) if CurrentUser.user.present?
+      if children.count >= MAX_CHILD_POSTS
         errors.add(:base, "post ##{parent_id} cannot have more than #{MAX_CHILD_POSTS} child posts")
       end
     end
@@ -2170,6 +2254,38 @@ class Post < ApplicationRecord
       return if changed.none? { |name| flagged.include?(name) }
 
       errors.add(:base, "This edit would add or remove a tag only an admin may change. Ask an admin to make it")
+    end
+
+    # R2 (operator 2026-11-20): only the jail adds troll_jail, and only the
+    # jail takes it off (its release). A hand edit, a revert, a bulk or mass
+    # update, an alias or implication that would add or remove it -- any save
+    # at all -- is refused with JAIL_TAG_CHANGE_REFUSAL unless the jail makes
+    # it: the jail panel's account (Post.jail_tagger?: sampling's tag, delete
+    # and release), or one of the booru's own jail acts, which say so with
+    # #add_jail_tag! (the banished-tag failsafe, BanishTagJob, the pill's
+    # jail-on). Never the system user or a nil one by identity: approved
+    # aliases and implications save every matching post as the system user,
+    # and that is the path a relationship onto troll_jail would take.
+    #
+    # Judged after aliases and implications (normalize_tags), on the whole
+    # tag string, so a tag that implies troll_jail is refused as well.
+    def validate_jail_tag_change
+      jail = Danbooru.config.troll_jail_tag
+      # Judged against the row, locked, not the copy in memory: a revert, an
+      # undo, copy_notes and a duplicate merge save a record loaded earlier,
+      # and a jailing in between left it stale -- it held no jail tag, wrote
+      # none and "changed" nothing, and the save took the tag off.
+      had = if new_record?
+        false
+      elsif tag_string_changed?
+        Post.where(id: id).lock.pick(:tag_string).to_s.split.include?(jail)
+      else
+        tag_array_was.include?(jail)
+      end
+      return if tag_array.include?(jail) == had
+      return if @jail_tag_by_the_jail || Post.jail_tagger?(CurrentUser.user)
+
+      errors.add(:base, JAIL_TAG_CHANGE_REFUSAL)
     end
 
     def validate_tag_count
@@ -2342,11 +2458,14 @@ class Post < ApplicationRecord
     (!user.is_anonymous? && uploader_id == user.id) ? false : true
   end
 
-  # A post carrying the jail tag or a banished tag, withheld from everyone
-  # but the pipeline (TagBanishment.withholds_posts_from?) -- live or
-  # deleted, since a released post still carries its banished tag.
+  # A post carrying the jail tag or a banished tag, or jailed without the
+  # tag (Post.untagged_jailed_ids), withheld from everyone but the pipeline
+  # (TagBanishment.withholds_posts_from?) -- live or deleted, since a
+  # released post still carries its banished tag.
   def hidden_as_banished?(user = CurrentUser.user)
-    tag_array.intersect?(TagBanishment.post_tags) && TagBanishment.withholds_posts_from?(user)
+    return false unless TagBanishment.withholds_posts_from?(user)
+
+    tag_array.intersect?(TagBanishment.post_tags) || (is_deleted? && Post.untagged_jailed_ids.include?(id))
   end
 
   # Whether this post does not exist for `user`: deleted/jailed past what they
@@ -2576,44 +2695,83 @@ class Post < ApplicationRecord
     literal = CreatorVisibility.hidden_ids_literal(user) if by_creator
     terms << where("posts.id IN (SELECT unnest(?::integer[]))", literal) if literal
 
+    # The banished names are in `names` above, one split for every name.
     deleted = hidden_as_deleted_sql(user)
     terms << where(deleted) if deleted
 
     terms.reduce(:or)
   end
 
-  # The deleted term of hidden_from (#hidden_as_deleted?) as SQL over
-  # `table`, a name or alias for posts -- for a condition on a post's
-  # relative, which reads a second copy of posts and so cannot use the
-  # relation hidden_from builds over `posts`. nil when `user` sees deleted
-  # posts. Both columns are NOT NULL, so NOT of it is exact.
-  def self.hidden_as_deleted_sql(user, table = "posts")
-    return nil if user.present? && user.can_see_deleted_posts?
-
-    sql = "#{table}.is_deleted = TRUE"
-    sql += " AND #{table}.uploader_id <> #{user.id.to_i}" unless user.nil? || user.is_anonymous?
-    sql
+  # The deletion half of #hidden_as_deleted? as SQL, for Post.hidden_from,
+  # which holds the banished names with the rest of its names: a post jailed
+  # without the tag (Post.untagged_jailed_ids), and a deletion past what
+  # `user` may see. nil when neither applies -- the pipeline, or an admin
+  # with nothing jailed untagged. Every column read is NOT NULL, so NOT of
+  # it is exact.
+  def self.hidden_as_deleted_sql(user)
+    terms = []
+    if TagBanishment.withholds_posts_from?(user)
+      jailed = untagged_jailed_ids
+      terms << sanitize_sql_array(["(posts.is_deleted = TRUE AND posts.id IN (SELECT unnest(?::integer[])))", "{#{jailed.sort.join(",")}}"]) if jailed.any?
+    end
+    unless user.present? && user.can_see_deleted_posts?
+      sql = "posts.is_deleted = TRUE"
+      sql += " AND posts.uploader_id <> #{user.id.to_i}" unless user.nil? || user.is_anonymous?
+      terms << "(#{sql})"
+    end
+    "(#{terms.join(" OR ")})" if terms.any?
   end
 
-  # A post whose parent is deleted past what `user` may see -- a post that,
-  # to them, has no parent (#parent_id_shown_to); nil when they see deleted
-  # posts. parent:none, parent:any and search[has_parent] ask it, so a
-  # deleted parent's id is answered as a missing one's (2026-11-19).
+  # A post hidden from `user` (Post.hidden_from, the whole rule) whose id is
+  # `ref`, a column of the row outside -- "posts.parent_id",
+  # "post_versions.parent_id" -- as one correlated EXISTS; nil when nothing
+  # is hidden from them. The relative is a second copy of posts, so the
+  # outer row's column is carried in through a one-row derived table (rel)
+  # and hidden_from is used exactly as it is built: its terms say `posts`,
+  # and there `posts` is the relative. Postgres reads the one relative by
+  # its primary key per row (EXPLAIN on production, 2026-11-20).
+  #
+  # boo.122 D2 (2026-11-20): the relationship searches asked only the
+  # DELETION half (hidden_as_deleted_sql), so an admin's parent:any and
+  # child:any matched through a jailed relative, a jailed post's uploader
+  # through their own, and a member through every live hidden relative --
+  # a released banished name, a creator-hidden, flagged, gated, prefix or
+  # rooms post. One rule, one definition: a term added to hidden_from is in
+  # every relationship search the day it is added.
+  def self.hidden_relative_sql(user, ref)
+    hidden = unscoped { hidden_from(user) }
+    return nil if hidden.nil?
+
+    relative = unscoped.merge(hidden).where("posts.id = rel.id").select("1").to_sql
+    "EXISTS (SELECT 1 FROM (SELECT #{ref} AS id) rel WHERE EXISTS (#{relative}))"
+  end
+
+  # A post whose parent is hidden from `user` (Post.hidden_relative_sql) --
+  # a post that, to them, has no parent (#parent_id_shown_to); nil when
+  # nothing is hidden from them. parent:none, parent:any and
+  # search[has_parent] ask it, so a hidden parent's id is answered as a
+  # missing one's (2026-11-19, the whole rule since boo.122 D2).
   def self.unnamed_parent_sql(user)
-    deleted = hidden_as_deleted_sql(user, "parents")
-    "EXISTS (SELECT 1 FROM posts parents WHERE parents.id = posts.parent_id AND #{deleted})" if deleted
+    hidden = hidden_relative_sql(user, "posts.parent_id")
+    "(posts.parent_id IS NOT NULL AND #{hidden})" if hidden
   end
 
   # A post with a child `user` may be told of (#children_shown_to), among
-  # `among` if given; nil when they see deleted posts, for whom the stored
-  # has_children flag is the answer. The flag counts a deleted child, so
-  # child:any found a visible post whose only child was deleted (2026-11-19).
-  def self.named_child_sql(user, among = nil)
-    deleted = hidden_as_deleted_sql(user, "children")
-    return nil if deleted.nil?
+  # `among` if given, and only a live child if `undeleted_only`; nil when
+  # nothing is hidden from them, for whom the stored flags are the answer.
+  # The flags count a hidden child, so child:any found a visible post whose
+  # only child was deleted (2026-11-19) or jailed, and
+  # search[has_active_children] one whose only live child its creator hid
+  # (boo.122 D2). Correlated as Post.hidden_relative_sql is: the children
+  # are read by index_posts_on_parent_id, and without_hidden_posts is the
+  # whole rule inverted.
+  def self.named_child_sql(user, among = nil, undeleted_only: false)
+    return nil if unscoped { hidden_from(user) }.nil?
 
-    among = " AND children.id IN (#{among.select(:id).to_sql})" if among
-    "EXISTS (SELECT 1 FROM posts children WHERE children.parent_id = posts.id AND NOT (#{deleted})#{among})"
+    visible = unscoped.where("posts.parent_id = rel.id").without_hidden_posts(user)
+    visible = visible.where(is_deleted: false) if undeleted_only
+    visible = visible.where(id: among.select(:id)) if among
+    "EXISTS (SELECT 1 FROM (SELECT posts.id AS id) rel WHERE EXISTS (#{visible.select("1").to_sql}))"
   end
 
   # ApplicationRecord.without_hidden_posts, for posts themselves: the posts
@@ -2649,25 +2807,27 @@ class Post < ApplicationRecord
     post
   end
 
-  # May `user` write to this post -- edit, delete, ban or regenerate it, or
-  # file a row on it (a favorite, a vote, a comment, a note, a flag)? Not when
-  # it is hidden from them -- unless they are in the moderation tier (approver
-  # and up) and the post is hidden from them only as DELETED or JAILED,
-  # because the accounts that jail and release posts act on posts they cannot
-  # see, and must keep doing so. Below that tier, a write to a hidden post
-  # both changed it and answered with its whole JSON, tags and source, to any
-  # member who named its id (2026-10-02).
+  # May `user` write to this post -- edit, delete, undelete, ban or
+  # regenerate it, or file a row on it (a favorite, a vote, a comment, a note,
+  # a flag, an approval)? Not when it is hidden from them: the write is
+  # refused as not found, like the read (R1, operator 2026-11-20). A write
+  # answers with the whole post, so a write past hidden_from? was a read past
+  # it.
   #
-  # Never past a creator's narrowing or a hidden creator prefix
-  # (#hidden_beyond_deletion?): moderators see nothing a creator hid
-  # (CREATOR_VISIBILITY Q2, ruled 2026-10-07), and a write answers with the
-  # whole post. Admins and the posting bots are never hidden from in the
-  # first place. ApplicationController#authorize asks this of every record a
+  # One exception: the pipeline's approver (TagBanishment.pipeline? -- sample,
+  # which jails and deletes posts it cannot see) writes a post hidden from it
+  # only as DELETED or JAILED, never past #hidden_beyond_deletion? (a
+  # creator's narrowing, a hidden prefix, a flagged tag). An admin who sees
+  # deleted posts is not hidden from them and writes them as anyone writes a
+  # post they can see; a jailed post is hidden from an admin and refused like
+  # any other. ApplicationController#authorize asks this of every record a
   # write names (#refuses_write_from?), so a write door added later is
   # covered without knowing (review, 2026-10-08: favorites, votes and
   # comments were not).
   def writable_by?(user = CurrentUser.user)
-    !hidden_from?(user) || (user.present? && user.is_approver? && !hidden_beyond_deletion?(user))
+    return true unless hidden_from?(user)
+
+    user.present? && user.is_approver? && TagBanishment.pipeline?(user) && !hidden_beyond_deletion?(user)
   end
 
   # ApplicationRecord#refuses_write_from?, for the post itself. A post not
@@ -2860,19 +3020,13 @@ class Post < ApplicationRecord
       @banished_tags_gained = nil
       return if gained.blank? || is_deleted? || Post.where(id: id).pick(:is_deleted) || released_from_jail?
 
-      jail = Danbooru.config.troll_jail_tag
       reason = "troll jail: banished tag" # why, never which: see above
       # The editor's view of the edit (old_tag_string and friends) is spent;
       # the saves below are the booru's own and must not be merged against it.
       self.old_tag_string = self.old_rating = self.old_source = self.old_parent_id = nil
       # safe_mode off as well: a deletion flag refuses a post its creator
       # cannot see, and the system user must see every post.
-      CurrentUser.set(user: User.system, safe_mode: false) do
-        unless has_tag?(jail)
-          add_tag(jail)
-          save!
-        end
-      end
+      CurrentUser.set(user: User.system, safe_mode: false) { add_jail_tag! }
       jail_by_booru!(reason)
     end
 
@@ -2918,15 +3072,38 @@ class Post < ApplicationRecord
   # booru's own system user, which the banished-tag failsafe and the pill's
   # jail-on delete as (#jail_by_booru!).
   JAIL_DELETION_REASON = "troll jail: "
+  # The mod action categories #jailed? reads (#deletion_is_the_jails?,
+  # #jailing_stands?), and so the ones that move Post.untagged_jailed_ids.
+  JAIL_LOG_CATEGORIES = %w[post_delete post_undelete post_jail post_unjail].freeze
+  # Changed after every commit that moves Post.untagged_jailed_ids, so the
+  # shared cache entry keyed on it is never read again (Post.jail_state_changed!).
+  UNTAGGED_JAILED_EPOCH_KEY = "post/untagged-jailed/epoch"
   # A legal hold is never released (operator ruling 2026-10-08).
   LEGAL_HOLD_REASON = "troll jail: radioactive"
   JAILED_RELEASE_DOOR = "this post is jailed: a jailed post is released only from the jail panel (fourier-sampling), never from the booru"
   # Said beside JAILED_RELEASE_DOOR for a jailing from before the booru
   # reported its jailings (2026-10-10), which the panel has no row for.
+  # The post page's jail switch, turned off on a live post that carries
+  # troll_jail: not jailed (Post#jailed? needs a deletion), so not the
+  # jailed door's words; only the jail takes the tag off (R2).
+  JAIL_TAG_ON_LIVE_POST = "this post is not jailed but carries troll_jail, which only the jail adds and takes off: the jail panel's release removes it"
+  # Post#validate_jail_tag_change's refusal (R2, operator 2026-11-20).
+  JAIL_TAG_CHANGE_REFUSAL = "troll_jail is added and taken off only by the jail. To jail this post use the jail panel (fourier-sampling), the jail switch on the post page, or banish a tag it carries; a jailed post is released from the jail panel alone"
   UNREPORTED_JAILING = "the jail panel has not been told of this jailing yet: an admin runs script/fourier_report_past_jailings.rb (a dry run first, then -- --apply), after which it is unjailed from the panel"
 
   concerning :TrollJailMethods do
     class_methods do
+      # The jail panel's account, which tags, deletes and releases posts for
+      # the jail: an approver named in fourier_jail_release_names, the same
+      # test as FourierJailController#jail_panel_only!. Not the posting bots
+      # or the system user, which jail_account_names also holds: neither
+      # writes the tag by hand (the booru's own jail acts use #add_jail_tag!).
+      def jail_tagger?(user)
+        return false if user.nil? || !user.is_approver?
+
+        Array(Danbooru.config.fourier_jail_release_names).map { |name| name.to_s.strip.downcase }.include?(user.name.to_s.downcase)
+      end
+
       def jail_account_names
         names = Array(Danbooru.config.fourier_jail_release_names) + Array(Danbooru.config.fourier_posting_bot_names) + [Danbooru.config.system_user]
         names.map { |name| name.to_s.strip.downcase }.compact_blank.uniq
@@ -2966,6 +3143,153 @@ class Post < ApplicationRecord
                  .where("#{held_name} IN (:names) OR #{name_now} IN (:names)", names: names)
                  .where("mod_actions.description LIKE ('deleted post #' || mod_actions.subject_id || ', reason: ' || ?)", "#{sanitize_sql_like(reason)}%")
       end
+
+      # The posts #jailed? is true of that do not carry troll_jail, by id
+      # (boo.122 D3, 2026-11-20). Every hidden term asked the TAG
+      # (TagBanishment.post_tags), but #jailed? also reads the log: a post
+      # the jail deleted, or whose jailing the booru reported, is jailed with
+      # the tag gone. 429 production posts were so, and each was shown to an
+      # admin -- its page, its json, status:deleted, its card, a child's
+      # parent and the Matrix door's document. Each of those now adds this
+      # set (#hidden_as_banished?, Post.hidden_as_deleted_sql,
+      # PostQuery#hidden_post_metatags, TagQuarantine.document).
+      #
+      # The set costs 180-630 ms on production (measured uncached
+      # 2026-11-20), so it is computed once per change, not per request:
+      # cached under a fingerprint of everything it reads that a write can
+      # move (#untagged_jailed_fingerprint), and once per request in memory.
+      def untagged_jailed_ids
+        CreatorVisibility.memoized(:untagged_jailed, nil) do
+          single_flight_fetch("post/untagged-jailed/#{untagged_jailed_fingerprint}") { untagged_jailed_ids_now }.to_set
+        end
+      end
+
+      # Every post the jail withholds from everyone but the pipeline, by id:
+      # each post carrying the jail tag or a banished tag, deleted or not
+      # (TagBanishment.post_tags, Post#hidden_as_banished?), and each post
+      # jailed without the tag. For the tag names withheld with them (R3,
+      # 2026-11-20: CreatorVisibility.name_hiding_ids). A live post carrying
+      # the tag is not jailed (R2), but it is withheld, and a name it alone
+      # carries was listed while a flagged tag's posts already hid theirs.
+      # Kept as untagged_jailed_ids is: a change to those tags or to a
+      # deletion announces itself after commit (#announce_jail_state_change),
+      # and the key carries the banished list, which a banish moves.
+      def withheld_by_jail_ids
+        CreatorVisibility.memoized(:jailed, nil) do
+          tags = TagBanishment.post_tags.sort
+          single_flight_fetch("post/jail-withheld/#{untagged_jailed_fingerprint}/#{Digest::SHA256.hexdigest(tags.to_json).first(16)}") do
+            tagged = where_array_includes_any("string_to_array(posts.tag_string, ' ')", tags).pluck(:id)
+            (tagged | untagged_jailed_ids.to_a).sort
+          end.to_set
+        end
+      end
+
+      # Rails.cache.fetch, computed by one process at a time. Every deletion
+      # writes a jail-log row and so moves the fingerprint, and every request
+      # that lists or offers a tag name reads these sets: without the lock
+      # each worker's next request ran the 180-290 ms query at once. A
+      # waiter reads what the holder wrote. The lock is the transaction's,
+      # so a failed query releases it with the error it raised.
+      def single_flight_fetch(key)
+        # Five minutes bounds how long a set can outlive a lost epoch write
+        # (jail_state_changed!); a hit is a fingerprint query, not the set.
+        Rails.cache.fetch(key, expires_in: 5.minutes) do
+          transaction(requires_new: true) do
+            connection.execute(sanitize_sql_array(["SELECT pg_advisory_xact_lock(hashtext(?))", key.split("/").first(2).join("/")]))
+            Rails.cache.read(key) || yield
+          end
+        end
+      end
+
+      # What the set reads that a write moves: the newest jail-log row and
+      # the newest rename (#jail_deletions reads the name an account held),
+      # in one query of at most 6 ms on production; the epoch, which every
+      # commit that moves the set changes after it lands -- a row committed
+      # after a newer one leaves the newest id where it was, and a tag edit
+      # writes no log row at all; and the configuration the query is built from.
+      def untagged_jailed_fingerprint
+        CreatorVisibility.memoized(:jail_fingerprint, nil) { untagged_jailed_fingerprint_now }
+      end
+
+      def untagged_jailed_fingerprint_now
+        categories = ModAction.categories.values_at(*JAIL_LOG_CATEGORIES)
+        newest = connection.select_rows(<<~SQL.squish).first
+          SELECT (SELECT max(id) FROM mod_actions WHERE category IN (#{categories.map(&:to_i).join(",")})),
+                 (SELECT max(id) FROM user_name_change_requests)
+        SQL
+        parts = [*newest, Rails.cache.read(UNTAGGED_JAILED_EPOCH_KEY), jail_account_names, JAIL_DELETION_REASON, Danbooru.config.troll_jail_tag]
+        Digest::SHA256.hexdigest(parts.to_json).first(24)
+      end
+
+      # The set itself, read now: deleted posts without the tag whose latest
+      # deletion is a jail account's with no undeletion since
+      # (#deletion_is_the_jails?), or whose latest jail-log row is a
+      # post_jail (#jailing_stands?). JIT off for this query alone: it took
+      # 630 ms with it and 180-290 ms without on production.
+      def untagged_jailed_ids_now
+        delete, undelete, jail, unjail = ModAction.categories.values_at(*JAIL_LOG_CATEGORIES).map(&:to_i)
+        sql = <<~SQL.squish
+          WITH candidates AS (
+            SELECT posts.id FROM posts
+             WHERE posts.is_deleted = TRUE
+               AND NOT (string_to_array(posts.tag_string, ' ') @> ARRAY[#{connection.quote(Danbooru.config.troll_jail_tag)}]::text[])
+          ), latest_delete AS (
+            SELECT DISTINCT ON (m.subject_id) m.subject_id, m.id FROM mod_actions m JOIN candidates c ON c.id = m.subject_id
+             WHERE m.subject_type = 'Post' AND m.category = #{delete} ORDER BY m.subject_id, m.id DESC
+          ), latest_jail_event AS (
+            SELECT DISTINCT ON (m.subject_id) m.subject_id, m.category FROM mod_actions m JOIN candidates c ON c.id = m.subject_id
+             WHERE m.subject_type = 'Post' AND m.category IN (#{jail}, #{unjail}, #{undelete}) ORDER BY m.subject_id, m.id DESC
+          )
+          SELECT ld.subject_id FROM latest_delete ld
+           WHERE ld.id IN (#{jail_deletions.select(:id).to_sql})
+             AND NOT EXISTS (SELECT 1 FROM mod_actions u WHERE u.subject_type = 'Post' AND u.subject_id = ld.subject_id AND u.category = #{undelete} AND u.id > ld.id)
+          UNION
+          SELECT subject_id FROM latest_jail_event WHERE category = #{jail}
+        SQL
+        ids = transaction(requires_new: true) do
+          connection.execute("SET LOCAL jit = off")
+          connection.select_values(sql)
+        end
+        ids.map(&:to_i).sort
+      end
+
+      # After a commit that may move the set: a jail-log row or a rename
+      # (ModAction, UserNameChangeRequest), or a post gaining or losing the
+      # tag or its deletion (#announce_jail_state_change). Every process
+      # reads a new fingerprint on its next request; this one forgets its own
+      # memo now.
+      def jail_state_changed!
+        # A lost write leaves every other process on the old fingerprint and
+        # serving the old sets until they expire, five minutes at most: said
+        # where it shows, with what to do, not swallowed.
+        unless Rails.cache.write(UNTAGGED_JAILED_EPOCH_KEY, SecureRandom.hex(8))
+          DanbooruLogger.info("jail epoch write failed: the jailed-post and hidden-name sets may be up to five minutes stale on other workers. Check the Redis cache (DANBOORU_REDIS_URL) is reachable")
+        end
+        %i[jail_fingerprint untagged_jailed jailed name_hiding_ids name_hiding_literal tag_names].each { |kind| CreatorVisibility.forget(kind) }
+      end
+    end
+
+    # A save that took troll_jail or a banished tag on or off, or the
+    # deletion, may move Post.untagged_jailed_ids and
+    # Post.withheld_by_jail_ids; they are told once the save commits, so no
+    # other process reads the old set under the new fingerprint.
+    def note_jail_state_change
+      tag_moved = saved_change_to_tag_string? && begin
+        tags = TagBanishment.post_tags
+        tag_string_before_last_save.to_s.split.intersect?(tags) != tag_string.to_s.split.intersect?(tags)
+      end
+      @jail_state_changed ||= tag_moved || saved_change_to_is_deleted?
+    end
+
+    def announce_jail_state_change
+      return unless @jail_state_changed
+
+      @jail_state_changed = false
+      Post.jail_state_changed!
+    end
+
+    def forget_jail_state_change
+      @jail_state_changed = false
     end
 
     # Whether this post's CURRENT deletion is the jail's: it is deleted, the
@@ -2988,9 +3312,9 @@ class Post < ApplicationRecord
     # nothing has ended it since -- an undeletion (post_undelete, the release
     # route's or an approval's) or the release route lifting it off another
     # account's deletion (post_unjail). Read from the booru's own log, never
-    # the tag: any approver can edit the tags of a deleted post, and a
-    # jailing that stood on the tag alone was undone by editing the tag off
-    # and approving (review of the 2026-10-10 build).
+    # the tag: a jailing that stood on the tag alone was undone by editing the
+    # tag off and approving (review of the 2026-10-10 build). Only the jail
+    # changes the tag now (R2), but a jailing must not rest on that alone.
     def jailing_stands?
       latest = ModAction.where(subject: self, category: [:post_jail, :post_unjail, :post_undelete]).order(:id).last
       latest.present? && latest.category == "post_jail"
@@ -3043,14 +3367,36 @@ class Post < ApplicationRecord
       end
     end
 
+    # The booru's own jail acts add the tag here, and nowhere else: the one
+    # save #validate_jail_tag_change lets through for an account that is not
+    # the jail panel's (R2). Raises if the tag did not land: an alias,
+    # rename or deprecation of troll_jail normalises it away, and a jailing
+    # whose tag silently vanished is a deletion the panel never sees as the
+    # jail's.
+    def add_jail_tag!
+      jail = Danbooru.config.troll_jail_tag
+      return if has_tag?(jail)
+
+      begin
+        @jail_tag_by_the_jail = true
+        add_tag(jail)
+        save!
+      ensure
+        @jail_tag_by_the_jail = false
+      end
+      return if has_tag?(jail)
+
+      raise ActiveRecord::RecordNotSaved.new("post ##{id}: #{jail} did not land, the tag string normalised it away. An alias, implication, rename or deprecation of #{jail} does that: remove it, then jail the post again", self)
+    end
+
     private
 
     # EVERY WAY IN IS REPORTED (review of the 2026-10-10 build). A post
     # becomes jailed -- deleted, carrying troll_jail (operator ruling
     # 2026-10-10) -- not only through the pill and the banished-tag failsafe:
-    # any approver can add the tag to a deleted post, and any deletion of a
-    # post that carries the tag (DELETE /posts/:id, the pill's delete-on, the
-    # pending-post pruner) makes one. Each is a booru-side jailing, which
+    # the jail panel's account can add the tag to a deleted post, and any
+    # deletion of a post that carries the tag (DELETE /posts/:id, the pill's
+    # delete-on, the pending-post pruner) makes one. Each is a booru-side jailing, which
     # reaches the panel (operator 2026-10-09), and each is then refused by
     # every ordinary undelete door; unreported, nothing could ever release
     # it. So a save that ENTERS that state writes the post_jail row, as the

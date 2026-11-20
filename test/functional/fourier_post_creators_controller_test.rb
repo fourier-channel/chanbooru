@@ -52,6 +52,43 @@ class FourierPostCreatorsControllerTest < ActionDispatch::IntegrationTest
       assert_equal CREATOR, FourierPostCreator.find_by!(post_id: @post.id).mxid
     end
 
+    # boo.122 R1: a post hidden from a writer is not writable by that writer,
+    # and the refusal is the missing post's answer. The pipeline keeps its
+    # answer, since it records the creator of every post it makes.
+    context "for a jailed post" do
+      setup do
+        Danbooru.config.stubs(:banished_posts_withheld?).returns(true)
+        CreatorPrefixes.reset!
+        sample = create(:approver_user, name: "sample")
+        as_the_jail { as(sample) { @post.update!(tag_string: "landscape troll_jail") } }
+        @post.reload.delete!("troll jail: shock", user: sample)
+        @post.reload
+      end
+
+      should "refuse an admin exactly as a post that does not exist, and record nothing" do
+        admin = create(:admin_user)
+        answers = [@post.id, 0].map do |id|
+          record(id, CREATOR, as_user: admin)
+          body = response.parsed_body
+          [response.status, body.merge("error" => body["error"].to_s.sub(id.to_s, "ID"))]
+        end
+
+        assert_equal 404, answers.first.first
+        assert_equal answers.last, answers.first
+        assert_not FourierPostCreator.exists?(post_id: @post.id)
+      end
+
+      should "still record it for the pipeline" do
+        tunnel = create(:builder_user, name: "tunnel")
+        CreatorPrefixes.reset!
+        assert TagBanishment.pipeline?(tunnel), "fixture: tunnel is the pipeline"
+
+        record(@post.id, CREATOR, as_user: tunnel)
+        assert_response :success
+        assert_equal CREATOR, FourierPostCreator.find_by!(post_id: @post.id).mxid
+      end
+    end
+
     should "answer a malformed mxid with 422, error and fix, and record nothing" do
       ["alice", "@alice", "alice:41chan.net", "@al ice:41chan.net", "@alice:41chan.net\u0000", "@alice:41chan\n.net",
        "@#{"a" * 250}:41chan.net", "", nil, 7, ["@alice:41chan.net"]].each do |mxid|

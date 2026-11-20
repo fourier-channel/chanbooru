@@ -40,17 +40,17 @@
 #                and the post_jail row that reports it to the jail panel
 #                (operator 2026-10-09: every booru-side jailing reaches the
 #                panel)
-#   jail off     refused: the jail panel releases
+#   jail off     refused: the jail panel releases, and on a live post that
+#                carries the tag only the panel's release takes it off (R2)
 class ModulationModerationController < ApplicationController
   respond_to :json
 
   def update
-    # find_writable!: the pill jails and deletes posts the moderator cannot
-    # see, but never one its creator hid from them, whose state it would
-    # otherwise report (Q2, 2026-10-08).
+    # find_writable!: a post hidden from the moderator -- deleted past what
+    # they see, jailed, or hidden by its creator -- is not found, whose state
+    # the answer would otherwise report (R1, operator 2026-11-20).
     post = Post.find_writable!(params[:post_id])
     authorize post, :moderate? # an unbanned approver; PostPolicy#moderate? says why not delete?
-    jail_tag = Danbooru.config.troll_jail_tag
 
     # slice first: the route's post_id and the wrapped modulation_moderation key
     # ride along, and this app raises on an unpermitted parameter rather than
@@ -60,18 +60,20 @@ class ModulationModerationController < ApplicationController
 
     post.with_lock do
       post.reload
+      # Asked again of the row as locked: a post hidden since find_writable!
+      # read it (jailed, or hidden by its creator, in between) is not written.
+      raise ActiveRecord::RecordNotFound unless post.writable_by?(CurrentUser.user)
       if want.key?("jail")
         if want["jail"] && !post.jailed?
           # The jailing first, the tag after: the tag then lands on a post
           # whose jailing is already reported, so the save that adds it has
           # nothing to report again (Post#report_jailing_entered).
           post.jail_by_booru!("#{Post::JAIL_DELETION_REASON}moderator #{CurrentUser.user.name}, from the post page")
-          unless post.has_tag?(jail_tag)
-            post.add_tag(jail_tag)
-            post.save!
-          end
-        elsif !want["jail"] && (post.jailed? || post.has_tag?(jail_tag))
-          refused = post.jailed? ? post.jail_release_refusal : Post::JAILED_RELEASE_DOOR
+          post.add_jail_tag!
+        elsif !want["jail"] && post.jailed?
+          refused = post.jail_release_refusal
+        elsif !want["jail"] && post.has_tag?(Danbooru.config.troll_jail_tag)
+          refused = Post::JAIL_TAG_ON_LIVE_POST
         end
       end
       if want.key?("deleted") && refused.nil?
@@ -89,7 +91,9 @@ class ModulationModerationController < ApplicationController
     end
 
     post.reload
-    state = { jailed: post.jailed? || post.has_tag?(jail_tag), deleted: post.is_deleted?, can: true }
+    # Jailed is Post#jailed?, never the bare tag: a live post carrying it is
+    # not jailed (R2, operator 2026-11-20).
+    state = { jailed: post.jailed?, deleted: post.is_deleted?, can: true }
     if refused
       render json: state.merge(refused: refused), status: :unprocessable_entity
     else

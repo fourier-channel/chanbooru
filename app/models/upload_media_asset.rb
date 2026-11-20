@@ -42,6 +42,28 @@ class UploadMediaAsset < ApplicationRecord
     end
   end
 
+  # Fork (boo.122 D4): an upload's file whose post is hidden from the viewer
+  # (Post.hidden_from) is hidden with it, as Upload.without_hidden_posts
+  # hides the upload; see there. Its own uploader keeps it.
+  def self.without_hidden_posts(user)
+    hidden = Post.hidden_from(user)
+    return all if hidden.nil?
+
+    hidden_here = hidden
+      .joins("INNER JOIN media_assets hp_ma ON hp_ma.md5 = posts.md5")
+      .where("hp_ma.id = upload_media_assets.media_asset_id")
+    kept = where.not(hidden_here.arel.exists)
+    user.nil? || user.is_anonymous? ? kept : kept.or(where(user_id: user.id))
+  end
+
+  # Inside visible(user) only, as Upload#hidden_by_post_from? is.
+  def hidden_by_post_from?(user)
+    return false unless persisted?
+
+    seen = self.class.visible(user).where(id: id)
+    seen.exists? && !seen.without_hidden_posts(user).exists?
+  end
+
   def self.prune!
     expired.update_all(status: :failed, error: "Stuck processing for more than 4 hours")
   end

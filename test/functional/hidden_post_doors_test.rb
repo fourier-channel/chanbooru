@@ -80,7 +80,7 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
       @admin = create(:admin_user)
 
       as(@bot) do
-        @jailed = create(:post, tag_string: "landscape hidden_marker #{JAIL}", source: BOARD, uploader: @bot)
+        @jailed = as_the_jail { create(:post, tag_string: "landscape hidden_marker #{JAIL}", source: BOARD, uploader: @bot) }
         @deleted = create(:post, tag_string: "landscape deleted_marker", source: BOARD, uploader: @bot)
         @visible = create(:post, tag_string: "landscape", source: BOARD, uploader: @bot)
       end
@@ -241,14 +241,18 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
       # estimates do not cover (status:deleted) with what the viewer cannot
       # see. A tag's count is the tag's own (operator, 2026-10-17: "It's a
       # non issue altogether"; PostQuery#estimated_count), so a tag found
-      # only on hidden posts counts them.
+      # only on deleted posts counts them. A tag found only on jailed posts
+      # is hidden like a creator-hidden one and counts 0 (R3, operator
+      # 2026-11-20: "Tag names carried only by jailed posts are hidden like
+      # creator-hidden ones").
       should "not confirm a hidden post exists by id, or count deleted ones by status" do
         viewers.each do |who, user|
           assert_equal 0, count_for("id:#{@jailed.id}", user), who
           assert_equal 0, count_for("id:#{@deleted.id}", user), who
           assert_equal 0, count_for(JAIL, user), who
           assert_equal 0, count_for("status:deleted", user), who
-          assert_equal Tag.find_by_name("hidden_marker").post_count, count_for("hidden_marker", user), who
+          assert_equal Tag.find_by_name("deleted_marker").post_count, count_for("deleted_marker", user), who
+          assert_equal 0, count_for("hidden_marker", user), who
           assert_equal 1, count_for("id:#{@visible.id}", user), who
         end
       end
@@ -346,7 +350,7 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
         @plain = create(:post, uploader: @bot, tag_string: "landscape")
         @grouped = record.call(create(:post, uploader: @bot, tag_string: "landscape cv_doors"))
         @closed = record.call(create(:post, uploader: @bot, tag_string: "landscape cv_doors"))
-        @gated = record.call(create(:post, uploader: @bot, tag_string: "landscape #{JAIL}"))
+        @gated = record.call(as_the_jail { create(:post, uploader: @bot, tag_string: "landscape #{JAIL}") })
         @deleted = record.call(create(:post, uploader: @bot, tag_string: "landscape cv_doors"))
         # Gate 1 on its own (no creator controls it), a member's own gated
         # upload, and a gated post the creator's group opens to @fan.
@@ -515,7 +519,7 @@ class HiddenPostDoorsTest < ActionDispatch::IntegrationTest
 
     should "answer a hidden post and a missing one identically" do
       Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
-      hidden = as(create(:user)) { create(:post, tag_string: "landscape #{JAIL}") }
+      hidden = as(create(:user)) { as_the_jail { create(:post, tag_string: "landscape #{JAIL}") } }
       get post_path(hidden, format: :json)
       gone = response.body
       get post_path(0, format: :json)

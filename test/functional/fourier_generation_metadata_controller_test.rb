@@ -322,6 +322,35 @@ class FourierGenerationMetadataControllerTest < ActionDispatch::IntegrationTest
       assert_response 422
     end
 
+    # boo.122 R1: "this original was posted" names the post. Of a jailed post
+    # a non-pipeline builder is answered as for an original never filed; the
+    # pipeline still finds it, so a jailed image's duplicate is still caught.
+    should "answer an admin about a jailed post's original as about one never filed" do
+      Danbooru.config.stubs(:banished_posts_withheld?).returns(true)
+      CreatorPrefixes.reset!
+      sample = create(:approver_user, name: "sample")
+      post = create(:post, md5: @md5)
+      as_the_jail { as(sample) { post.update!(tag_string: "landscape troll_jail") } }
+      post.reload.delete!("troll jail: shock", user: sample)
+
+      admin = create(:admin_user)
+      unknown = SecureRandom.hex(16)
+      answers = [@raw_md5, unknown].map do |raw_md5|
+        get_auth "/fourier/generation_metadata/raw/#{raw_md5}.json", admin
+        body = response.parsed_body
+        [response.status, body.merge("error" => body["error"].to_s.sub(raw_md5, "RAW"))]
+      end
+      assert_equal 404, answers.first.first
+      assert_equal answers.last, answers.first
+      refute_includes response.body, @md5
+
+      tunnel = create(:builder_user, name: "tunnel")
+      CreatorPrefixes.reset!
+      get_auth "/fourier/generation_metadata/raw/#{@raw_md5}.json", tunnel
+      assert_response :success
+      assert_equal({ "md5" => @md5 }, response.parsed_body)
+    end
+
     should "refuse a member and an anonymous caller" do
       get_auth "/fourier/generation_metadata/raw/#{@raw_md5}.json", create(:user)
       assert_response 403
@@ -436,6 +465,44 @@ class FourierGenerationMetadataControllerTest < ActionDispatch::IntegrationTest
       refute_includes not_owned.last, "bob"
       assert_equal not_owned, missing
       assert_equal not_owned, nonexistent
+    end
+
+    # boo.122 E2: a jailed post exists for nobody but the pipeline, its
+    # creator included, and this read skips the central hidden-post 404. It
+    # answered the creator the prompt of a post the jail had taken away.
+    context "in production's shape" do
+      setup do
+        Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
+        Danbooru.config.stubs(:banished_posts_withheld?).returns(true)
+        CreatorPrefixes.reset!
+      end
+
+      should "answer the creator of a jailed post exactly as a missing post" do
+        sample = create(:approver_user, name: "sample")
+        as(sample) { @post.update!(tag_string: "#{@post.tag_string} troll_jail") }
+        @post.reload.delete!("troll jail: shock", user: sample)
+        assert @post.reload.jailed?, "fixture: jailed"
+
+        jailed, nonexistent = [@post.id, 0].map do |post_id|
+          get "/posts/#{post_id}/generation_data.json", headers: { "X-Fourier-Identity" => CREATOR }
+          [response.status, response.body]
+        end
+
+        assert_equal 404, jailed.first
+        refute_includes jailed.last, "secret"
+        assert_equal nonexistent, jailed
+      end
+
+      # Not hidden_from?: the creator, known by identity with no booru session,
+      # keeps the metadata of their own ordinarily deleted post.
+      should "still answer the creator of an ordinary deleted post" do
+        @post.delete!("duplicate", user: create(:admin_user))
+        assert @post.reload.is_deleted?, "fixture: deleted"
+
+        get post_generation_data_path(@post), headers: { "X-Fourier-Identity" => CREATOR }
+        assert_response :success
+        assert_equal({ "png:parameters" => "a secret prompt" }, response.parsed_body["fields"])
+      end
     end
 
     should "give the creator the not-found answer for a post with no record" do

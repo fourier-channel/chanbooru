@@ -13,6 +13,9 @@ class UserNameChangeRequest < ApplicationRecord
   after_create :update_name!
   after_create :create_mod_action
   after_create :send_dmail
+  # A rename of the jail's account moves Post.untagged_jailed_ids, which
+  # reads the names an account held (Post.jail_deletions).
+  after_commit -> { Post.jail_state_changed! }, on: :create
 
   def self.visible(user)
     if user.is_moderator?

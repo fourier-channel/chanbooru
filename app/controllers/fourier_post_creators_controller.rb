@@ -29,6 +29,14 @@ class FourierPostCreatorsController < ApplicationController
     skip_authorization # gated on is_builder? above, as FourierTagSourcesController is
 
     post = Post.find_by(id: params[:post_id])
+    # R1 (boo.122, operator 2026-11-20): a post hidden from a writer is not
+    # writable by that writer, and the refusal is the missing post's answer.
+    # The routes under /fourier/ are reached only from the container, by the
+    # bots, but the builder gate admits any builder. Post#writable_by? lets
+    # the pipeline past deletion and the jail -- it records the creator of
+    # every post it makes -- and nobody past what hides a post beyond them
+    # (another bot's flagged upload, as the tag-source door).
+    post = nil if post&.refuses_write_from?(CurrentUser.user)
     if post.nil?
       return render json: {
         error: "no post #{params[:post_id].to_s.first(40).inspect}",

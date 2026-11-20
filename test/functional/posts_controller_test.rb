@@ -904,6 +904,23 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
         assert_equal("e", post1.rating)
       end
 
+      # The merge is a post save, and the save may refuse: here R2, the jail
+      # tag taken off a live post carrying it by someone not the jail. The
+      # notice said "merging tags" all the same (review 2026-11-20). The
+      # uploader is an admin: a post carrying the jail tag is withheld from
+      # a member, whose duplicate is refused before any merge.
+      should "say the tags were not merged when the original refuses the merge" do
+        media_asset = create(:media_asset)
+        post1 = create_post!(rating: "s", tag_string: "post1", media_asset: media_asset)
+        post1.update_columns(tag_string: "post1 troll_jail")
+        create_post!(user: create(:admin_user), rating: "s", tag_string: "post2 -troll_jail", media_asset: media_asset)
+
+        assert_redirected_to post1
+        assert_equal("post1 troll_jail", post1.reload.tag_string)
+        assert_match(/\ADuplicate of post ##{post1.id}; tags not merged: /, flash[:notice])
+        assert_includes(flash[:notice], Post::JAIL_TAG_CHANGE_REFUSAL)
+      end
+
       should "not let a user remove restricted tags from a duplicate they can't see" do
         Danbooru.config.stubs(:restricted_tags).returns(["restricted_tag"])
 

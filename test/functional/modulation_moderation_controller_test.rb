@@ -87,13 +87,17 @@ class ModulationModerationControllerTest < ActionDispatch::IntegrationTest
     end
 
     # Review of the 2026-10-10 build: a jailing the booru recorded stands on
-    # the booru's own log (the post_jail row), not on the tag, so editing the
-    # tag off a deleted post is no way out of the jail.
-    should "keep a pill-jailed deleted post jailed after its tag is edited off" do
+    # the booru's own log (the post_jail row), not on the tag, so losing the
+    # tag is no way out of the jail. An admin can no longer edit it off (R2,
+    # operator 2026-11-20); the jailing is made to lose it anyway, as 429
+    # production jailings had by then.
+    should "keep a pill-jailed deleted post jailed when its tag is gone" do
       as(@moderator) { @post.delete!("duplicate", user: @moderator) }
       pill(@post, { jail: true })
       assert_response :success
-      as(create(:admin_user)) { @post.reload.update!(tag_string: "landscape") }
+      assert_raises(ActiveRecord::RecordInvalid) { as(create(:admin_user)) { @post.reload.update!(tag_string: "landscape") } }
+      assert @post.reload.has_tag?(JAIL)
+      as_the_jail { @post.reload.update!(tag_string: "landscape") }
       assert_not @post.reload.has_tag?(JAIL)
 
       post_auth post_approvals_path(format: :json), create(:admin_user), params: { post_id: @post.id }

@@ -312,8 +312,8 @@ class ApplicationController < ActionController::Base
     #
     # And on a WRITE: the post itself, or any row filed on one (a favorite, a
     # vote, a comment), whose post the writer may not write to
-    # (Post#writable_by? -- the moderation tier still acts on deleted and
-    # jailed posts; nobody below admin on one its creator hid). Until
+    # (Post#writable_by? -- a post hidden from the writer is not written,
+    # R1 2026-11-20; only the pipeline's approver writes past deletion). Until
     # 2026-10-08 writes were left to each door, and POST /favorites.json
     # answered a creator-hidden post's whole JSON, md5 and source to any
     # member who named its id.
@@ -335,7 +335,11 @@ class ApplicationController < ActionController::Base
 
       user = CurrentUser.user
       if request.get? || request.head?
-        raise ActiveRecord::RecordNotFound if record.hidden_by_post_from?(user)
+        # A form for a new record (/post_flags/new, /comments/new,
+        # /notes/preview) naming a missing post answers as one naming a hidden
+        # post does: it drew the form for the one and refused the other, which
+        # told them apart (R1, review 2026-11-20).
+        raise ActiveRecord::RecordNotFound if record.hidden_by_post_from?(user) || (record.new_record? && record.names_missing_post?)
 
         return
       end

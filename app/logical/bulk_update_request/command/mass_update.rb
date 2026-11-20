@@ -7,6 +7,8 @@ class BulkUpdateRequest::Command::MassUpdate < BulkUpdateRequest::Command
     /\A(?:mass update|update) (?<first_search>.+?) -> (?<second_search>.*)\z/i
   end
 
+  attr_reader :first_search, :second_search
+
   def initialize(params)
     @first_search = params[:first_search]
     @second_search = params[:second_search]
@@ -68,9 +70,15 @@ class BulkUpdateRequest::Command::MassUpdate < BulkUpdateRequest::Command
           if post.save
             edit = post.post_edit
             left_out = (edit.user_added_tag_names - post.tag_array) | (post.tag_array & edit.user_removed_tag_names)
-            next if left_out.empty?
+            # A pool:N, -pool:N or newpool: the pool refused is part of the
+            # edit too, said by Post only as a warning
+            # (Post#add_to_pool_or_warn, #remove_from_pool_or_warn): the
+            # convert took the tag off and left the post's pools as they
+            # were, and the run recorded nothing skipped.
+            pooled = post.warnings.full_messages.select { |message| message.start_with?("Couldn't add to pool", "Couldn't remove from pool", "Couldn't create pool") }
+            next if left_out.empty? && pooled.empty?
 
-            said = post.warnings.full_messages.select { |message| message.start_with?("Couldn't add tag") || left_out.any? { |name| message.include?("[[#{name}]]") } }
+            said = pooled + post.warnings.full_messages.select { |message| message.start_with?("Couldn't add tag") || left_out.any? { |name| message.include?("[[#{name}]]") } }
             reasons = said.presence || ["#{left_out.map { |name| "[[#{name}]]" }.to_sentence} could not be changed on this post"]
           else
             reasons = post.errors.full_messages

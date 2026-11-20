@@ -4,7 +4,7 @@ artist_show_or_new 200 45dbb19bfc371cbc1bb8dbbe
 explore_popular 200 1a2e2c65906c9abec6ab671f
 gallery 200 a50830d765bc4809584b10a5
 gallery_identity 200 c00763d241b4669e9b343c6f
-home 200 bf884f471ee36fe8aacc5d5d
+home 200 27bdcd12edee225d1978d357
 json_art 200 2bcbde3f8ac713528207bd23
 json_art_opened 200 2bcbde3f8ac713528207bd23
 json_art_prefetch 200 6e1586034962b45df6794f4a
@@ -37,7 +37,7 @@ retired_section 404 2966ee0d9d37dc27833ddd4d
 stray_login_tooltip 403 63ddb2369e2a0aac6c5bbb4b
 stray_posts_tooltip 200 0e1355b49824bc5d18b69144
 tag_show 200 6564fd74ce1c1c7dd4b751ec
-tags 200 e166dc83f69abe6801b2f8e7
+tags 200 19256f72f586cfa8563cea89
 wiki_banned_artist 404 99d9274eead394563f134a9e
 wiki_landscape 404 24e9507af7865014a615222d
 wiki_missing 404 d701cbdfd146cdcdfb0ba0dc

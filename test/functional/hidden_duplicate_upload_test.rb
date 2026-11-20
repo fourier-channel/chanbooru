@@ -245,10 +245,14 @@ class HiddenDuplicateUploadTest < ActionDispatch::IntegrationTest
         end
       end
 
-      should "still let the moderation tier act on it" do
+      # R1 (operator 2026-11-20): a post hidden from a writer is not writable
+      # by that writer, the moderation tier included; only the pipeline's
+      # approver writes past hidden_from? (hidden_post_writes_test).
+      should "answer an approver outside the pipeline 404 as well" do
+        before = snapshot(@jailed)
         put_auth post_path(@jailed, format: :json), @approver, params: { post: { tag_string: "#{@jailed.tag_string} approver_tag" }}
-        assert_response :success
-        assert_includes @jailed.reload.tag_array, "approver_tag"
+        assert_response 404
+        assert_equal before, snapshot(@jailed)
       end
 
       should "still let the uploader write to its own deleted post" do

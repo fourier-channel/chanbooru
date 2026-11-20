@@ -267,7 +267,7 @@
       <% end %>
       <% stale = stale_rule_count %>
       <% if stale > 0 %>
-        <p class="fineprint"><%= stale %> older <%= "setting".pluralize(stale) %> <%= (stale == 1) ? "is" : "are" %> on posts that are no longer yours and <%= (stale == 1) ? "has" : "have" %> no effect.</p>
+        <p class="fineprint"><%= stale %> older <%= (stale == 1) ? "setting no longer applies: its post is no longer yours or no longer exists for you" : "settings no longer apply: their posts are no longer yours or no longer exist for you" %>.</p>
       <% end %>
 
       <%# A choice, not two submit buttons: Enter in a field submits the form's
@@ -378,7 +378,7 @@
       <% end %>
       <% stale_posts = stale_override_count %>
       <% if stale_posts > 0 %>
-        <p class="fineprint"><%= stale_posts %> older <%= "setting".pluralize(stale_posts) %> <%= (stale_posts == 1) ? "is" : "are" %> on posts that are no longer yours and <%= (stale_posts == 1) ? "has" : "have" %> no effect.</p>
+        <p class="fineprint"><%= stale_posts %> older <%= (stale_posts == 1) ? "setting no longer applies: its post is no longer yours or no longer exists for you" : "settings no longer apply: their posts are no longer yours or no longer exist for you" %>.</p>
       <% end %>
     </div>
   <% end %>

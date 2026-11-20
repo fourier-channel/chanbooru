@@ -25,11 +25,13 @@ class TrollJailPresentationTest < ActionDispatch::IntegrationTest
       @admin = create(:admin_user)
       @uploader = create(:user)
       @post = create(:post, tag_string: "landscape", uploader: @uploader)
+      # The jail panel's account, which alone adds the tag (R2).
+      @sample = create(:approver_user, name: "sample")
     end
 
     should "show the jail tag even though nothing recorded its provenance" do
       FourierTagSource.record_partition!(@post, { "auto" => ["landscape"] }, @uploader)
-      @post.update!(tag_string: "landscape #{JAIL}")
+      as(@sample) { @post.update!(tag_string: "landscape #{JAIL}") }
 
       buckets = FourierTagSource.for_viewer(@post.reload, @admin)
 
@@ -38,7 +40,7 @@ class TrollJailPresentationTest < ActionDispatch::IntegrationTest
     end
 
     should "carry a jail notice on the post view" do
-      @post.update!(tag_string: "landscape #{JAIL}")
+      jail!(@post)
 
       get_auth post_path(@post), @admin, params: { preset: "modulation" }
 
@@ -96,6 +98,15 @@ class TrollJailPresentationTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  # Jailed as sampling's jailSync jails: the tag, then the deletion, both
+  # as the jail account. A live post carrying the tag is not jailed (R2):
+  # jail_tag_only_by_the_jail_test.
+  def jail!(post)
+    as(@sample) { post.update!(tag_string: "landscape #{JAIL}") }
+    post.reload.delete!("troll jail: shock", user: @sample)
+    post.reload
+  end
 
   def modulation_payload(body)
     JSON.parse(body[/data-payload="([^"]*)"/, 1].then { |raw| CGI.unescapeHTML(raw) })

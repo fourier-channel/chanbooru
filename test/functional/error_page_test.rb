@@ -56,7 +56,7 @@ class ErrorPageTest < ActionDispatch::IntegrationTest
     deleted.update!(is_deleted: true)
     {
       "deleted" => deleted,
-      "jailed (tag only, the delete half failed)" => as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape #{Danbooru.config.troll_jail_tag}") },
+      "jailed (tag only, the delete half failed)" => as(@uploader) { as_the_jail { create(:post, uploader: @uploader, tag_string: "ep_landscape #{Danbooru.config.troll_jail_tag}") } },
       "creator-hidden" => hidden,
       "gated" => as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape child") },
       "video" => as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape", file_ext: "mp4") },

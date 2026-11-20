@@ -27,6 +27,7 @@ class Tag < ApplicationRecord
   validates :name, tag_name: true, on: :name
   validates :category, inclusion: { in: TagCategory.category_ids }
   validate :validate_category, if: :category_changed?
+  validate :jail_tag_is_not_deprecated, if: :is_deprecated_changed?
 
   before_create :create_character_tag_for_cosplay_tag, if: :is_cosplay_tag?
   after_save :update_tag_alias_categories, if: :saved_change_to_category?
@@ -256,7 +257,17 @@ class Tag < ApplicationRecord
       end
     end
 
-    def validate_category
+    # R2 (operator 2026-11-20): only the jail adds troll_jail and takes it
+  # off. A deprecated tag is dropped from every tag string it is typed into
+  # and every post saved with it, which would take it off by the back door;
+  # and Post#add_jail_tag! would find it gone.
+  def jail_tag_is_not_deprecated
+    return unless is_deprecated? && name == Danbooru.config.troll_jail_tag
+
+    errors.add(:is_deprecated, "cannot be set on #{name}: only the jail adds or removes it (operator 2026-11-20), and a deprecated tag is dropped from posts")
+  end
+
+  def validate_category
       if category != Tag.categories.artist && artist.present?
         errors.add(:base, "Artist tags must be in the Artist category")
       end

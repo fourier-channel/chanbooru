@@ -1,6 +1,12 @@
 <%# Fork: no relation naming a tag whose name is hidden from the viewer (TagQuarantine, Tag.hidden_names_for), and nothing at all for a hidden tag.
+    Nor one carried only by posts hidden from them, by their creator or the jail (R3, operator 2026-11-20: "Tag names carried
+    only by jailed posts are hidden like creator-hidden ones"), asked of the names this list could show (CreatorVisibility.hidden_tag_names_among).
     And each list is at most the viewer's page (User#listing_per_page_limit), as /tag_aliases and /tag_implications are. %>
 <% hidden_names = tag.present? ? Tag.hidden_names_for(CurrentUser.user, by_creator: false).to_set : Set.new %>
+<% if tag.present? %>
+  <% shown = [tag.name, tag.antecedent_alias&.consequent_name, *tag.consequent_aliases.map(&:antecedent_name), *tag.antecedent_implications.map(&:consequent_name), *tag.consequent_implications.map(&:antecedent_name), *Tag.automatic_tags_for([tag.name])] %>
+  <% hidden_names |= CreatorVisibility.hidden_tag_names_among(CurrentUser.user, shown.compact).to_set %>
+<% end %>
 <% page = CurrentUser.user.listing_per_page_limit %>
 <% if tag.present? && !hidden_names.include?(tag.name) %>
   <% antecedent_alias = tag.antecedent_alias unless tag.antecedent_alias.nil? || hidden_names.include?(tag.antecedent_alias.consequent_name) %>

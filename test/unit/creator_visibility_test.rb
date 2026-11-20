@@ -15,7 +15,7 @@ class CreatorVisibilityTest < ActiveSupport::TestCase
   end
 
   def post_tagged(tags, creator: nil)
-    post = as(@tunnel) { create(:post, uploader: @tunnel, tag_string: tags) }
+    post = as(@tunnel) { as_the_jail { create(:post, uploader: @tunnel, tag_string: tags) } }
     FourierPostCreator.create!(post: post, mxid: creator, recorded_by: @tunnel.id) if creator
     post
   end

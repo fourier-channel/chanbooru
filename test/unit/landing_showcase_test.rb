@@ -142,7 +142,7 @@ class LandingShowcaseTest < ActiveSupport::TestCase
       @ok = as(@user) { create(:post, source: BOARD) }
       @deleted = as(@user) { create(:post, source: BOARD) }
       @deleted.update!(is_deleted: true)
-      @jailed = as(@user) { create(:post, source: BOARD, tag_string: Danbooru.config.troll_jail_tag) }
+      @jailed = as(@user) { as_the_jail { create(:post, source: BOARD, tag_string: Danbooru.config.troll_jail_tag) } }
     end
 
     should "keep an ordinary post" do

@@ -30,7 +30,6 @@ class BanishTagJob < ApplicationJob
     tag = Tag.find(tag_id)
     admin = User.find(admin_id)
     reason = self.class.reason(admin)
-    jail = Danbooru.config.troll_jail_tag
     posts = Post.where_array_includes_any("string_to_array(posts.tag_string, ' ')", [tag.name])
     total = posts.count
     jailed = skipped = 0
@@ -54,10 +53,7 @@ class BanishTagJob < ApplicationJob
         # finds a jailing standing and reports nothing of its own.
         CurrentUser.set(user: User.system, safe_mode: false) do
           post.jail_by_booru!(reason)
-          unless post.has_tag?(jail)
-            post.add_tag(jail)
-            post.save!
-          end
+          post.add_jail_tag!
         end
         jailed += 1
       end

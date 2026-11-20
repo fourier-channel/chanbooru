@@ -82,7 +82,9 @@ class FavoriteGroup < ApplicationRecord
   end
 
   def validate_posts
-    added_post_ids = post_ids - post_ids_was
+    # A hidden member named again by the editor (PostIdList#keep_unseen_post_ids)
+    # is judged as if added: kept quietly, it said it was a member.
+    added_post_ids = (post_ids - post_ids_was) | relisted_unseen_post_ids.to_a
     # Fork: a post hidden from the editor is as invalid as a missing one, so
     # the answer cannot tell them apart (Post.visible_ids_among, as its owner
     # sees them).

@@ -363,7 +363,7 @@ class Md5AskTest < ActionDispatch::IntegrationTest
       tier.add_member!(@member, by: @maple)
       record = ->(post) { FourierPostCreator.create!(post: post, mxid: gallery.matrix_id, recorded_by: @tunnel.id) && post }
       # Rated g: a signed-out viewer browses in safe mode (gate 10, 2026-11-08).
-      make = ->(tags, **attrs) { create(:post, uploader: @tunnel, md5: real_md5, tag_string: tags, rating: "g", **attrs) }
+      make = ->(tags, **attrs) { as_the_jail { create(:post, uploader: @tunnel, md5: real_md5, tag_string: tags, rating: "g", **attrs) } }
 
       @posts = {}
       as(@tunnel) do

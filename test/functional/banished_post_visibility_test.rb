@@ -29,7 +29,7 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
     post = jailed_post(user)
     as(user) do
       post.update!(is_deleted: false)
-      post.update!(tag_string: (post.tag_array - [JAIL]).join(" "))
+      as_the_jail { post.update!(tag_string: (post.tag_array - [JAIL]).join(" ")) }
     end
     post.reload
   end
@@ -68,7 +68,7 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
       # md5s as the booru holds them, 32 hex: the factory's default is longer,
       # and an md5: search -- the media gate's question, the bot's lookup --
       # matches nothing for it, which would pass a "not found" check vacuously.
-      @half_jailed = as(@uploader) { create(:post, tag_string: "landscape #{JAIL}", source: BOARD, uploader: @uploader, md5: SecureRandom.hex(16)) }
+      @half_jailed = as_the_jail { as(@uploader) { create(:post, tag_string: "landscape #{JAIL}", source: BOARD, uploader: @uploader, md5: SecureRandom.hex(16)) } }
       @plain = as(@uploader) { create(:post, tag_string: "landscape", source: BOARD, uploader: @uploader, md5: SecureRandom.hex(16)) }
       @deleted = as(@uploader) { create(:post, tag_string: "landscape", source: BOARD, uploader: @uploader) }
       @deleted.update!(is_deleted: true)
@@ -199,9 +199,12 @@ class BanishedPostVisibilityTest < ActionDispatch::IntegrationTest
       # now the row filter, which no shape check sees (PostSets::Post#similar_tags).
       should "not be shown in the sidebar what a withheld post carries" do
         released = as(@uploader) { create(:post, tag_string: "landscape gore mountain_lake", source: BOARD, uploader: @uploader, md5: SecureRandom.hex(16)) }
+        # The panel's release: only the jail takes troll_jail off (R2).
         as(@uploader) do
-          released.update!(is_deleted: false)
-          released.update!(tag_string: "landscape gore mountain_lake")
+          as_the_jail do
+            released.update!(is_deleted: false)
+            released.update!(tag_string: "landscape gore mountain_lake")
+          end
         end
         assert_not released.reload.is_deleted?, "fixture: live, still banished-tagged"
 

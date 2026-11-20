@@ -239,11 +239,14 @@ class PoolTest < ActiveSupport::TestCase
     end
 
     should "not allow duplicate posts" do
-      @pool.update(category: "collection", post_ids: [1, 2, 2, 3, 1])
-      assert_equal([1, 2, 3], @pool.post_ids)
+      # Real posts: a pool refuses ids that are no post (boo.122 D5).
+      p3 = create(:post)
+      one, two, three = @p1.id, @p2.id, p3.id
+      @pool.update(category: "collection", post_ids: [one, two, two, three, one])
+      assert_equal([one, two, three], @pool.post_ids)
 
-      @pool.update(category: "series", post_ids: [1, 2, 2, 3, 1])
-      assert_equal([1, 2, 3], @pool.post_ids)
+      @pool.update(category: "series", post_ids: [one, two, two, three, one])
+      assert_equal([one, two, three], @pool.post_ids)
     end
 
     context "when validating names" do

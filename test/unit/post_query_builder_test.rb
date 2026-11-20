@@ -768,6 +768,18 @@ class PostQueryBuilderTest < ActiveSupport::TestCase
       assert_equal(true, PostQuery.new("comment:secret").is_user_dependent_search?)
     end
 
+    # boo.122 D2: a relationship search is answered over the relatives the
+    # viewer may be told of, so its count is the viewer's own, whichever
+    # name it is asked under.
+    should "count every relationship search per viewer" do
+      %w[parent:any child:any is:parent is:child has:parent has:child has:children IS:Parent has:CHILDREN -is:child].each do |search|
+        assert_equal(true, PostQuery.new(search).is_user_dependent_search?, search)
+      end
+      %w[is:png has:source landscape].each do |search|
+        assert_equal(false, PostQuery.new(search).is_user_dependent_search?, search)
+      end
+    end
+
     should "return posts for the note:<query> metatag" do
       post1 = create(:post)
       post2 = create(:post)

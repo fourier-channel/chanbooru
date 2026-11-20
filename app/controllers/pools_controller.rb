@@ -56,8 +56,9 @@ class PoolsController < ApplicationController
 
   def update
     @pool = authorize Pool.find(params[:id])
-    @pool.assign_attributes(permitted_attributes(@pool))
-    @pool.keep_unseen_post_ids(CurrentUser.user)
+    attributes = permitted_attributes(@pool)
+    @pool.assign_attributes(attributes)
+    @pool.keep_unseen_post_ids(CurrentUser.user, named: attributes.key?("post_ids") || attributes.key?("post_ids_string"))
     @pool.save
 
     respond_with(@pool, notice: "Pool updated")
@@ -82,9 +83,17 @@ class PoolsController < ApplicationController
   def revert
     @pool = authorize Pool.find(params[:id])
     @version = @pool.versions.find(params[:version_id])
-    @pool.revert_to!(@version)
+    # A version's posts that no longer exist for the reverter are left out,
+    # counted in a warning (Pool#revert_to!, boo.122 D5). Any other refusal
+    # is said as a 422, not the 500 an unrescued RecordInvalid answers.
+    begin
+      @pool.revert_to!(@version)
+    rescue ActiveRecord::RecordInvalid
+      return respond_with(@pool)
+    end
 
-    respond_with(@pool, notice: "Pool reverted") do |format|
+    notice = ["Pool reverted", *@pool.warnings.full_messages].join(". ")
+    respond_with(@pool, notice: notice) do |format|
       format.js
     end
   end

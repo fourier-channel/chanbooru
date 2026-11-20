@@ -57,6 +57,42 @@ class Upload < ApplicationRecord
     end
   end
 
+  # Fork (boo.122 D4, 2026-11-20): an upload holding a post hidden from the
+  # viewer (Post.hidden_from) is hidden with it -- its source, referer and
+  # files named a jailed, banished or creator-hidden post to every moderator
+  # and admin, on /uploads, /uploads/:id, /uploads/:id/assets and
+  # /user_actions. ApplicationRecord's rule keys on belongs_to :post and is
+  # a no-op here: an upload reaches its posts through its media assets'
+  # md5s, joined as MediaAsset.without_hidden_posts joins them. The uploader
+  # keeps their own rows (hidden_duplicate_upload_test): they chose the
+  # source and hold the file. Whole uploads: one hidden file hides the
+  # upload, and its other files stay listed through UploadMediaAsset.
+  # Nothing serializes an Upload nested under another model; adding :upload
+  # or :upload_media_assets to an available_includes list would show these
+  # rows past this rule (ApplicationRecord#serializable_add_includes drops
+  # hidden posts and tags only).
+  def self.without_hidden_posts(user)
+    hidden = Post.hidden_from(user)
+    return all if hidden.nil?
+
+    hidden_here = hidden
+      .joins("INNER JOIN media_assets hp_ma ON hp_ma.md5 = posts.md5")
+      .joins("INNER JOIN upload_media_assets hp_uma ON hp_uma.media_asset_id = hp_ma.id")
+      .where("hp_uma.upload_id = uploads.id")
+    kept = where.not(hidden_here.arel.exists)
+    user.nil? || user.is_anonymous? ? kept : kept.or(where(uploader_id: user.id))
+  end
+
+  # Asked only inside visible(user): a viewer who may not see the upload at
+  # all gets the policy's answer whether or not its post is hidden, so the
+  # status of /uploads/:id says nothing about which uploads hold hidden posts.
+  def hidden_by_post_from?(user)
+    return false unless persisted?
+
+    seen = self.class.visible(user).where(id: id)
+    seen.exists? && !seen.without_hidden_posts(user).exists?
+  end
+
   def self.prune!
     expired.update_all(status: "error", error: "Stuck processing for more than 4 hours")
   end

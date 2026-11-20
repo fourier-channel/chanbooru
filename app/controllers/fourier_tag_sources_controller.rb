@@ -28,11 +28,12 @@ class FourierTagSourcesController < ApplicationController
 
     return create_with_mxc if params.key?(:mxc)
 
-    post = Post.find(params[:post_id])
-    # A post carrying a flagged tag (TagQuarantine) exists for a posting bot
-    # only when the bot uploaded it: its own tagging keeps working, another
-    # account's flagged post answers as a missing one.
-    raise ActiveRecord::RecordNotFound if post.hidden_as_flagged?(CurrentUser.user)
+    # A post hidden from the bot is not writable by it and answers as a
+    # missing one (R1, operator 2026-11-20): jailed, deleted past what the
+    # bot may write, or carrying a flagged tag (TagQuarantine) it did not
+    # upload -- its own flagged uploads stay its own, so its tagging keeps
+    # working (Post#hidden_as_flagged?).
+    post = Post.find_writable!(params[:post_id])
     render json: record_tag_sources(post), status: 200
   end
 
@@ -132,8 +133,8 @@ class FourierTagSourcesController < ApplicationController
   end
 
   # create, carrying an mxc (see the header). A missing post -- or one
-  # carrying a flagged tag the bot did not upload, which answers as missing
-  # -- records nothing: 200 with no_such_post for an mxc-only body, the
+  # hidden from the bot, which answers as missing (R1, as create) -- records
+  # nothing: 200 with no_such_post for an mxc-only body, the
   # route's own 404 (with the mxc's outcome) when a tag partition was sent,
   # since those tags were not recorded either.
   def create_with_mxc
@@ -144,7 +145,7 @@ class FourierTagSourcesController < ApplicationController
 
     partition = params[:fourier_tag_source].present?
     post = Post.find_by(id: params[:post_id].to_s)
-    if post.nil? || post.hidden_as_flagged?(CurrentUser.user)
+    if post.nil? || post.refuses_write_from?(CurrentUser.user)
       outcome = { accepted: false, reason: "no_such_post" }
       return render json: { success: false, error: "ActiveRecord::RecordNotFound", message: "That record was not found.", mxc: outcome }, status: 404 if partition
 

@@ -28,7 +28,7 @@ class ModulationFlankHiddenTest < ActionDispatch::IntegrationTest
       @admin = create(:admin_user)
       as(@bot) do
         @before = create(:post, tag_string: "landscape", uploader: @bot)
-        @jailed = create(:post, tag_string: "landscape #{JAIL}", uploader: @bot)
+        @jailed = as_the_jail { create(:post, tag_string: "landscape #{JAIL}", uploader: @bot) }
         @after = create(:post, tag_string: "landscape", uploader: @bot)
       end
       @jailed.delete!("troll jail: shock", user: @admin)

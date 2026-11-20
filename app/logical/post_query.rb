@@ -208,7 +208,13 @@ class PostQuery
   def is_user_dependent_search?
     metatags.any? do |metatag|
       # XXX date: is user dependent because it depends on the current user's time zone
-      metatag.name.in?(%w[date upvoter upvote downvoter downvote commenter comm comment search flagger fav ordfav ordvote favgroup ordfavgroup]) ||
+      # parent: and child: are answered over the relatives the viewer may be
+      # told of (Post.unnamed_parent_sql, Post.named_child_sql), so their
+      # count is the viewer's own: keyed as one, one viewer's child:any count
+      # was served to the next (boo.122 D2). is:parent, is:child, has:parent
+      # and has:children are the same queries under another name.
+      metatag.name.in?(%w[date upvoter upvote downvoter downvote commenter comm comment search flagger fav ordfav ordvote favgroup ordfavgroup parent child]) ||
+      metatag.name.in?(%w[is has]) && metatag.value.downcase.in?(%w[parent child children]) ||
       metatag.name == "status" && metatag.value == "unmoderated" ||
       metatag.name == "disapproved" && !metatag.value.downcase.in?(PostDisapproval::REASONS)
     end
@@ -444,8 +450,13 @@ class PostQuery
   # is listed once, and the planner sees one NOT IN. As a metatag, so the
   # query string the count cache key carries holds it. Both lists are
   # computed once per request per viewer.
+  # Posts jailed without the tag (Post.untagged_jailed_ids) are deleted, so
+  # deleted_metatags leaves them out for everyone who does not see deleted
+  # posts; for whoever does and is not the pipeline, they are named here.
   def hidden_post_metatags
-    ids = (CreatorVisibility.hidden_ids(current_user).to_a | TagQuarantine.hidden_post_ids_for(current_user)).sort
+    ids = CreatorVisibility.hidden_ids(current_user).to_a | TagQuarantine.hidden_post_ids_for(current_user)
+    ids |= Post.untagged_jailed_ids.to_a if current_user&.can_see_deleted_posts? && TagBanishment.withholds_posts_from?(current_user)
+    ids = ids.sort
     ids.empty? ? [] : [-AST.metatag("id", ids.join(","))]
   end
 

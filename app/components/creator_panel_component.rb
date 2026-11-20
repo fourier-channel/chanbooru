@@ -110,9 +110,12 @@ class CreatorPanelComponent < ApplicationComponent
     @ended_members ||= capped_memberships(CreatorGroupMembership.where(expires_at: ..now))
   end
 
-  # group id => [in the default?, posts listing it]
+  # group id => [in the default?, posts listing it], never counting a post
+  # hidden from the viewer (boo.122 E1): "used by: 1 post" told a creator a
+  # jailed post still exists and is set to the group. The default's row
+  # (post_id NULL) matches no post, so NOT EXISTS keeps it.
   def audience_uses
-    @audience_uses ||= CreatorAudienceGroup.where(creator_group_id: groups.map(&:id)).group(:creator_group_id)
+    @audience_uses ||= without_hidden_posts(CreatorAudienceGroup.where(creator_group_id: groups.map(&:id))).group(:creator_group_id)
                                            .pluck(:creator_group_id, Arel.sql("bool_or(post_id IS NULL)"), Arel.sql("count(post_id)"))
                                            .to_h { |id, default, posts| [id, [default, posts]] }
   end
@@ -236,6 +239,9 @@ class CreatorPanelComponent < ApplicationComponent
     return @editor_post if defined?(@editor_post)
 
     post = panel_post_id && Post.find_by(id: panel_post_id.to_i)
+    # A post hidden from the viewer is not one of their posts
+    # (CreatorGalleriesController#panel_post, boo.122 E1).
+    post = nil if post&.hidden_from?(viewer)
     @controllers = post ? CreatorControl.controller_gallery_ids([post]).fetch(post.id) : []
     @editor_post = @controllers.include?(gallery.id) ? post : nil
   end
@@ -288,10 +294,23 @@ class CreatorPanelComponent < ApplicationComponent
   # A creator's per-post rows (rules, overrides) on posts this gallery still
   # controls, in SQL: CreatorControl.controlled_pairs_sql keeps the candidate
   # pairs the gallery controls without listing every post of the gallery.
+  # Never a post hidden from the viewer (boo.122 E1): the panel listed a
+  # jailed post set before its jailing, by id and link, with forms that
+  # wrote to it. Such a row is counted with the stale ones, never named.
   def still_mine(scope)
     candidates = scope.select("post_id, creator_gallery_id AS gallery_id").to_sql
     controlled = CreatorControl.controlled_pairs_sql([[gallery.id, gallery.matrix_id]], only: candidates)
-    scope.where("#{scope.table_name}.post_id IN (SELECT c.post_id FROM (#{controlled}) c)")
+    without_hidden_posts(scope.where("#{scope.table_name}.post_id IN (SELECT c.post_id FROM (#{controlled}) c)"))
+  end
+
+  # `scope`'s rows less those whose post_id names a post hidden from the
+  # viewer (Post.hidden_from, the one row rule), correlated so the hidden set
+  # is never listed. A row with no post_id names no post and is kept.
+  def without_hidden_posts(scope)
+    hidden = Post.hidden_from(viewer)
+    return scope if hidden.nil?
+
+    scope.where.not(hidden.where("posts.id = #{scope.table_name}.post_id").arel.exists)
   end
 
   # `scope` joined to its users, and filtered by the name box when it is used.

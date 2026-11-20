@@ -96,6 +96,26 @@ class ConvertCommandTest < ActiveSupport::TestCase
         assert_equal("This pool has been moved to [[cute]].", @pool.description)
       end
 
+      # boo.122: the convert runs as the system user, and Pool refuses a post
+      # that does not exist for its writer. A deleted post is hidden from it
+      # where deleted posts are shown to the owner only, but the system user
+      # may write it (Post#writable_by?): it is moved with the rest, not
+      # dropped from the pool with its tag removed.
+      should "convert a tag to a new pool with its deleted posts" do
+        Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::OWNER)
+        @wiki = create(:wiki_page, title: "cute", body: "foo")
+        @live = create(:post, tag_string: "bar cute")
+        @deleted = create(:post, tag_string: "bar cute")
+        @deleted.delete!("duplicate", user: @admin)
+        assert @deleted.reload.hidden_from?(User.system), "fixture: the deleted post is hidden from the system user"
+
+        @bur = create_bur!("convert cute -> pool:cute_pool", @admin)
+
+        pool = Pool.find_by_name("cute_pool")
+        assert_equal([@live.id, @deleted.id].sort, pool.post_ids.sort)
+        assert_equal("bar", @deleted.reload.tag_string)
+      end
+
       should "convert a tag to a new pool" do
         description = "foo [[aaa]] bar"
         @post = create(:post, tag_string: "bar cute")

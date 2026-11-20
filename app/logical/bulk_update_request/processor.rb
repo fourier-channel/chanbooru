@@ -133,6 +133,7 @@ class BulkUpdateRequest::Processor
         # Fork: and note which line each error came from (line_errors).
         lines.each do |line|
           before = errors.size
+          refuse_the_jail_tag(line)
           line.command.validate(context: validation_context, errors: errors)
           reasons = errors.objects.drop(before).map(&:message)
           @line_errors << line.error(reasons.join("; ")) if reasons.any?
@@ -141,6 +142,27 @@ class BulkUpdateRequest::Processor
         raise ActiveRecord::Rollback
       end
     end
+  end
+
+  # R2 (operator 2026-11-20): only the jail adds troll_jail and takes it
+  # off, so no line that would put it on a post or take it off is filed or
+  # approved -- a mass update onto or off it, an alias, implication, rename,
+  # nuke or category change. Read from the line's text, so it holds for every
+  # command, present and future. Post#validate_jail_tag_change refuses each
+  # post save behind this anyway. Two kinds of line change no post's jail
+  # tag and pass: a mass update whose SEARCH names it (troll_jail -> sky,
+  # landscape -troll_jail -> sky), which only picks the posts, so only its
+  # edit is read (review 2026-11-20: the search was refused as well); and
+  # removing an alias or implication that names it, which only stops it
+  # being added.
+  def refuse_the_jail_tag(line)
+    return if line.command.is_a?(BulkUpdateRequest::Command::RemoveAlias) || line.command.is_a?(BulkUpdateRequest::Command::RemoveImplication)
+
+    jail = Danbooru.config.troll_jail_tag
+    text = line.command.is_a?(BulkUpdateRequest::Command::MassUpdate) ? line.command.second_search.to_s : line.text.to_s
+    return unless text.match?(/(?<![\w])#{Regexp.escape(jail)}(?![\w])/i)
+
+    errors.add(:base, "Line #{line.number} names #{jail}, which only the jail adds or removes (operator 2026-11-20): remove the line. Jail posts from the jail panel, the jail switch on the post page, or by banishing a tag")
   end
 
   # Validate that the script isn't too long.

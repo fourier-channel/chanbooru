@@ -859,7 +859,10 @@ class PostTest < ActiveSupport::TestCase
 
           should "not allow a pool to exceed its max post limit when adding via pool:id" do
             PoolVersion.stubs(:enabled?).returns(false)
-            @pool = create(:pool, post_ids: (1..Pool::MAX_POST_COUNT).map(&:-@))
+            # Seated past validation: a pool refuses ids that are no post
+            # (boo.122 D5), and these stand in for a full pool's worth.
+            @pool = create(:pool)
+            @pool.update_columns(post_ids: (1..Pool::MAX_POST_COUNT).map(&:-@))
             @post = create(:post)
 
             @post.update(tag_string: "aaa pool:#{@pool.id}")

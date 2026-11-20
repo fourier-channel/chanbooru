@@ -330,6 +330,9 @@ module Source
     def translated_tags
       hidden = Tag.hidden_names_for(CurrentUser.user, by_creator: false).to_set
       translated_tags = normalized_tags.flat_map(&method(:translate_tag)).uniq
+      # And a name carried only by posts hidden from them, by their creator
+      # or the jail (R3, operator 2026-11-20), asked of these names only.
+      hidden |= CreatorVisibility.hidden_tag_names_among(CurrentUser.user, translated_tags.map(&:name))
       translated_tags = translated_tags.reject(&:artist?).reject(&:is_deprecated?).reject { |tag| hidden.include?(tag.name) }
 
       translated_tags.sort_by do |tag|

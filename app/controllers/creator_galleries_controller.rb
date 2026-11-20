@@ -790,7 +790,9 @@ class CreatorGalleriesController < ApplicationController
 
   def panel_clear_rule
     rule = CreatorUserRule.where(creator_gallery: @gallery, post_id: params[:post_id].presence).find_by(user_id: params[:user_id])
-    raise Refused, "There is no such setting on your posts (it may already be gone)." if rule.nil?
+    # A rule on a post hidden from the writer is no setting the panel shows
+    # (CreatorPanelComponent#still_mine, boo.122 E1).
+    raise Refused, "There is no such setting on your posts (it may already be gone)." if rule.nil? || rule.post&.hidden_from?(CurrentUser.user)
 
     CreatorUserRule.clear!(@gallery, rule.user, by: CurrentUser.user, post: rule.post)
     "Removed the setting for #{rule.user.name}#{" on post ##{rule.post_id}" if rule.post_id}."
@@ -843,10 +845,13 @@ class CreatorGalleriesController < ApplicationController
     ids
   end
 
-  # A post this gallery controls now; missing and not-yours read alike.
+  # A post this gallery controls now; missing, not-yours and hidden from the
+  # writer read alike -- a jailed post is hidden from its creator too, and the
+  # panel wrote audiences and rules on one (boo.122 E1; the timed-link door
+  # above already asked hidden_from?).
   def panel_post(id)
     post = Post.find_by(id: id.to_s.strip.delete_prefix("#").presence)
-    return post if post && CreatorControl.controller_gallery_ids([post]).fetch(post.id).include?(@gallery.id)
+    return post if post && !post.hidden_from?(CurrentUser.user) && CreatorControl.controller_gallery_ids([post]).fetch(post.id).include?(@gallery.id)
 
     raise Refused, format(NOT_YOUR_POST, id.to_s.strip.delete_prefix("#").to_i)
   end

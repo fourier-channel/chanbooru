@@ -34,7 +34,7 @@ class FourierPastJailingsTest < ActiveSupport::TestCase
   # The banished-tag failsafe before 2026-10-10: deleted by the system user,
   # logged, but no post_jail row.
   def old_banished_jailing
-    post = create(:post, tag_string: "landscape #{JAIL}")
+    post = as_the_jail { create(:post, tag_string: "landscape #{JAIL}") }
     CurrentUser.scoped(User.system) { post.delete!("troll jail: banished tag", user: User.system) }
     ModAction.log("deleted post ##{post.id}, reason: troll jail: banished tag", :post_delete, subject: post, user: User.system)
     post.reload
@@ -46,7 +46,7 @@ class FourierPastJailingsTest < ActiveSupport::TestCase
       banished = old_banished_jailing
       ordinary = create(:post, tag_string: "landscape")
       as(@moderator) { ordinary.delete!("duplicate", user: @moderator) }
-      sampled = create(:post, tag_string: "landscape #{JAIL}")
+      sampled = as(@bot) { create(:post, tag_string: "landscape #{JAIL}") }
       as(@bot) { sampled.delete!("troll jail: shock", user: @bot) }
       reported = create(:post, tag_string: "landscape")
       reported.jail_by_booru!("troll jail: banished tag")

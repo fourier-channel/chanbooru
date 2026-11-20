@@ -164,7 +164,7 @@ class CreatorGalleryGate3GrantTest < ActionDispatch::IntegrationTest
       # Production's rule, not the test environment's permissive one
       # (danbooru_local_config.rb, deleted_post_visibility_level).
       Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
-      jailed = as(@tunnel) { create(:post, uploader: @tunnel, md5: SecureRandom.hex(16), tag_string: "night troll_jail", rating: "g") }
+      jailed = as(@tunnel) { as_the_jail { create(:post, uploader: @tunnel, md5: SecureRandom.hex(16), tag_string: "night troll_jail", rating: "g") } }
       deleted = as(@tunnel) { create(:post, uploader: @tunnel, md5: SecureRandom.hex(16), tag_string: "night", rating: "g") }
       flagged = as(@tunnel) { create(:post, uploader: @tunnel, md5: SecureRandom.hex(16), tag_string: "night g3_flagged", rating: "g") }
       # A creator tag is the posting service's or an admin's to add.

@@ -27,7 +27,7 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
 
   def maple_post(tags)
     # A 32-hex md5, as a real file's: the md5: metatag reads only that shape.
-    post = as(@tunnel) { create(:post, uploader: @tunnel, tag_string: tags, md5: SecureRandom.hex(16)) }
+    post = as(@tunnel) { as_the_jail { create(:post, uploader: @tunnel, tag_string: tags, md5: SecureRandom.hex(16)) } }
     FourierPostCreator.create!(post: post, mxid: "@maple:41chan.net", recorded_by: @tunnel.id)
     post
   end
@@ -495,9 +495,10 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
 
   # Review 2026-10-08: find_writable! let the moderation tier past
   # hidden_from?, and a write answers with the whole post. Q2: moderators see
-  # nothing a creator hid. They still act on a deleted post.
+  # nothing a creator hid; R1 (2026-11-20): nor write a deleted post hidden
+  # from them (test/functional/hidden_post_writes_test.rb).
   context "a write" do
-    should "be refused to a moderator for a post its creator hid, and still reach a deleted one" do
+    should "be refused to a moderator for a post its creator hid, and to a deleted one" do
       Danbooru.config.stubs(:deleted_post_visibility_level).returns(User::Levels::ADMIN)
       put_auth post_path(@closed, format: :json), @moderator, params: { post: { tag_string: "#{@closed.tag_string} cv_edit" }}
       assert_response 404
@@ -507,8 +508,8 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
       deleted.delete!("ordinary deletion", user: @admin)
       assert deleted.reload.hidden_from?(@moderator), "fixture: deleted is hidden from a moderator"
       put_auth post_path(deleted, format: :json), @moderator, params: { post: { tag_string: "cvtest cv_edit" }}
-      assert_response :success
-      assert_includes deleted.reload.tag_array, "cv_edit"
+      assert_response 404
+      assert_not_includes deleted.reload.tag_array, "cv_edit"
 
       put_auth post_path(@closed, format: :json), @named, params: { post: { tag_string: "#{@closed.tag_string} cv_edit" }}
       assert_response :success
@@ -896,8 +897,13 @@ class CreatorVisibilityEnforcementTest < ActionDispatch::IntegrationTest
       as(@admin) { kid.update!(parent_id: @closed.id) }
       create(:favorite, post: kid, user: @fan)
       delete_auth post_path(kid), @moderator, params: { commit: "Delete", post: { reason: "cv duplicate", move_favorites: "1" }}
-      assert kid.reload.is_deleted?, "fixture: the moderator deleted the child"
+      assert_response 403
+      assert_includes response.body, ERB::Util.html_escape(Post::NO_PARENT_FOR_FAVORITES)
+      assert_not kid.reload.is_deleted?, "the delete that would have moved them is refused"
       assert_equal 0, Favorite.where(post: @closed).count
+
+      delete_auth post_path(kid), @moderator, params: { commit: "Delete", post: { reason: "cv duplicate" }}
+      assert kid.reload.is_deleted?, "fixture: the moderator deleted the child"
 
       assert_not_includes body_for(post_path(kid), @moderator), "post-option-move-favorites"
       post_auth move_favorites_moderator_post_post_path(kid), @moderator, params: { commit: "Submit" }

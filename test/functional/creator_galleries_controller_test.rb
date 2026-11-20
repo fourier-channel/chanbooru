@@ -553,7 +553,7 @@ class CreatorGalleriesControllerTest < ActionDispatch::IntegrationTest
         claim.update!(status: "rejected")
 
         edit_as(@maple)
-        assert_select "#creator-panel-posts", text: /1 older setting is on posts that are no longer yours and has no effect\./
+        assert_select "#creator-panel-posts", text: /1 older setting no longer applies: its post is no longer yours or no longer exists for you\./
         assert_no_match(/##{claimed.id}\b/, css_select("#creator-panel").text)
       end
 

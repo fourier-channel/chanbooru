@@ -180,7 +180,7 @@ class ModulationFlankCandidatesTest < ActionDispatch::IntegrationTest
     should "list no neighbour that does not exist for the viewer, nor any of its tags" do
       hidden = {}
       as(@uploader) do
-        hidden[:jailed] = create(:post, uploader: @uploader, tag_string: "flankq only_on_jailed_nb #{Danbooru.config.troll_jail_tag}")
+        hidden[:jailed] = as_the_jail { create(:post, uploader: @uploader, tag_string: "flankq only_on_jailed_nb #{Danbooru.config.troll_jail_tag}") }
         hidden[:banished] = create(:post, uploader: @uploader, tag_string: "flankq only_on_banished_nb flank_banished_tag")
         hidden[:gated] = create(:post, uploader: @uploader, tag_string: "flankq only_on_gated_nb child")
         hidden[:flagged] = create(:post, uploader: @uploader, tag_string: "flankq only_on_flagged_nb flank_flagged_tag")

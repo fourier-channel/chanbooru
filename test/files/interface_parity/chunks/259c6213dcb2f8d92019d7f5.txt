@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tags | Danbooru</title>
+
+  <link href="/favicon.ico" rel="icon" sizes="16x16" type="image/x-icon">
+  <link href="/favicon.svg" rel="icon" sizes="any" type="image/svg+xml">
+  <link rel="canonical" href="http://www.example.com/tags">
+  <link rel="search" type="application/opensearchdescription+xml" href="http://www.example.com/opensearch.xml?version=2" title="Search posts">
+
+  
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <meta name="autocomplete-tag-prefixes" content="[&quot;ch:&quot;,&quot;co:&quot;,&quot;gen:&quot;,&quot;char:&quot;,&quot;copy:&quot;,&quot;art:&quot;,&quot;meta:&quot;,&quot;general:&quot;,&quot;character:&quot;,&quot;copyright:&quot;,&quot;artist:&quot;]">
+  <meta name="tag-visibility" content="288250887223">
+
+  <script src="/packs-test/js/runtime.js"></script>
+<script src="/packs-test/js/vendors-node_modules_alpinejs_morph_dist_module_esm_js-node_modules_alpinejs_persist_dist_mod-370228.js"></script>
+<script src="/packs-test/js/application.js"></script>
+
+  <link rel="stylesheet" href="/packs-test/css/application.css" />
+
+
+  <meta name="description" content="Search thousands of tags on Danbooru.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Danbooru">
+  <meta property="og:title" content="Tags | Danbooru">
+  <meta property="og:description" content="Search thousands of tags on Danbooru.">
+  <meta property="og:url" content="http://www.example.com/tags">
+
+
+  <meta name="twitter:title" content="Tags | Danbooru">
+  <meta name="twitter:description" content="Search thousands of tags on Danbooru.">
+
+  <meta name="git-hash" content="0000000000000000000000000000000000000000">
+  <meta name="theme-color" content="hsl(213, 100%, 50%)">
+
+  
+    <meta property="og:image" content="https://41chan.net/41chan.png">
+    <meta name="twitter:card" content="summary">
+  
+</head>
+
+<body lang="en" class="c-tags a-index flex flex-col" spellcheck="false" data-controller="tags" data-action="index" data-layout="default" data-current-user-ip-addr="127.0.0.1" data-current-user-save-data="false" data-preset="historical" data-current-user-id="50001" data-current-user-name="pv_restricted" data-current-user-level="10" data-current-user-level-string="Restricted" data-current-user-theme="auto" data-current-user-comment-threshold="-8" data-current-user-default-image-size="large" data-current-user-time-zone="Eastern Time (US &amp; Canada)" data-current-user-per-page="20" data-current-user-is-banned="false" data-current-user-receive-email-notifications="false" data-current-user-new-post-navigation-layout="true" data-current-user-enable-private-favorites="false" data-current-user-show-deleted-children="false" data-current-user-disable-categorized-saved-searches="false" data-current-user-disable-tagged-filenames="false" data-current-user-disable-mobile-gestures="false" data-current-user-enable-safe-mode="false" data-current-user-enable-desktop-mode="false" data-current-user-disable-post-tooltips="false" data-current-user-requires-verification="true" data-current-user-is-verified="false" data-current-user-show-deleted-posts="false" data-current-user-is-admin="false" data-current-user-is-anonymous="false" data-current-user-is-approver="false" data-current-user-is-builder="false" data-current-user-is-contributor="false" data-current-user-is-gold="false" data-current-user-is-member="false" data-current-user-is-moderator="false" data-current-user-is-owner="false" data-current-user-is-platinum="false" data-current-user-is-restricted="true" data-cookie-news-ticker="null" data-cookie-hide-upgrade-account-notice="null" data-cookie-hide-dmail-notice="null" data-cookie-dab="null" data-cookie-show-relationship-previews="null" data-cookie-post-preview-size="null" data-cookie-post-preview-show-votes="null">
+  
+
+    <header id="top" class="md:space-y-0 mt-2" x-data="{ menuOpen: false }">
+  <div class="relative flex items-center justify-between mx-8 sm:mx-2 text-xxl">
+    <div id="app-name-header" class="inline-flex items-center gap-2">
+      <a id="app-logo" href="/"><img class="h-9 hover:brightness-125" src="/packs-test/static/danbooru-logo-128x128-ea111b6658173e847734.png" /></a>
+      <a id="app-name" class="font-header font-bold leading-none" href="/">Danbooru</a>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <div id="blacklist-box" class="blocklist"
+     x-data="{ blacklist: new Danbooru.Blacklist($root), open: false }"
+     x-init="blacklist.initialize([], { signedIn: true })"
+     x-on:keydown.escape="if (open && !$event.defaultPrevented) { open = false; $refs.trigger.focus(); }"
+     x-on:keydown.escape.window="if (open && !$root.contains($event.target)) { open = false; $refs.trigger.focus(); }"
+     x-on:pointerdown.window="if (open && !$root.contains($event.target)) open = false"
+     x-on:focusout="if (open && $event.relatedTarget && !$root.contains($event.relatedTarget)) open = false">
+  <button type="button" id="blocklist-trigger" class="blocklist-trigger" x-ref="trigger" data-shortcut="b"
+          aria-haspopup="dialog" aria-controls="blocklist-panel" aria-expanded="false"
+          x-bind:aria-expanded="open.toString()"
+          aria-label="Blocklist"
+          x-bind:aria-label="`Blocklist: ${blacklist.blacklistedPostCount} hidden in this view, ${blacklist.rules.length} blocks`"
+          x-on:click="open = !open; if (open) $nextTick(() => $refs.input.focus())">
+    <svg class="blocklist-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg>
+    <span class="blocklist-count" x-bind:class="blacklist.blacklistedPostCount > 0 && 'is-shown'"
+          x-text="blacklist.blacklistedPostCount > 99 ? '99+' : blacklist.blacklistedPostCount"></span>
+  </button>
+
+  <div id="blocklist-panel" class="blocklist-panel" role="dialog" aria-label="Your blocklist" hidden x-bind:hidden="!open">
+    <div class="blocklist-head">
+      <h2 class="blocklist-title">Blocklist</h2>
+      <span class="blocklist-hidden" x-text="`${blacklist.blacklistedPostCount} hidden in this view`"></span>
+    </div>
+
+    <form class="blocklist-add ui-front" x-on:submit.prevent="const input = $refs.input; $(input).data('ui-autocomplete')?.close(); blacklist.add(input.value).then((ok) => { if (ok) input.value = '' })">
+      <input type="text" x-ref="input" class="blocklist-input" aria-label="Block a tag" placeholder="block a tag"
+             autocomplete="off" spellcheck="false" data-autocomplete=tag-query>
+      <button type="submit" class="blocklist-block">Block</button>
+    </form>
+
+    <p class="blocklist-error" role="alert" x-show="blacklist.error" x-text="blacklist.error"></p>
+
+    <ul class="blocklist-pills" x-show="blacklist.rules.length > 0">
+      <template x-for="rule in blacklist.rules" x-bind:key="rule.string">
+        <li class="blocklist-pill" x-bind:class="rule.locked && 'is-locked'">
+          <span class="blocklist-pill-rule" x-text="rule.string" x-bind:title="rule.string"></span>
+          <span class="blocklist-pill-count" x-show="rule.matchCount > 0" x-text="rule.matchCount"
+                x-bind:title="`${rule.matchCount} hidden in this view`"></span>
+          <button type="button" class="blocklist-pill-lock"
+                  x-bind:aria-pressed="rule.locked.toString()"
+                  x-bind:aria-label="(rule.locked ? 'Unlock ' : 'Lock ') + rule.string"
+                  x-bind:title="rule.locked ? 'Locked: unlock it before it can be removed' : 'Lock it, so it cannot be removed by accident'"
+                  x-on:click="blacklist.setLocked(rule, !rule.locked)">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="5" y="11" width="14" height="10" rx="2"/>
+              <path x-show="rule.locked" d="M8 11V7a4 4 0 0 1 8 0v4"/>
+              <path x-show="!rule.locked" d="M8 11V7a4 4 0 0 1 7.6-1.8"/>
+            </svg>
+          </button>
+          <button type="button" class="blocklist-pill-remove" x-show="!rule.locked"
+                  x-bind:aria-label="'Unblock ' + rule.string" title="Unblock"
+                  x-on:click="const input = $refs.input; blacklist.remove(rule).then(() => input.focus())">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7l10 10M17 7L7 17"/></svg>
+          </button>
+        </li>
+      </template>
+    </ul>
+
+    <p class="blocklist-empty" x-show="blacklist.rules.length === 0">
+      Nothing blocked. Type a tag and press Enter. Tags on one line hide only posts that have all of them;
+      start a tag with - to exempt it.
+    </p>
+
+    <p class="blocklist-foot">
+        Kept on your account, on every page.
+        <a href="/settings#user_blacklisted_tags">Edit as text</a>
+    </p>
+  </div>
+</div>
+
+      <a class="mobile-only cursor-pointer" x-on:click="menuOpen = !menuOpen">
+        <svg class="icon svg-icon menu-icon block w-6" viewBox="0 0 448 512" x-show="!menuOpen"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#menu" /></svg>
+        <svg class="icon svg-icon close-icon block w-6" viewBox="0 0 320 512" x-show="menuOpen" x-cloak="true"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#close" /></svg>
+      </a>
+    </div>
+  </div>
+
+  <nav id="nav" class="desktop-only mt-2" x-bind:class="{ 'desktop-only': !menuOpen }">
+    <div id="main-menu" class="flex flex-wrap items-center px-5 sm:p-2">
+        <a id="nav-my-account" class="py-1.5 px-3 " href="/profile">My Account </a>
+
+      <a id="nav-posts" class="py-1.5 px-3 " href="/posts">Posts</a>
+      <a id="nav-comments" class="py-1.5 px-3 " href="/comments">Comments</a>
+      <a id="nav-notes" class="py-1.5 px-3 " href="/notes">Notes</a>
+      <a id="nav-artists" class="py-1.5 px-3 " href="/artists">Artists</a>
+      <a id="nav-tags" class="py-1.5 px-3  current font-bold" href="/tags">Tags</a>
+      <a id="nav-pools" class="py-1.5 px-3 " href="/pools/gallery">Pools</a>
+      <a id="nav-wiki" class="py-1.5 px-3 " href="/wiki_pages/help:home">Wiki</a>
+      <a id="nav-forum" class="py-1.5 px-3 " href="/forum_topics">Forum</a>
+
+      
+
+
+      <a id="nav-more" class="py-1.5 px-3 " href="/static/site_map">More \u{bb}</a>
+    </div>
+
+      <div id="subnav-menu" class="flex flex-wrap items-center px-5 sm:p-2">
+          <form autocomplete="off" novalidate="novalidate" class="simple_form search-form quick-search-form one-line-form py-1.5 px-3 md:w-180px w-full" action="/tags" accept-charset="UTF-8" method="get"><div class="input stacked-input string optional search_name_matches"><input class="w-full max-w-360px string optional" data-autocomplete="tag" data-shortcut="q" placeholder="Search tags" type="text" name="search[name_matches]" /></div><input type="hidden" name="redirect" value="false"></form>
+  <a id="subnav-tags" class="py-1.5 px-3 " href="/tags">Tags</a>
+  <a id="subnav-changes" class="py-1.5 px-3 " href="/tag_versions">Changes</a>
+  <a id="subnav-aliases" class="py-1.5 px-3 " href="/tag_aliases">Aliases</a>
+  <a id="subnav-implications" class="py-1.5 px-3 " href="/tag_implications">Implications</a>
+  <a id="subnav-request-aliasimplication" class="py-1.5 px-3 " href="/bulk_update_requests/new">Request alias/implication</a>
+  
+  <a id="subnav-related-tags" class="py-1.5 px-3 " href="/related_tag">Related tags</a>
+  <a id="subnav-help" class="py-1.5 px-3 " href="/wiki_pages/help:tags">Help</a>
+
+
+      </div>
+  </nav>
+</header>
+
+
+  <div id="page" class="relative flex-1 mx-8 mt-4 sm:mx-2 sm:mt-2">
+
+
+
+
+
+    <div id="notice"
+      class="notice flex fixed top-2 left-2 right-2 p-2 mx-auto max-w-720px max-h-150px thin-scrollbar z-9999 shadow-lg sm:text-sm"
+      x-init="$root.notice = $data.notice"
+      x-data="{ notice: new Danbooru.Notice(null) }"
+      x-bind:class="notice.type === 'error' ? 'notice-error' : 'notice-info'"
+      x-show="notice.isOpen"
+      x-transition.opacity.400ms
+      x-cloak>
+  <span class="prose flex-1" x-html="notice.message"></span>
+  <a href="javascript:void(0)" id="close-notice-link" class="flex self-center text-lg" data-shortcut="esc" x-on:click="notice.close()"><svg class="icon svg-icon close-icon" viewBox="0 0 320 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#close" /></svg></a>
+</div>
+
+
+    
+<div id="c-tags">
+  <div id="a-index" class="fixed-width-container">
+    <form autocomplete="off" novalidate="novalidate" class="simple_form search-form inline-form" action="/tags" accept-charset="UTF-8" method="get">
+  <div class="input stacked-input string optional search_name_or_alias_matches"><label class="string optional" for="search_name_or_alias_matches">Name</label><input class="w-full max-w-360px string optional" data-autocomplete="tag" type="text" name="search[name_or_alias_matches]" id="search_name_or_alias_matches" /></div>
+  <div class="input stacked-input select optional search_category"><label class="select optional" for="search_category">Category</label><select class="select optional" name="search[category]" id="search_category"><option value="" label=" "></option>
+<option value="1">Artist</option>
+<option value="3">Copyright</option>
+<option value="4">Character</option>
+<option value="0">General</option>
+<option value="5">Meta</option></select></div>
+  <div class="input stacked-input select optional search_order"><label class="select optional" for="search_order">Order</label><select class="select optional" name="search[order]" id="search_order"><option value="date">Newest</option>
+<option value="count">Count</option>
+<option value="name">Name</option></select></div>
+  <div class="input stacked-input select optional search_is_deprecated"><label class="select optional" for="search_is_deprecated">Is deprecated?</label><select class="select optional" name="search[is_deprecated]" id="search_is_deprecated"><option value="" label=" "></option>
+<option value="yes">yes</option>
+<option value="no">no</option></select></div>
+  <div class="input stacked-input select optional search_hide_empty"><label class="select optional" for="search_hide_empty">Hide empty?</label><select class="select optional" name="search[hide_empty]" id="search_hide_empty"><option value="yes">yes</option>
+<option value="no">no</option></select></div>
+  <div class="input stacked-input select optional search_has_wiki_page"><label class="select optional" for="search_has_wiki_page">Has wiki?</label><select class="select optional" name="search[has_wiki_page]" id="search_has_wiki_page"><option value="" label=" "></option>
+<option value="yes">yes</option>
+<option value="no">no</option></select></div>
+  <div class="input stacked-input select optional search_has_artist"><label class="select optional" for="search_has_artist">Has artist?</label><select class="select optional" name="search[has_artist]" id="search_has_artist"><option value="" label=" "></option>
+<option value="yes">yes</option>
+<option value="no">no</option></select></div>
+  <input type="submit" name="commit" value="Search" data-disable-with="Search" />
+</form>
+
+    
+
+<table class="striped autofit" id="tags-table">
+  <thead>
+    <tr>
+        <th class="name-column">
+          Name
+</th>        <th class="control-column">
+</th>    </tr>
+  </thead>
+
+  <tbody>
+      <tr id="tag-50008" data-id="50008" data-post-count="1" data-category="0" data-created-at="2026-01-15T07:00:00.000000-05:00" data-updated-at="2026-01-15T07:00:00.000000-05:00" data-is-deprecated="false">
+          <td class="name-column col-expand">
+                    <a class="tag-type-0" href="/wiki_pages/family">?</a>
+        <a class="tag-type-0" href="/posts?tags=family">family</a>
+
+
+        <span class="post-count" title="1">1</span>
+
+</td>          <td class="control-column">
+                    <div class="popup-menu inline-flex items-center h-full" data-hide-on-click="true">
+  <a class="popup-menu-button default-popup-menu-button" x-on:mousedown.prevent="true" href="javascript:void(0)">
+      <svg class="icon svg-icon ellipsis-icon" viewBox="0 0 448 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#ellipsis" /></svg>
+</a>
+  <ul class="popup-menu-content">
+      <li>            <a href="/tag_versions?search%5Btag_id%5D=50008">Tag history</a>
+</li>
+      <li>            <a href="/post_versions?search%5Bchanged_tags%5D=family">Post history</a>
+</li>
+      <li>            <hr class="border">
+</li>
+      <li>            <a href="/related_tag?search%5Bquery%5D=family">Related tags</a>
+</li>
+      <li>            <a href="/tags?search%5Bfuzzy_name_matches%5D=family&amp;search%5Border%5D=similarity">Similar tags</a>
+</li>
+      <li>            <hr class="border">
+</li>
+      <li>            <a href="/tag_aliases?search%5Bname_matches%5D=family">Aliases</a>
+</li>
+      <li>            <a href="/tag_implications?search%5Bname_matches%5D=family">Implications</a>
+</li>
+      <li>            <a href="/comments?search%5Bpost_tags_match%5D=family">Comments</a>
+</li>
+      <li>            <a href="/forum_posts?search%5Blinked_to%5D=family">Discussions</a>
+</li>
+      <li>              <hr class="border">
+</li>
+      <li>              <a href="/posts?tags=family+ai%3Afamily%2C0%25">Mistagged posts</a>
+</li>
+  </ul>
+</div>
+</td></tr>      <tr id="tag-50006" data-id="50006" data-post-count="1" data-category="0" data-created-at="2026-01-15T07:00:00.000000-05:00" data-updated-at="2026-01-15T07:00:00.000000-05:00" data-is-deprecated="false">
+          <td class="name-column col-expand">
+                    <a class="tag-type-0" href="/wiki_pages/sky">?</a>
+        <a class="tag-type-0" href="/posts?tags=sky">sky</a>
+
+
+        <span class="post-count" title="1">1</span>
+
+</td>          <td class="control-column">
+                    <div class="popup-menu inline-flex items-center h-full" data-hide-on-click="true">
+  <a class="popup-menu-button default-popup-menu-button" x-on:mousedown.prevent="true" href="javascript:void(0)">
+      <svg class="icon svg-icon ellipsis-icon" viewBox="0 0 448 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#ellipsis" /></svg>
+</a>
+  <ul class="popup-menu-content">
+      <li>            <a href="/tag_versions?search%5Btag_id%5D=50006">Tag history</a>
+</li>
+      <li>            <a href="/post_versions?search%5Bchanged_tags%5D=sky">Post history</a>
+</li>
+      <li>            <hr class="border">
+</li>
+      <li>            <a href="/related_tag?search%5Bquery%5D=sky">Related tags</a>
+</li>
+      <li>            <a href="/tags?search%5Bfuzzy_name_matches%5D=sky&amp;search%5Border%5D=similarity">Similar tags</a>
+</li>
+      <li>            <hr class="border">
+</li>
+      <li>            <a href="/tag_aliases?search%5Bname_matches%5D=sky">Aliases</a>
+</li>
+      <li>            <a href="/tag_implications?search%5Bname_matches%5D=sky">Implications</a>
+</li>
+      <li>            <a href="/comments?search%5Bpost_tags_match%5D=sky">Comments</a>
+</li>
+      <li>            <a href="/forum_posts?search%5Blinked_to%5D=sky">Discussions</a>
+</li>
+      <li>              <hr class="border">
+</li>
+      <li>              <a href="/posts?tags=sky+ai%3Asky%2C0%25">Mistagged posts</a>
+</li>
+  </ul>
+</div>
+</td></tr>      <tr id="tag-50005" data-id="50005" data-post-count="2" data-category="0" data-created-at="2026-01-15T07:00:00.000000-05:00" data-updated-at="2026-01-15T07:00:00.000000-05:00" data-is-deprecated="false">
+          <td class="name-column col-expand">
+                    <a class="tag-type-0" href="/wiki_pages/scenery">?</a>
+        <a class="tag-type-0" href="/posts?tags=scenery">scenery</a>
+
+
+        <span class="post-count" title="2">2</span>
+
+</td>          <td class="control-column">
+                    <div class="popup-menu inline-flex items-center h-full" data-hide-on-click="true">
+  <a class="popup-menu-button default-popup-menu-button" x-on:mousedown.prevent="true" href="javascript:void(0)">
+      <svg class="icon svg-icon ellipsis-icon" viewBox="0 0 448 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#ellipsis" /></svg>
+</a>
+  <ul class="popup-menu-content">
+      <li>            <a href="/tag_versions?search%5Btag_id%5D=50005">Tag history</a>
+</li>
+      <li>            <a href="/post_versions?search%5Bchanged_tags%5D=scenery">Post history</a>
+</li>
+      <li>            <hr class="border">
+</li>
+      <li>            <a href="/related_tag?search%5Bquery%5D=scenery">Related tags</a>
+</li>
+      <li>            <a href="/tags?search%5Bfuzzy_name_matches%5D=scenery&amp;search%5Border%5D=similarity">Similar tags</a>
+</li>
+      <li>            <hr class="border">
+</li>
+      <li>            <a href="/tag_aliases?search%5Bname_matches%5D=scenery">Aliases</a>
+</li>
+      <li>            <a href="/tag_implications?search%5Bname_matches%5D=scenery">Implications</a>
+</li>
+      <li>            <a href="/comments?search%5Bpost_tags_match%5D=scenery">Comments</a>
+</li>
+      <li>            <a href="/forum_posts?search%5Blinked_to%5D=scenery">Discussions</a>
+</li>
+      <li>              <hr class="border">
+</li>
+      <li>              <a href="/posts?tags=scenery+ai%3Ascenery%2C0%25">Mistagged posts</a>
+</li>
+  </ul>
+</div>
+</td></tr>      <tr id="tag-50004" data-id="50004" data-post-count="9" data-category="0" data-created-at="2026-01-15T07:00:00.000000-05:00" data-updated-at="2026-01-15T07:00:00.000000-05:00" data-is-deprecated="false">
+          <td class="name-column col-expand">
+                    <a class="tag-type-0" href="/wiki_pages/landscape">?</a>
+        <a class="tag-type-0" href="/posts?tags=landscape">landscape</a>
+
+
+        <span class="post-count" title="9">9</span>
+
+</td>          <td class="control-column">
+                    <div class="popup-menu inline-flex items-center h-full" data-hide-on-click="true">
+  <a class="popup-menu-button default-popup-menu-button" x-on:mousedown.prevent="true" href="javascript:void(0)">
+      <svg class="icon svg-icon ellipsis-icon" viewBox="0 0 448 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#ellipsis" /></svg>
+</a>
+  <ul class="popup-menu-content">
+      <li>            <a href="/tag_versions?search%5Btag_id%5D=50004">Tag history</a>
+</li>
+      <li>            <a href="/post_versions?search%5Bchanged_tags%5D=landscape">Post history</a>
+</li>
+      <li>            <hr class="border">
+</li>
+      <li>            <a href="/related_tag?search%5Bquery%5D=landscape">Related tags</a>
+</li>
+      <li>            <a href="/tags?search%5Bfuzzy_name_matches%5D=landscape&amp;search%5Border%5D=similarity">Similar tags</a>
+</li>
+      <li>            <hr class="border">
+</li>
+      <li>            <a href="/tag_aliases?search%5Bname_matches%5D=landscape">Aliases</a>
+</li>
+      <li>            <a href="/tag_implications?search%5Bname_matches%5D=landscape">Implications</a>
+</li>
+      <li>            <a href="/comments?search%5Bpost_tags_match%5D=landscape">Comments</a>
+</li>
+      <li>            <a href="/forum_posts?search%5Blinked_to%5D=landscape">Discussions</a>
+</li>
+      <li>              <hr class="border">
+</li>
+      <li>              <a href="/posts?tags=landscape+ai%3Alandscape%2C0%25">Mistagged posts</a>
+</li>
+  </ul>
+</div>
+</td></tr>      <tr id="tag-50003" data-id="50003" data-post-count="2" data-category="1" data-created-at="2026-01-15T07:00:00.000000-05:00" data-updated-at="2026-01-15T07:00:00.000000-05:00" data-is-deprecated="false">
+          <td class="name-column col-expand">
+                    <a class="tag-type-1" href="/wiki_pages/pv_banned_artist">?</a>
+        <a class="tag-type-1" href="/posts?tags=pv_banned_artist">pv_banned_artist</a>
+
+
+        <span class="post-count" title="2">2</span>
+
+</td>          <td class="control-column">
+                    <div class="popup-menu inline-flex items-center h-full" data-hide-on-click="true">
+  <a class="popup-menu-button default-popup-menu-button" x-on:mousedown.prevent="true" href="javascript:void(0)">
+      <svg class="icon svg-icon ellipsis-icon" viewBox="0 0 448 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#ellipsis" /></svg>
+</a>
+  <ul class="popup-menu-content">
+      <li>            <a href="/tag_versions?search%5Btag_id%5D=50003">Tag history</a>
+</li>
+      <li>            <a href="/post_versions?search%5Bchanged_tags%5D=pv_banned_artist">Post history</a>
+</li>
+      <li>            <hr class="border">
+</li>
+      <li>            <a href="/related_tag?search%5Bquery%5D=pv_banned_artist">Related tags</a>
+</li>
+      <li>            <a href="/tags?search%5Bfuzzy_name_matches%5D=pv_banned_artist&amp;search%5Border%5D=similarity">Similar tags</a>
+</li>
+      <li>            <hr class="border">
+</li>
+      <li>            <a href="/tag_aliases?search%5Bname_matches%5D=pv_banned_artist">Aliases</a>
+</li>
+      <li>            <a href="/tag_implications?search%5Bname_matches%5D=pv_banned_artist">Implications</a>
+</li>
+      <li>            <a href="/comments?search%5Bpost_tags_match%5D=pv_banned_artist">Comments</a>
+</li>
+      <li>            <a href="/forum_posts?search%5Blinked_to%5D=pv_banned_artist">Discussions</a>
+</li>
+      <li>              <hr class="border">
+</li>
+      <li>              <a href="/posts?tags=pv_banned_artist+ai%3Apv_banned_artist%2C0%25">Mistagged posts</a>
+</li>
+  </ul>
+</div>
+</td></tr>      <tr id="tag-50002" data-id="50002" data-post-count="6" data-category="1" data-created-at="2026-01-15T07:00:00.000000-05:00" data-updated-at="2026-01-15T07:00:00.000000-05:00" data-is-deprecated="false">
+          <td class="name-column col-expand">
+                    <a class="tag-type-1" href="/wiki_pages/pv_artist">?</a>
+        <a class="tag-type-1" href="/posts?tags=pv_artist">pv_artist</a>
+
+
+        <span class="post-count" title="6">6</span>
+
+</td>          <td class="control-column">
+                    <div class="popup-menu inline-flex items-center h-full" data-hide-on-click="true">
+  <a class="popup-menu-button default-popup-menu-button" x-on:mousedown.prevent="true" href="javascript:void(0)">
+      <svg class="icon svg-icon ellipsis-icon" viewBox="0 0 448 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#ellipsis" /></svg>
+</a>
+  <ul class="popup-menu-content">
+      <li>            <a href="/tag_versions?search%5Btag_id%5D=50002">Tag history</a>
+</li>
+      <li>            <a href="/post_versions?search%5Bchanged_tags%5D=pv_artist">Post history</a>
+</li>
+      <li>            <hr class="border">
+</li>
+      <li>            <a href="/related_tag?search%5Bquery%5D=pv_artist">Related tags</a>
+</li>
+      <li>            <a href="/tags?search%5Bfuzzy_name_matches%5D=pv_artist&amp;search%5Border%5D=similarity">Similar tags</a>
+</li>
+      <li>            <hr class="border">
+</li>
+      <li>            <a href="/tag_aliases?search%5Bname_matches%5D=pv_artist">Aliases</a>
+</li>
+      <li>            <a href="/tag_implications?search%5Bname_matches%5D=pv_artist">Implications</a>
+</li>
+      <li>            <a href="/comments?search%5Bpost_tags_match%5D=pv_artist">Comments</a>
+</li>
+      <li>            <a href="/forum_posts?search%5Blinked_to%5D=pv_artist">Discussions</a>
+</li>
+      <li>              <hr class="border">
+</li>
+      <li>              <a href="/posts?tags=pv_artist+ai%3Apv_artist%2C0%25">Mistagged posts</a>
+</li>
+  </ul>
+</div>
+</td></tr>  </tbody>
+</table>
+    <div class="paginator numbered-paginator mt-8 mb-4 space-x-2 flex justify-center items-center">
+  <span class="paginator-prev" rel="prev" data-shortcut="a left"><svg class="icon svg-icon chevron-left-icon" viewBox="0 0 384 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#chevron-left" /></svg></span>
+
+      <span class="paginator-current font-bold">1</span>
+      <a class="paginator-page desktop-only" hidden="hidden" href="/tags?page=2">2</a>
+      <a class="paginator-page desktop-only" hidden="hidden" href="/tags?page=3">3</a>
+      <a class="paginator-page desktop-only" hidden="hidden" href="/tags?page=4">4</a>
+      <a class="paginator-page desktop-only" hidden="hidden" href="/tags?page=5">5</a>
+      <span class="paginator-ellipsis desktop-only"><svg class="icon svg-icon ellipsis-icon text-muted" viewBox="0 0 448 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#ellipsis" /></svg></span>
+
+  <span class="paginator-next" rel="next" data-shortcut="d right"><svg class="icon svg-icon chevron-right-icon" viewBox="0 0 384 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#chevron-right" /></svg></span>
+</div>
+
+  </div>
+</div>
+
+
+
+  </div>
+
+  <div id="tooltips"></div>
+
+  <footer id="page-footer" class="text-sm text-center flex-initial mt-4 py-3 w-full border-t flex flex-wrap items-center justify-center gap-1 leading-none">
+    <a href="/terms_of_service">Terms</a>
+    / <a title="Policies and Pledges" href="https://41chan.net/pip2.html">PIP<sup>2</sup></a>
+    / <a href="https://41chan.net/about.html">About</a>
+    / <a href="/upgrade">Upgrade</a>
+    / <a href="/contact">Contact</a>
+    /
+      <a title="Running commit: 000000000" class="social-icon" href="https://github.com/fourier-channel/chanbooru">
+        <img class="icon inline-block h-4" src="/packs-test/static/github-logo-c932001442ab985405de.png" />
+</a>  </footer>
+</body></html>

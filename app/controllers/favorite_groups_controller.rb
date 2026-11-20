@@ -43,8 +43,9 @@ class FavoriteGroupsController < ApplicationController
 
   def update
     @favorite_group = authorize FavoriteGroup.find(params[:id])
-    @favorite_group.assign_attributes(permitted_attributes(@favorite_group))
-    @favorite_group.keep_unseen_post_ids(CurrentUser.user)
+    attributes = permitted_attributes(@favorite_group)
+    @favorite_group.assign_attributes(attributes)
+    @favorite_group.keep_unseen_post_ids(CurrentUser.user, named: attributes.key?("post_ids") || attributes.key?("post_ids_string"))
     @favorite_group.save
 
     respond_with(@favorite_group, notice: "Favorite group updated")

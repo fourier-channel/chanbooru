@@ -34,14 +34,19 @@ class DiscordSlashCommand
       end
     end
 
+    # The relationship as a signed-out reader may be told it
+    # (Post#relationship_attributes_shown_to): the embed is posted to a
+    # channel, and its colour named a hidden parent or live child (boo.122
+    # D2). No route reaches this command today.
     def embed_color
+      shown = post.relationship_attributes_shown_to(User.anonymous)
       if post.is_flagged?
         0xC41C19
       elsif post.is_pending?
         0x0000FF
-      elsif post.parent_id.present?
+      elsif shown[:parent_id].present?
         0xC0C000
-      elsif post.has_active_children?
+      elsif shown[:has_active_children]
         0x00FF00
       elsif post.is_deleted?
         0xFFFFFF

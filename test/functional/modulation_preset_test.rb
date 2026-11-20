@@ -21,7 +21,7 @@ class ModulationPresetTest < ActionDispatch::IntegrationTest
     post = as(user) { create(:post, tag_string: tag_string) }
     as(user) do
       post.update!(is_deleted: false)
-      post.update!(tag_string: (post.tag_array - [Danbooru.config.troll_jail_tag]).join(" "))
+      as_the_jail { post.update!(tag_string: (post.tag_array - [Danbooru.config.troll_jail_tag]).join(" ")) }
     end
     post.reload
   end

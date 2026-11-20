@@ -125,6 +125,19 @@ class ApplicationRecord < ActiveRecord::Base
           target = public_send(name)
           target.present? && target.refuses_write_from?(user)
         end
+
+        # A missing target of a type that can be hidden by its post answers
+        # as a hidden one does (boo.122): a reaction or a report naming a
+        # hidden post or comment answered 404, a missing one 422 "must
+        # exist", so the status told the two apart. A type nothing hides (a
+        # forum post, a dmail) keeps its validation message.
+        define_method(:names_missing_post?) do
+          type = self["#{name}_type"]
+          next false unless self["#{name}_id"].present? && self.class.model_types.include?(type)
+
+          model = type.constantize
+          (model == Post || model.hidden_post_column.present?) && public_send(name).nil?
+        end
       end
 
       # The rows whose polymorphic `name` points at a hidden post, or at a
@@ -466,7 +479,15 @@ class ApplicationRecord < ActiveRecord::Base
     class_methods do
       def parallel_find_each(**options, &block)
         # XXX We may deadlock if a transaction is open; do a non-parallel each.
-        return find_each(&block) if connection.transaction_open?
+        #
+        # Fork (boo.122, 2026-11-20): called on a relation, this class method
+        # runs inside the relation's scoping, so here every query of this
+        # model the block made was ANDed with the search. A mass update
+        # "cute -> pool:x -cute" asked Post.where(id:) of a post that had
+        # just lost cute, found none, and the pool refused it as missing.
+        # The threaded path below never saw the scope (scoping is
+        # thread-local); unscoped makes the serial path agree with it.
+        return all.find_each { |record| unscoped { yield record } } if connection.transaction_open?
 
         current_user = CurrentUser.user
 

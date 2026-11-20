@@ -25,6 +25,7 @@ module PostIdList
   end
 
   attr_writer :hidden_post_ids
+  attr_accessor :relisted_unseen_post_ids
 
   # post_ids without the posts hidden from `user`, in their stored order.
   def visible_post_ids(user = CurrentUser.user)
@@ -38,10 +39,22 @@ module PostIdList
   # list and is still in the new one, or first if none is -- so an edit by
   # someone who cannot see a page never moves it for those who can (review,
   # 2026-10-08: appended at the end, a private page of a comic jumped).
-  def keep_unseen_post_ids(user = CurrentUser.user)
+  #
+  # `named`: the writer sent a list. A hidden member they named all the same,
+  # which their form never shows them, was kept where they put it -- moved
+  # for those who see it -- and accepted where a hidden non-member is
+  # refused, which said it was a member; a list sent back exactly as stored
+  # was accepted unchanged, which said the same (R1, review 2026-11-20). It is
+  # judged with the ids added (Pool#added_posts_exist_for_writer,
+  # FavoriteGroup#validate_posts).
+  def keep_unseen_post_ids(user = CurrentUser.user, named: post_ids_changed?)
+    old = post_ids_was
+    if named
+      relisted = post_ids & old.to_a
+      self.relisted_unseen_post_ids = relisted - Post.visible_ids_among(relisted, user)
+    end
     return unless post_ids_changed?
 
-    old = post_ids_was
     dropped = old - post_ids
     unseen = (dropped - Post.visible_ids_among(dropped, user)).to_set
     return if unseen.empty?

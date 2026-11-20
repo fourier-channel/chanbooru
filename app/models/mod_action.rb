@@ -60,6 +60,9 @@ class ModAction < ApplicationRecord
   dtext_attribute :description, inline: true # defines :dtext_description
 
   belongs_to :creator, class_name: "User"
+
+  # A deletion, undeletion, jailing or unjailing moves Post.untagged_jailed_ids.
+  after_commit :announce_jail_state_change, on: :create, if: -> { category.to_s.in?(Post::JAIL_LOG_CATEGORIES) }
   belongs_to :subject, polymorphic: true, optional: true
 
   # ####DIVISIONS#####
@@ -286,6 +289,10 @@ class ModAction < ApplicationRecord
 
   def category_id
     self.class.categories[category]
+  end
+
+  def announce_jail_state_change
+    Post.jail_state_changed!
   end
 
   def self.log(description, category, subject:, user:)

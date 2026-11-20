@@ -41,6 +41,7 @@ class TagRelationship < ApplicationRecord
   validates :approver, presence: { message: "must exist" }, if: -> { approver_id.present? }
   validates :forum_topic, presence: { message: "must exist" }, if: -> { forum_topic_id.present? }
   validate :antecedent_and_consequent_are_different
+  validate :not_the_jail_tag, unless: :is_rejected?
 
   def is_rejected?
     status.in?(%w[retired deleted])
@@ -134,6 +135,18 @@ class TagRelationship < ApplicationRecord
       # "TagAlias" -> "tag alias", "TagImplication" -> "tag implication"
       self.class.name.underscore.tr("_", " ")
     end
+  end
+
+  # R2 (operator 2026-11-20): only the jail adds troll_jail and takes it
+  # off. An alias or implication from or onto it would do both to every post
+  # it touches; Post#validate_jail_tag_change refuses each such save, and
+  # this refuses the relationship before it is filed. A retired or deleted
+  # one is left alone, so ending one is never refused.
+  def not_the_jail_tag
+    jail = Danbooru.config.troll_jail_tag
+    return unless jail.in?([antecedent_name, consequent_name])
+
+    errors.add(:base, "#{jail} cannot be aliased or implicated: only the jail adds or removes it (operator 2026-11-20). Jail posts from the jail panel, the jail switch on the post page, or by banishing a tag")
   end
 
   def antecedent_and_consequent_are_different

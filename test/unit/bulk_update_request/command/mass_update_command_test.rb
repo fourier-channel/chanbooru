@@ -77,6 +77,40 @@ class MassUpdateCommandTest < ActiveSupport::TestCase
         assert_equal([{ "message" => "Post cannot have itself as a parent", "count" => 1 }], line["skipped_reasons"])
       end
 
+      # boo.122: a pool that refuses the post is a skip too. Post says it
+      # only as a warning, and a deleted or missing pool used to say nothing.
+      should "skip a post a deleted pool refuses and report it" do
+        @p1 = create(:post, tag_string: "foo")
+        @p2 = create(:post, tag_string: "foo")
+        @pool = create(:pool, post_ids: [@p1.id], is_deleted: true)
+        @bur = create_bur!("update foo -> pool:#{@pool.id}", @admin)
+
+        assert_equal([@p1.id], @pool.reload.post_ids)
+        assert_equal("partial", @bur.reload.status)
+        line = @bur.results.first
+        assert_equal(1, line["skipped"])
+        assert_equal([@p2.id], line["skipped_post_ids"])
+        assert_equal([{ "message" => "Couldn't add to pool ##{@pool.id}: the pool is deleted; undelete it first", "count" => 1 }], line["skipped_reasons"])
+      end
+
+      should "skip every post when the named pool does not exist and report it" do
+        @post = create(:post, tag_string: "foo")
+        @bur = create_bur!("update foo -> pool:no_such_pool", @admin)
+
+        line = @bur.reload.results.first
+        assert_equal([@post.id], line["skipped_post_ids"])
+        assert_match(/Couldn't add to pool no_such_pool: no pool has that name or id/, line["skipped_reasons"].first["message"])
+      end
+
+      should "skip every post when the pool it removes from does not exist and report it" do
+        @post = create(:post, tag_string: "foo")
+        @bur = create_bur!("update foo -> -pool:no_such_pool", @admin)
+
+        line = @bur.reload.results.first
+        assert_equal([@post.id], line["skipped_post_ids"])
+        assert_match(/Couldn't remove from pool no_such_pool: no pool has that name or id/, line["skipped_reasons"].first["message"])
+      end
+
       should "log each skipped post with its reason" do
         @post = create(:post, tag_string: "foo")
         DanbooruLogger.stubs(:info)

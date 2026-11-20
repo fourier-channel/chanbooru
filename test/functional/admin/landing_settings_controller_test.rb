@@ -225,7 +225,7 @@ class Admin::LandingSettingsControllerTest < ActionDispatch::IntegrationTest
       deleter = create(:builder_user)
       deleted = as(deleter) { create(:post, uploader: deleter, tag_string: "ep_landscape") }
       deleted.update!(is_deleted: true)
-      jailed = as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape #{Danbooru.config.troll_jail_tag}") }
+      jailed = as_the_jail { as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape #{Danbooru.config.troll_jail_tag}") } }
       gated = as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape child") }
       video = as(@uploader) { create(:post, uploader: @uploader, tag_string: "ep_landscape", file_ext: "mp4") }
       setting = LandingSetting.current

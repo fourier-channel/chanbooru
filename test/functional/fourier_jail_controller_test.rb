@@ -50,7 +50,7 @@ class FourierJailControllerTest < ActionDispatch::IntegrationTest
   # /posts/:id as the jail account with "troll jail: <why>" (Post#delete!
   # writes the deletion's mod action under that account).
   def jailed_post(uploader, why: "shock", tags: "landscape #{JAIL_TAG}")
-    post = create(:post, uploader: uploader, md5: real_md5, tag_string: tags)
+    post = as_the_jail { create(:post, uploader: uploader, md5: real_md5, tag_string: tags) }
     as(uploader) { post.delete!("troll jail: #{why}", user: uploader) }
     post.reload
   end
@@ -100,7 +100,9 @@ class FourierJailControllerTest < ActionDispatch::IntegrationTest
     # deleted. Their current deletion is still the jail's.
     should "release a deleted post without the tag whose current deletion is the jail's" do
       post = jailed_post(@bot)
-      as(create(:moderator_user)) { post.update!(tag_string: "landscape") }
+      # The old pill's jail-off, written as it left the post: no account may
+      # take the tag off by hand now (R2), so the state is set directly.
+      post.update_columns(tag_string: "landscape")
 
       post_auth fourier_jail_release_path, @bot, params: { md5: post.md5 }
 
@@ -135,11 +137,13 @@ class FourierJailControllerTest < ActionDispatch::IntegrationTest
       assert_equal(FourierJailController::NOT_THE_JAILS, response.parsed_body["reason"])
       assert_equal(true, untagged.reload.is_deleted)
 
-      # Tagged on top of a moderator's deletion: the jail is lifted, the
-      # deletion stands, and the caller is told so.
+      # Tagged on top of a moderator's deletion -- by the jail itself, the
+      # only writer of the tag (R2): sampling's tag push landing after a
+      # moderator deleted the post first. The jail is lifted, the deletion
+      # stands, and the caller is told so.
       tagged = create(:post, uploader: @bot, md5: real_md5, tag_string: "landscape")
       as(moderator) { tagged.delete!("duplicate", user: moderator) }
-      as(moderator) { tagged.update!(tag_string: "landscape #{JAIL_TAG}") }
+      as(@bot) { tagged.update!(tag_string: "landscape #{JAIL_TAG}") }
 
       post_auth fourier_jail_release_path, @bot, params: { md5: tagged.md5 }
 
@@ -154,13 +158,17 @@ class FourierJailControllerTest < ActionDispatch::IntegrationTest
     # pill's jail-on of a deleted post) stands on the post_jail row, tag or
     # no tag. The panel's release lifts it and closes it on the booru's log
     # (post_unjail), so the moderator's deletion is an ordinary one again.
+    # The moderator cannot take the tag off (R2); the jailing is then made
+    # to lose it anyway, as 429 production jailings had by 2026-11-20.
     should "close a jailing it lifts from a moderator's deletion" do
       moderator = create(:moderator_user)
       post = create(:post, uploader: @bot, md5: real_md5, tag_string: "landscape")
       as(moderator) { post.delete!("duplicate", user: moderator) }
       login_as(moderator)
       patch modulation_moderation_path(post), params: { jail: true }, as: :json
-      as(moderator) { post.reload.update!(tag_string: "landscape") }
+      assert_raises(ActiveRecord::RecordInvalid) { as(moderator) { post.reload.update!(tag_string: "landscape") } }
+      assert post.reload.has_tag?(JAIL_TAG)
+      as_the_jail { post.reload.update!(tag_string: "landscape") }
       assert post.reload.jailed?
 
       post_auth fourier_jail_release_path, @bot, params: { md5: post.md5 }
@@ -178,7 +186,7 @@ class FourierJailControllerTest < ActionDispatch::IntegrationTest
     # ordinary deletion.
     should "not undo an approver's deletion whose reason imitates the jail's" do
       approver = create(:approver_user)
-      post = create(:post, uploader: @bot, md5: real_md5, tag_string: "landscape #{JAIL_TAG}")
+      post = as_the_jail { create(:post, uploader: @bot, md5: real_md5, tag_string: "landscape #{JAIL_TAG}") }
       as(approver) { post.delete!("troll jail: shock", user: approver) }
 
       post_auth fourier_jail_release_path, @bot, params: { md5: post.md5 }
@@ -439,25 +447,27 @@ class FourierJailControllerTest < ActionDispatch::IntegrationTest
 
     # Every way into "deleted, carrying troll_jail" is a booru-side jailing
     # and reaches the panel (operator 2026-10-09; review of the 2026-10-10
-    # build): the tag added to a deleted post, and a tagged post deleted. The
-    # jail's own deletion is not reported back to the jail.
-    should "report the jail tag added to a deleted post, and a tagged post deleted, but not the jail's own" do
+    # build): a tagged post deleted. The jail's own deletion is not reported
+    # back to the jail. The other way, a booru user adding the tag to a
+    # deleted post, is closed (R2, operator 2026-11-20): it is refused, so
+    # there is nothing to report.
+    should "report a tagged post deleted, but not the jail's own, nor a refused tagging of a deleted post" do
       moderator = create(:moderator_user)
       approver = create(:approver_user)
       tagged_later = create(:post, md5: real_md5, tag_string: "landscape")
       as(moderator) { tagged_later.delete!("duplicate", user: moderator) }
-      as(approver) { tagged_later.reload.update!(tag_string: "landscape #{JAIL_TAG}") }
-      deleted_later = create(:post, md5: real_md5, tag_string: "landscape #{JAIL_TAG}")
+      assert_raises(ActiveRecord::RecordInvalid) { as(approver) { tagged_later.reload.update!(tag_string: "landscape #{JAIL_TAG}") } }
+      deleted_later = as_the_jail { create(:post, md5: real_md5, tag_string: "landscape #{JAIL_TAG}") }
       as(moderator) { deleted_later.delete!("off topic", user: moderator) }
       jailed_post(@bot)
 
       get_auth fourier_jail_release_path(format: :json), @bot
 
       events = response.parsed_body["events"]
-      assert_equal([tagged_later.id, deleted_later.id], events.pluck("post_id"))
-      assert_equal(["booru user", "booru user"], events.pluck("actor"))
-      assert_equal([approver.name, moderator.name], events.pluck("moderator"))
-      assert_equal([true, true], events.pluck("jailed"))
+      assert_equal([deleted_later.id], events.pluck("post_id"))
+      assert_equal(["booru user"], events.pluck("actor"))
+      assert_equal([moderator.name], events.pluck("moderator"))
+      assert_equal([true], events.pluck("jailed"))
     end
 
     # Ids are handed out at INSERT and rows become visible at COMMIT, so a
@@ -512,7 +522,7 @@ class FourierJailControllerTest < ActionDispatch::IntegrationTest
       @flagged = as(uploader) { create(:post, md5: real_md5, tag_string: "landscape secret_(thing)", source: "mxc://41chan.net/flagged1", uploader: uploader) }
       @banished = as(uploader) { create(:post, md5: real_md5, tag_string: "landscape banned_thing", uploader: uploader) }
       @plain = as(uploader) { create(:post, md5: real_md5, tag_string: "landscape", uploader: uploader) }
-      @jail_only = as(uploader) { create(:post, md5: real_md5, tag_string: "landscape #{JAIL_TAG}", uploader: uploader) }
+      @jail_only = as(uploader) { as_the_jail { create(:post, md5: real_md5, tag_string: "landscape #{JAIL_TAG}", uploader: uploader) } }
       flag_tags!("secret_(thing)")
       banish_tags!("banned_thing")
     end

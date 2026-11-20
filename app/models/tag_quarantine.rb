@@ -179,6 +179,8 @@ class TagQuarantine < ApplicationRecord
       flagged_rows = flagged.empty? ? [] : Post.where_array_includes_any(tags, flagged).pluck(:id, :md5, :source)
       banished_rows = banished.empty? ? [] : Post.where_array_includes_any(tags, banished).pluck(:id, :md5, :source)
       jailed_rows = Post.where_array_includes_any(tags, [Danbooru.config.troll_jail_tag]).pluck(:id, :md5, :source)
+      # And the jailed posts the tag has come off (Post.untagged_jailed_ids, boo.122 D3).
+      jailed_rows += Post.where(id: Post.untagged_jailed_ids.to_a).pluck(:id, :md5, :source)
       flagged_ids = flagged_rows.to_set(&:first)
       banished_ids = banished_rows.to_set(&:first)
       jailed_ids = jailed_rows.to_set(&:first)
