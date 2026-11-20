@@ -6,6 +6,7 @@ class UserNameChangeRequest < ApplicationRecord
   attr_accessor :updater, :is_deletion
 
   validate :not_limited, on: :create
+  validate :pinned_names_stay_put, on: :create
   validates :original_name, presence: true
   validates :desired_name, presence: true, user_name: true, matrix_username: true, on: :create, unless: :is_deletion
 
@@ -39,6 +40,21 @@ class UserNameChangeRequest < ApplicationRecord
 
   def update_name!
     user.update!(name: desired_name)
+  end
+
+  # A name that carries authority (User.pinned_names) stays on its account:
+  # nobody but the site owner renames that account, or gives the name to
+  # another (boo.122 B). Compared normalized, so "Tunnel" is "tunnel". A
+  # deletion's rename is UserDeletion's to refuse (#validate_deletion), where
+  # the refusal is an error on the page rather than a 500 mid-deletion.
+  def pinned_names_stay_put
+    return if updater&.is_owner? || is_deletion
+
+    pinned = User.pinned_names
+    taken = [user&.name, original_name, desired_name].compact.map { |name| User.normalize_name(name) }.find { |name| name.in?(pinned) }
+    return if taken.nil?
+
+    errors.add(:base, "#{taken} is one of the booru's own account names (the jail panel, a posting bot or the system user): only the site owner renames that account or gives its name to another. Ask the site owner")
   end
 
   def not_limited

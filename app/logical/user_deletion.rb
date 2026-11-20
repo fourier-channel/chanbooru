@@ -129,6 +129,12 @@ class UserDeletion
   end
 
   def validate_deletion
+    # boo.122 B: deleting renames the account to user_<id>, freeing a name
+    # that carries authority (User.pinned_names).
+    if User.normalize_name(user.name).in?(User.pinned_names) && !deleter&.is_owner?
+      errors.add(:base, "#{user.name} is one of the booru's own accounts (the jail panel, a posting bot or the system user): only the site owner deletes it. Ask the site owner")
+    end
+
     if user == deleter
       # Fork: the Matrix sign-in stands in for the password, not for a second
       # factor, as in SessionLoader#reauthenticate.

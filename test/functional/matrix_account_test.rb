@@ -282,6 +282,21 @@ class MatrixAccountTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # boo.122 B: a Matrix username that is one of the booru's own account names
+  # (User.pinned_names) never becomes that account.
+  context "a Matrix username that is a pinned booru name" do
+    should "make no account, and say why" do
+      assert_no_difference("User.count") do
+        get fourier_identity_path(format: :json), headers: identity("@gate:41chan.net")
+      end
+
+      get modulation_session_status_path(format: :json), headers: identity("@gate:41chan.net")
+      account = response.parsed_body.dig("booru", "account")
+      assert_equal("invalid", account["state"])
+      assert_match(/reserved for the booru/, account["reason"])
+    end
+  end
+
   # Technetium's Manage Session reads it to link the way on.
   context "the session status" do
     should "say the account and why it is not signed in" do

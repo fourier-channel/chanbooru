@@ -2823,7 +2823,8 @@ class Post < ApplicationRecord
   # pushes hydra's tags onto released posts without consulting that list,
   # so without this a released post that gained a second banished name was
   # jailed again here, undoing the release where sampling never would. A
-  # human can still jail it by hand. See released_from_jail?.
+  # human can still jail it by hand. What proves a release is
+  # released_from_jail?, and it is never the words on a flag (boo.122 C3).
   #
   # Noted before the save, acted on after it, because the tag diff is only
   # exact before the write -- after_save callbacks that save again
@@ -2846,10 +2847,18 @@ class Post < ApplicationRecord
     # exactly that. No loop: the jail tag is not banished, and deleting
     # changes no tags. No double jailing: a post already carrying troll_jail
     # keeps one, and a deleted post is never reached.
+    #
+    # Deleted is asked of the DATABASE as well as of this copy (boo.122 C4):
+    # another request can delete the post between this request's load and its
+    # save, and the stale copy would jail it on top of that deletion. The read
+    # is exact: this save's own UPDATE holds the post's row lock until commit,
+    # so a deletion that committed first is seen here, and a later one waits
+    # on the lock (Post#delete! takes it). No reload, which would throw away
+    # the copy the caller goes on to render.
     def jail_on_banished_tags
       gained = @banished_tags_gained
       @banished_tags_gained = nil
-      return if gained.blank? || is_deleted? || released_from_jail?
+      return if gained.blank? || is_deleted? || Post.where(id: id).pick(:is_deleted) || released_from_jail?
 
       jail = Danbooru.config.troll_jail_tag
       reason = "troll jail: banished tag" # why, never which: see above
@@ -2867,16 +2876,23 @@ class Post < ApplicationRecord
       jail_by_booru!(reason)
     end
 
-    # A live post that was once deleted BY A JAILING has been released: only
-    # an undeletion brings a deleted post back, and here that was a human's
-    # (POST /fourier_jail/release from the curation surface, or the post-page
-    # pill). Every jailing's deletion flag says "troll jail..." -- sampling's
-    # jailSync and purge tools, the pill, and this file alike -- and an
-    # ordinary deletion's does not, so a post a moderator merely undeleted is
+    # RELEASED = the jail deleted it (Post.jail_deletions: proved by the
+    # account that acted, under the name it held then or holds now, never by
+    # the words) and an undeletion was logged after that. Every ordinary
+    # undelete door refuses a post whose standing deletion is the jail's
+    # (PostApproval, the pill, Post#jailed?), so since 2026-10-10 that
+    # undeletion is the release route's (FourierJailController#release!);
+    # before then it was a human's approval, a release as well. A flag's
+    # words prove nothing: any member can type "troll jail" into a flag,
+    # which Post#delete! then marks succeeded, and any approver into a
+    # deletion reason (boo.122 C3). A post a moderator merely undeleted is
     # still jailed when it gains a banished tag. Asked only when a banished
-    # tag was gained, so the query is off every ordinary save.
+    # tag was gained, so the queries are off every ordinary save.
     def released_from_jail?
-      flags.succeeded.where("post_flags.reason LIKE ?", "troll jail%").exists?
+      first_jailing = Post.jail_deletions.where(subject_id: id).minimum(:id)
+      return false if first_jailing.nil?
+
+      ModAction.where(subject: self, category: :post_undelete).exists?(["id > ?", first_jailing])
     end
   end
 

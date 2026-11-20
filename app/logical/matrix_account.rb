@@ -77,7 +77,7 @@ class MatrixAccount
   memoize def name_error
     return "is not a Matrix username" if localpart.nil?
 
-    User.new(name: localpart, matrix_id: matrix_id).tap(&:validate).errors.where(:name).reject { |e| e.message == "already taken" }.first&.message
+    User.new(name: localpart, matrix_id: matrix_id).tap { |user| user.validate([:create, :signup]) }.errors.where(:name).reject { |e| e.message == "already taken" }.first&.message
   end
 
   # Create the account and sign it in on this request. Restricted like every
@@ -89,7 +89,9 @@ class MatrixAccount
   def create
     return nil unless state == "available"
 
-    User.create!(
+    # A signup (User#name_is_not_pinned): #state already said "invalid" for a
+    # reserved name, so this context only backs it up.
+    User.new(
       request: request,
       name: localpart,
       matrix_id: matrix_id,
@@ -98,7 +100,7 @@ class MatrixAccount
       requires_verification: false,
       last_ip_addr: request.remote_ip,
       last_logged_in_at: Time.zone.now,
-    )
+    ).tap { |user| user.save!(context: [:create, :signup]) }
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
     # Two first requests at once -- Technetium asks for a page and its
     # pictures together. The loser finds the winner's account by the link;

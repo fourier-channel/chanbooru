@@ -141,6 +141,9 @@ class User < ApplicationRecord
   validates :blacklisted_tags, visible_string: { allow_empty: true }, length: { maximum: 100_000 }, if: :blacklisted_tags_changed?
   validates :favorite_tags, visible_string: { allow_empty: true }, length: { maximum: 10_000 }, if: :favorite_tags_changed?
   validates :custom_style, visible_string: { allow_empty: true }, length: { maximum: 40_000 }, if: :custom_style_changed?
+  # Before the name validators, so a reserved name spends no homeserver call
+  # (MatrixUsernameValidator returns early on a name that already has an error).
+  validate :name_is_not_pinned, on: :signup
   validates :name, user_name: true, matrix_username: true, on: :create
   validates :password, length: { minimum: MIN_PASSWORD_LENGTH }, if: ->(rec) { rec.new_record? || rec.password.present? }
   validates :default_image_size, inclusion: { in: %w[large original] }
@@ -323,6 +326,17 @@ class User < ApplicationRecord
 
     def name_invalid?
       name_errors.present?
+    end
+
+    # A signup may not take a name that carries authority (User.pinned_names).
+    # Only signups ask -- the :signup context -- because the real accounts are
+    # made by the seeds, the console and test factories, in plain :create. Kept
+    # out of UserNameValidator on purpose: #name_errors runs that one on
+    # existing accounts, and would send the bots to change_name on every page.
+    def name_is_not_pinned
+      return unless User.normalize_name(name.to_s).in?(User.pinned_names)
+
+      errors.add(:name, "is reserved for the booru accounts that run the jail panel, the posting bots and the system user. Choose another name. If you are setting up that account itself, the site owner renames an existing account onto the name")
     end
   end
 
@@ -579,6 +593,24 @@ class User < ApplicationRecord
 
       def system
         User.find_by!(name: Danbooru.config.system_user)
+      end
+
+      # The names that carry authority BY NAME, with no level behind them: the
+      # jail's accounts (Post.jail_account_names: the release route, the proof
+      # of who jailed, and the system user), the quarantine readers, and the
+      # creator-prefix editors (TagBanishment.pipeline?, the locked tags). A
+      # free one taken by a signup, a Matrix auto-account or a moderator's
+      # rename would hand that authority to whoever took it (boo.122 B). So a
+      # signup may not take one (#name_is_not_pinned) and only the site owner
+      # renames one on or off an account (UserNameChangeRequest).
+      #
+      # The editors are read through visibility_config, which keeps the last
+      # good list when the live file breaks, so a broken file never 500s every
+      # signup and rename.
+      def pinned_names
+        listed = Post.jail_account_names + Array(Danbooru.config.fourier_quarantine_reader_names) +
+                 Array(CreatorPrefixes.visibility_config[:editors]) + [Danbooru.config.system_user]
+        listed.flat_map { |name| name.to_s.split(/[\s,]+/) }.map { |name| User.normalize_name(name) }.compact_blank.uniq
       end
 
       def anonymous

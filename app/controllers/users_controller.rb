@@ -88,12 +88,12 @@ class UsersController < ApplicationController
   # a 403, so this branch is not a way in.
   def save_with_token(user)
     token = user.respond_to?(:signup_token_record) ? user.signup_token_record : nil
-    return user.save(context: [:create, :deliverable]) if token.nil?
+    return user.save(context: [:create, :deliverable, :signup]) if token.nil?
 
     saved = false
     ActiveRecord::Base.transaction do
       token.redeem!
-      saved = user.save(context: [:create, :deliverable])
+      saved = user.save(context: [:create, :deliverable, :signup])
       raise ActiveRecord::Rollback unless saved
     end
     saved

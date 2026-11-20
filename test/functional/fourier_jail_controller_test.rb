@@ -28,6 +28,11 @@ class FourierJailControllerTest < ActionDispatch::IntegrationTest
     SecureRandom.hex(16)
   end
 
+  # A rename through the booru's own page, as `caller`.
+  def rename(caller, user, desired)
+    post_auth user_name_change_requests_path, caller, params: { user_name_change_request: { user_id: user.id, desired_name: desired } }, reauthenticate: true
+  end
+
   def quarantine_doc(user, **params)
     get_auth fourier_jail_release_path(format: :json), user, params: { quarantine: 1, **params }
     response.parsed_body
@@ -204,7 +209,7 @@ class FourierJailControllerTest < ActionDispatch::IntegrationTest
     should "still prove the jail's deletion after the jail account is renamed" do
       post = jailed_post(@bot)
       travel(1.minute) do
-        UserNameChangeRequest.create!(user: @bot, original_name: @bot.name, desired_name: "sample_old")
+        UserNameChangeRequest.create!(user: @bot, original_name: @bot.name, desired_name: "sample_old", updater: create(:owner_user))
         new_bot = create(:approver_user, name: "sample")
 
         post_auth fourier_jail_release_path, new_bot, params: { md5: post.md5 }
@@ -299,13 +304,103 @@ class FourierJailControllerTest < ActionDispatch::IntegrationTest
       bot = create(:approver_user, name: "sampling")
       post = jailed_post(bot)
       travel(1.minute) do
-        UserNameChangeRequest.create!(user: bot, original_name: "sampling", desired_name: "sample")
+        UserNameChangeRequest.create!(user: bot, original_name: "sampling", desired_name: "sample", updater: create(:owner_user))
 
         post_auth fourier_jail_release_path, bot.reload, params: { md5: post.md5 }
       end
 
       assert_equal(true, response.parsed_body["released"])
       assert_equal(false, post.reload.is_deleted)
+    end
+  end
+
+  # boo.122 B: the jail, the quarantine and the creator-prefix lock trust an
+  # account BY NAME (Post.jail_account_names, fourier_quarantine_reader_names,
+  # the system user). A name freed or taken by anyone but the site owner hands
+  # that trust to whoever holds it next.
+  context "the jail's account names" do
+    setup do
+      @bot = create(:approver_user, name: "sample")
+      @tunnel = create(:builder_user, name: "tunnel")
+      @moderator = create(:moderator_user)
+    end
+
+    should "be pinned, normalized, the system user's among them" do
+      assert_includes(User.pinned_names, "danboorubot")
+      assert_includes(User.pinned_names, "sample")
+      assert_includes(User.pinned_names, "gate")
+    end
+
+    should "stay on the jail's account when a moderator renames it" do
+      rename(@moderator, @bot, "sample_retired")
+
+      assert_equal("sample", @bot.reload.name)
+      assert_match(/only the site owner/, response.body)
+    end
+
+    should "never be given to another account by a moderator, in any case" do
+      member = create(:member_user)
+      %w[gate Gate sample].each do |name|
+        rename(@moderator, member, name)
+        assert_not_equal(name.downcase, member.reload.name.downcase)
+      end
+      # The jail's own name, freed some other way, is still not the moderator's to give.
+      @tunnel.update_columns(name: "tunnel_old") # rubocop:disable Rails/SkipsModelValidations
+      rename(@moderator, member, "Tunnel")
+      assert_not_equal("tunnel", member.reload.name.downcase)
+
+      # Control: the same moderator renames the same account onto a free name.
+      rename(@moderator, member, "free_name_x")
+      assert_equal("free_name_x", member.reload.name)
+    end
+
+    should "never be taken by a signup" do
+      # Freed the one way nothing refuses, so only the pin can say no.
+      @tunnel.update_columns(name: "tunnel_old") # rubocop:disable Rails/SkipsModelValidations
+      %w[Tunnel gate].each do |name|
+        reset!
+        assert_no_difference("User.count") do
+          post users_path, params: { user: { name: name, password: "xxxxxxx1", password_confirmation: "xxxxxxx1" } }
+        end
+        assert_match(/is reserved for the booru accounts/, response.body)
+      end
+
+      # Control: a free name signs up.
+      reset!
+      assert_difference("User.count", 1) do
+        post users_path, params: { user: { name: "free_name_x", password: "xxxxxxx1", password_confirmation: "xxxxxxx1" } }
+      end
+    end
+
+    should "be renamed by the site owner, who sets those accounts up" do
+      owner = create(:owner_user)
+      UserNameChangeRequest.create!(user: @bot, original_name: "sample", desired_name: "sample_old", updater: owner)
+      assert_equal("sample_old", @bot.reload.name)
+
+      sampling = create(:approver_user, name: "sampling")
+      UserNameChangeRequest.create!(user: sampling, original_name: "sampling", desired_name: "sample", updater: owner)
+      assert_equal("sample", sampling.reload.name)
+    end
+
+    should "refuse a moderator's request in the model too, saying who may" do
+      request = UserNameChangeRequest.new(user: create(:member_user), original_name: "someone", desired_name: "gate", updater: @moderator)
+
+      assert_equal(false, request.valid?)
+      assert_match(/site owner/, request.errors.full_messages.join)
+    end
+
+    # Deleting renames the account to user_<id>, freeing the name. A member
+    # can delete itself; production's quarantine reader is one (2026-11-20).
+    should "be deleted by the site owner alone" do
+      gate = create(:member_user, name: "gate")
+      deletion = UserDeletion.new(user: gate, deleter: gate, password: gate.password, request: ActionDispatch::TestRequest.create)
+
+      assert_equal(false, deletion.delete!)
+      assert_match(/only the site owner deletes it/, deletion.errors.full_messages.join)
+      assert_equal("gate", gate.reload.name)
+
+      assert(UserDeletion.new(user: gate, deleter: create(:owner_user)).delete!)
+      assert_equal("user_#{gate.id}", gate.reload.name)
     end
   end
 

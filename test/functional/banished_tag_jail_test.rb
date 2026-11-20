@@ -43,8 +43,9 @@ class BanishedTagJailTest < ActionDispatch::IntegrationTest
   end
 
   # A deletion is recorded as a SUCCEEDED flag carrying the reason (Post#delete!);
-  # it is what the post page reads the reason back from. No test here flags a
-  # post any other way, so every succeeded flag is a deletion.
+  # it is what the post page reads the reason back from. A deletion also marks
+  # every pending flag succeeded, and one test below plants a member's flag
+  # that way; read the LAST flag for the deletion's own words.
   def deletion_flags(post)
     post.flags.succeeded.order(:id)
   end
@@ -300,6 +301,88 @@ class BanishedTagJailTest < ActionDispatch::IntegrationTest
       put_auth post_path(post, format: :json), member, as: :json, params: { post: { tag_string: "landscape gore" }}
 
       assert_jailed(post, "gore")
+    end
+  end
+
+  # boo.122 C3: a release is proved by WHO deleted (the jail, Post.jail_deletions)
+  # and an undeletion logged after it, never by the words on a flag. Any member
+  # can type "troll jail" into a flag, and any approver into a deletion reason.
+  context "A post whose flags merely SAY troll jail" do
+    setup do
+      @member = create(:user)
+      @post = as(@member) { create(:post, tag_string: "landscape", uploader: @member) }
+    end
+
+    should "still be jailed when only a member's flag carries the jail's words" do
+      create(:post_flag, post: @post, creator: create(:user), reason: "troll jail: x")
+      as(create(:admin_user)) { @post.reload.delete!("spam") }
+      @post.reload.update_columns(is_deleted: false) # rubocop:disable Rails/SkipsModelValidations
+      assert @post.flags.succeeded.exists?(reason: "troll jail: x"), "fixture: the deletion swept the member's flag to succeeded"
+
+      put_auth post_path(@post, format: :json), @member, as: :json, params: { post: { tag_string: "landscape gore" }}
+
+      assert_jailed(@post, "gore")
+    end
+
+    should "still be jailed when an approver worded a deletion as a jailing and another approved it back" do
+      as(create(:approver_user)) { @post.reload.delete!("troll jail: x") }
+      approver = create(:approver_user)
+      as(approver) { PostApproval.create!(post: @post.reload, user: approver) }
+      assert_not @post.reload.is_deleted?, "fixture: the ordinary door undeleted it"
+
+      put_auth post_path(@post, format: :json), @member, as: :json, params: { post: { tag_string: "landscape gore" }}
+
+      assert_jailed(@post, "gore")
+    end
+
+    should "still be jailed when the jail's own deletion was undone with no undeletion logged" do
+      bot = create(:approver_user, name: "sample")
+      as(bot) { @post.reload.delete!("troll jail: x", user: bot) }
+      @post.reload.update_columns(is_deleted: false) # rubocop:disable Rails/SkipsModelValidations
+
+      put_auth post_path(@post, format: :json), @member, as: :json, params: { post: { tag_string: "landscape gore" }}
+
+      assert_jailed(@post, "gore")
+    end
+  end
+
+  # A human release from before the release route existed (2026-10-10): an
+  # approver undeleted a jailing through PostApproval, which logged it. That
+  # release is final too.
+  context "A jailing a human undeleted before 2026-10-10" do
+    should "stay released when it gains another banished tag" do
+      member = create(:user)
+      post = as(member) { create(:post, tag_string: "landscape", uploader: member) }
+      put_auth post_path(post, format: :json), member, as: :json, params: { post: { tag_string: "landscape gore" }}
+      assert_jailed(post, "gore")
+      admin = create(:admin_user)
+      as(admin) { post.reload.update!(is_deleted: false, approver: admin) }
+      ModAction.log("undeleted post ##{post.id}", :post_undelete, subject: post, user: admin)
+
+      put_auth post_path(post, format: :json), member, as: :json, params: { post: { tag_string: "landscape gore scat #{JAIL}" }}
+
+      assert_live(post)
+    end
+  end
+
+  # boo.122 C4: the post a tag edit loaded can be deleted by another request
+  # before the edit saves. The failsafe asks the database, not the stale copy,
+  # so it does not delete the post a second time as the system user.
+  context "A post deleted by another request while a tag edit was in flight" do
+    should "not be jailed on top of that deletion" do
+      member = create(:user)
+      post = as(member) { create(:post, tag_string: "landscape", uploader: member) }
+      stale = Post.find(post.id)
+      admin = create(:admin_user)
+      as(admin) { Post.find(post.id).delete!("duplicate", user: admin) }
+
+      as(member) { stale.update!(tag_string: "landscape gore") }
+
+      post.reload
+      assert post.is_deleted?
+      assert_not post.has_tag?(JAIL)
+      assert_equal ["duplicate"], deletion_flags(post).pluck(:reason)
+      assert_not ModAction.where(subject: post, category: :post_delete, creator: User.system).exists?
     end
   end
 
