@@ -50,6 +50,7 @@ Minitest::Reporters.use!([
   Minitest::Reporters::ProgressReporter.new,
   Minitest::Reporters::HtmlReporter.new(reports_dir: "tmp/html-test-results"),
   Minitest::Reporters::JUnitReporter.new("tmp/junit-test-results"),
+  LiveSiteTestHelper::NotAchievedReporter.new, # fork: see the file
 ])
 
 Shoulda::Matchers.configure do |config|
@@ -71,6 +72,7 @@ class ActiveSupport::TestCase
   include DatabaseTestHelper
   include IqdbTestHelper
   include JailTestHelper
+  include LiveSiteTestHelper
   include LandingBlogHelper
   include MediaFileTestHelper
   include ReportbooruHelper
