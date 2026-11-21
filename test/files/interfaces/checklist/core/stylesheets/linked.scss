@@ -1,0 +1,3 @@
+/* .linked-card in a comment is not a link. */
+body[data-preset="linked"] .linked-card { color: red; }
+.linked-shared { color: blue; }

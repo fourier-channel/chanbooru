@@ -25,6 +25,15 @@ require "test_helper"
 # Not checked: that an interface's JS does nothing on another interface's
 # pages (item 6). No shape of a file shows that.
 #
+# The other direction, core reaching into an interface, is a link: an
+# interface's files can then not move, rename or go without breaking core.
+# Core may not load a file from app/interfaces, name an interface's preset
+# or component, or match a class only an interface draws (blacklists.js
+# doing that is a privacy link: rename the card and blacklisted posts show).
+# KNOWN_LINKS lists the ones core still has, each with the stage 2 step that
+# cuts it (plan doc, "Stage 2" tab); a new link and a cut link left listed
+# are both red.
+#
 # Each check is proved by a fixture under test/files/interfaces/checklist
 # that breaks it, so a check that stopped finding anything goes red here.
 class InterfaceCompletenessTest < ActiveSupport::TestCase
@@ -38,6 +47,51 @@ class InterfaceCompletenessTest < ActiveSupport::TestCase
   # Any render the follower cannot name: a variable, a collection, a helper
   # that renders (render_tag_change_notice), a yield.
   RENDER = /\brender(?:_\w+)?\b(?!\?)|<%=\s*yield\b/
+  # Core: what the booru draws and decides with, outside app/interfaces.
+  # app/logical/interface.rb is left out: its TABLE names each interface's
+  # folder, which is how an interface is added, not a link.
+  CORE_ROOTS = %w[app/javascript/src app/components app/views app/logical app/controllers app/helpers].freeze
+  TABLE_FILE = Rails.root.join("app/logical/interface.rb")
+  CLASS_NAME = /\A[a-zA-Z_][\w-]*\z/
+
+  # The links core still has to an interface, by the stage 2 step that cuts
+  # each: core file => what it reaches (".class", "preset <name>", "path
+  # app/interfaces/<name>", or a component's class name). A step that cuts a
+  # link deletes its entry in the same commit.
+  KNOWN_LINKS = {
+    "stage 2 step 1, the blacklist marker" => {
+      "app/components/blocklist_component/blocklist_component.scss" => %w[.modgal-card],
+      "app/javascript/src/javascripts/blacklists.js" => %w[.mod-flank-poolitem .modgal-card],
+    },
+    "stage 2 step 1b, error cards and creator lamps" => {
+      "app/javascript/src/javascripts/creator_lamps.js" => %w[.mod-pill--cat-artist],
+      "app/javascript/src/javascripts/error_card.js" => %w[.mod-image .modgal-thumb],
+    },
+    "stage 2 step 2, the hero band's JS comes home" => {
+      "app/javascript/src/javascripts/creator_gallery_component.js" => ["path app/interfaces/modulation"],
+      "app/components/modulation_landing_component/modulation_landing_component.scss" =>
+        %w[.is-charging .is-lurching .is-offstage .is-popping .mod-cell .mod-cell-name .modland-credit-creator .modland-credit-platform .modland-warm],
+      "app/javascript/src/styles/modulation/_stage.scss" =>
+        %w[.has-view .is-failed .is-focus .is-incoming .is-offstage .is-tinting .mod-blog-cover .mod-blog-words .mod-cell .mod-cell-name .mod-image],
+    },
+    "stage 2 step 3, style partials and the theme" => {
+      "app/components/modulation_landing_component/modulation_landing_component.scss" => %w[.mod-sortrow .mod-stage-center],
+      "app/javascript/src/styles/base/040_colors.scss" => ["preset modulation"],
+      "app/javascript/src/styles/modulation/_cards.scss" =>
+        %w[.modgal-card .modgal-card--spoiler .modgal-card-artist .modgal-card-id .modgal-thumb .modgal-thumb--gated],
+      "app/javascript/src/styles/modulation/_pill.scss" => %w[.mod-pill-count],
+      "app/javascript/src/styles/modulation/_stage.scss" =>
+        %w[.is-blocked .is-current .is-empty .is-enter-next .is-enter-prev .is-nav-next .is-nav-prev .is-spoiler .is-windowed
+           .mod-flank-col .mod-flank-col--next .mod-flank-col--prev .mod-frame .mod-image--placeholder .mod-sortrow
+           .mod-sortrow-tag .mod-spoiler .mod-stage-center .mod-trailcap .mod-trailcap-label],
+    },
+    "stage 2 step 5, view transitions" => {
+      "app/javascript/src/styles/common/view_transitions.scss" => %w[.modgal-tagpill],
+    },
+    "stage 2 step 6, creator galleries become Modulation pages (boo.120)" => {
+      "app/components/creator_gallery_component/creator_gallery_component.scss" => [".is-blocked", "preset modulation"],
+    },
+  }.freeze
 
   # The upstream page or partial behind a key, with any format or variant.
   def self.upstream?(key)
@@ -159,6 +213,81 @@ class InterfaceCompletenessTest < ActiveSupport::TestCase
     end
   end
 
+  # A file's text without its comments, line numbers kept: a comment that
+  # names an interface's file or class is not a link.
+  def self.code(file)
+    text = file.read
+    case file.extname
+    when ".js", ".mjs", ".scss" then text.gsub(%r{/\*.*?\*/}m) { |c| "\n" * c.count("\n") }.gsub(%r{(^|[^:"'\\])//[^\n]*}, '\1')
+    when ".erb" then text.gsub(/<%#.*?%>/m) { |c| "\n" * c.count("\n") }
+    when ".rb" then text.gsub(/^\s*#[^\n]*/, "")
+    else text
+    end
+  end
+
+  # The class names files put on elements: every word in a template or
+  # component (a class may be built in Ruby), and in JS the class attributes
+  # it writes and the classes it adds, removes or toggles.
+  def self.emitted(files)
+    files.flat_map do |file|
+      text = code(file)
+      if file.extname.in?([".erb", ".rb"])
+        text.scan(/[a-zA-Z_][\w-]*/)
+      else
+        text.scan(/class(?:Name)?\s*[=:]\s*\\?["'`]([^"'`]*)/).flatten.flat_map(&:split) +
+          text.scan(/(?:classList\.(?:add|remove|toggle)|(?:add|remove|toggle)Class)\(([^)]*)\)/).flatten.flat_map { |args| args.scan(/["'`]([\w-]+)["'`]/).flatten }
+      end
+    end.grep(CLASS_NAME).to_set
+  end
+
+  # Every link from core files into the interfaces, as
+  # {[core file, what it reaches] => the gap, with its fix}.
+  def self.links(interfaces, core_files)
+    rel = ->(file) { file.relative_path_from(Rails.root).to_s }
+    drawing = interfaces.index_with { |interface| interface.folder.glob("**/*.{erb,rb,js,mjs}").select(&:file?) }
+    core_classes = emitted(core_files.select { |file| file.extname.in?([".erb", ".rb", ".js", ".mjs"]) })
+    owners = drawing.flat_map { |interface, files| (emitted(files) - core_classes).map { |name| [name, interface] } }.group_by(&:first).transform_values { |pairs| pairs.map(&:last) }
+    components = drawing.flat_map { |interface, files| files.select { |f| f.extname == ".rb" && f.dirname.basename.to_s == "components" }.map { |f| [f.basename(".rb").to_s.camelize, interface] } }
+
+    core_files.reject { |file| file == TABLE_FILE }.each_with_object({}) do |file, found|
+      text = code(file)
+      where = rel[file]
+      interfaces.each do |interface|
+        name = interface.name
+        folder = "app/interfaces/#{name}"
+        if text.match?(%r{["'`][^"'`\n]*interfaces/#{name}(?:/|["'`])})
+          found[[where, "path #{folder}"]] = "#{where} loads a file from #{folder}; fix: move what core needs into core, so the interface reaches core and never the other way"
+        end
+        if file.extname.in?([".js", ".mjs", ".scss"]) && text.match?(/data-preset=["']?#{name}\b|preset\s*[!=]==?\s*["']#{name}["']/)
+          found[[where, "preset #{name}"]] = "#{where} names the #{name} preset; fix: move the rule into #{folder}/stylesheets or #{folder}/javascript"
+        end
+      end
+      if file.extname.in?([".rb", ".erb"])
+        components.each do |klass, interface|
+          next unless text.match?(/\b#{klass}\b/)
+
+          found[[where, klass]] = "#{where} names #{klass}, a component of interface #{interface.name}; fix: render it from the interface's own views, or move what core needs into core"
+        end
+      end
+      next unless file.extname.in?([".js", ".mjs", ".scss"])
+
+      if file.extname == ".scss"
+        references = text.scan(/(?<![\w-])\.([a-zA-Z_][\w-]*)/).flatten
+      else
+        references = text.scan(/"[^"\n]*"|'[^'\n]*'|`[^`]*`/).flat_map { |s| s.scan(/(?<![\w-])\.([a-zA-Z_][\w-]*)/).flatten } +
+          text.scan(/(?:classList\.contains|hasClass)\(\s*["']([\w-]+)["']/).flatten
+      end
+      references.uniq.select { |name| owners.key?(name) }.each do |name|
+        found[[where, ".#{name}"]] = "#{where} matches .#{name}, a class only interface #{owners[name].map(&:name).join(", ")} draws; " \
+                                     "fix: give the element a marker core owns and match that, or move the rule into the interface"
+      end
+    end
+  end
+
+  def self.core_files
+    CORE_ROOTS.flat_map { |root| Rails.root.join(root).glob("**/*.{js,mjs,scss,erb,rb}") }.select(&:file?)
+  end
+
   def self.fixture(name, draws: [])
     Interface.new(number: 90, name: name, folder: CHECKLIST.join(name), draws: draws)
   end
@@ -181,6 +310,16 @@ class InterfaceCompletenessTest < ActiveSupport::TestCase
     should "leave no cache block in core drawing that reaches a template an interface draws" do
       gaps = self.class.core_cache_gaps(Interface::TABLE.flat_map(&:draws))
       assert_empty(gaps, gaps.join("\n"))
+    end
+
+    should "be reached from core by the known links only, each listed until its step cuts it" do
+      found = self.class.links(Interface::TABLE.reject(&:classic?), self.class.core_files)
+      known = KNOWN_LINKS.flat_map { |step, files| files.flat_map { |file, reached| reached.map { |what| [[file, what], step] } } }.to_h
+      new_links = found.except(*known.keys).values
+      cut = known.except(*found.keys).map do |(file, what), step|
+        "#{file} no longer reaches #{what}, and KNOWN_LINKS still lists it under #{step.inspect}; fix: delete that entry"
+      end
+      assert_empty(new_links + cut, "core and the interfaces:\n#{(new_links + cut).join("\n")}")
     end
   end
 
@@ -238,6 +377,17 @@ class InterfaceCompletenessTest < ActiveSupport::TestCase
         assert(found.keys.any? { |file| file.to_s.end_with?(header) }, "#{header} not reached:\n#{found.keys.join("\n")}")
         assert(found.keys.any? { |file| file.to_s.end_with?("blocklist_component/blocklist_component.html.erb") }, found.keys.join("\n"))
       end
+    end
+
+    should "name a core file that loads, names or matches what only an interface has, and not a class core draws too" do
+      core = CHECKLIST.join("core").glob("**/*.{js,mjs,scss,erb,rb}")
+      found = self.class.links([self.class.fixture("linked")], core)
+      js = "test/files/interfaces/checklist/core/javascript/linked.js"
+      scss = "test/files/interfaces/checklist/core/stylesheets/linked.scss"
+      rb = "test/files/interfaces/checklist/core/components/linked_frame_component.rb"
+      expected = [[js, "path app/interfaces/linked"], [js, ".linked-card"], [js, "preset linked"], [scss, ".linked-card"], [scss, "preset linked"], [rb, "LinkedCardComponent"]]
+      assert_equal(expected.sort, found.keys.sort, found.values.join("\n"))
+      assert(found.values.all? { |gap| gap.include?("fix:") }, found.values.join("\n"))
     end
 
     should "pass Modulation's skin and its components, which are scoped, and find the unscoped rules in a core component stylesheet" do
