@@ -9,22 +9,31 @@ decides. The numbers are names, not the order.
 Pick who is asking above the diagram and what the post is on the right, or
 start from an example post. The line runs left to right in the order a
 request meets the gates, through every gate that lets it pass, and stops at
-the first that refuses. Every gate still runs, so the dashed line shows what
-the rest would say. Click a gate for its reason; each gate is written out in
-full below, and its lamp there follows what you pick above.
+the first that refuses. The gates after a refusal are never asked: the
+request has already been answered, so they are drawn as empty rings, with
+no line and no verdict. Click a gate for its reason; each gate is written
+out in full below, and its lamp there follows what you pick above.
 
 ## How a request meets the gates
 
-A request travels through the gates in order. At Cloudflare's edge, gate 7
-turns away anything that is not a browser. On the board, gate 10 decides
-whether a signed-out visitor may reach the page at all, and gate 2 limits
-how much a new account can list. Then the post's own rules are asked: what
-it is (gates 1, 5, 12), whether it was deleted or jailed (4), where it came
-from (8), what its creator chose (9), and for a Matrix post, which rooms it
-lives in (3). The image is answered separately, by the media gate, and
-follows the post's answer (3). Tag names are filtered the same way (1, 5, 6,
-8, 12). Last, in your own browser, your blocklist hides what you chose not
-to see (5).
+A request travels through the gates in order, and the first gate that says
+no ends it. At Cloudflare's edge, gate 7 turns away anything that is not a
+browser, and a request it refuses never reaches the board. On the board,
+gate 10 decides whether a signed-out visitor may reach the page at all, and
+gate 2 limits how much a new account can list. Then the post's own rules are
+asked, in this order: a jail or banished tag (4, 5), deleted (4), a
+sensitive tag (1), for a Matrix post the rooms it lives in (3), a hidden
+creator prefix (8), a flagged tag (12), and what its creator chose (9). The
+image is answered separately, by the media gate, and follows the post's
+answer (3). Tag names are filtered the same way (1, 5, 6, 8, 12). Last, in
+your own browser, your blocklist hides what you chose not to see (5).
+
+Nothing that runs after a refusal can change it. The refusal is recorded
+the way any answered request is, in the request logs, and that is all: a
+later gate is not asked "just to see", and no later gate could open what an
+earlier one closed. In a listing, the post's own rules are one database
+query and are asked together; a post any of them hides is simply not in the
+results.
 
 Images are not behind the edge check. The media service (gate 3) answers
 them and treats a robot exactly as a signed-out visitor: a robot that
@@ -43,9 +52,10 @@ edge check's, which a robot meets on every page.
 
 #### The principles
 
-- **Every gate runs for every viewer.** A gate that lets you through has
-  still checked and said yes; none is skipped because of who you are. When
-  something looks wrong there is always an answer to "which gate said no?".
+- **No gate is skipped because of who you are.** Every gate on the path is
+  asked for every viewer, and a gate that lets you through has checked and
+  said yes. The path ends at the first gate that says no, so when something
+  looks wrong there is always one answer to "which gate said no?".
 - **Hidden means hidden everywhere.** A hidden post is removed from the
   database query itself, so it is absent from search, counts, paging and
   next/previous, not drawn as a gap. Its page, image, history, favourites,
