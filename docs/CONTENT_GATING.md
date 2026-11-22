@@ -25,8 +25,12 @@ asked, in this order: a jail or banished tag (4, 5), deleted (4), a
 sensitive tag (1), for a Matrix post the rooms it lives in (3), a hidden
 creator prefix (8), a flagged tag (12), and what its creator chose (9). The
 image is answered separately, by the media gate, and follows the post's
-answer (3). Tag names are filtered the same way (1, 5, 6, 8, 12). Last, in
-your own browser, your blocklist hides what you chose not to see (5).
+answer (3). A creator's private tags are left off the page for everyone
+else (6). Gates 1, 5, 8 and 12 also take their own tag names out of
+site-wide tag lists and autocomplete, but on a post's page that never
+decides anything: a viewer those names are hidden from is never shown the
+post. Last, in your own browser, your blocklist hides what you chose not to
+see. It is your own filter, not a gate, and is described beside gate 5.
 
 Nothing that runs after a refusal can change it. The refusal is recorded
 the way any answered request is, in the request logs, and that is all: a
@@ -437,8 +441,11 @@ the page a blocklist matches against. So **your blocklist cannot match a tag
 you are not allowed to see.** A post with no private tags keeps all of them.
 
 This gate decides tags, not the image: the image follows the post's other
-gates. It does not depend on the viewer's level, so on the path above it is
-drawn inside the Tag names column.
+gates. It does not depend on the viewer's level, and on the path above it
+has its own column, Private tags, after the post's own gates. It is the
+only gate that trims the tags on a post's page. Gates 1, 5, 8 and 12 take
+their tag names out of tag lists and autocomplete too, but a viewer those
+names are hidden from is never shown the post.
 
 **Tag grants** let staff give one user the ability to edit the one artist a
 tag names. There is no grant that reveals private tags.
