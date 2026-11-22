@@ -14,6 +14,17 @@
 #   viewer       -- the User every decision is made for (never CurrentUser)
 #   query_string -- the search a card's post link carries, or ""
 module PostCards
+  # The blacklist engine's markers (Blacklist.POST_SELECTOR in blacklists.js),
+  # owned here in core so the engine and its pre-hide never name an
+  # interface's card class. Every card an interface draws carries
+  # BLACKLIST_POST: matched, counted, and hidden until the engine has run
+  # (blocklist_component.scss). A pool a surface draws FROM rather than shows
+  # -- the Modulation post view's flank candidates -- carries
+  # BLACKLIST_UNCOUNTED: matched and marked, left out of the counts. The
+  # privacy test fails on a drawn post the engine does not match.
+  BLACKLIST_POST = "blacklist-post"
+  BLACKLIST_UNCOUNTED = "blacklist-uncounted"
+
   # A tag's category as the pill and the hover panel name it. One mapping for
   # every surface; a view never re-derives it. nil for no tag.
   def self.category_key(tag)

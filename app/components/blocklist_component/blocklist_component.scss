@@ -16,11 +16,11 @@
 }
 
 // Hide posts until the engine has run, so a blocked image never paints
-// before the rules are applied. The Modulation views need this for the same
-// reason the upstream ones do.
+// before the rules are applied: upstream's posts, and .blacklist-post, the
+// neutral marker every interface's card carries (Blacklist.POST_SELECTOR).
 .post-preview:not(.blacklist-initialized),
 .image-container:not(.blacklist-initialized),
-.modgal-card:not(.blacklist-initialized) {
+.blacklist-post:not(.blacklist-initialized) {
   visibility: hidden;
 }
 

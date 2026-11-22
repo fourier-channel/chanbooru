@@ -12,7 +12,7 @@
         <%# The gallery's card (ModulationGalleryComponent::GridComponent),
             without the window's is-off. A deleted post is here only when the
             page asked for deleted posts, and stays veiled. %>
-        <a class="modgal-card<%= " modgal-card--spoiler" if post.is_deleted? %>" href="<%= surface.post_link(post) %>" title="post #<%= post.id %><%= " (deleted)" if post.is_deleted? %>" <%= tag.attributes(surface.card_data(post)) %>>
+        <a class="modgal-card <%= PostCards::BLACKLIST_POST %><%= " modgal-card--spoiler" if post.is_deleted? %>" href="<%= surface.post_link(post) %>" title="post #<%= post.id %><%= " (deleted)" if post.is_deleted? %>" <%= tag.attributes(surface.card_data(post)) %>>
           <% thumb = surface.thumb_for(post) %>
           <% if thumb %>
             <img class="modgal-thumb" src="<%= thumb %>" alt="" loading="lazy">

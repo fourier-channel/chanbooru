@@ -33,15 +33,16 @@ function csrfToken() {
   return document.querySelector('meta[name="csrf-token"]')?.content || "";
 }
 
-// The post view's flank pool is a lookup table, not something the page shows:
-// up to a few dozen candidates of which two are drawn. The counts say "hidden
-// in this view", so they leave it out -- and, where a surface has set the
+// An element marked blacklist-uncounted is a lookup table, not something the
+// page shows -- the Modulation post view's flank pool: up to a few dozen
+// candidates of which two are drawn. The counts say "hidden in this view", so
+// they leave it out -- and, where a surface has set the
 // engine's scope (the Modulation gallery window, whose page holds posts
 // outside its box), everything outside the scope too. The scope narrows the
 // COUNTS only; every post on the page is still matched and marked.
 function shownOnPage(post) {
   const scope = post.blacklist.scope;
-  return !post.post.classList.contains("mod-flank-poolitem") && (!scope || scope.has(post.post.dataset.id));
+  return !post.post.classList.contains("blacklist-uncounted") && (!scope || scope.has(post.post.dataset.id));
 }
 
 // A post holds the set of blocks that match it. It is hidden while that set
@@ -211,18 +212,26 @@ class Blacklist {
 
   // WHAT THE ENGINE CAN SEE, in one place.
   //
-  // .modgal-card and .mod-blacklist-target are the Modulation gallery card and
-  // the Modulation post view's media container -- the DEFAULT views of this
-  // site, so a selector list that does not name them means the engine
-  // matches nothing on almost every page. .modland-poolitem is the landing
-  // carousel's hidden pool. .mod-flank-poolitem is the post view's: every
-  // candidate for its previous/next thumbnails, which draw the first one not
-  // marked (modulation_flanks.js) -- a thumbnail carries no tags of its own.
+  // Upstream's own posts (.post-preview, .image-container, the comment page's
+  // posts) and two neutral markers an interface puts on what it draws, so the
+  // engine names no interface's classes (stage 2 step 1):
+  //
+  // - .blacklist-post: a post the page shows. Matched, counted, and hidden by
+  //   the pre-hide until the engine has run (blocklist_component.scss).
+  // - .blacklist-uncounted: matched and marked but left out of the counts --
+  //   a pool a surface draws FROM, such as the Modulation post view's flank
+  //   candidates, which draw the first one not marked (modulation_flanks.js).
+  //
+  // Core's own: .mod-blacklist-target is a container whose CONTENTS the
+  // pre-hide hides (the post view's centre, the creator pages' tiles);
+  // .modland-poolitem is the hero band's hidden pool. The privacy test
+  // (interface_privacy_test.rb) fails on any drawn element carrying data-tags
+  // that this does not match, or that can paint before the engine runs.
   //
   // Read by collectPosts(), which initialize() and rescan() both use. One
   // definition, because a selector that is right in one place and stale in
   // another silently stops filtering the surface it forgot.
-  static POST_SELECTOR = ".post-preview, .image-container, #c-comments .post, .mod-queue-preview.post-preview, .modgal-card, .mod-blacklist-target, .modland-poolitem, .mod-flank-poolitem";
+  static POST_SELECTOR = ".post-preview, .image-container, #c-comments .post, .mod-queue-preview.post-preview, .blacklist-post, .blacklist-uncounted, .mod-blacklist-target, .modland-poolitem";
 
   // Re-read the page and apply the CURRENT rules to it.
   //

@@ -51,6 +51,14 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
   # The cards a page shows, as against draws: the gallery draws a chunk and
   # marks the cards outside its box is-off.
   BOX_CARDS = "article[id^='post_'], a.modgal-card[data-id]:not(.is-off)"
+  # What the blacklist engine matches (Blacklist.POST_SELECTOR) and what is
+  # hidden until it has run (the pre-hide), read from their one definition
+  # each, so the rule on them below cannot hold a stale copy. A pre-hide
+  # rule hides the element itself or, written "X:not(...) > *", its contents.
+  BLACKLIST_JS = Rails.root.join("app/javascript/src/javascripts/blacklists.js")
+  PRE_HIDE_SCSS = Rails.root.join("app/components/blocklist_component/blocklist_component.scss")
+  ENGINE_MATCHES = BLACKLIST_JS.read[/static POST_SELECTOR = "([^"]+)";/, 1]
+  PRE_HIDDEN = PRE_HIDE_SCSS.read.scan(/^([^\s\/][^,{]*?):not\(\.blacklist-initialized\)/).flatten.join(", ")
 
   def secrets
     { "creator_private_tag" => SECRET_TAG, "generation_prompt" => PROMPT, "banished_name" => BANISHED,
@@ -285,6 +293,32 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
       assert_equal({}, logged, "#{viewer} logged an admin view")
     end
 
+    # The blacklist sees every post an interface draws, and none paints
+    # before it has run. A post is drawn as an element carrying its tags
+    # (data-tags), which is what the engine reads, so every such element on
+    # every page and fragment must match Blacklist.POST_SELECTOR -- one it
+    # does not match is a blacklisted post shown -- and every one that can
+    # paint (not inside [hidden], as the landing pool is) must match the
+    # pre-hide, itself or as the parent of what it draws, or the blocked
+    # image paints for the frames before the engine starts. Interface-neutral
+    # on purpose: an interface marks its cards blacklist-post, and the engine
+    # and the pre-hide name the marker, never an interface's card class.
+    assert(ENGINE_MATCHES.present? && PRE_HIDDEN.present?, "could not read POST_SELECTOR from #{BLACKLIST_JS.basename} or the pre-hide from #{PRE_HIDE_SCSS.basename}; fix: keep `static POST_SELECTOR = \"...\";` on one line and the pre-hide as `X:not(.blacklist-initialized)` selectors")
+    drawn = @bodies.select { |_, body| body.lstrip.start_with?("<") }.transform_values { |body| Nokogiri::HTML5(body) }
+    assert_operator(drawn.values.sum { |doc| doc.css("[data-tags]").size }, :>, 0, "no surface drew an element carrying data-tags for #{viewer}; fixture: the world's posts are drawn as cards, so the rule below reads nothing")
+    unseen, unhidden = drawn.each_with_object([[], []]) do |(surface, doc), (unseen_out, unhidden_out)|
+      matched = doc.css(ENGINE_MATCHES).to_set
+      pre_hidden = doc.css(PRE_HIDDEN).to_set
+      doc.css("[data-tags]").each do |post|
+        name = "#{surface} <#{post.name} class=\"#{post["class"]}\">"
+        unseen_out << name unless matched.include?(post)
+        painted = post.ancestors.none? { |node| node.respond_to?(:[]) && node["hidden"] }
+        unhidden_out << name if painted && pre_hidden.exclude?(post) && pre_hidden.exclude?(post.parent)
+      end
+    end
+    assert_empty(unseen.uniq, "#{viewer} was drawn posts the blacklist engine does not match, so a blacklisted post shows; fix: the card carries the class blacklist-post (blacklist-uncounted where it is not counted), which Blacklist.POST_SELECTOR matches")
+    assert_empty(unhidden.uniq, "#{viewer} was drawn posts that paint before the blacklist engine runs; fix: the card carries the class blacklist-post, which the pre-hide in #{PRE_HIDE_SCSS.basename} hides until .blacklist-initialized")
+
     # Every full page keeps the blacklist box (upstream's blacklist runs on it).
     # Not the fragments drawn with no layout: the tooltips, the gallery
     # window's chunk and the landing slides.
@@ -346,7 +380,7 @@ class InterfacePrivacyTest < ActionDispatch::IntegrationTest
 
     differing = paths.flat_map do |viewer, files|
       historical, modulation = files.map { |path| JSON.parse(path.read) }
-      keyset = ->(decision) { decision.is_a?(Hash) && decision["payload"].is_a?(Hash) ? decision.merge("payload" => decision["payload"].except("random_candidates")) : decision }
+      keyset = ->(decision) { (decision.is_a?(Hash) && decision["payload"].is_a?(Hash)) ? decision.merge("payload" => decision["payload"].except("random_candidates")) : decision }
       (historical.keys.grep(/\Ajson_/) - SESSION_TRAIL_DOORS).reject { |door| keyset.call(historical[door]) == keyset.call(modulation[door]) }.map { |door| "#{viewer} #{door}" }
     end
     assert_empty(differing, "a JSON door decided differently by interface")

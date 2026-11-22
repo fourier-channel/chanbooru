@@ -38,7 +38,7 @@ globalThis.localStorage = { getItem() { return null; }, setItem() {}, removeItem
 const { default: Blacklist } = await import("../../app/javascript/src/javascripts/blacklists.js");
 
 class El {
-  constructor(id, tags, cls = "mod-flank-poolitem") {
+  constructor(id, tags, cls = "blacklist-uncounted") {
     this.attrs = { "data-id": String(id), "data-tags": tags, "data-rating": "g", "data-flags": "", "data-score": "0", "data-uploader-id": "1" };
     this.dataset = { id: String(id) };
     this.classes = new Set([cls]);
@@ -85,7 +85,7 @@ test("adopt lets go of removed elements: out of the posts and out of every block
   assert.ok(!engine.posts.some(p => p.post === b));
   assert.ok(![...rule.posts].some(p => p.post === b));
   assert.ok(engine.posts.some(p => p.post === centre) && engine.posts.some(p => p.post === a));
-  assert.equal(rule.matchCount, 1, "the centre alone: the pool is never counted");
+  assert.equal(rule.matchCount, 1, "the centre alone: the pool (blacklist-uncounted) is never counted");
 });
 
 test("a block added afterwards reaches adopted elements too", () => {
@@ -101,7 +101,7 @@ test("a block added afterwards reaches adopted elements too", () => {
 // box alone once the window sets the engine's scope. Filtering is untouched:
 // every post on the page is still matched and marked.
 test("a scope narrows the counts to the view and leaves the marks alone", () => {
-  const c = new El(4, "cat", "modgal-card"), d = new El(5, "cat", "modgal-card");
+  const c = new El(4, "cat", "blacklist-post"), d = new El(5, "cat", "blacklist-post");
   engine.adopt([c, d], []);
   assert.equal(engine.blacklistedPostCount, 3, "fixture: centre, c and d hidden");
   engine.scope = new Set(["4"]);

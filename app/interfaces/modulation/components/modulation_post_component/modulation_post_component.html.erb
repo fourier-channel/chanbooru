@@ -250,7 +250,8 @@
     // of candidates, nearest first (presets[].prev_candidates /
     // next_candidates), their attributes in cur.candidates. Every distinct
     // candidate is written into the hidden pool as an element the engine
-    // matches (.mod-flank-poolitem in Blacklist.POST_SELECTOR) and marks; the
+    // matches (.blacklist-uncounted in Blacklist.POST_SELECTOR: marked, never
+    // counted, since the pool is not what the page shows) and marks; the
     // thumbnail AND the arrow's destination are the first candidate not
     // marked (window.FourierFlanks.flankState). The engine is the one matcher.
     //
@@ -327,7 +328,7 @@
       });
       const added = [...want.keys()].filter(sig => !poolEls.has(sig)).map(sig => {
         const el = document.createElement("span");
-        el.className = "mod-flank-poolitem";
+        el.className = "mod-flank-poolitem <%= PostCards::BLACKLIST_UNCOUNTED %>";
         applyBlacklistAttrs(el, want.get(sig));
         poolEls.set(sig, el);
         pool.append(el);
