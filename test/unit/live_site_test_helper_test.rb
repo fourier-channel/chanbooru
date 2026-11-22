@@ -8,6 +8,7 @@ class LiveSiteTestHelperTest < ActiveSupport::TestCase
   # rewrites, without running a second Minitest inside this one.
   class FinishedTest
     include LiveSiteTestHelper
+
     attr_accessor :failures
 
     def initialize(failures)
@@ -30,6 +31,20 @@ class LiveSiteTestHelperTest < ActiveSupport::TestCase
 
   def answered(url, status)
     LiveSiteTestHelper.record(url, status)
+  end
+
+  # The words of Reddit's block page as vesper was answered on 2026-11-22.
+  REDDIT_BLOCK_PAGE = "<html><body><p>You've been blocked by network security.</p>" \
+                      "<p>If you think you've been blocked by mistake, file a ticket below and we'll look into it.</p></body></html>"
+
+  def response_with(url, status, body)
+    ::HTTP::Response.new(status: status, version: "1.1", body: body, request: ::HTTP::Request.new(verb: :get, uri: url))
+  end
+
+  # Records an answer as the Recorder does, refusal read from its body.
+  def answered_with(url, status, body)
+    response = response_with(url, status, body).flush
+    LiveSiteTestHelper.record(url, status, LiveSiteTestHelper.refused_network(response, buffered: true))
   end
 
   def assert_not_achieved(run)
@@ -102,6 +117,34 @@ class LiveSiteTestHelperTest < ActiveSupport::TestCase
       assert_still_failed(failed.classify)
     end
 
+    should "be not achieved when an outside site's 4xx says it refused this network, naming why" do
+      url = "https://www.reddit.com/comments/ttyccp.json"
+      answered_with(url, 403, REDDIT_BLOCK_PAGE)
+      run = failed("Expected: [...] Actual: []").classify
+
+      assert_not_achieved(run)
+      assert_equal("not achieved: www.reddit.com answered 403 (blocked by network security: the site's page says it " \
+                   "blocked this network, not the request) -- Expected: [...] Actual: []", run.failures.first.message)
+    end
+
+    should "stay failed on a 4xx whose answer does not say it refused this network" do
+      answered_with("https://www.reddit.com/comments/ttyccp.json", 403, "<html><title>Forbidden</title></html>")
+      assert_still_failed(failed.classify)
+    end
+
+    should "not count a refusal's words on any other status" do
+      [200, 401, 404, 429].each do |status|
+        LiveSiteTestHelper.answers.clear
+        answered_with("https://www.reddit.com/comments/ttyccp.json", status, REDDIT_BLOCK_PAGE)
+        assert_still_failed(failed("doesn't contain any images").classify)
+      end
+    end
+
+    should "not look in a body the request streamed" do
+      response = response_with("https://www.reddit.com/comments/ttyccp.json", 403, REDDIT_BLOCK_PAGE)
+      assert_nil(LiveSiteTestHelper.refused_network(response, buffered: false))
+    end
+
     should "stay failed on our own refusals: certificate, prohibited address, size, redirect limit" do
       [590, 591, 595, 596].each do |status|
         LiveSiteTestHelper.answers.clear
@@ -133,11 +176,34 @@ class LiveSiteTestHelperTest < ActiveSupport::TestCase
     should "be recorded as Danbooru::Http answers it, here a 502 from a local server" do
       body = "bad gateway"
       server = WEBrick::HTTPServer.new(BindAddress: "127.0.0.1", Port: 0, Logger: WEBrick::Log.new(File::NULL), AccessLog: [])
-      server.mount_proc("/") { |_req, res| res.status = 502; res.body = body }
+      server.mount_proc("/") do |_req, res|
+        res.status = 502
+        res.body = body
+      end
       thread = Thread.new { server.start }
       Danbooru::Http.get("http://127.0.0.1:#{server.config[:Port]}/")
 
-      assert_equal([["127.0.0.1", 502, false]], LiveSiteTestHelper.answers.map(&:to_a))
+      assert_equal([["127.0.0.1", 502, false, nil]], LiveSiteTestHelper.answers.map(&:to_a))
+    ensure
+      server&.shutdown
+      thread&.join
+    end
+
+    should "be recorded with the refusal Danbooru::Http's answer carries, buffered or streamed" do
+      server = WEBrick::HTTPServer.new(BindAddress: "127.0.0.1", Port: 0, Logger: WEBrick::Log.new(File::NULL), AccessLog: [])
+      server.mount_proc("/") do |_req, res|
+        res.status = 403
+        res.body = REDDIT_BLOCK_PAGE
+      end
+      thread = Thread.new { server.start }
+      url = "http://127.0.0.1:#{server.config[:Port]}/comments/ttyccp.json"
+      Danbooru::Http.get(url)
+      streamed = Danbooru::Http.new.request(:get, url, buffer: false)
+
+      # read as a stream: had the Recorder read this body, this raises "body has already been consumed"
+      assert_match(/blocked by network security/, streamed.body.readpartial)
+      assert_equal([[403, "blocked by network security: the site's page says it blocked this network, not the request"], [403, nil]],
+                   LiveSiteTestHelper.answers.map { |a| [a.status, a.refused_network] })
     ensure
       server&.shutdown
       thread&.join
