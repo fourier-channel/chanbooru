@@ -549,4 +549,65 @@ class MediaFileWebmTest < ActiveSupport::TestCase
       assert_equal(false, file.is_supported?)
     end
   end
+
+  context "an anamorphic WebM file with non-square pixels" do
+    # A copy of test-av1.webm with a 2:1 display aspect ratio (`ffmpeg -i test-av1.webm -an -c:v copy -aspect 2:1`).
+    should "be parsed correctly" do
+      file = MediaFile.open("test/files/webm/test-512x512-anamorphic.webm")
+
+      # The video is coded at 512x512 with a 2:1 pixel aspect ratio, so it should display at 1024x512, not 512x512
+      assert_equal(1024, file.width)
+      assert_equal(512, file.height)
+      assert_equal(4426, file.file_size)
+      assert_equal(:webm, file.file_ext)
+      assert_equal("video/webm", file.mime_type)
+      assert_equal("bd86336b9233d0b760b186edbb115a65", file.md5)
+      assert_equal("bd86336b9233d0b760b186edbb115a65", file.pixel_hash)
+      assert_equal(false, file.is_corrupt?)
+      assert_equal(true, file.is_supported?)
+      assert_equal(true, file.is_animated?)
+      assert_equal(0.48, file.duration)
+      assert_equal(10, file.frame_count)
+      assert_equal(20.833333333333336, file.frame_rate)
+      assert_equal({
+        "File:FileType" => "WEBM",
+        "Matroska:EBMLVersion" => 1,
+        "Matroska:EBMLReadVersion" => 1,
+        "Matroska:EBMLMaxIDLength" => 4,
+        "Matroska:EBMLMaxSizeLength" => 8,
+        "Matroska:DocType" => "webm",
+        "Matroska:DocTypeVersion" => 2,
+        "Matroska:DocTypeReadVersion" => 2,
+        "Matroska:SeekID" => "0xc53bb6b (Cues)",
+        "Matroska:SeekPosition" => 4404,
+        "Matroska:Encoder" => "Lavf63.1.102",
+        "Info:TimecodeScale" => "1 ms",
+        "Info:MuxingApp" => "Lavf63.1.102",
+        "Info:WritingApp" => "Lavf63.1.102",
+        "Info:Duration" => "0.48 s",
+        "Track1:TrackNumber" => 1,
+        "Track1:TrackUID" => "c9fa2ee29078bcbc",
+        "Track1:TrackLacing" => "No",
+        "Track1:TrackLanguage" => "und",
+        "Track1:CodecID" => "V_AV1",
+        "Track1:TrackType" => "Video",
+        "Track1:VideoFrameRate" => 50,
+        "Track1:ImageWidth" => 512,
+        "Track1:ImageHeight" => 512,
+        "Track1:VideoScanType" => "Progressive",
+        "Track1:DisplayWidth" => 1024,
+        "Track1:DisplayHeight" => 512,
+        "Track1:Matroska_0x15b0" => "U??\u0005U??\u0001",
+        "Track1:MaxBlockAdditionID" => 0,
+        "Track1:TagTrackUID" => "c9fa2ee29078bcbc",
+        "Track1:Encoder" => "Lavc libaom-av1",
+        "Track1:Duration" => "00:00:00.480000000",
+        "FFmpeg:PixFmt" => "yuv420p",
+        "FFmpeg:FrameCount" => 10,
+        "FFmpeg:VideoCodec" => "av1",
+        "FFmpeg:VideoProfile" => "Main",
+        "FFmpeg:VideoBitRate" => 63_650,
+      }, file.metadata.to_h)
+    end
+  end
 end
