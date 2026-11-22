@@ -264,12 +264,48 @@ services:
     # bin/chanbooru-deploy creates it and proves both settings. Design:
     # fourier-coherence docs/design/LIMITS.md section 8. Pinned by
     # test/unit/chanbooru_query_statistics_test.rb.
+    #
+    # Sizing (2026-11-22, measured on the serving box: 12 CPUs, 57 GB RAM, the
+    # data volume on SSD at 0.38 ms per random 4k read). Until then every one of
+    # these was the stock default, sized for a 1 GB machine:
+    #   shared_buffers 8GB        was 128MB; needs a restart, so it changes only
+    #                             when this file recreates the container.
+    #   effective_cache_size 32GB the planner's guess at buffers plus page cache.
+    #   work_mem 32MB             was 4MB; sorts and hashes had spilled 98 GB to
+    #                             temporary files. Per sort node per connection:
+    #                             about 40 connections, so raise it with care.
+    #   maintenance_work_mem 1GB  vacuum and index builds.
+    #   random_page_cost 1.1      SSD; 4 is the spinning-disk default and steers
+    #                             the planner off index scans.
+    #   track_io_timing on        I/O time in pg_stat_statements and EXPLAIN.
+    #   idle_in_transaction_session_timeout 10min
+    #                             a forgotten open transaction holds back vacuum.
+    #   pg_stat_statements.max 10000
+    #                             5000 was full and evicting statements.
+    # Each value is written as current_setting() prints it: the deploy compares
+    # every -c below with the running server, string for string.
     command:
       - postgres
       - -c
       - shared_preload_libraries=pg_stat_statements
       - -c
       - pg_stat_statements.track_utility=off
+      - -c
+      - pg_stat_statements.max=10000
+      - -c
+      - shared_buffers=8GB
+      - -c
+      - effective_cache_size=32GB
+      - -c
+      - work_mem=32MB
+      - -c
+      - maintenance_work_mem=1GB
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - track_io_timing=on
+      - -c
+      - idle_in_transaction_session_timeout=10min
     environment:
       POSTGRES_USER: danbooru
       POSTGRES_HOST_AUTH_METHOD: trust

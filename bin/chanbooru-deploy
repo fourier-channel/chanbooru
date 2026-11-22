@@ -454,6 +454,25 @@ PGSS="$(docker compose exec -T postgres psql -U danbooru -d postgres -qAt \
   || die "query statistics are not as declared (read: '${PGSS:-nothing}'; want track_utility off and a readable view); the booru itself is serving. docker compose up -d postgres recreates it from docker-compose.yaml, then rerun the deploy."
 echo "   query statistics on (${PGSS#off } statements, utility statements untracked)"
 
+# Every setting docker-compose.yaml declares for postgres, read back from the
+# running server. The file on disk is not the config the server holds: `up -d`
+# reports success having recreated nothing, so only a match here says the
+# values are live. The file writes each value as current_setting() prints it.
+PG_DECLARED="$(docker compose config --format json < /dev/null | python3 -c 'import json, sys; c = json.load(sys.stdin)["services"]["postgres"]["command"]; print("\n".join(v for f, v in zip(c[1::2], c[2::2]) if f == "-c"))')"
+[[ -n "$PG_DECLARED" ]] \
+  || die "could not read the postgres settings from docker compose config; the booru itself is serving. docker compose config, then rerun the deploy."
+PG_DIFF=""
+while IFS='=' read -r PG_NAME PG_WANT; do
+  [[ "$PG_NAME" =~ ^[a-z_.]+$ ]] \
+    || die "postgres setting '${PG_NAME}' in docker-compose.yaml is not a plain setting name; the booru itself is serving. Fix the -c entry, then rerun the deploy."
+  PG_HAVE="$(docker compose exec -T postgres psql -U danbooru -d postgres -qAt \
+      -c "SELECT current_setting('${PG_NAME}')" < /dev/null | tr -d '\r')"
+  [[ "$PG_HAVE" == "$PG_WANT" ]] || PG_DIFF+=" ${PG_NAME}=${PG_HAVE:-unreadable} (declared ${PG_WANT})"
+done <<< "$PG_DECLARED"
+[[ -z "$PG_DIFF" ]] \
+  || die "postgres is not running the settings docker-compose.yaml declares:${PG_DIFF}. The booru itself is serving. docker compose up -d postgres recreates it from the file (a database restart), then rerun the deploy."
+echo "   postgres settings all live ($(wc -l <<< "$PG_DECLARED") declared, each read back with current_setting)"
+
 FINISHED_AT=$(date +%s)
 
 # Old releases go only after the new one has proved itself.
