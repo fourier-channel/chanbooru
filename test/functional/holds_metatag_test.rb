@@ -121,4 +121,62 @@ class HoldsMetatagTest < ActionDispatch::IntegrationTest
     tags = (["holds:#{@raw}"] * 3).join(" ")
     assert_equal [@chan.id], ids_for(@member, tags)
   end
+
+  # Post id => its "holds" key, for a JSON search. Defined on the class: a
+  # def inside a shoulda context block never reaches the tests.
+  def holds_for(user, tags)
+    get_auth posts_path(format: :json), user, params: { tags: tags, limit: 100 }
+    assert_response :success
+    response.parsed_body.to_h { |post| [post["id"], post["holds"]] }
+  end
+
+  # HoldsMatch: a batched pre-upload check (fourier-basis
+  # PRE_UPLOAD_DUPLICATE_CHECK.md) asks many hashes at once and must map each
+  # hit back to the file it asked for. A post found through its generation
+  # record carries the stripped md5, none of the hashes asked.
+  context "a post's holds" do
+    setup do
+      @raw_post = as(@tunnel) { create(:post, uploader: @tunnel, md5: md5, tag_string: "holds_test", source: "https://example.com/raw") }
+      @stripped = md5
+      FourierGenerationMetadata.create!(md5: @stripped, raw_md5: @raw_post.md5, source: "matrix", poster: MXID, fields: { "png:parameters" => "y" })
+    end
+
+    should "name the asked values each post holds, by every route holds: matches" do
+      unasked = md5
+      tags = "~holds:#{@raw} ~holds:#{@other.md5} ~holds:#{@stripped} ~holds:#{unasked} ~holds:mxc://41chan.net/aliased ~holds:mxc://41chan.net/own"
+      expected = {
+        @chan.id => [@raw, "mxc://41chan.net/aliased"],
+        @other.id => [@other.md5],
+        @raw_post.id => [@stripped],
+        @matrix.id => ["mxc://41chan.net/own"],
+      }
+      assert_equal expected, holds_for(@member, tags)
+    end
+
+    should "name an upper-case md5 as holds: reads it, in lower case" do
+      assert_equal({ @chan.id => [@raw] }, holds_for(@member, "holds:#{@raw.upcase}"))
+    end
+
+    should "name only what was asked, never a post's other md5" do
+      assert_equal({ @chan.id => [@chan.md5] }, holds_for(@member, "holds:#{@chan.md5}"))
+      assert_not_includes response.body, @raw
+    end
+
+    should "name nothing for a post found another way in the same search" do
+      expected = { @chan.id => [@raw], @other.id => [], @matrix.id => [], @raw_post.id => [] }
+      assert_equal expected, holds_for(@member, "~holds:#{@raw} ~holds_test")
+    end
+
+    should "leave every other search's posts without the key" do
+      get_auth posts_path(format: :json), @member, params: { tags: "holds_test", limit: 100 }
+      assert_response :success
+      assert_operator response.parsed_body.size, :>=, 3
+      assert response.parsed_body.none? { |post| post.key?("holds") }
+    end
+
+    should "answer nothing about a post the viewer may not see" do
+      assert_equal({}, holds_for(@member, "holds:#{@gated.md5}"))
+      assert_equal({ @gated.id => [@gated.md5] }, holds_for(@gold, "holds:#{@gated.md5}"))
+    end
+  end
 end

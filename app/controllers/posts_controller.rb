@@ -49,6 +49,9 @@ class PostsController < ApplicationController
       # The signed-out md5 ask answers only posts the site has shown signed
       # out (MembersOnly.anonymous_md5_rows); every other md5 is absent.
       @posts = MembersOnly.anonymous_md5_rows(@posts) if anonymous_gated? && request.format.json? && post_set.tag_string.present?
+      # Which asked holds: value each post answered (HoldsMatch): a batched
+      # pre-upload check maps its hits back to files in one search.
+      HoldsMatch.annotate(@posts, post_set.post_query) if request.format.json? || request.format.xml?
       @preview_size = params[:size].presence || cookies[:post_preview_size].presence || PostGalleryComponent::DEFAULT_SIZE
       raise PageRemovedError if request.format.html? && post_set.banned_artist?
 

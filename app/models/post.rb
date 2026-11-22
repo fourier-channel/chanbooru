@@ -125,6 +125,9 @@ class Post < ApplicationRecord
   has_many :embedding_wiki_pages, through: :dtext_links, source: :model, source_type: "WikiPage"
 
   attr_accessor :old_tag_string, :old_parent_id, :old_source, :old_rating, :post_edit
+  # The asked holds: values this post holds, set only on a search that asked
+  # some (HoldsMatch.annotate); nil otherwise.
+  attr_accessor :holds
 
   scope :pending, -> { where(is_pending: true) }
   scope :flagged, -> { where(is_flagged: true) }

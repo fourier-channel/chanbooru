@@ -188,6 +188,9 @@ class PostPolicy < ApplicationPolicy
     attributes += TagCategory.categories.map { |x| :"tag_string_#{x}" }
     attributes += [:file_url, :large_file_url, :preview_file_url] if can_see_media?
     attributes -= [:md5] unless can_see_media?
+    # Fork: which of the search's own holds: values this post holds
+    # (HoldsMatch). Only on a search that asked, beside the md5 it maps.
+    attributes += [:holds] if can_see_media? && !record.holds.nil?
     # Fork: the interned rooms a Matrix post's image counts in (gate 3 for
     # posts) are the gate's own bookkeeping; posts sharing an id share a room.
     attributes - [:room_ids]
