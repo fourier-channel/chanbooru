@@ -98,7 +98,7 @@
                       <span class="mod-pill mod-pill--pending" title="No tag by this name exists, so this search finds nothing"><%= tag_name.tr("_", " ") %></span>
                     <% elsif kind.in?(%w[artist copyright character]) %>
                       <%= link_to posts_path(tags: tag_name), class: "mod-pill mod-pill--cat mod-pill--cat-#{kind}#{" is-live" if live.include?(tag_name)}",
-                                  data: { tag: tag_name }, target: "_blank" do %>
+                                  data: { tag: tag_name, creator_lamp: ("" if kind == "artist") }, target: "_blank" do %>
                         <% if kind == "artist" %><span class="mod-pill-dot"></span><% end %>
                         <%= tag_name.tr("_", " ") %>
                       <% end %>

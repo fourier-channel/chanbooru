@@ -6,7 +6,8 @@
 // never re-read stays lit for as long as the page is left open: a lamp that
 // lies. The post page has the same poll inline (modulation_post_component).
 //
-// A pill is `.mod-pill--cat-artist[data-tag]`; paint() lights one as it is
+// A pill is `[data-creator-lamp][data-tag]`: the marker, so core names no
+// interface's classes (Modulation stage 2, step 1b). paint() lights one as it is
 // built, so a pill made after the last poll is right at once, and refresh()
 // repaints every pill under the root when the answer changes.
 const MAX_NAMES = 100; // CreatorActivity::MAX_NAMES
@@ -20,7 +21,7 @@ export default class CreatorLamps {
     this.root = root;
     this.live = new Set(live);
     this.windowSeconds = windowSeconds;
-    this.names = names || (() => Array.from(new Set(Array.from(root.querySelectorAll(".mod-pill--cat-artist[data-tag]"), (el) => el.dataset.tag))));
+    this.names = names || (() => Array.from(new Set(Array.from(root.querySelectorAll("[data-creator-lamp][data-tag]"), (el) => el.dataset.tag))));
   }
 
   title(on) {
@@ -35,7 +36,7 @@ export default class CreatorLamps {
   }
 
   paintAll() {
-    this.root.querySelectorAll(".mod-pill--cat-artist[data-tag]").forEach((el) => this.paint(el));
+    this.root.querySelectorAll("[data-creator-lamp][data-tag]").forEach((el) => this.paint(el));
   }
 
   refresh() {

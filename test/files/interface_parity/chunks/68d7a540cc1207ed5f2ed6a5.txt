@@ -1,0 +1,356 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+    <meta name="color-scheme" content="dark">
+  <title>Scenery Wiki | Danbooru</title>
+
+  <link href="/favicon.ico" rel="icon" sizes="16x16" type="image/x-icon">
+  <link href="/favicon.svg" rel="icon" sizes="any" type="image/svg+xml">
+  <link rel="canonical" href="http://www.example.com/wiki_pages/scenery">
+  <link rel="search" type="application/opensearchdescription+xml" href="http://www.example.com/opensearch.xml?version=2" title="Search posts">
+
+  
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <meta name="autocomplete-tag-prefixes" content="[&quot;ch:&quot;,&quot;co:&quot;,&quot;gen:&quot;,&quot;char:&quot;,&quot;copy:&quot;,&quot;art:&quot;,&quot;meta:&quot;,&quot;general:&quot;,&quot;character:&quot;,&quot;copyright:&quot;,&quot;artist:&quot;]">
+  <meta name="tag-visibility" content="288250887223">
+
+  <script src="/packs-test/js/runtime.js"></script>
+<script src="/packs-test/js/vendors-node_modules_alpinejs_morph_dist_module_esm_js-node_modules_alpinejs_persist_dist_mod-370228.js"></script>
+<script src="/packs-test/js/application.js"></script>
+
+  <link rel="stylesheet" href="/packs-test/css/application.css" />
+
+
+  <meta name="description" content="pv scenery wiki">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Danbooru">
+  <meta property="og:title" content="Scenery Wiki | Danbooru">
+  <meta property="og:description" content="pv scenery wiki">
+  <meta property="og:url" content="http://www.example.com/wiki_pages/scenery">
+
+
+  <meta name="twitter:title" content="Scenery Wiki | Danbooru">
+  <meta name="twitter:description" content="pv scenery wiki">
+
+  <meta name="git-hash" content="0000000000000000000000000000000000000000">
+  <meta name="theme-color" content="hsl(213, 100%, 50%)">
+
+  
+    <meta property="og:image" content="https://41chan.net/41chan.png">
+    <meta name="twitter:card" content="summary">
+  
+</head>
+
+<body lang="en" class="c-wiki-pages a-show flex flex-col" spellcheck="false" data-controller="wiki-pages" data-action="show" data-layout="sidebar" data-current-user-ip-addr="127.0.0.1" data-current-user-save-data="false" data-preset="modulation" data-current-user-id="50005" data-current-user-name="pv_moderator" data-current-user-level="40" data-current-user-level-string="Moderator" data-current-user-theme="auto" data-current-user-comment-threshold="-8" data-current-user-default-image-size="large" data-current-user-time-zone="Eastern Time (US &amp; Canada)" data-current-user-per-page="20" data-current-user-is-banned="false" data-current-user-receive-email-notifications="false" data-current-user-new-post-navigation-layout="true" data-current-user-enable-private-favorites="false" data-current-user-show-deleted-children="false" data-current-user-disable-categorized-saved-searches="false" data-current-user-disable-tagged-filenames="false" data-current-user-disable-mobile-gestures="false" data-current-user-enable-safe-mode="false" data-current-user-enable-desktop-mode="false" data-current-user-disable-post-tooltips="false" data-current-user-requires-verification="false" data-current-user-is-verified="false" data-current-user-show-deleted-posts="false" data-current-user-is-admin="false" data-current-user-is-anonymous="false" data-current-user-is-approver="true" data-current-user-is-builder="true" data-current-user-is-contributor="true" data-current-user-is-gold="true" data-current-user-is-member="true" data-current-user-is-moderator="true" data-current-user-is-owner="false" data-current-user-is-platinum="true" data-current-user-is-restricted="false" data-cookie-news-ticker="null" data-cookie-hide-upgrade-account-notice="null" data-cookie-hide-dmail-notice="null" data-cookie-dab="null" data-cookie-show-relationship-previews="null" data-cookie-post-preview-size="null" data-cookie-post-preview-show-votes="null" data-wiki-page-id="50000" data-wiki-page-is-locked="false" data-wiki-page-created-at="2026-01-15T07:00:00.000000-05:00" data-wiki-page-updated-at="2026-01-15T07:00:00.000000-05:00" data-wiki-page-is-deleted="false">
+  
+
+    <header id="top" class="modnav" x-data="{ menuOpen: false }">
+  <div class="modnav-head">
+    <div class="modnav-bar">
+    <div class="modnav-brand">
+      <a id="app-logo" class="modnav-logo" href="/">
+        <img alt="" src="/packs-test/static/danbooru-logo-128x128-ea111b6658173e847734.png" />
+</a>      <a id="app-name" class="modnav-wordmark" href="/">Danbooru</a>
+    </div>
+
+    <nav class="modnav-nav desktop-only" x-bind:class="{ 'desktop-only': !menuOpen }">
+      <div class="modnav-links">
+            <a id="modnav-posts" class="modnav-pill modnav-pill--general" href="/posts">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Posts
+              
+</a>            <a id="modnav-creators" class="modnav-pill modnav-pill--artist" href="/artists">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Creators
+              
+</a>            <a id="modnav-tags" class="modnav-pill modnav-pill--general" href="/tags">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Tags
+              
+</a>            <a id="modnav-pools" class="modnav-pill modnav-pill--general" href="/pools/gallery">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Pools
+              
+</a>            <a id="modnav-wiki" class="modnav-pill modnav-pill--general is-current" href="/wiki_pages">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Wiki
+              
+</a>            <a id="modnav-reports" class="modnav-pill modnav-pill--meta" href="/moderation_reports">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Reports
+              
+</a>            <a id="modnav-dashboard" class="modnav-pill modnav-pill--meta" href="/moderator/dashboard">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>Dashboard
+              
+</a>            <a id="modnav-more" class="modnav-pill modnav-pill--general" href="/static/site_map">
+              <span class="modnav-pill-dot" aria-hidden="true"></span>More
+              
+</a>          <button type="button" id="modnav-session-toggle" class="modnav-pill modnav-pill--session"
+                  aria-expanded="false" aria-controls="modnav-session">
+            <span class="modnav-pill-dot" data-region="summary-lamp" aria-hidden="true"></span>Manage Session<span class="modnav-pill-cta" data-region="cta"></span>
+          </button>
+          <div class="modnav-tokens" id="modnav-tokens" role="group" aria-label="Your session tokens" hidden></div>
+
+      </div>
+    </nav>
+
+
+    <div class="modnav-corner">
+    <div id="blacklist-box" class="blocklist"
+     x-data="{ blacklist: new Danbooru.Blacklist($root), open: false }"
+     x-init="blacklist.initialize([], { signedIn: true })"
+     x-on:keydown.escape="if (open && !$event.defaultPrevented) { open = false; $refs.trigger.focus(); }"
+     x-on:keydown.escape.window="if (open && !$root.contains($event.target)) { open = false; $refs.trigger.focus(); }"
+     x-on:pointerdown.window="if (open && !$root.contains($event.target)) open = false"
+     x-on:focusout="if (open && $event.relatedTarget && !$root.contains($event.relatedTarget)) open = false">
+  <button type="button" id="blocklist-trigger" class="blocklist-trigger" x-ref="trigger" data-shortcut="b"
+          aria-haspopup="dialog" aria-controls="blocklist-panel" aria-expanded="false"
+          x-bind:aria-expanded="open.toString()"
+          aria-label="Blocklist"
+          x-bind:aria-label="`Blocklist: ${blacklist.blacklistedPostCount} hidden in this view, ${blacklist.rules.length} blocks`"
+          x-on:click="open = !open; if (open) $nextTick(() => $refs.input.focus())">
+    <svg class="blocklist-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg>
+    <span class="blocklist-count" x-bind:class="blacklist.blacklistedPostCount > 0 && 'is-shown'"
+          x-text="blacklist.blacklistedPostCount > 99 ? '99+' : blacklist.blacklistedPostCount"></span>
+  </button>
+
+  <div id="blocklist-panel" class="blocklist-panel" role="dialog" aria-label="Your blocklist" hidden x-bind:hidden="!open">
+    <div class="blocklist-head">
+      <h2 class="blocklist-title">Blocklist</h2>
+      <span class="blocklist-hidden" x-text="`${blacklist.blacklistedPostCount} hidden in this view`"></span>
+    </div>
+
+    <form class="blocklist-add ui-front" x-on:submit.prevent="const input = $refs.input; $(input).data('ui-autocomplete')?.close(); blacklist.add(input.value).then((ok) => { if (ok) input.value = '' })">
+      <input type="text" x-ref="input" class="blocklist-input" aria-label="Block a tag" placeholder="block a tag"
+             autocomplete="off" spellcheck="false" data-autocomplete=tag-query>
+      <button type="submit" class="blocklist-block">Block</button>
+    </form>
+
+    <p class="blocklist-error" role="alert" x-show="blacklist.error" x-text="blacklist.error"></p>
+
+    <ul class="blocklist-pills" x-show="blacklist.rules.length > 0">
+      <template x-for="rule in blacklist.rules" x-bind:key="rule.string">
+        <li class="blocklist-pill" x-bind:class="rule.locked && 'is-locked'">
+          <span class="blocklist-pill-rule" x-text="rule.string" x-bind:title="rule.string"></span>
+          <span class="blocklist-pill-count" x-show="rule.matchCount > 0" x-text="rule.matchCount"
+                x-bind:title="`${rule.matchCount} hidden in this view`"></span>
+          <button type="button" class="blocklist-pill-lock"
+                  x-bind:aria-pressed="rule.locked.toString()"
+                  x-bind:aria-label="(rule.locked ? 'Unlock ' : 'Lock ') + rule.string"
+                  x-bind:title="rule.locked ? 'Locked: unlock it before it can be removed' : 'Lock it, so it cannot be removed by accident'"
+                  x-on:click="blacklist.setLocked(rule, !rule.locked)">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="5" y="11" width="14" height="10" rx="2"/>
+              <path x-show="rule.locked" d="M8 11V7a4 4 0 0 1 8 0v4"/>
+              <path x-show="!rule.locked" d="M8 11V7a4 4 0 0 1 7.6-1.8"/>
+            </svg>
+          </button>
+          <button type="button" class="blocklist-pill-remove" x-show="!rule.locked"
+                  x-bind:aria-label="'Unblock ' + rule.string" title="Unblock"
+                  x-on:click="const input = $refs.input; blacklist.remove(rule).then(() => input.focus())">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7l10 10M17 7L7 17"/></svg>
+          </button>
+        </li>
+      </template>
+    </ul>
+
+    <p class="blocklist-empty" x-show="blacklist.rules.length === 0">
+      Nothing blocked. Type a tag and press Enter. Tags on one line hide only posts that have all of them;
+      start a tag with - to exempt it.
+    </p>
+
+    <p class="blocklist-foot">
+        Kept on your account, on every page.
+        <a href="/settings#user_blacklisted_tags">Edit as text</a>
+    </p>
+  </div>
+</div>
+
+    <div class="modnav-reset" role="group" aria-label="This browser's copy of the booru">
+      <button type="button" class="modnav-reset-half" data-act="purge" aria-label="Purge"
+              title="Purge: sign out of the booru and delete everything it stored in this browser">
+        <svg class="icon purge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.5 6.5h17M9 6.5v-2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5.5 6.5l1.2 13a1.6 1.6 0 0 0 1.6 1.5h7.4a1.6 1.6 0 0 0 1.6-1.5l1.2-13M10 10.5v6.5M14 10.5v6.5" /></svg>
+      </button>
+      <button type="button" class="modnav-reset-half" data-act="hard-refresh" aria-label="Hard refresh"
+              title="Hard refresh: reload this panel, fetching the page and every file it uses from the server again">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8.31 8.78L10.64 4.75Q12 2.4 13.36 4.75L16.07 9.46M16.93 6.27L16.07 9.46L12.89 8.6M18.02 12.81L20.34 16.85Q21.7 19.2 18.98 19.2L13.55 19.19M15.88 21.53L13.55 19.19L15.89 16.87M9.67 19.21L5.02 19.2Q2.3 19.2 3.66 16.85L6.38 12.15M3.19 13L6.38 12.15L7.22 15.33"/></svg>
+      </button>
+      <div class="modnav-reset-confirm" role="alertdialog" aria-labelledby="modnav-reset-q" hidden>
+        <p id="modnav-reset-q">Are you sure you want to do this? While we're confident that our services are
+        configured to work properly regardless of the age of your access token, that token itself is unique, and
+        you are performing an irreversible action.</p>
+        <p class="modnav-reset-what">Purge signs you out of the booru, ends its link to your Matrix session on
+        this site, and deletes everything the booru stored in this browser.</p>
+        <div class="modnav-reset-row">
+          <button type="button" class="modnav-reset-go" data-act="purge-go">Purge it</button>
+          <button type="button" data-act="purge-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <a class="modnav-burger mobile-only" x-on:click="menuOpen = !menuOpen" aria-label="Menu">
+      <svg class="icon svg-icon menu-icon block w-6" viewBox="0 0 448 512" x-show="!menuOpen"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#menu" /></svg>
+      <svg class="icon svg-icon close-icon block w-6" viewBox="0 0 320 512" x-show="menuOpen" x-cloak="true"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#close" /></svg>
+    </a>
+    </div>
+
+    <div class="modnav-session" id="modnav-session" data-observation="{&quot;booru&quot;:{&quot;expect&quot;:&quot;cookie:_danbooru2_session&quot;,&quot;observed&quot;:&quot;cookie:_danbooru2_session&quot;,&quot;digest&quot;:&quot;SESSION&quot;,&quot;signed_in&quot;:true,&quot;name&quot;:&quot;pv_moderator&quot;,&quot;level&quot;:&quot;Moderator&quot;,&quot;started_at&quot;:1768478400,&quot;authenticated_at&quot;:null,&quot;current_session&quot;:{&quot;digest&quot;:&quot;SESSION&quot;,&quot;seen_at&quot;:1768478400},&quot;previous_session&quot;:null,&quot;account&quot;:null},&quot;matrix&quot;:{&quot;expect&quot;:&quot;cookie:fourier_session&quot;,&quot;observed&quot;:null,&quot;digest&quot;:null,&quot;linked&quot;:false,&quot;matrix_id&quot;:null,&quot;verified_at&quot;:null,&quot;gate&quot;:&quot;absent&quot;,&quot;info&quot;:null},&quot;now&quot;:1768478400}"
+         hidden>
+      <div class="modnav-session-inner">
+        <div class="modnav-monitor" data-monitor="booru">
+          <span class="modnav-monitor-trigger" data-region="trigger"
+                tabindex="0" aria-describedby="modnav-tip-booru">
+            <span class="modnav-lamp" data-region="lamp" aria-hidden="true"></span>
+            <span class="modnav-monitor-label">Booru:</span>
+          </span>
+          <span class="modnav-monitor-status" data-region="status"></span>
+          <span class="modnav-monitor-actions" data-region="controls"></span>
+          <div class="modnav-monitor-tip" id="modnav-tip-booru" data-region="tip" role="tooltip"></div>
+        </div>
+        <span class="modnav-monitor-sep" aria-hidden="true">|</span>
+        <div class="modnav-monitor" data-monitor="matrix">
+          <span class="modnav-monitor-trigger" data-region="trigger"
+                tabindex="0" aria-describedby="modnav-tip-matrix">
+            <span class="modnav-lamp" data-region="lamp" aria-hidden="true"></span>
+            <span class="modnav-monitor-label">Matrix:</span>
+          </span>
+          <span class="modnav-monitor-status" data-region="status"></span>
+          <span class="modnav-monitor-actions" data-region="controls"></span>
+          <div class="modnav-monitor-tip" id="modnav-tip-matrix" data-region="tip" role="tooltip"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    <div class="modnav-subnav">
+      <div class="modnav-subnav-inner">  <form autocomplete="off" novalidate="novalidate" class="simple_form search-form quick-search-form one-line-form py-1.5 px-3 md:w-180px w-full" action="/wiki_pages" accept-charset="UTF-8" method="get"><div class="input stacked-input string optional search_title_normalize"><input class="w-full max-w-360px string optional" data-autocomplete="wiki-page" data-shortcut="q" placeholder="Search wiki pages" type="text" name="search[title_normalize]" /></div><input type="hidden" name="redirect" value="true"></form>
+  <a id="subnav-search" class="py-1.5 px-3 " href="/wiki_pages">Search</a>
+    <a id="subnav-new" class="py-1.5 px-3 " href="/wiki_pages/new">New</a>
+  <a id="subnav-changes" class="py-1.5 px-3 " href="/wiki_page_versions">Changes</a>
+  <a id="subnav-help" class="py-1.5 px-3 " href="/wiki_pages/help:wiki">Help</a>
+    <span class="text-muted select-none">|</span>
+    <a id="subnav-posts" class="py-1.5 px-3 " href="/posts?tags=scenery">Posts (2)</a>
+    <a id="subnav-history" class="py-1.5 px-3 " href="/wiki_page_versions?search%5Bwiki_page_id%5D=50000">History</a>
+        <a id="subnav-edit" class="py-1.5 px-3 " data-shortcut="e" href="/wiki_pages/50000/edit">Edit</a>
+</div>
+    </div>
+</header>
+
+
+  <div id="page" class="relative flex-1 mx-8 mt-4 sm:mx-2 sm:mt-2">
+      <div class="notice notice-error notice-large">
+        <h2>2FA Required</h2>
+        <p>
+          Because you have a privileged account, you must enable two-factor authentication to ensure your account is secure.
+        </p>
+        <div><a href="/users/50005/totp/edit">Enable two-factor authentication</a></div>
+      </div>
+
+
+
+
+
+    <div id="notice"
+      class="notice flex fixed top-2 left-2 right-2 p-2 mx-auto max-w-720px max-h-150px thin-scrollbar z-9999 shadow-lg sm:text-sm"
+      x-init="$root.notice = $data.notice"
+      x-data="{ notice: new Danbooru.Notice(null) }"
+      x-bind:class="notice.type === 'error' ? 'notice-error' : 'notice-info'"
+      x-show="notice.isOpen"
+      x-transition.opacity.400ms
+      x-cloak>
+  <span class="prose flex-1" x-html="notice.message"></span>
+  <a href="javascript:void(0)" id="close-notice-link" class="flex self-center text-lg" data-shortcut="esc" x-on:click="notice.close()"><svg class="icon svg-icon close-icon" viewBox="0 0 320 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#close" /></svg></a>
+</div>
+
+
+    
+
+
+
+
+  <div id="c-wiki-pages">
+    <div id="a-show">
+
+      <div class="sidebar-container flex sm:flex-col gap-3">
+        <aside id="sidebar" class="flex-0 break-words sm:order-2">
+            <section>
+  <h2>Recent Changes (<a href="/wiki_page_versions">all</a>)</h2>
+  <ul>
+      <li><a class="tag-type-0" href="/wiki_pages/scenery">scenery</a></li>
+  </ul>
+</section>
+
+
+    <h2>Options</h2>
+
+    <ul>
+          <li><a href="/tag_versions?search%5Btag_id%5D=50005">Tag History</a></li>
+
+        <li><a href="/post_versions?search%5Bchanged_tags%5D=scenery">Post History</a></li>
+
+        <li><a href="/wiki_page_versions?search%5Bwiki_page_id%5D=50000">Wiki History</a></li>
+
+        <li><a href="/forum_posts?search%5Blinked_to%5D=scenery">Discussions</a></li>
+
+      <li><a href="/wiki_pages?search%5Blinked_to%5D=scenery">What Links Here</a></li>
+
+        <li><a href="/posts?tags=scenery+ai%3Ascenery%2C0%25">Mistagged Posts</a></li>
+    </ul>
+
+        </aside>
+
+        <section id="content" class="flex-1 min-w-0 sm:order-1">
+            <div class="mod-ui modwiki">
+  <h1 class="mod-subject" id="wiki-page-title">
+    <a class="mod-pill mod-pill--subject mod-pill--cat mod-pill--cat-general" href="/posts?tags=scenery">scenery</a>
+    <span class="mod-subject-count">2</span>
+</h1>
+
+  
+
+
+  <section class="mod-panel modwiki-article">
+    <div id="wiki-page-body" class="prose">
+        <p>pv scenery wiki</p>
+
+    </div>
+  </section>
+
+    <section class="modstrip">
+    <h2 class="mod-label modstrip-title"><a href="/posts?tags=scenery">Posts</a></h2>
+    <div class="modstrip-grid">
+        <a class="modgal-card blacklist-post" href="/posts/50002?q=scenery" title="post #50002" data-id="50002" data-tags="landscape pv_artist scenery sky" data-rating="g" data-flags="" data-score="0" data-uploader-id="50000" data-tag-marks="{&quot;landscape&quot;:[&quot;auto&quot;,&quot;spectrum&quot;],&quot;pv_artist&quot;:[&quot;auto&quot;,&quot;spectrum&quot;],&quot;scenery&quot;:[&quot;auto&quot;,&quot;spectrum&quot;],&quot;sky&quot;:[&quot;auto&quot;,&quot;spectrum&quot;]}">
+            <img class="modgal-thumb" src="https://www.example.com/data/180x180/40/61/4061873d3d26d2e376d866cfd87c3325.jpg" alt="" loading="lazy" data-error-card>
+          <span class="modgal-card-id">#50002</span>
+            <span class="modgal-card-artist">pv artist</span>
+        </a>
+        <a class="modgal-card blacklist-post" href="/posts/50000?q=scenery" title="post #50000" data-id="50000" data-tags="landscape pv_artist scenery" data-rating="s" data-flags="" data-score="0" data-uploader-id="50000" data-tag-marks="{}">
+            <img class="modgal-thumb" src="https://www.example.com/data/180x180/c3/c8/c3c8931feacf7bca68cb91cf861e2609.jpg" alt="" loading="lazy" data-error-card>
+          <span class="modgal-card-id">#50000</span>
+            <span class="modgal-card-artist">pv artist</span>
+        </a>
+    </div>
+</section>
+
+</div>
+
+
+        </section>
+      </div>
+    </div>
+  </div>
+
+  </div>
+
+  <div id="tooltips"></div>
+
+  <footer id="page-footer" class="text-sm text-center flex-initial mt-4 py-3 w-full border-t flex flex-wrap items-center justify-center gap-1 leading-none">
+    <a href="/terms_of_service">Terms</a>
+    / <a title="Policies and Pledges" href="https://41chan.net/pip2.html">PIP<sup>2</sup></a>
+    / <a href="https://41chan.net/about.html">About</a>
+    / <a href="/upgrade">Upgrade</a>
+    / <a href="/contact">Contact</a>
+    /
+      <a title="Running commit: 000000000" class="social-icon" href="https://github.com/fourier-channel/chanbooru">
+        <img class="icon inline-block h-4" src="/packs-test/static/github-logo-c932001442ab985405de.png" />
+</a>  </footer>
+</body></html>
+

@@ -31,6 +31,12 @@ class ModulationPostStripComponentTest < ViewComponent::TestCase
     assert_no_css("[data-tag-categories]")
   end
 
+  should "mark every thumbnail for the error card, which matches the marker and not the interface's class" do
+    draw(Post.where(id: @posts.map(&:id)))
+    assert_css("img.modgal-thumb[data-error-card]", count: 3)
+    assert_no_css("img.modgal-thumb:not([data-error-card])")
+  end
+
   should "draw a title without a link, and a footer" do
     draw(Post.where(id: @posts.first.id), title: "Posts") { |strip| strip.with_footer { "more" } }
 

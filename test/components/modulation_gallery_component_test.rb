@@ -27,6 +27,12 @@ class ModulationGalleryComponentTest < ViewComponent::TestCase
     assert_css("p.modgal-window-status[role=status]", visible: :all)
   end
 
+  should "mark every thumbnail for the error card, which matches the marker and not the interface's class" do
+    draw("gcomp")
+    assert_css("img.modgal-thumb[data-error-card]", count: 3)
+    assert_no_css("img.modgal-thumb:not([data-error-card])")
+  end
+
   should "leave the count out when the search could not be counted" do
     PostSets::Post.any_instance.stubs(:post_count).returns(nil)
     draw("gcomp")

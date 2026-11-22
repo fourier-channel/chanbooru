@@ -53,7 +53,16 @@ class FakeImage {
   getAttribute(k) { return this.attrs[k] ?? null; }
   setAttribute(k, v) { this.attrs[k] = v; if (k === "src") { this.srcs.push(v); this.currentSrc = v; } }
   removeAttribute(k) { delete this.attrs[k]; }
-  matches() { return true; }
+  // The selector list as a browser reads it, for the few forms error_card.js
+  // uses: a class, an id, and the [data-error-card] marker.
+  matches(selector) {
+    return selector.split(",").map((s) => s.trim()).some((s) => {
+      if (s.startsWith(".")) { return this.classes.has(s.slice(1)); }
+      if (s.startsWith("#")) { return this.attrs.id === s.slice(1); }
+      if (s === "[data-error-card]") { return this.dataset.errorCard !== undefined; }
+      throw new Error(`FakeImage cannot read the selector ${s}; fix: teach FakeImage#matches its form`);
+    });
+  }
   closest() { return null; }
 }
 
@@ -185,3 +194,30 @@ test("a 403 card never says the image came back", async () => {
   img.fire("load");
   assert.equal(healed(img), 0);
 });
+
+// An interface's media is carded by the marker it carries, not by its class
+// (Modulation stage 2, step 1b): core names no interface's classes, so a
+// new interface's pictures are carded by carrying data-error-card.
+const interfaceImage = (cls) => {
+  const img = new FakeImage(SRC);
+  img.classes = new Set([cls]);
+  return img;
+};
+
+for (const cls of ["modgal-thumb", "mod-image"]) {
+  test(`an interface's .${cls} without the marker is not carded`, async () => {
+    status = 404;
+    const img = interfaceImage(cls);
+    await fail(img);
+    assert.equal(img.attrs.src, SRC);
+    assert.equal(probes, 0);
+  });
+
+  test(`an interface's .${cls} carrying data-error-card is carded`, async () => {
+    status = 404;
+    const img = interfaceImage(cls);
+    img.dataset.errorCard = "";
+    await fail(img);
+    assert.equal(img.attrs.src.startsWith("/errors/404.svg"), true);
+  });
+}

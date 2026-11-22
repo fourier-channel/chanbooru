@@ -59,10 +59,6 @@ class InterfaceCompletenessTest < ActiveSupport::TestCase
   # app/interfaces/<name>", or a component's class name). A step that cuts a
   # link deletes its entry in the same commit.
   KNOWN_LINKS = {
-    "stage 2 step 1b, error cards and creator lamps" => {
-      "app/javascript/src/javascripts/creator_lamps.js" => %w[.mod-pill--cat-artist],
-      "app/javascript/src/javascripts/error_card.js" => %w[.mod-image .modgal-thumb],
-    },
     "stage 2 step 2, the hero band's JS comes home" => {
       "app/javascript/src/javascripts/creator_gallery_component.js" => ["path app/interfaces/modulation"],
       "app/components/modulation_landing_component/modulation_landing_component.scss" =>

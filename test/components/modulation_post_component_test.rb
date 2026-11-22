@@ -26,6 +26,14 @@ class ModulationPostComponentTest < ViewComponent::TestCase
     assert_includes(page.find(".mod-stage-center")["style"].to_s, "--mod-bw:123;--mod-bh:45", "the stage was not sized from the surface's media box; fix: the template sizes .mod-stage-center from payload[:media][:box]")
   end
 
+  should "mark the picture it builds for the error card, which matches the marker and not the interface's class" do
+    source = Rails.root.join(FILES.last).read
+    built = source.scan(/<(?:img|video) class="mod-image"[^>]*>/)
+
+    assert_equal(3, built.size, "the post view builds its picture somewhere this test does not read; fix: point this test at it")
+    built.each { |tag| assert_includes(tag, "data-error-card", "#{tag} carries no data-error-card, so a failed load shows the broken-image glyph; fix: add data-error-card to it") }
+  end
+
   should "decide nothing: no CurrentUser, policy or visibility call of its own" do
     found = FILES.flat_map do |path|
       source = Rails.root.join(path).read

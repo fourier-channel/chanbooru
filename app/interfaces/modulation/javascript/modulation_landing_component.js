@@ -87,6 +87,7 @@ function initLanding(root) {
   function artistPill(creator) {
     const pill = document.createElement("a");
     pill.className = "mod-pill mod-pill--cat mod-pill--cat-artist";
+    pill.dataset.creatorLamp = "";
     // No url for a signed-out viewer unless the creator is on a featured
     // row (MembersOnly.anonymous_landing): the pill names them and goes
     // nowhere, rather than to a page that would answer "not found".
@@ -269,13 +270,14 @@ function initLanding(root) {
 
   function mediaEl(slide) {
     const el = document.createElement(slide.kind === "video" ? "video" : "img");
-    // Every cell's media carries .mod-image, so a failure anywhere on the belt
+    // Every cell's media carries data-error-card, so a failure anywhere on the belt
     // becomes an error card rather than a broken icon. That is a change from
     // the stacked flanks, where a card sized for the stage was unreadable at
     // 122px and six of them were worse than the glyph. A belt cell is far
     // larger, and a run of identical "401" cards reads as a locked archive --
     // which is exactly what it is.
     el.className = "mod-image";
+    el.dataset.errorCard = "";
     // A VIDEO PLAYS ONLY WHILE IT CAN BE SEEN. render() starts it when its
     // cell is shown AND inside the panel, and stops it otherwise; nothing here
     // starts it. It used to autoplay from the moment it was built, and a cell

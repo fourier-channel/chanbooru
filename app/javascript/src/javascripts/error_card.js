@@ -7,11 +7,13 @@
 
 // Only media. A blanket handler would also swap a broken 16px icon for a
 // 640-wide card, which is worse than the glyph it replaced.
+//
+// The names here are core's and upstream's own. An interface's media is
+// carded by carrying data-error-card (Modulation stage 2, step 1b), never by
+// its class being listed here: core names no interface's classes.
 const MEDIA_SELECTOR = [
   "#image",
   ".post-preview-image",
-  ".modgal-thumb",
-  ".mod-image",
   ".modland-slide-img",
   ".modland-promoted-thumb",
   // The class sits on the wrapping link here, not the image, so the element
@@ -21,7 +23,7 @@ const MEDIA_SELECTOR = [
   "[data-error-card]",
 ].join(", ");
 
-// The landing conveyor's cells DO match, via .mod-image, and that is a reversal
+// The landing conveyor's cells DO match, via data-error-card, and that is a reversal
 // of an earlier decision worth recording. When the flanks were a stacked column
 // of 122px thumbnails they were excluded: a card sized for a 520px stage is
 // unreadable that small, and six of them around the picture was worse than the

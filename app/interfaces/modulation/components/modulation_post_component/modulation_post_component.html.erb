@@ -162,9 +162,9 @@
     // picture whose bytes disagree with that box from distorting.
     function mediaHTML(m) {
       if (!m || !m.src) return '<div class="mod-frame mod-image mod-image--placeholder">media gated</div>';
-      if (m.kind === "video") return '<div class="mod-frame"><video class="mod-image" src="' + esc(m.src) + '" poster="' + esc(m.poster) + '" controls loop playsinline></video></div>';
-      if (m.kind === "other") return '<div class="mod-frame"><a href="' + esc(m.href || "#") + '"><img class="mod-image" src="' + esc(m.src) + '" alt=""></a></div>';
-      return '<div class="mod-frame"><img class="mod-image" src="' + esc(m.src) + '" alt=""></div>';
+      if (m.kind === "video") return '<div class="mod-frame"><video class="mod-image" data-error-card src="' + esc(m.src) + '" poster="' + esc(m.poster) + '" controls loop playsinline></video></div>';
+      if (m.kind === "other") return '<div class="mod-frame"><a href="' + esc(m.href || "#") + '"><img class="mod-image" data-error-card src="' + esc(m.src) + '" alt=""></a></div>';
+      return '<div class="mod-frame"><img class="mod-image" data-error-card src="' + esc(m.src) + '" alt=""></div>';
     }
     // A deleted post's image is greyed and blurred until asked for. Reaching a
     // deleted post is a moderation act -- checking what was removed, or why --

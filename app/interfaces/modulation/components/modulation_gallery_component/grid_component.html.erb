@@ -12,7 +12,7 @@
     <a class="modgal-card <%= PostCards::BLACKLIST_POST %><%= " modgal-card--spoiler" if post.is_deleted? %><%= " is-off" if off?(index) %>" href="<%= surface.post_link(post) %>" title="post #<%= post.id %><%= " (deleted)" if post.is_deleted? %>" <%= tag.attributes(surface.card_data(post)) %>>
       <% thumb = surface.thumb_for(post) %>
       <% if thumb %>
-        <img class="modgal-thumb" src="<%= thumb %>" alt="" loading="lazy">
+        <img class="modgal-thumb" src="<%= thumb %>" alt="" loading="lazy" data-error-card>
       <% else %>
         <span class="modgal-thumb modgal-thumb--gated">gated</span>
       <% end %>

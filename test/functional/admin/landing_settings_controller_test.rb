@@ -141,8 +141,8 @@ class Admin::LandingSettingsControllerTest < ActionDispatch::IntegrationTest
       featured = "fieldset[data-key=featured]"
       assert_select "#{featured} input[type=hidden][name='landing_categories[featured][tags_string]'][value='lit_artist quiet_artist no_such_artist']", 1
       assert_select "#{featured} input[type=text][name='landing_categories[featured][tags_string]']", 0
-      assert_select "#{featured} .mod-pill--cat-artist.is-live[data-tag=lit_artist] .mod-pill-dot", 1
-      assert_select "#{featured} .mod-pill--cat-artist[data-tag=quiet_artist]:not(.is-live)", 1
+      assert_select "#{featured} .mod-pill--cat-artist[data-creator-lamp].is-live[data-tag=lit_artist] .mod-pill-dot", 1
+      assert_select "#{featured} .mod-pill--cat-artist[data-creator-lamp][data-tag=quiet_artist]:not(.is-live)", 1
       assert_select "#{featured} .mod-pill--pending", text: "no such artist"
       assert_select "#{featured} .landing-creators-missing", text: /no_such_artist/
     end
