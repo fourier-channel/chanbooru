@@ -47,7 +47,7 @@ class MediaFile::Video < MediaFile
   def is_supported?
     return false if video_streams.size != 1
     # Don't allow videos with fake dimensions in the container. If no frames could be decoded, the video is corrupt instead.
-    return false if video.display_dimensions.present? && video.display_dimensions != container_display_dimensions
+    return false if video.display_dimensions.present? && !container_dimensions_match?
     return false if audio_streams.size > 1
     return false if is_webm? && exif_metadata["Matroska:DocType"] != "webm"
     return false if is_webm? && !video_codec.in?(%w[vp8 vp9 av1])
@@ -80,6 +80,21 @@ class MediaFile::Video < MediaFile
 
   def video
     FFmpeg.new(self)
+  end
+
+  # Fork: true when the decoded frames are the size the container says, allowing the width to be off by one pixel.
+  # An anamorphic width is width * SAR, rarely a whole number, and the two sides make it one differently: FFmpeg's
+  # display_dimensions rounds it, while an MP4's tkhd box holds it in 16.16 fixed point and exiftool's Track1:ImageWidth
+  # is the whole-number part (256.5 in the box reads as 256). Measured
+  # 2026-11-22 on the 14 MP4s the sampling uploader could not post: every one was off by exactly 1 px in width, with
+  # the height equal (e.g. 720 * 27/32 = 607.5, written 607, rounded 608). A fake still fails: a container claiming
+  # 16x16 over a 512x512 video is off by hundreds of pixels.
+  def container_dimensions_match?
+    display_width, display_height = video.display_dimensions
+    container_width, container_height = container_display_dimensions
+    return false if container_width.nil? || container_height.nil?
+
+    (display_width - container_width.to_i).abs <= 1 && display_height == container_height.to_i
   end
 
   # The width and height the container says the video is displayed at. Anamorphic WebMs have the coded size in

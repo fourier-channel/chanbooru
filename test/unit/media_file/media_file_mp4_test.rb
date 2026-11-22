@@ -10,6 +10,36 @@ class MediaFileMp4Test < ActiveSupport::TestCase
     end
   end
 
+  # Fork: an anamorphic MP4 whose container width differs from the decoded display width by the rounding of width * SAR.
+  # See MediaFile::Video#container_dimensions_match? and test/files/mp4/README.md.
+  context "an anamorphic h264 MP4 with a fractional display width" do
+    should "be supported" do
+      file = MediaFile.open("test/files/mp4/test-304x304-anamorphic.mp4")
+
+      assert_equal([257, 304], file.dimensions)
+      assert_equal(256, file.metadata["Track1:ImageWidth"])
+      assert_equal(304, file.metadata["Track1:ImageHeight"])
+      assert_equal(false, file.is_corrupt?)
+      assert_equal(true, file.is_supported?)
+    end
+
+    should "not be supported when the container width is off by two pixels" do
+      file = MediaFile.open("test/files/mp4/test-304x304-anamorphic-width-off-by-two.mp4")
+
+      assert_equal([257, 304], file.dimensions)
+      assert_equal(255, file.metadata["Track1:ImageWidth"])
+      assert_equal(false, file.is_supported?)
+    end
+
+    should "not be supported when the container height is off by one pixel" do
+      file = MediaFile.open("test/files/mp4/test-304x304-anamorphic-height-off-by-one.mp4")
+
+      assert_equal([257, 304], file.dimensions)
+      assert_equal(303, file.metadata["Track1:ImageHeight"])
+      assert_equal(false, file.is_supported?)
+    end
+  end
+
   context "a normal h264 MP4" do
     should "be parsed correctly" do
       file = MediaFile.open("test/files/mp4/test-300x300.mp4")
