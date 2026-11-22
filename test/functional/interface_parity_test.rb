@@ -77,8 +77,35 @@ class InterfaceParityTest < ActionDispatch::IntegrationTest
     drawn
   end
 
+  # The chunk names every index line points at.
+  def self.named_chunks
+    InterfaceRecordingHelper::INDEX.glob("*/*.txt").flat_map { |index| index.readlines(chomp: true).map { |line| line.split[2] } }.to_set
+  end
+
+  # A record run writes each new body as a new chunk and leaves the one it
+  # replaced, so once every worker has written its indexes, the chunks no
+  # index names are deleted. Minitest runs after_run in the parent process
+  # only, after the parallel workers are done: a worker pruning mid-run
+  # could delete a chunk another worker wrote and has not yet indexed.
+  if InterfaceRecordingHelper.recording?
+    Minitest.after_run do
+      named = named_chunks
+      InterfaceRecordingHelper::CHUNKS.glob("*.txt").reject { |chunk| named.include?(chunk.basename(".txt").to_s) }.each(&:delete)
+    end
+  end
+
   setup { @original_config = Danbooru.config }
   teardown { leave_recorded_world! }
+
+  should "keep no chunk that no index names" do
+    skip "a record run is rewriting the store; it prunes unnamed chunks when it ends" if InterfaceRecordingHelper.recording?
+
+    named = self.class.named_chunks
+    orphans = InterfaceRecordingHelper::CHUNKS.glob("*.txt").reject { |chunk| named.include?(chunk.basename(".txt").to_s) }
+    assert_empty(orphans.map { |chunk| chunk.relative_path_from(Rails.root).to_s }.sort.first(10),
+                 "#{orphans.size} recorded bodies are named by no index (a record run that was stopped before it ended, or a " \
+                 "chunk added by hand); fix: #{InterfaceRecordingHelper::RECORD_FIX} -- a whole record run deletes them when it ends")
+  end
 
   InterfaceRecordingHelper::INTERFACES.each do |interface|
     InterfaceRecordingHelper::VIEWERS.each do |viewer|

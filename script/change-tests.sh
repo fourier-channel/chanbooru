@@ -20,8 +20,9 @@
 #      class it defines -- or, in config/danbooru_default_config.rb, a setting
 #      the change touches -- unless that name is so widely used it chooses
 #      nothing (TOO_WIDE), which is said by name;
-#      and a change to an interface, or to an upstream page one draws, runs
-#      the interface recordings (INTERFACE_RECORDINGS);
+#      and a change to an interface, to an upstream page one draws, or to the
+#      recordings themselves, runs the interface recordings
+#      (INTERFACE_RECORDINGS);
 #   4. a change to what EVERY test stands on -- the runtime, the schema, the
 #      test helpers and factories, the application base classes -- cannot be
 #      narrowed, so it runs the fork set instead;
@@ -138,10 +139,11 @@ for f in "${CHANGED[@]}"; do
   # The interface recordings (stage 1 of the Modulation interfaces): every
   # surface an interface carves, drawn for every viewer under both interfaces
   # and held byte for byte. A change to an interface, to its registry or
-  # resolver, or to an upstream page an interface draws reaches them, and no
-  # test is named after any of those files: a carve gated on the controller's
-  # test alone never compared a byte.
-  if [[ "$f" == app/interfaces/* || "$f" == app/logical/interface.rb || "$f" == app/logical/interface_resolver.rb ]] ||
+  # resolver, to an upstream page an interface draws, or to the recordings
+  # themselves reaches them, and no test is named after any of those files: a
+  # carve gated on the controller's test alone never compared a byte.
+  if [[ "$f" == app/interfaces/* || "$f" == app/logical/interface.rb || "$f" == app/logical/interface_resolver.rb ||
+        "$f" == test/files/interface_parity/* ]] ||
      { [[ "$f" == app/views/* ]] && compgen -G "app/interfaces/*/views/${f#app/views/}" >/dev/null; }; then
     TESTS+=("${INTERFACE_RECORDINGS[@]}")
   fi
