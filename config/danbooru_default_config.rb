@@ -1102,6 +1102,14 @@ module Danbooru
       "http://fourier-auth:8010"
     end
 
+    # fourier-tunnel's internal server on the booru's Docker network (alias
+    # fourier-tunnel, port 8011; it is not published on the host).
+    # MatrixVisibilityPush POSTs /visibility/<post id> here when a post placed
+    # in Matrix rooms is jailed, deleted or gated, so its rooms hear it at once.
+    def fourier_tunnel_internal_url
+      "http://fourier-tunnel:8011"
+    end
+
     # The public origin Matrix media and profiles are read through (the
     # homeserver's client API behind fourier-auth), e.g.
     # "https://matrix.example.net". The creator gallery reads its creator's

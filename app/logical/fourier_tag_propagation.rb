@@ -3,16 +3,29 @@
 # The tag-propagation hub. The booru is the single source of truth for a post's
 # tags; any change funnels through here and fans out the PUBLIC-SAFE projection to
 # every consumer (originally: Matrix state, the autotagger training feed).
-# See the WHAT IS ACTUALLY WIRED note below -- there are none today.
+# See the WHAT IS ACTUALLY WIRED note below: no projection consumer today; one
+# visibility push (visibility_changed!).
 #
 # Private creator tags never leave the gated store: consumers only ever receive
 # FourierTagSource.matrix_projection, which already excludes them. Identity-gated
 # reads (the creator/mod seeing private tags) go through the pull API instead.
 #
-# WHAT IS ACTUALLY WIRED, as of 2026-09-20. The two sentences above describe
+# WHAT IS ACTUALLY WIRED, as of 2026-11-23. The two sentences above describe
 # the design; this paragraph describes the code, and they were not the same
 # thing. Read this before believing the header.
 #
+#   - visibility_changed! IS wired, to every save that jails or unjails a
+#     post, deletes or undeletes it, or takes a restricted (sensitive) tag on
+#     or off (Post#note_jail_state_change, told after commit). For a post
+#     placed in Matrix rooms (a positive posts.room_ids) it enqueues
+#     PushVisibilityJob, which asks fourier-tunnel to rewrite the post's tag
+#     state in those rooms (MatrixVisibilityPush). It carries no tags: the
+#     tunnel rewrites what each room already holds, and Technetium reads the
+#     post again and the booru's answer decides what shows. Operator
+#     2026-11-22: "Misc tag changes can be on the 60s timer--jails and
+#     sensitive tags should be pushes." Every other tag change reaches a
+#     reader through Technetium's one-minute re-read of the pictures on
+#     screen, and so does a push that is lost.
 #   - fan_out! has exactly ONE caller: FourierTagSourcesController#create, the
 #     provenance POST. Its callers are fourier-sampling (src/booru/client.ts)
 #     and fourier-tunnel (danbooru.js) -- NOT fourier-bmb, which no longer
@@ -50,6 +63,14 @@
 # With none registered, a log publisher makes the projection observable in dev.
 module FourierTagPropagation
   mattr_accessor :publishers, default: []
+
+  # A save changed who may see `post` (see the WIRED note above). Only a post
+  # placed in a Matrix room has anyone to tell; read from the row, since the
+  # placements feed writes room_ids with update_all, past this instance.
+  def self.visibility_changed!(post)
+    rooms = Post.where(id: post.id).pick(:room_ids).to_a
+    PushVisibilityJob.perform_later(post.id) if rooms.any?(&:positive?)
+  end
 
   # Fan out one post's projection. Async so the write path stays fast.
   #

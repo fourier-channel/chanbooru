@@ -3356,15 +3356,30 @@ class Post < ApplicationRecord
     # deletion, may move Post.untagged_jailed_ids and
     # Post.withheld_by_jail_ids; they are told once the save commits, so no
     # other process reads the old set under the new fingerprint.
+    #
+    # The same save, or one that took a restricted (sensitive) tag on or off,
+    # changes who may see the picture in the Matrix rooms it sits in; those
+    # rooms are told once it commits (FourierTagPropagation.visibility_changed!,
+    # operator 2026-11-22: "jails and sensitive tags should be pushes").
     def note_jail_state_change
-      tag_moved = saved_change_to_tag_string? && begin
+      before = tag_string_before_last_save.to_s.split if saved_change_to_tag_string?
+      tag_moved = before && begin
         tags = TagBanishment.post_tags
-        tag_string_before_last_save.to_s.split.intersect?(tags) != tag_string.to_s.split.intersect?(tags)
+        before.intersect?(tags) != tag_string.to_s.split.intersect?(tags)
+      end
+      gate_moved = before && begin
+        tags = Danbooru.config.restricted_tags
+        before.intersect?(tags) != tag_string.to_s.split.intersect?(tags)
       end
       @jail_state_changed ||= tag_moved || saved_change_to_is_deleted?
+      @visibility_changed ||= @jail_state_changed || gate_moved
     end
 
     def announce_jail_state_change
+      if @visibility_changed
+        @visibility_changed = false
+        FourierTagPropagation.visibility_changed!(self)
+      end
       return unless @jail_state_changed
 
       @jail_state_changed = false
@@ -3373,6 +3388,7 @@ class Post < ApplicationRecord
 
     def forget_jail_state_change
       @jail_state_changed = false
+      @visibility_changed = false
     end
 
     # Whether this post's CURRENT deletion is the jail's: it is deleted, the
