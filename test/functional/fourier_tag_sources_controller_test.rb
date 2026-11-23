@@ -203,6 +203,21 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       deleted = create(:post, tag_string: "a", uploader: @uploader)
       deleted.update_columns(room_ids: [@room.id], is_deleted: true) # rubocop:disable Rails/SkipsModelValidations -- the state, not how it is reached
       assert_equal true, withheld(deleted, create(:user))
+      assert_equal false, response.parsed_body["jailed"], "a plain deletion is not a jailing"
+    end
+
+    should "answer a jailed post withheld AND jailed, so Technetium draws the placeholder" do
+      jailed = create(:post, tag_string: "a", uploader: @uploader)
+      # The state, not how it is reached: a real jailing reports to the panel.
+      jailed.update_columns(room_ids: [@room.id], is_deleted: true, tag_string: "a #{Danbooru.config.troll_jail_tag}") # rubocop:disable Rails/SkipsModelValidations
+      assert_equal true, withheld(jailed, create(:user))
+      assert_equal true, response.parsed_body["jailed"]
+      assert_equal %w[jailed message success withheld], response.parsed_body.keys.sort, "nothing else of a jailed post is answered"
+    end
+
+    should "say a sensitive post is withheld but not jailed" do
+      assert_equal true, withheld(@gated, create(:user))
+      assert_equal false, response.parsed_body["jailed"]
     end
 
     should "not say withheld to a reader the rooms hide it from" do

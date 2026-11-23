@@ -96,10 +96,17 @@ class FourierTagSourcesController < ApplicationController
     # as a 404: the door refuses them the image, and Technetium pops it out of
     # the room (operator, 2026-11-11). They saw it posted, so the post's
     # existence is no news to them; nothing else of it is answered.
+    #
+    # A JAILED one says so (operator, 2026-11-23): Technetium keeps its message
+    # and draws "[This post has been deemed irrelevant.]" where the picture
+    # was, instead of popping it. The word tells this reader nothing of the
+    # image, which the door still refuses; the visibility push still carries
+    # no reason. The tag alone counts, as it withholds the post alone.
     if post.hidden_from?(CurrentUser.user)
       raise ActiveRecord::RecordNotFound unless MediaDoorAsk.withheld?(post, CurrentUser.user)
 
-      return render json: { success: false, withheld: true, message: "This post is hidden from you, so its picture is too" }, status: 404
+      jailed = post.jailed? || post.has_tag?(Danbooru.config.troll_jail_tag)
+      return render json: { success: false, withheld: true, jailed: jailed, message: "This post is hidden from you, so its picture is too" }, status: 404
     end
     payload = if params[:scope] == "public"
                 FourierTagSource.matrix_projection(post)
