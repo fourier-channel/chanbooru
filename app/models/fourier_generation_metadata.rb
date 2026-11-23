@@ -44,6 +44,10 @@
 #   xmp, webp:xmp     an XMP packet
 #   jpeg:COM          a JPEG comment segment
 #   gif:Comment       a GIF comment extension
+#   mp4:<name>        an MP4/MOV text item, by its metadata key (mp4:prompt,
+#                     mp4:workflow from ffmpeg's mdta keys) or its fourcc
+#                     (mp4:\u00A9cmt, a QuickTime comment)
+#   webm:<TagName>    a WebM/Matroska SimpleTag (webm:PROMPT, webm:WORKFLOW)
 # The whole list the tunnel can send is pinned, as a list, in
 # test/functional/fourier_generation_metadata_controller_test.rb and in
 # fourier-tunnel's strip-generation.test.js.
@@ -65,7 +69,9 @@ class FourierGenerationMetadata < ApplicationRecord
   # 79 printable characters (PNG spec 11.3.4.2); an IPTC name is ExifTool's,
   # which may carry a hyphen (Caption-Abstract, Writer-Editor). gif:Comment is
   # a literal: a GIF has one comment carrier, and the tunnel names it so.
-  FIELD_KEY = /\A(?:png:[^\x00-\x1f\x7f]{1,79}|exif:[A-Za-z][A-Za-z0-9]{0,63}|iptc:[A-Za-z][A-Za-z0-9-]{0,63}|xmp|webp:xmp|jpeg:COM|gif:Comment)\z/
+  # A video key is the carrier's own name, like a PNG keyword: 1 to 79
+  # printable characters, the tunnel's cut.
+  FIELD_KEY = /\A(?:png:[^\x00-\x1f\x7f]{1,79}|exif:[A-Za-z][A-Za-z0-9]{0,63}|iptc:[A-Za-z][A-Za-z0-9-]{0,63}|xmp|webp:xmp|jpeg:COM|gif:Comment|mp4:[^\x00-\x1f\x7f]{1,79}|webm:[^\x00-\x1f\x7f]{1,79})\z/
   # Keys plus values, in bytes. A ComfyUI workflow is tens of kilobytes; four
   # megabytes is room for several and still refuses a body that is not text
   # taken out of one image.

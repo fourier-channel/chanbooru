@@ -49,6 +49,8 @@ class FourierGenerationMetadataControllerTest < ActionDispatch::IntegrationTest
     "iptc:Headline",
     # whole packets and comments
     "xmp", "webp:xmp", "jpeg:COM", "gif:Comment",
+    # video text: MP4 metadata keys and fourccs, WebM SimpleTag names
+    "mp4:prompt", "mp4:workflow", "mp4:\u00A9nam", "webm:PROMPT", "webm:WORKFLOW",
   ].freeze
 
   def body_for(md5, **overrides)
@@ -220,7 +222,7 @@ class FourierGenerationMetadataControllerTest < ActionDispatch::IntegrationTest
     # names the key.
     should "match every key the tunnel can send against FIELD_KEY, and refuse near misses" do
       TUNNEL_FIELD_KEYS.each { |key| assert_match FourierGenerationMetadata::FIELD_KEY, key }
-      ["gif:comment", "gif:XMP", "iptc:", "iptc:2:120", "iptc:Caption Abstract", "exif:User-Comment", "jpeg:com", "png:"].each do |key|
+      ["gif:comment", "gif:XMP", "iptc:", "iptc:2:120", "iptc:Caption Abstract", "exif:User-Comment", "jpeg:com", "png:", "mp4:", "webm:", "mp4:a\nb", "webm:" + ("x" * 80)].each do |key|
         assert_no_match FourierGenerationMetadata::FIELD_KEY, key
       end
     end

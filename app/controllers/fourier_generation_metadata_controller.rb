@@ -134,7 +134,7 @@ class FourierGenerationMetadataController < ApplicationController
     bad_key = fields.keys.find { |key| !key.to_s.match?(FourierGenerationMetadata::FIELD_KEY) }
     if bad_key
       return invalid("field key #{bad_key.to_s.first(80).inspect} is not one this endpoint knows",
-                     "name each field png:<keyword>, exif:<TagName>, iptc:<Name>, xmp, webp:xmp, jpeg:COM or gif:Comment")
+                     "name each field png:<keyword>, exif:<TagName>, iptc:<Name>, xmp, webp:xmp, jpeg:COM, gif:Comment, mp4:<name> or webm:<TagName>")
     end
 
     bad_value = fields.keys.find { |key| !fields[key].is_a?(String) }
