@@ -5,9 +5,9 @@
 #
 # Danbooru's built-in search navbar walks by id only and explicitly gives up on
 # ordered searches (PostNavbarComponent#has_search_navbar? excludes order:), so
-# the redesigned gallery navigation needs this. The "active sort" is simply the
-# order: metatag in the search query (default id_desc), so honouring order:
-# covers every sort the booru exposes.
+# the redesigned gallery navigation needs this. The "active sort" is the
+# order the listing sorts by (#order_of: the order: metatag, default the
+# original date), so honouring order: covers every sort the booru exposes.
 #
 # Each side is a keyset seek -- one indexed `LIMIT n` lookup anchored on the
 # current post's sort key, never an OFFSET scan. The post view asks for DEPTH
@@ -32,6 +32,10 @@ class PostNeighbors
     "created_at"      => Spec.new(column: "posts.created_at", dir: :desc, value: ->(p) { p.created_at }, time: true),
     "created_at_desc" => Spec.new(column: "posts.created_at", dir: :desc, value: ->(p) { p.created_at }, time: true),
     "created_at_asc"  => Spec.new(column: "posts.created_at", dir: :asc,  value: ->(p) { p.created_at }, time: true),
+    # The original date (ORIGINAL_DATES.md), NOT NULL since 20261123000001.
+    "posted"          => Spec.new(column: "posts.source_created_at", dir: :desc, value: ->(p) { p.source_created_at }, time: true),
+    "posted_desc"     => Spec.new(column: "posts.source_created_at", dir: :desc, value: ->(p) { p.source_created_at }, time: true),
+    "posted_asc"      => Spec.new(column: "posts.source_created_at", dir: :asc,  value: ->(p) { p.source_created_at }, time: true),
     "score"           => Spec.new(column: "posts.score", dir: :desc, value: ->(p) { p.score }),
     "score_desc"      => Spec.new(column: "posts.score", dir: :desc, value: ->(p) { p.score }),
     "score_asc"       => Spec.new(column: "posts.score", dir: :asc,  value: ->(p) { p.score }),
@@ -253,7 +257,20 @@ class PostNeighbors
     @post = post
     @tags = tags.presence || "status:any"
     @user = user
-    @order = PostQuery.new(@tags).find_metatag(:order).presence&.downcase || "id_desc"
+    @order = self.class.order_of(@tags)
+  end
+
+  # The order the listing of `tags` is sorted by, as the HTML listing decides
+  # it (PostQuery#effective_order with the listing's default, the original
+  # date), so walking post to post follows the grid: a search naming no order
+  # walks posted_desc, and a date: or posted: search walks the column it
+  # filters on, as it is listed. An order with no key of its own (random,
+  # custom, an ord metatag) stays as typed and falls back to the id walk
+  # (Seek.kind).
+  def self.order_of(tags)
+    query = PostQuery.new(tags, default_order: PostQuery::LISTING_DEFAULT_ORDER)
+    order = query.effective_order
+    order.is_a?(String) ? order : (query.find_metatag(:order).presence&.downcase || PostQuery::LISTING_DEFAULT_ORDER)
   end
 
   # Flank candidates a side: the thumbnail is the first of them the viewer's

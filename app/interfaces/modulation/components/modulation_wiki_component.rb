@@ -57,7 +57,7 @@ class ModulationWikiComponent < ApplicationComponent
   # carry the title, as its `tags: wiki_page.title` does.
   def strip_surface
     @strip_surface ||= PostStripSurface.new(
-      relation: PostQuery.normalize(wiki_page.tag.name, current_user: viewer).with_implicit_metatags.posts_with_timeout(8),
+      relation: PostQuery.normalize(wiki_page.tag.name, current_user: viewer, default_order: PostQuery::LISTING_DEFAULT_ORDER).with_implicit_metatags.posts_with_timeout(8),
       viewer: viewer,
       query: wiki_page.title,
     )

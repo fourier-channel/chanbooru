@@ -5,9 +5,9 @@ explore_popular 200 0b6668c9e93210ffd19584b7
 gallery 200 52d7303a1e0adee7641fd5dd
 gallery_identity 200 9d8d41b5c98fc68a966f2bf9
 home 200 2a232b99069a934602e45b5e
-json_art 200 3d0468817e7861e1ce5e80a7
-json_art_opened 200 3d0468817e7861e1ce5e80a7
-json_art_prefetch 200 50b974573b2cbe58b4f7128b
+json_art 200 771111b0df500913f7c444fa
+json_art_opened 200 771111b0df500913f7c444fa
+json_art_prefetch 200 f4a036d330c6e0d04aa92582
 json_art_visit 200 26bb3aee9144fd92426f594d
 json_closed_opened 404 38ee71e23715cedc0bcca469
 json_creator_activity 200 3fd522af5eb90f8d0a952b4e

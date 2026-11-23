@@ -261,7 +261,10 @@ class PostsController < ApplicationController
       tag_query = apply_modulation_panel_memory(tag_query)
       show_votes = (params[:show_votes].presence || cookies[:post_preview_show_votes].presence || "false").truthy?
       cursors = { anchor: params[:anchor].presence&.to_s, before: params[:before].presence&.to_s }
-      PostSets::Post.new(tag_query, params[:page], params[:limit], format: request.format.symbol, show_votes: show_votes, window: gallery_window, **cursors)
+      # The HTML listing reads newest by the original date; the API and the
+      # feeds keep id order, which their clients page by (PostQuery#default_order).
+      default_order = PostQuery::LISTING_DEFAULT_ORDER if request.format.html?
+      PostSets::Post.new(tag_query, params[:page], params[:limit], format: request.format.symbol, show_votes: show_votes, window: gallery_window, default_order: default_order, **cursors)
     end
   end
 

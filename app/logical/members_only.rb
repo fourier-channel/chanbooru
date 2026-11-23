@@ -446,8 +446,10 @@ module MembersOnly
   # it expired rebuilt it, in both modes. Now:
   #   - built with no count, as the md5 ask itself is
   #     (PostSets::Post#md5_ask?), the hidden tags its one row filter as on
-  #     every implicit search (md5_ask_test), its 20 rows walked off the id
-  #     index;
+  #     every implicit search (md5_ask_test), its 20 rows walked off the
+  #     (source_created_at, id) index in the listing's own default order
+  #     (PostQuery::LISTING_DEFAULT_ORDER), so it holds what the gallery's
+  #     first page shows;
   #   - race_condition_ttl: the first ask after the 30 s rebuilds it while
   #     an ask arriving meanwhile is served the ids just expired. Five
   #     minutes, the most the Redis store keeps an entry past its expiry, so
@@ -464,7 +466,7 @@ module MembersOnly
     Rails.cache.fetch(["members_only", "anonymous_newest", safe_mode ? "safe" : "all"], expires_in: 30.seconds, race_condition_ttl: 5.minutes) do
       anonymous = User.anonymous
       CurrentUser.set(safe_mode: safe_mode) do
-        query = PostQuery.normalize(nil, current_user: anonymous, safe_mode: safe_mode).with_implicit_metatags
+        query = PostQuery.normalize(nil, current_user: anonymous, safe_mode: safe_mode, default_order: PostQuery::LISTING_DEFAULT_ORDER).with_implicit_metatags
         query.paginated_posts(1, count: nil, includes: nil, limit: anonymous.per_page, viewer: anonymous).map(&:id)
       end
     end.to_set

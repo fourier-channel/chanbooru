@@ -11,7 +11,9 @@
 # post upstream omits, which would leak its id and its existence.
 #
 # The caller passes the EXACT relation upstream's view renders, e.g.
-#   PostQuery.normalize(name, current_user: viewer).with_implicit_metatags.posts_with_timeout(8)
+#   PostQuery.normalize(name, current_user: viewer, default_order: PostQuery::LISTING_DEFAULT_ORDER)
+#     .with_implicit_metatags.posts_with_timeout(8)
+# (the default order the listing a strip links to uses)
 # never a PostSets::Post: its posts pages with a COUNT and changes the
 # timeout and the limit. This surface adds no query of its own beyond the
 # card data's batched plucks, and never counts.

@@ -5,6 +5,6 @@
     </h2>
 
     <%# with_implicit_metatags: the viewer's hidden posts stay out, as on the post index. %>
-    <%= render_post_gallery(PostQuery.normalize(wiki_page.tag.name, current_user: CurrentUser.user).with_implicit_metatags.posts_with_timeout(8), tags: wiki_page.title) %>
+    <%= render_post_gallery(PostQuery.normalize(wiki_page.tag.name, current_user: CurrentUser.user, default_order: PostQuery::LISTING_DEFAULT_ORDER).with_implicit_metatags.posts_with_timeout(8), tags: wiki_page.title) %>
   </div>
 <% end %>

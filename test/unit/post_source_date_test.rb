@@ -99,6 +99,14 @@ class PostSourceDateTest < ActiveSupport::TestCase
 
   context "The backfill" do
     setup do
+      # The backfill ran while the columns were nullable (deploy 1); they are
+      # NOT NULL since 20261123000001, so the constraint is lifted inside this
+      # test's own transaction, which rolls back. It runs before any post is
+      # created: an insert leaves deferred FK checks pending on posts, and
+      # ALTER TABLE refuses a table with pending trigger events. A re-run on
+      # NOT NULL data (a better file replacing estimates) is the "never
+      # lower" case below.
+      Post.connection.execute("ALTER TABLE posts ALTER COLUMN source_created_at DROP NOT NULL, ALTER COLUMN source_created_at_precision DROP NOT NULL")
       @chan = create(:post, source: "https://boards.4chan.org/g/thread/100#p101")
       @chan2 = create(:post, source: "https://boards.4chan.org/g/thread/100#p102")
       # Message 1103717516193107968 was sent 2023-05-04T16:19:21.940Z.

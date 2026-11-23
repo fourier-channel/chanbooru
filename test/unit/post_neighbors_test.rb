@@ -59,19 +59,35 @@ class PostNeighborsTest < ActiveSupport::TestCase
       CurrentUser.user = nil
     end
 
-    should "match the built ordering across id/date/score/favcount/change/tagcount sorts" do
-      %w[id id_desc created_at created_at_asc score score_asc favcount favcount_asc change change_asc tagcount tagcount_asc].each do |order|
+    should "match the built ordering across id/posted/date/score/favcount/change/tagcount sorts" do
+      %w[id id_desc posted posted_desc posted_asc created_at created_at_asc score score_asc favcount favcount_asc change change_asc tagcount tagcount_asc].each do |order|
         assert_matches_ordering(order)
       end
     end
 
-    should "default to id_desc when the query has no order" do
+    should "default to posted_desc when the query has no order, as the HTML listing does" do
       nav = PostNeighbors.new(post: @posts[3], tags: "status:any", user: @user)
-      assert_equal "id_desc", nav.order
-      # id_desc renders newest-first, so prev (<-) is the newer post and next (->)
-      # is the older one.
+      assert_equal "posted_desc", nav.order
+      # posted_desc renders newest-first, so prev (<-) is the newer post and
+      # next (->) the older one. Here the original dates follow the ids.
       assert_equal @posts[4].id, nav.prev_id
       assert_equal @posts[2].id, nav.next_id
+    end
+
+    # Archive ingest uploads old posts today: the original date runs against
+    # the id. The posted keyset must walk the dates, not the ids.
+    should "walk the original date, not the id, under the posted orders" do
+      dates = [3, 0, 5, 1, 4, 2].map { |d| Time.utc(2019, 1, 1) + d.days }
+      @posts.each_with_index { |post, i| post.update_columns(source_created_at: dates[i], source_created_at_precision: "estimated") } # rubocop:disable Rails/SkipsModelValidations -- fixture keys only
+      %w[posted posted_desc posted_asc].each { |order| assert_matches_ordering(order) }
+
+      by_date = @posts.zip(dates).sort_by { |_, date| -date.to_i }.map(&:first)
+      nav = PostNeighbors.new(post: by_date[2], tags: "status:any", user: @user)
+      assert_equal by_date[1].id, nav.prev_id
+      assert_equal by_date[3].id, nav.next_id
+      # An equal date falls back to the id, as the listing's tiebreak does.
+      @posts[1].update_columns(source_created_at: dates[0]) # rubocop:disable Rails/SkipsModelValidations -- fixture keys only
+      %w[posted posted_asc].each { |order| assert_matches_ordering(order) }
     end
 
     should "return nil at the ends of the sequence" do
@@ -106,7 +122,7 @@ class PostNeighborsTest < ActiveSupport::TestCase
 
       should "give the next and previous DEPTH rows of the built ordering for every keyset sort" do
         assert_equal 6, PostNeighbors::DEPTH
-        %w[id id_desc created_at created_at_asc score score_asc favcount favcount_asc change change_asc tagcount tagcount_asc filesize filesize_asc mpixels mpixels_asc].each do |order|
+        %w[id id_desc posted posted_desc posted_asc created_at created_at_asc score score_asc favcount favcount_asc change change_asc tagcount tagcount_asc filesize filesize_asc mpixels mpixels_asc].each do |order|
           assert_run_matches_ordering(order, PostNeighbors::DEPTH)
         end
       end

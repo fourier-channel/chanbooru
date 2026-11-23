@@ -19,7 +19,7 @@ class PostQuery
   # Metatags that can't be used more than once per query, and that can't be used with OR or NOT operators.
   SINGLETON_METATAGS = ORDER_METATAGS + %w[limit random]
 
-  attr_reader :current_user
+  attr_reader :current_user, :default_order
   private attr_reader :tag_limit, :safe_mode, :builder
 
   delegate :tag?, :metatag?, :wildcard?, :metatags, :wildcards, :tag_names, :to_infix, :to_pretty_string, to: :ast
@@ -55,7 +55,18 @@ class PostQuery
   # @param estimated [AST, nil] for a query #with_implicit_metatags made: the
   #   search as typed, without the terms the viewer's situation adds (safe
   #   mode's included), which #estimated_count reads (see there).
-  def initialize(search_or_ast, current_user: User.anonymous, tag_limit: nil, safe_mode: false, implicit: false, estimated: nil)
+  # The order a person browsing the site reads as "newest first": the
+  # original date (ORIGINAL_DATES.md D4). The HTML listing, its gallery
+  # window and the post view's neighbours default to it; the API does not.
+  LISTING_DEFAULT_ORDER = "posted_desc"
+
+  # @param default_order [String, nil] the order a search that names none is
+  #   listed by (PostQueryBuilder#effective_order); nil is id_desc. The HTML
+  #   listing passes "posted_desc" (the original date, ORIGINAL_DATES.md);
+  #   the API keeps id_desc, because its clients page by id cursors from the
+  #   first page on. Carried to every copy this query makes, so the listing,
+  #   the gallery window and the neighbours read one order.
+  def initialize(search_or_ast, current_user: User.anonymous, tag_limit: nil, safe_mode: false, implicit: false, estimated: nil, default_order: nil)
     if search_or_ast.is_a?(AST)
       @ast = search_or_ast
     else
@@ -67,11 +78,12 @@ class PostQuery
     @safe_mode = safe_mode
     @implicit = implicit
     @estimated = estimated
+    @default_order = default_order
   end
 
   # Build a new PostQuery from the given AST and the current settings.
   def build(ast)
-    query = PostQuery.new(ast, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: @implicit)
+    query = PostQuery.new(ast, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: @implicit, default_order: default_order)
     @drop_taken_down ? query.drop_taken_down! : query
   end
 
@@ -82,7 +94,7 @@ class PostQuery
   # asks (PostSets::Post#window_query); #build carries it to the copies it
   # makes.
   def without_taken_down
-    PostQuery.new(ast, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: @implicit, estimated: @estimated).drop_taken_down!
+    PostQuery.new(ast, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: @implicit, estimated: @estimated, default_order: default_order).drop_taken_down!
   end
 
   # Whether the rows leave out taken-down posts: asked for
@@ -272,7 +284,7 @@ class PostQuery
   # the hidden tags' (#hidden_tags_condition).
   def with_implicit_metatags
     query = implicit_metatags.empty? ? ast : AST.new(:and, [ast, *implicit_metatags])
-    PostQuery.new(query, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: true, estimated: counted_ast)
+    PostQuery.new(query, current_user: current_user, tag_limit: tag_limit, safe_mode: safe_mode, implicit: true, estimated: counted_ast, default_order: default_order)
   end
 
   # Orders that only re-sort the rows (Post.order_matches). An order that can

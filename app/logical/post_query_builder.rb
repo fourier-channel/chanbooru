@@ -184,8 +184,9 @@ class PostQueryBuilder
   # pages through the same list by a cursor and must walk the order on
   # screen (GALLERY_WINDOW.md section 2). One of:
   #   - an order_matches key, downcased: the date:/age:/posted: swaps below included,
-  #     and "id_desc" for a missing or unknown order (order_matches' own
-  #     fallback), so the window never keysets a sort the listing ignored;
+  #     the query's default_order (or "id_desc") for a missing order, and
+  #     "id_desc" for an unknown one (order_matches' own fallback), so the
+  #     window never keysets a sort the listing ignored;
   #   - :random  -- order:random, or random:N (a sample, whatever it sorts);
   #   - :none    -- order:none, which has no order to page through;
   #   - :custom  -- order:custom, the order of the typed id: list;
@@ -213,7 +214,11 @@ class PostQueryBuilder
       :ord_metatag
     elsif order == "none"
       :none
-    elsif order.nil? || Post.unscoped.order_matches(order).order_values == ["posts.id DESC"]
+    # No order named: the listing's default. The HTML listing's is the
+    # original date (PostQuery#default_order); the API's stays id_desc.
+    elsif order.nil?
+      post_query.default_order.presence || "id_desc"
+    elsif Post.unscoped.order_matches(order).order_values == ["posts.id DESC"]
       "id_desc"
     else
       order
@@ -251,11 +256,23 @@ class PostQueryBuilder
   # tags, Postgres sometimes assumes tags in the 10k-50k range are large enough
   # for a post id index scan, when in reality a tag index bitmap scan would be
   # better.
+  # The orders optimize_search may force a bitmap scan under: the id walks,
+  # and the original date's (index_posts_on_source_created_at_and_id_desc),
+  # which is the HTML default. Timed on production 2026-11-23 (LIMIT 20,
+  # undeleted): a 398k-post tag 0.8 ms by the posted index against 0.3 ms by
+  # id, a 30k tag 12 ms against 9.6 ms, 2k and 150-post tags the same bitmap
+  # plan either way; so the planner's choice stands and only this method's
+  # timeout fallback applies, as it does to id.
+  OPTIMIZED_ORDERS = [
+    ["posts.id desc"], ["posts.id asc"],
+    ["posts.source_created_at desc, posts.id desc"], ["posts.source_created_at asc, posts.id asc"],
+  ].freeze
+
   def optimize_search(relation, post_count, small_search_threshold)
     return relation unless small_search_threshold.present?
 
     order_values = relation.order_values.map { |order| order.try(:to_sql) || order.to_s }.map(&:downcase)
-    return relation unless order_values.in?([["posts.id desc"], ["posts.id asc"]])
+    return relation unless order_values.in?(OPTIMIZED_ORDERS)
 
     if post_query.is_empty_search?
       # If there are no tags in the search, then treat it normally because forcing a bitmap scan wouldn't be beneficial.

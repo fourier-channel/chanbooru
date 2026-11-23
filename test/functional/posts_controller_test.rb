@@ -12,6 +12,12 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
     assert_equal(expected_source, post.source)
   end
 
+  # The post ids on the listed page, in page order. At class level: a def
+  # inside a shoulda context is not a method of the test.
+  def listed_post_ids
+    css_select(".post-preview").filter_map { it["id"]&.delete_prefix("post_")&.to_i }
+  end
+
   def create_post!(user: create(:user), media_asset: build(:media_asset), rating: "q", tag_string: "tagme", source_url: nil, page_url: nil, **params)
     upload = build(:upload, uploader: user, media_asset_count: 1, status: "completed")
     asset = create(:upload_media_asset, upload: upload, media_asset: media_asset, **{ source_url: source_url, page_url: page_url }.compact_blank)
@@ -33,6 +39,34 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
       setup do
         mock_post_search_rankings(Date.today, [["1girl", 100], ["original", 50]])
         create_list(:post, 2)
+      end
+
+      # ORIGINAL_DATES.md section 4: the HTML listing reads newest by the
+      # original date; the API keeps id order, which its clients page by.
+      context "with no order: in the search" do
+        setup do
+          # Inserted first, posted last.
+          @late = as(@user) { create(:post, tag_string: "dotest", source_created_at: 1.minute.ago) }
+          @early = as(@user) { create(:post, tag_string: "dotest", source_created_at: 1.day.ago) }
+        end
+
+        should "list the HTML page by the original date, newest first" do
+          get_auth posts_path(tags: "dotest"), @user
+          assert_response :success
+          assert_equal [@late.id, @early.id], listed_post_ids, "fix: PostsController#post_set passes default_order: PostQuery::LISTING_DEFAULT_ORDER for HTML"
+        end
+
+        should "list the API by id, newest first" do
+          get_auth posts_path(tags: "dotest", format: :json), @user
+          assert_response :success
+          assert_equal [@early.id, @late.id], response.parsed_body.pluck("id"), "the JSON default left id_desc; fourier-sampling pages by it"
+        end
+
+        should "keep the insert order one search away as order:id_desc" do
+          get_auth posts_path(tags: "dotest order:id_desc"), @user
+          assert_response :success
+          assert_equal [@early.id, @late.id], listed_post_ids
+        end
       end
 
       # Fork: as a Member. Below full browsing (signed out, Restricted) a

@@ -508,11 +508,27 @@ class Md5AskTest < ActionDispatch::IntegrationTest
       visible.each do |safe_mode, names|
         Rails.cache.clear
         CreatorVisibility.forget!
-        gallery = CurrentUser.set(safe_mode: safe_mode) { PostSets::Post.new(nil, 1, user: User.anonymous).posts.map(&:id) }
+        gallery = CurrentUser.set(safe_mode: safe_mode) { PostSets::Post.new(nil, 1, user: User.anonymous, default_order: PostQuery::LISTING_DEFAULT_ORDER).posts.map(&:id) }
         assert_equal @posts.values_at(*names).map(&:id).sort, gallery.sort, "fixture: the gallery's first page, safe mode #{safe_mode}"
         CreatorVisibility.forget!
         assert_equal gallery.to_set, MembersOnly.anonymous_newest_ids(safe_mode), "safe mode #{safe_mode}"
       end
+    end
+
+    # The gallery lists by the original date (PostQuery::LISTING_DEFAULT_ORDER),
+    # so the newest page is the newest by that date, not the last inserted.
+    should "hold the signed-out newest page by the original date, as the gallery orders it" do
+      @posts[:old].update_columns(source_created_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+      @posts[:plain].update_columns(source_created_at: 3.days.ago) # rubocop:disable Rails/SkipsModelValidations
+      Rails.cache.clear
+      CreatorVisibility.forget!
+
+      newest = MembersOnly.anonymous_newest_ids(true)
+      assert_includes newest, @posts[:old].id, "the post with the newest original date is off the newest page; fix: MembersOnly.anonymous_newest_ids builds its query with default_order: PostQuery::LISTING_DEFAULT_ORDER"
+      assert_not_includes newest, @posts[:plain].id, "a post inserted late but dated before the fillers is on the newest page"
+      CreatorVisibility.forget!
+      gallery = CurrentUser.set(safe_mode: true) { PostSets::Post.new(nil, 1, user: User.anonymous, default_order: PostQuery::LISTING_DEFAULT_ORDER).posts.map(&:id) }
+      assert_equal gallery.to_set, newest
     end
   end
 end

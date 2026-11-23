@@ -66,7 +66,7 @@ class ModulationArtistComponent < ApplicationComponent
   # filtered by PostPreviewComponent.drawable? in PostStripSurface.
   def post_strip
     @post_strip ||= PostStripSurface.new(
-      relation: PostQuery.normalize(artist.name, current_user: viewer).with_implicit_metatags.posts_with_timeout(8),
+      relation: PostQuery.normalize(artist.name, current_user: viewer, default_order: PostQuery::LISTING_DEFAULT_ORDER).with_implicit_metatags.posts_with_timeout(8),
       viewer: viewer,
       query: artist.name,
     )

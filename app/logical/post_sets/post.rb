@@ -43,11 +43,13 @@ module PostSets
     #   everywhere else, which pages as upstream does
     # @param anchor [String, nil] a cursor: the window starts AT this place
     # @param before [String, nil] a cursor: the chunk ends just before it
-    def initialize(tags, page = 1, per_page = nil, user: CurrentUser.user, format: "html", show_votes: false, window: nil, anchor: nil, before: nil) # rubocop:disable Metrics/ParameterLists
+    # @param default_order [String, nil] the order when the search names none
+    #   (PostQuery#default_order); nil is id_desc, as the API lists
+    def initialize(tags, page = 1, per_page = nil, user: CurrentUser.user, format: "html", show_votes: false, window: nil, anchor: nil, before: nil, default_order: nil) # rubocop:disable Metrics/ParameterLists
       @current_user = user
       @tag_string = tags
       @format = format.to_s
-      @post_query = PostQuery.normalize(tags, current_user: user, tag_limit: user.tag_query_limit, safe_mode: CurrentUser.safe_mode?)
+      @post_query = PostQuery.normalize(tags, current_user: user, tag_limit: user.tag_query_limit, safe_mode: CurrentUser.safe_mode?, default_order: default_order)
       @normalized_query = post_query.with_implicit_metatags
       @page = page
       @per_page = per_page

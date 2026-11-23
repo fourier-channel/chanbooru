@@ -2493,8 +2493,8 @@ CREATE TABLE public.posts (
     bit_flags bigint DEFAULT 0 NOT NULL,
     tag_count_meta integer DEFAULT 0 NOT NULL,
     room_ids integer[] DEFAULT '{0}'::integer[] NOT NULL,
-    source_created_at timestamp(6) without time zone,
-    source_created_at_precision character varying
+    source_created_at timestamp(6) without time zone NOT NULL,
+    source_created_at_precision character varying NOT NULL
 );
 
 
@@ -9565,6 +9565,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261123000001'),
 ('20261122000001'),
 ('20261107000003'),
 ('20261107000002'),

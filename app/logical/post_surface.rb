@@ -654,17 +654,18 @@ class PostSurface
     incoming_order = PostQuery.new(query.to_s).find_metatag(:order).presence&.downcase
 
     defs = []
-    # The filter modes, every one on the chronological axis. "search" is the
+    # The filter modes, every one on the chronological axis: the original
+    # date, newest first (PostQuery::LISTING_DEFAULT_ORDER). "search" is the
     # exact search the viewer arrived with, order stripped -- the grid's sort
     # is the GRID's business; walking post-to-post is chronological.
-    defs << { key: "search", label: "search", search: with_order(base_tags, "id_desc") } if base_tags.present?
+    defs << { key: "search", label: "search", search: with_order(base_tags, PostQuery::LISTING_DEFAULT_ORDER) } if base_tags.present?
     if artist_names.any?
       artist_search = (base_tags.split + [artist_names.first]).uniq.sort.join(" ")
       # When the arriving search IS the creator's gallery, one row says so --
       # two identical filters under different names is a lie about the axis.
-      defs << { key: "creator", label: "creator", search: with_order(artist_search, "id_desc") } unless artist_search == base_tags.split.uniq.sort.join(" ")
+      defs << { key: "creator", label: "creator", search: with_order(artist_search, PostQuery::LISTING_DEFAULT_ORDER) } unless artist_search == base_tags.split.uniq.sort.join(" ")
     end
-    defs << { key: "all", label: "all", search: with_order(nil, "id_desc") }
+    defs << { key: "all", label: "all", search: with_order(nil, PostQuery::LISTING_DEFAULT_ORDER) }
     # The one mode that changes the AXIS instead of the filter.
     defs << { key: "random", label: "random", search: with_order(base_tags, "random") }
     # A visit read wants random alone (visit_payload): the keyset modes are in
@@ -685,7 +686,7 @@ class PostSurface
       end
     rescue StandardError => e
       DanbooruLogger.log(e)
-      d.merge(prev_ids: [], next_ids: [], prev_more: false, next_more: false, order: "id_desc", unavailable: true)
+      d.merge(prev_ids: [], next_ids: [], prev_more: false, next_more: false, order: PostQuery::LISTING_DEFAULT_ORDER, unavailable: true)
     end
 
     # One batched load for every candidate across every mode, and one batched

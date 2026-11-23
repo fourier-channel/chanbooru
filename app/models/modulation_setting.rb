@@ -25,6 +25,7 @@ class ModulationSetting < ApplicationRecord
   # metatag, so an arbitrary string here would be a query injection point --
   # the whitelist is the gate.
   GALLERY_SORTS = %w[
+    posted posted_asc posted_desc
     id id_asc id_desc score score_asc favcount favcount_asc
     created_at created_at_asc created_at_desc change change_asc
     filesize filesize_asc mpixels mpixels_asc tagcount tagcount_asc random

@@ -350,9 +350,11 @@ BEGIN
   INSERT INTO matrix_rooms (room_id, created_at, updated_at) VALUES ('!canary' || tok || ':example.invalid', now(), now()) RETURNING id INTO rid;
   INSERT INTO anon_snapshot.canary_rows (tbl, keycol, val) VALUES ('matrix_rooms', 'id', rid);
   INSERT INTO posts (created_at, updated_at, source, md5, rating, uploader_id, tag_string, tag_count, tag_count_general, tag_count_artist,
-                     tag_count_character, tag_count_copyright, file_ext, file_size, image_width, image_height, tag_count_meta, room_ids)
+                     tag_count_character, tag_count_copyright, file_ext, file_size, image_width, image_height, tag_count_meta, room_ids,
+                     source_created_at, source_created_at_precision)
   VALUES (now(), now(), 'mxc://example.invalid/canary' || tok, md5p, 's', uid,
-          (SELECT string_agg(x, ' ' ORDER BY x COLLATE "C") FROM unnest(ARRAY[t1, t2, oc]) x), 3, 0, 2, 1, 0, 'png', 1, 1, 1, 0, ARRAY[rid])
+          (SELECT string_agg(x, ' ' ORDER BY x COLLATE "C") FROM unnest(ARRAY[t1, t2, oc]) x), 3, 0, 2, 1, 0, 'png', 1, 1, 1, 0, ARRAY[rid],
+          now(), 'added')
   RETURNING id INTO pid;
   INSERT INTO anon_snapshot.canary_rows (tbl, keycol, val) VALUES ('posts', 'id', pid);
   INSERT INTO tags (name, post_count, category, created_at, updated_at, words) VALUES (t1, 1, 1, now(), now(), ARRAY['canary', tok]) RETURNING id INTO tid;

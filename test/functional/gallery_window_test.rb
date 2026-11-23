@@ -22,6 +22,11 @@ class GalleryWindowTest < ActionDispatch::IntegrationTest
     css_select(".modgal-grid .modgal-card[data-id]")
   end
 
+  # A post's cursor under the gallery's default order, the original date.
+  def key(id)
+    PostNeighbors::Seek.mint(Post.find(id), PostQuery::LISTING_DEFAULT_ORDER)
+  end
+
   # A card's markup, without the window's on/off mark.
   def card_markup(id)
     card = css_select(".modgal-card[data-id='#{id}']").first
@@ -43,7 +48,7 @@ class GalleryWindowTest < ActionDispatch::IntegrationTest
       assert_equal @ids.first(CHUNK), cards.map { it["data-id"].to_i }
       assert_equal CHUNK - SLOTS, cards.count { it["class"].split.include?("is-off") }
       assert cards.first(SLOTS).none? { it["class"].split.include?("is-off") }
-      assert cards.all? { it["data-key"] == "#{it["data-id"]}~#{it["data-id"]}" }, "every card's cursor, from the card itself"
+      assert cards.all? { it["data-key"] == key(it["data-id"].to_i) }, "every card's cursor, from the card itself"
 
       # Without the script, next opens the first post past the box.
       assert_select ".modgal-pager a[rel=next][href*='anchor=#{@ids[SLOTS]}']", 1
@@ -53,10 +58,10 @@ class GalleryWindowTest < ActionDispatch::IntegrationTest
     end
 
     should "open at an anchor, with prev going back a box" do
-      page_html(@member, tags: "gwtest", anchor: "#{@ids[SLOTS + 2]}~#{@ids[SLOTS + 2]}")
+      page_html(@member, tags: "gwtest", anchor: key(@ids[SLOTS + 2]))
       assert_response :success
       assert_equal @ids[(SLOTS + 2)..], cards.map { it["data-id"].to_i }
-      assert_select ".modgal-grid[data-more-behind=true][data-window-anchor='#{@ids[SLOTS + 2]}~#{@ids[SLOTS + 2]}']", 1
+      assert_select ".modgal-grid[data-more-behind=true][data-window-anchor='#{key(@ids[SLOTS + 2])}']", 1
       assert_select ".modgal-pager a[rel=prev][href*='anchor=#{@ids[2]}']", 1
       assert_select ".modgal-pager a[rel=next][aria-disabled=true]", 1
     end
@@ -66,7 +71,7 @@ class GalleryWindowTest < ActionDispatch::IntegrationTest
       id = @ids[SLOTS + 1]
       on_page = card_markup(id)
 
-      get_auth posts_path, @member, params: { preset: "modulation", variant: "window", tags: "gwtest", anchor: "#{id}~#{id}", limit: CHUNK }
+      get_auth posts_path, @member, params: { preset: "modulation", variant: "window", tags: "gwtest", anchor: key(id), limit: CHUNK }
       assert_response :success
       assert_select ".modnav", 0
       assert_select "#blacklist-box", 0
@@ -130,13 +135,13 @@ class GalleryWindowTest < ActionDispatch::IntegrationTest
     # finding it out cost a second keyset query on every look ahead.
     should "look behind only where something reads the answer" do
       PostSets::Post.any_instance.expects(:window_behind).never
-      get_auth posts_path, @member, params: { preset: "modulation", variant: "window", tags: "gwtest", anchor: "#{@ids[5]}~#{@ids[5]}", limit: CHUNK }
+      get_auth posts_path, @member, params: { preset: "modulation", variant: "window", tags: "gwtest", anchor: key(@ids[5]), limit: CHUNK }
       assert_response :success
       assert_select ".modgal-grid[data-more-ahead]", 1
       assert_select ".modgal-grid[data-more-behind]", 0
 
       # A backward chunk knows it for free, from the row past its limit.
-      get_auth posts_path, @member, params: { preset: "modulation", variant: "window", tags: "gwtest", before: "#{@ids[5]}~#{@ids[5]}", limit: CHUNK }
+      get_auth posts_path, @member, params: { preset: "modulation", variant: "window", tags: "gwtest", before: key(@ids[5]), limit: CHUNK }
       assert_response :success
       assert_select ".modgal-grid[data-more-behind=false]", 1
     end
@@ -171,7 +176,7 @@ class GalleryWindowTest < ActionDispatch::IntegrationTest
 
       # A cursor naming the hidden post by its key opens the posts around it
       # and says nothing about it.
-      get_auth posts_path, @member, params: { preset: "modulation", variant: "window", tags: "gwtest", anchor: "#{gated.id}~#{gated.id}" }
+      get_auth posts_path, @member, params: { preset: "modulation", variant: "window", tags: "gwtest", anchor: key(gated.id) }
       assert_response :success
       assert_select ".modgal-card[data-id='#{gated.id}']", 0
       assert_equal @ids.first(CHUNK), cards.map { it["data-id"].to_i }

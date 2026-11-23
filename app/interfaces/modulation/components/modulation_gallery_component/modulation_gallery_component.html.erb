@@ -20,7 +20,9 @@
     <select class="modgal-sort" name="_sort" aria-label="Sort"
       onchange="const f = this.form; f.tags.value = f.tags.value.replace(/\s*order:\S+/gi, '').trim(); if (this.value) { f.tags.value = (f.tags.value + ' order:' + this.value).trim(); f.sort_reset.value = ''; } else { f.sort_reset.value = '1'; } f.submit();">
       <option value="">default</option>
-      <% { "id_desc" => "newest", "id" => "oldest", "score" => "score", "favcount" => "favorites", "created_at" => "date", "random" => "random" }.each do |value, label| %>
+      <%# newest / oldest are the original date (ORIGINAL_DATES.md); the
+          order the booru received posts in is "recently added". %>
+      <% { "posted_desc" => "newest", "posted_asc" => "oldest", "id_desc" => "recently added", "score" => "score", "favcount" => "favorites", "random" => "random" }.each do |value, label| %>
         <option value="<%= value %>" <%= "selected" if active_sort == value %>><%= label %></option>
       <% end %>
     </select>
