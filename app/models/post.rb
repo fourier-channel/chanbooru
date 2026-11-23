@@ -75,6 +75,7 @@ class Post < ApplicationRecord
   validates :rating, presence: { message: "not selected" }
   validates :rating, inclusion: { in: RATINGS.keys, message: "must be #{RATINGS.keys.map(&:upcase).to_sentence(last_word_connector: ", or ")}" }, if: -> { rating.present? }
   validates :source, length: { maximum: 1200 }
+  validate :validate_source_created_at # fork: the original date, see default_source_created_at
   validates :parent, presence: { message: "post does not exist" }, if: -> { parent_id.present? && parent_id_changed? }
   before_save :parse_pixiv_id
   before_save :added_tags_are_valid
@@ -89,6 +90,7 @@ class Post < ApplicationRecord
   before_create :remove_blank_artist_commentary
   before_create :autoban
   before_create :start_matrix_post_closed # fork: gate 3 for posts, see record_post_mxc
+  before_create :default_source_created_at # fork: the original date
   after_create :record_post_mxc # fork: gate 3 for posts
   after_save :create_version
   after_save :update_parent_on_save
@@ -147,7 +149,7 @@ class Post < ApplicationRecord
     has_many :versions, -> { Rails.env.test? ? order("post_versions.updated_at ASC, post_versions.id ASC") : order("post_versions.updated_at ASC") }, class_name: "PostVersion", dependent: :destroy
   end
 
-  def self.new_from_upload(upload_media_asset, tag_string: nil, rating: nil, parent_id: nil, source: nil, artist_commentary: {}, is_pending: nil, add_artist_tag: false)
+  def self.new_from_upload(upload_media_asset, tag_string: nil, rating: nil, parent_id: nil, source: nil, artist_commentary: {}, is_pending: nil, add_artist_tag: false, source_created_at: nil, source_created_at_precision: nil)
     upload = upload_media_asset.upload
     media_asset = upload_media_asset.media_asset
 
@@ -172,6 +174,8 @@ class Post < ApplicationRecord
       parent_id: parent_id,
       is_pending: !upload.uploader.is_contributor? || is_pending.to_s.truthy?,
       artist_commentary: commentary,
+      source_created_at: source_created_at.presence,
+      source_created_at_precision: source_created_at_precision.presence,
     )
   end
 
@@ -1339,6 +1343,8 @@ class Post < ApplicationRecord
           attribute_matches(value, "media_assets.file_ext", :enum).joins(:media_asset)
         when "date"
           attribute_matches(value, :created_at, :date)
+        when "posted"
+          attribute_matches(value, :source_created_at, :date)
         when "age"
           attribute_matches(value, :created_at, :age)
         when "pixiv", "pixiv_id"
@@ -1844,6 +1850,12 @@ class Post < ApplicationRecord
 
         when "created_at_asc"
           reorder("posts.created_at ASC")
+
+        when "posted", "posted_desc"
+          reorder("posts.source_created_at DESC, posts.id DESC")
+
+        when "posted_asc"
+          reorder("posts.source_created_at ASC, posts.id ASC")
 
         when "change", "change_desc"
           reorder("posts.updated_at DESC, posts.id DESC")
@@ -2524,6 +2536,74 @@ class Post < ApplicationRecord
     return false if rooms.intersect?(MatrixViewerRooms.ids(user))
 
     rooms.empty? || MatrixViewerRooms.placed_grant.exclude?(id)
+  end
+
+  # THE ORIGINAL DATE (fourier-basis docs/design/ORIGINAL_DATES.md): when the
+  # thing a post was taken from was posted -- the 4chan reply, the Discord
+  # message, the Matrix event -- which archive ingest makes years older than
+  # created_at. A sender gives it on posts#create; a date without a precision
+  # is the source's own time, "exact". A post given none is dated when the
+  # booru received it, "added", which is all that is known.
+  SOURCE_DATE_PRECISIONS = %w[exact estimated added].freeze
+  # Nothing this booru holds was posted before this. A date earlier than it is
+  # almost always a time sent in seconds and read as milliseconds, or a zero.
+  SOURCE_DATE_FLOOR = Time.utc(1990, 1, 1)
+  # A sender's clock may run a little ahead of ours; a date further ahead
+  # than this is wrong, not early.
+  SOURCE_DATE_SKEW = 10.minutes
+  SOURCE_DATE_FORMAT = "an ISO 8601 time with its zone, e.g. 2019-03-04T05:06:07Z"
+
+  # Whether the original date says more than created_at does: given by the
+  # sender or estimated, not just the day the booru received the post.
+  def source_date_known?
+    source_created_at.present? && source_created_at_precision.in?(%w[exact estimated])
+  end
+
+  # Read strictly: Rails' own cast takes almost anything ("last tuesday" is a
+  # date to it) and a time without a zone is read in the server's, so a
+  # string must be ISO 8601 with its zone, or it is kept aside and refused.
+  ISO8601_WITH_ZONE = /\A\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:?\d\d)\z/
+
+  def source_created_at=(value)
+    @source_created_at_unreadable = nil
+    if value.is_a?(String) && value.present?
+      begin
+        raise ArgumentError unless ISO8601_WITH_ZONE.match?(value)
+
+        value = Time.iso8601(value)
+      rescue ArgumentError
+        @source_created_at_unreadable = value
+        value = nil
+      end
+    end
+    super(value)
+  end
+
+  def default_source_created_at
+    if source_created_at.nil?
+      self.source_created_at = Time.current
+      self.source_created_at_precision = "added"
+    elsif source_created_at_precision.nil?
+      self.source_created_at_precision = "exact"
+    end
+  end
+
+  def validate_source_created_at
+    return unless new_record? || source_created_at_changed? || source_created_at_precision_changed?
+
+    if @source_created_at_unreadable
+      errors.add(:source_created_at, "could not be read as a time (got #{@source_created_at_unreadable.truncate(40).inspect}). Fix: send #{SOURCE_DATE_FORMAT}")
+    elsif source_created_at && source_created_at < SOURCE_DATE_FLOOR
+      errors.add(:source_created_at, "is before #{SOURCE_DATE_FLOOR.year} (#{source_created_at.utc.iso8601}), which is almost always seconds read as milliseconds. Fix: send #{SOURCE_DATE_FORMAT}")
+    elsif source_created_at && source_created_at > SOURCE_DATE_SKEW.from_now
+      errors.add(:source_created_at, "is in the future (#{source_created_at.utc.iso8601}), which is almost always milliseconds read as seconds or a local time sent without its zone. Fix: send #{SOURCE_DATE_FORMAT}")
+    end
+
+    if source_created_at_precision.present? && SOURCE_DATE_PRECISIONS.exclude?(source_created_at_precision)
+      errors.add(:source_created_at_precision, "must be #{SOURCE_DATE_PRECISIONS.to_sentence(last_word_connector: ", or ")}. Fix: send exact for the source's own time, or leave it out")
+    elsif source_created_at_precision.present? && source_created_at.nil? && @source_created_at_unreadable.nil?
+      errors.add(:source_created_at_precision, "was given without a source_created_at. Fix: send the date with it, or leave both out")
+    end
   end
 
   # A new Matrix post starts closed ({}): until fourier-auth has answered for

@@ -170,7 +170,7 @@ post_appeals: reason=fill
 post_disapprovals: reason=keep message=fill
 post_flags: reason=derive
 post_replacements: original_url=map replacement_url=map old_file_ext=keep old_md5=keep file_ext=keep md5=keep
-posts: source=map md5=keep rating=keep tag_string=map file_ext=keep room_ids=keep
+posts: source=map md5=keep rating=keep tag_string=map file_ext=keep room_ids=keep source_created_at_precision=keep
 post_mxcs: mxc=map source=keep
 post_versions: rating=keep source=map tags=map added_tags=map removed_tags=map
 rate_limits: action=purge key=purge

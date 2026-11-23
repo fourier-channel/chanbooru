@@ -152,14 +152,24 @@ class PostSurface
   end
 
   # One-line mono metadata sub-header pieces (label-less; order carries meaning).
+  # A post whose original date is known says both dates, by name, so neither
+  # is read as the other; "~" marks an estimate.
   def metadata_fields
     [
       "#{post.image_width}\u00d7#{post.image_height}",
       ActiveSupport::NumberHelper.number_to_human_size(post.file_size),
       ".#{post.file_ext}",
-      post.created_at.strftime("%Y-%m-%d"),
+      *date_fields,
       "@#{post.uploader.name}",
     ]
+  end
+
+  def date_fields
+    added = post.created_at.strftime("%Y-%m-%d")
+    return [added] unless post.source_date_known?
+
+    estimated = (post.source_created_at_precision == "estimated") ? "~" : ""
+    ["posted #{estimated}#{post.source_created_at.strftime("%Y-%m-%d")}", "added #{added}"]
   end
 
   def media_gated?

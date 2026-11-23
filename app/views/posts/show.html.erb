@@ -27,8 +27,14 @@
         <%= link_to "»", posts_path(tags: "user:#{@post.uploader.name}") %>
       </li>
 
+      <% if @post.source_date_known? %>
+        <li id="post-info-posted">
+          Posted: <%= link_to time_ago_in_words_tagged(@post.source_created_at), posts_path(tags: "posted:#{@post.source_created_at.to_date}") %><%= " (estimated)" if @post.source_created_at_precision == "estimated" %>
+        </li>
+      <% end %>
+
       <li id="post-info-date">
-        Date: <%= link_to time_ago_in_words_tagged(@post.created_at), posts_path(tags: "date:#{@post.created_at.to_date}") %>
+        <%= @post.source_date_known? ? "Added" : "Date" %>: <%= link_to time_ago_in_words_tagged(@post.created_at), posts_path(tags: "date:#{@post.created_at.to_date}") %>
       </li>
 
       <% if @post.approver %>

@@ -875,6 +875,22 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
         assert_equal("test", @post.tag_string)
       end
 
+      should "keep the original date a sender gives, as exact" do
+        @post = create_post!(source_created_at: "2019-03-04T05:06:07Z")
+
+        assert_redirected_to @post
+        assert_equal(Time.utc(2019, 3, 4, 5, 6, 7), @post.source_created_at)
+        assert_equal("exact", @post.source_created_at_precision)
+      end
+
+      should "refuse an original date it cannot read, and make no post" do
+        assert_no_difference("Post.count") do
+          create_post!(source_created_at: "1551675967")
+        end
+        assert_response :success
+        assert_match(/Fix: send an ISO 8601 time/, flash[:notice])
+      end
+
       should "re-render the upload page if the upload fails" do
         @post = create_post!(rating: "z", tag_string: "tagme")
         assert_response :success

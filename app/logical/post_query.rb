@@ -281,6 +281,7 @@ class PostQuery
   REORDER_ONLY_ORDERS = %w[
     id id_asc id_desc md5 md5_asc md5_desc score score_asc score_desc
     favcount favcount_asc created_at created_at_asc created_at_desc
+    posted posted_asc posted_desc
     change change_asc change_desc mpixels mpixels_asc mpixels_desc
     filesize filesize_asc filesize_desc tagcount tagcount_asc tagcount_desc
     comment comment_asc comm comm_asc comment_bumped comment_bumped_asc

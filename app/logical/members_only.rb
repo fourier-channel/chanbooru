@@ -415,7 +415,10 @@ module MembersOnly
   def remember_placed(ids, now: Time.current)
     return if ids.empty?
 
-    matrix = Post.where(id: ids).where.not("posts.room_ids = '{#{MatrixViewerRooms::NOT_MATRIX}}'::integer[]").pluck(:id)
+    # In the order given, not the order the rows come back in: the bucket
+    # keeps the most recently placed last, so its order is the record.
+    found = Post.where(id: ids).where.not("posts.room_ids = '{#{MatrixViewerRooms::NOT_MATRIX}}'::integer[]").pluck(:id).to_set
+    matrix = ids.map(&:to_i).select { |id| found.include?(id) }
     return if matrix.empty?
 
     remember_in_bucket(placed_key(now), matrix, PLACED_CAP)

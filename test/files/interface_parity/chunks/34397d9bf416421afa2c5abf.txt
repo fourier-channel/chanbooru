@@ -1,0 +1,66 @@
+<div class="post-tooltip-header flex gap-2 items-center whitespace-nowrap h-6">
+  <a class="user user-contributor truncate" data-user-id="50000" data-user-name="tunnel" data-user-level="35" href="/users/50000">tunnel</a>
+
+    <a class="post-tooltip-date inactive-link" href="/posts?tags=date%3A2026-01-15">
+</a>
+  <span class="post-tooltip-score">
+    <span class="post-votes inline-flex items-center leading-none gap-1" data-id="50002">
+    <a class="post-upvote-link inactive-link" data-remote="true" rel="nofollow" data-method="post" href="/posts/50002/votes?score=1"><svg class="icon svg-icon upvote-icon" viewBox="0 0 448 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#upvote" /></svg></a>
+
+  <span class="post-score inline-block text-center whitespace-nowrap align-middle min-w-4">
+    <a rel="nofollow" href="/post_votes?search%5Bpost_id%5D=50002&amp;variant=compact">0</a>
+  </span>
+
+    <a class="post-downvote-link inactive-link" data-remote="true" rel="nofollow" data-method="post" href="/posts/50002/votes?score=-1"><svg class="icon svg-icon downvote-icon" viewBox="0 0 448 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#downvote" /></svg></a>
+</span>
+
+  </span>
+
+  <span class="flex-grow-1"></span>
+
+
+  <a class="post-tooltip-rating inactive-link" href="/posts?tags=rating%3AGeneral">G</a>
+  <a class="post-tooltip-dimensions inactive-link" href="/media_assets/50002">121 KB .png, 1200x900</a>
+
+    <a rel="external noreferrer nofollow" title="https://example.com/pv/3" class="post-tooltip-source" href="https://example.com/pv/3"><svg class="icon svg-icon globe-icon h-3" viewBox="0 0 512 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#globe" /></svg></a>
+
+  <div class="popup-menu inline-flex items-center h-full" data-hide-on-click="true">
+  <a class="popup-menu-button default-popup-menu-button" x-on:mousedown.prevent="true" href="javascript:void(0)">
+      <svg class="icon svg-icon ellipsis-icon" viewBox="0 0 448 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#ellipsis" /></svg>
+</a>
+  <ul class="popup-menu-content">
+      <li>      <a class="post-tooltip-disable" href="javascript:void(0)">
+        <svg class="icon svg-icon close-icon" viewBox="0 0 320 512"><use fill="currentColor" href="/packs-test/static/icons-0757961b5dd359777160.svg#close" /></svg> Disable tooltips
+</a></li>
+  </ul>
+</div></div>
+
+<div class="post-tooltip-body thin-scrollbar text-xs flex has-preview gap-1">
+  <div class="flex-none">
+      <article id="post_50002" class="blacklist-initialized post-preview post-status-has-children post-preview-fit-fixed post-preview-180" data-id="50002" data-tags="landscape pv_artist scenery sky" data-rating="g" data-flags="" data-score="0" data-uploader-id="50000">  <div class="post-preview-container">
+    <a class="post-preview-link" draggable="false" href="/posts/50002">
+      <picture>
+              <source type="image/jpeg" srcset="https://www.example.com/data/180x180/40/61/4061873d3d26d2e376d866cfd87c3325.jpg 1x, https://www.example.com/data/360x360/40/61/4061873d3d26d2e376d866cfd87c3325.jpg 2x">
+
+          <img src="https://www.example.com/data/180x180/40/61/4061873d3d26d2e376d866cfd87c3325.jpg" width="180" height="135" class="post-preview-image" title="landscape pv_artist scenery sky rating:g score:0" alt="post #50002" draggable="false">      </picture>
+</a>  </div>
+
+  
+</article>
+  </div>
+
+  <div class="flex-1 min-w-0 space-y-1">
+
+
+    <div class="post-tooltip-pools">
+    </div>
+
+    <div class="tag-list inline-tag-list">
+      <a class="search-tag tag-type-1" data-tag-name="pv_artist" data-is-deprecated="false" href="/posts?tags=pv_artist">pv_artist</a>
+      <a class="search-tag tag-type-0" data-tag-name="landscape" data-is-deprecated="false" href="/posts?tags=landscape">landscape</a>
+      <a class="search-tag tag-type-0" data-tag-name="scenery" data-is-deprecated="false" href="/posts?tags=scenery">scenery</a>
+      <a class="search-tag tag-type-0" data-tag-name="sky" data-is-deprecated="false" href="/posts?tags=sky">sky</a>
+</div>
+
+  </div>
+</div>

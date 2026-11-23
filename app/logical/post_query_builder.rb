@@ -35,7 +35,7 @@ class PostQueryBuilder
     flagger appealer upvote downvote fav ordvote ordfav favgroup ordfavgroup reacted pool
     ordpool note comment commentary id rating source status filetype
     disapproved parent child search embedded md5 pixelhash width height mpixels ratio
-    score upvotes downvotes favcount filesize date age order limit tagcount pixiv_id pixiv
+    score upvotes downvotes favcount filesize date age posted order limit tagcount pixiv_id pixiv
     unaliased exif duration random is has ai holds
   ] + COUNT_METATAGS + COUNT_METATAG_SYNONYMS + CATEGORY_COUNT_METATAGS
 
@@ -47,6 +47,7 @@ class PostQueryBuilder
     downvotes downvotes_asc
     favcount favcount_asc
     created_at created_at_asc
+    posted posted_asc
     change change_asc
     comment comment_asc
     comment_bumped comment_bumped_asc
@@ -182,7 +183,7 @@ class PostQueryBuilder
   # and the Modulation gallery window (PostSets::Post#window_kind), which
   # pages through the same list by a cursor and must walk the order on
   # screen (GALLERY_WINDOW.md section 2). One of:
-  #   - an order_matches key, downcased: the date:/age: swap below included,
+  #   - an order_matches key, downcased: the date:/age:/posted: swaps below included,
   #     and "id_desc" for a missing or unknown order (order_matches' own
   #     fallback), so the window never keysets a sort the listing ignored;
   #   - :random  -- order:random, or random:N (a sample, whatever it sorts);
@@ -201,6 +202,11 @@ class PostQueryBuilder
       "created_at_asc"
     elsif post_query.has_metatag?(:date, :age) && order.in?(["id_desc", nil])
       "created_at_desc"
+    # The same for posted:, on the original-date index.
+    elsif post_query.has_metatag?(:posted) && order.in?(["id", "id_asc"])
+      "posted_asc"
+    elsif post_query.has_metatag?(:posted) && order.in?(["id_desc", nil])
+      "posted_desc"
     elsif order == "custom"
       :custom
     elsif post_query.has_metatag?(:ordfav, :ordvote, :ordpool, :ordfavgroup)

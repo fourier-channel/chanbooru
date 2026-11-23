@@ -1,8 +1,14 @@
 <div class="post-tooltip-header flex gap-2 items-center whitespace-nowrap h-6">
   <%= link_to_user @post.uploader, classes: "truncate" %>
 
-  <%= link_to posts_path(tags: "date:#{@post.created_at.strftime("%Y-%m-%d")}"), class: "post-tooltip-date inactive-link" do %>
-    <%= time_ago_in_words_tagged(@post.created_at, compact: true) %>
+  <% if @post.source_date_known? %>
+    <%= link_to posts_path(tags: "posted:#{@post.source_created_at.strftime("%Y-%m-%d")}"), class: "post-tooltip-date inactive-link" do %>
+      <%= time_ago_in_words_tagged(@post.source_created_at, compact: true) %>
+    <% end %>
+  <% else %>
+    <%= link_to posts_path(tags: "date:#{@post.created_at.strftime("%Y-%m-%d")}"), class: "post-tooltip-date inactive-link" do %>
+      <%= time_ago_in_words_tagged(@post.created_at, compact: true) %>
+    <% end %>
   <% end %>
 
   <span class="post-tooltip-score">

@@ -2492,7 +2492,9 @@ CREATE TABLE public.posts (
     has_active_children boolean DEFAULT false,
     bit_flags bigint DEFAULT 0 NOT NULL,
     tag_count_meta integer DEFAULT 0 NOT NULL,
-    room_ids integer[] DEFAULT '{0}'::integer[] NOT NULL
+    room_ids integer[] DEFAULT '{0}'::integer[] NOT NULL,
+    source_created_at timestamp(6) without time zone,
+    source_created_at_precision character varying
 );
 
 
@@ -7545,6 +7547,13 @@ CREATE INDEX index_posts_on_score_and_id_desc ON public.posts USING btree (score
 
 
 --
+-- Name: index_posts_on_source_created_at_and_id_desc; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_posts_on_source_created_at_and_id_desc ON public.posts USING btree (source_created_at DESC, id DESC);
+
+
+--
 -- Name: index_posts_on_source_trgm; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9556,6 +9565,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261122000001'),
 ('20261107000003'),
 ('20261107000002'),
 ('20261107000001'),
