@@ -36,6 +36,7 @@ class Upload < ApplicationRecord
 
   validate :validate_source, if: -> { source.present? && source_changed? }
   validates :referer_url, format: { with: %r{\Ahttps?://}i, message: "is not a valid URL" }, length: { maximum: 2000 }, if: -> { referer_url.present? && referer_url_changed? }
+  validates_with Danbooru::RefusedHosts::Validator, attributes: %i[source referer_url]
   validates :status, inclusion: { in: %w[pending processing completed error] }
   validate :validate_file_and_source, on: :create
   validate :validate_archive_files, on: :create

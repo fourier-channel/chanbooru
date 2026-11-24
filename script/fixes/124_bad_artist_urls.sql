@@ -10,7 +10,6 @@ select artist_id, url from artist_urls where url ~ 'hentai-foundry.com' and url 
 select artist_id, url from artist_urls where url ~ 'instagram.com' and url !~ '^https://www.instagram.com/[a-zA-Z0-9_.-]+/$';
 select artist_id, url from artist_urls where url ~ 'lofter.com' and url !~ '^https://[a-zA-Z0-9_.-]+.lofter.com$';
 select artist_id, url from artist_urls where url ~ 'pawoo.net' and url !~ '^https://pawoo.net/@[a-zA-Z0-9_.-]+$' and url !~ '^https://pawoo.net/web/accounts/[0-9]+$';
-select artist_id, url from artist_urls where url ~ 'baraag.net' and url !~ '^https://baraag.net/@[a-zA-Z0-9_.-]+$' and url !~ '^https://baraag.net/web/accounts/[0-9]+$';
 select artist_id, url from artist_urls where url ~ 'newgrounds.com' and url !~ '^https://[a-zA-Z0-9_.-]+.newgrounds.com$';
 select artist_id, url from artist_urls where url ~ 'seiga.nicovideo.jp' and url !~ '^https://seiga.nicovideo.jp/user/illust/[0-9]+$' and url !~ '^https://seiga.nicovideo.jp/manga/list\?user_id=[0-9]+$';
 select artist_id, url from artist_urls where url ~ 'www.nicovideo.jp/user' and url !~ '^https://www.nicovideo.jp/user/[0-9]+$';

@@ -19,6 +19,7 @@ class UploadMediaAsset < ApplicationRecord
 
   # XXX there are ~150 old assets with blank source urls because the source went bad id before the image url could be saved.
   validates :source_url, format: { with: %r{\A(https?|file)://}i, message: "is not a valid URL" }
+  validates_with Danbooru::RefusedHosts::Validator, attributes: %i[source_url page_url]
   validates :page_url, format: { with: %r{\A(https?)://}i, message: "is not a valid URL" }, allow_nil: true
 
   enum :status, {

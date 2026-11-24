@@ -10,32 +10,25 @@ class Source::URL::Mastodon < Source::URL
     credential :access_token, help: %{Your Pawoo access token. Go to https://pawoo.net/settings/applications, create a new application with the 'read' scope, and copy the access token.}
   end
 
-  site "Baraag", url: "https://baraag.net" do
-    credential :access_token, help: %{Your Baraag access token. Go to https://baraag.net/settings/applications, create a new application with the 'read' scope, and copy the access token.}
-  end
-
   attr_reader :username, :user_id, :work_id, :full_image_url, :media_hash
 
   def self.match?(url)
-    url.domain.in?(%w[pawoo.net baraag.net])
+    url.domain == "pawoo.net"
   end
 
   def parse
     case [subdomain, domain, *path_segments]
 
     # https://pawoo.net/@evazion/19451018
-    # https://baraag.net/@curator/102270656480174153
     in _, _, /^@/ => username, /^\d+$/ => work_id, *rest
       @username = username.delete_prefix("@")
       @work_id = work_id
 
     # https://pawoo.net/@evazion
-    # https://baraag.net/@danbooru
-    # https://baraag.net/@quietvice/media
     in _, _, /^@/ => username, *rest
       @username = username.delete_prefix("@")
 
-    # https://baraag.net/web/@loodncrood
+    # https://pawoo.net/web/@evazion
     in _, _, "web", /^@/ => username, *rest
       @username = username.delete_prefix("@")
 
@@ -46,12 +39,10 @@ class Source::URL::Mastodon < Source::URL
 
     # https://pawoo.net/web/statuses/19451018
     # https://pawoo.net/web/statuses/19451018/favorites
-    # https://baraag.net/web/statuses/102270656480174153
     in _, _, "web", "statuses", work_id, *rest
       @work_id = work_id
 
     # https://pawoo.net/web/accounts/47806
-    # https://baraag.net/web/accounts/107862785324786980
     in _, _, "web", "accounts", user_id
       @user_id = user_id
 
@@ -61,22 +52,6 @@ class Source::URL::Mastodon < Source::URL
     in "img", "pawoo.net", "media_attachments", "files", *subdirs, file_size, file
       @file_size = file_size
       @full_image_url = "#{site}/media_attachments/files/#{subdirs.join("/")}/original/#{file}"
-
-    # Page: https://baraag.net/@danbooru/107866090743238456
-    # https://baraag.net/system/media_attachments/files/107/866/084/749/942/932/original/a9e0f553e332f303.mp4
-    # https://baraag.net/system/media_attachments/files/107/866/084/754/127/256/original/3895a14ce3736f13.mp4
-    # https://baraag.net/system/media_attachments/files/107/866/084/754/651/925/original/8f3df857681a1639.png
-    in _, "baraag.net", "system", "media_attachments", "files", *subdirs, file_size, file
-      @file_size = file_size
-      @full_image_url = "https://media.baraag.net/media_attachments/files/#{subdirs.join("/")}/original/#{file}"
-
-    # Page: https://baraag.net/@danbooru/107866090743238456
-    # https://media.baraag.net/media_attachments/files/107/866/084/749/942/932/original/a9e0f553e332f303.mp4
-    # https://media.baraag.net/media_attachments/files/107/866/084/754/127/256/original/3895a14ce3736f13.mp4
-    # https://media.baraag.net/media_attachments/files/107/866/084/754/651/925/original/8f3df857681a1639.png
-    in "media", "baraag.net", "media_attachments", "files", *subdirs, file_size, file
-      @file_size = file_size
-      @full_image_url = "https://media.baraag.net/media_attachments/files/#{subdirs.join("/")}/original/#{file}"
 
     # https://pawoo.net/media/lU2uV7C1MMQSb1czwvg
     in _, "pawoo.net", "media", media_hash

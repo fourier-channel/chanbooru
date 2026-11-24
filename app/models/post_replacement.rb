@@ -7,6 +7,7 @@ class PostReplacement < ApplicationRecord
   belongs_to :old_media_asset, optional: true, class_name: "MediaAsset"
 
   before_validation :initialize_fields, on: :create
+  validates_with Danbooru::RefusedHosts::Validator, attributes: %i[replacement_url]
   before_create :process!
 
   attr_accessor :replacement_file, :final_source, :tags

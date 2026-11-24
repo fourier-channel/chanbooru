@@ -18,6 +18,7 @@ module Danbooru
         end
 
         perform = proc do |req|
+          refuse_host!(req)
           super(req, options)
         rescue *Danbooru::Http::ERROR_STATUSES.keys => e
           Danbooru::Http.error_response(e, req.verb, req.uri)
@@ -27,6 +28,16 @@ module Danbooru
         end
 
         callback_chain.call(request)
+      end
+
+      # Every request, every redirect hop and every retry is performed above,
+      # so nothing is sent to a refused host, nor to a proxy on one. This runs
+      # before the name is looked up.
+      # @raise [RefusedHostError]
+      def refuse_host!(request)
+        [request.uri.host, request.proxy&.dig(:proxy_address)].each do |host|
+          raise RefusedHostError, RefusedHosts.message(host) if RefusedHosts.refused?(host)
+        end
       end
 
       # Override `branch` to return an ApplicationClient instead of a

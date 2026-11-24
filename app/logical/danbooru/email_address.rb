@@ -338,6 +338,8 @@ module Danbooru
       # @return [Boolean] True if the email address is definitely undeliverable. False if the address is eligible for delivery. Delivery could
       #   still fail if the mailbox doesn't exist and the server lied to the RCPT TO command.
       def undeliverable?(from_address: Danbooru.config.contact_email, timeout: 3)
+        return true if RefusedHosts.refused?(domain.to_s)
+
         mail_server = mx_domain(timeout: timeout)
         return true if mail_server.blank?
 

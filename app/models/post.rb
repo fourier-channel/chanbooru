@@ -75,6 +75,7 @@ class Post < ApplicationRecord
   validates :rating, presence: { message: "not selected" }
   validates :rating, inclusion: { in: RATINGS.keys, message: "must be #{RATINGS.keys.map(&:upcase).to_sentence(last_word_connector: ", or ")}" }, if: -> { rating.present? }
   validates :source, length: { maximum: 1200 }
+  validates_with Danbooru::RefusedHosts::Validator, attributes: %i[source]
   validate :validate_source_created_at # fork: the original date, see default_source_created_at
   validates :parent, presence: { message: "post does not exist" }, if: -> { parent_id.present? && parent_id_changed? }
   before_save :parse_pixiv_id

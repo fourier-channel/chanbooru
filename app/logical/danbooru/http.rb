@@ -11,6 +11,7 @@
 # * HTML and XML responses are automatically parsed
 # * Sites using Cloudflare Polish are automatically bypassed
 # * SSRF attempts are blocked
+# * Refused hosts are never contacted (see Danbooru::RefusedHosts)
 #
 # @example
 #   http = Danbooru::Http.new
@@ -22,6 +23,7 @@ module Danbooru
     class Error < StandardError; end
     class DownloadError < Error; end
     class FileTooLargeError < Error; end
+    class RefusedHostError < Error; end
 
     Danbooru::Http::HtmlAdapter.register
     Danbooru::Http::JSONAdapter.register
@@ -41,10 +43,13 @@ module Danbooru
     DEFAULT_TIMEOUT = 20
     MAX_REDIRECTS = 5
 
+    REFUSED_HOST_STATUS = 592 # The fake status code of a request to a refused host (see Danbooru::RefusedHosts).
+
     # The fake status codes returned when a request raises an exception. Ordered from most to least specific.
     ERROR_STATUSES = {
       OpenSSL::SSL::SSLError => 590,
       ValidatingSocket::ProhibitedIpError => 591,
+      RefusedHostError => REFUSED_HOST_STATUS,
       FileTooLargeError => 595,
       HTTP::Redirector::TooManyRedirectsError => 596,
       HTTP::TimeoutError => 597,
@@ -267,6 +272,7 @@ module Danbooru
       # @return [Array<(HTTP::Response, MediaFile)>] the HTTP response and the downloaded file
       def download_media(url, file: Danbooru::Tempfile.new("danbooru-download-#{url.parameterize.truncate(96)}-", binmode: true))
         response = request(:get, url, buffer: false)
+        raise DownloadError, RefusedHosts.message(response.request.uri.host) if response.code == REFUSED_HOST_STATUS
         raise DownloadError, "#{url} failed with code #{response.status}" if response.status != 200
 
         response.body.each { |chunk| file.write(chunk) }
@@ -320,6 +326,8 @@ module Danbooru
 
       if response.status.in?(200..399)
         response
+      elsif response.code == REFUSED_HOST_STATUS
+        raise Error, RefusedHosts.message(response.request.uri.host)
       else
         raise Error, "#{method.upcase} #{url} failed (HTTP #{response.status})"
       end

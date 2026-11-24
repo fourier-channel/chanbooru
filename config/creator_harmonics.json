@@ -197,14 +197,14 @@
       "logo": "mastodon-logo.png",
       "support": false,
       "adult": true,
-      "host": "pawoo\\.net|baraag\\.net",
+      "host": "pawoo\\.net",
       "shape": "https://pawoo.net/@yourname",
       "accept": [
-        "(?:pawoo\\.net|baraag\\.net)/@[A-Za-z0-9_]{1,30}"
+        "pawoo\\.net/@[A-Za-z0-9_]{1,30}"
       ],
       "posts": [
         [
-          "(pawoo\\.net|baraag\\.net)/(@[A-Za-z0-9_]{1,30})/[0-9]+.*",
+          "(pawoo\\.net)/(@[A-Za-z0-9_]{1,30})/[0-9]+.*",
           "https://\\1/\\2"
         ]
       ],
