@@ -2,6 +2,17 @@ require "test_helper"
 
 module PostSets
   class PostTest < ActiveSupport::TestCase
+    # @return [Array] the set's post ids, and the counts it ran
+    def ids_and_counts(...)
+      sqls = []
+      collect = ->(*, payload) { sqls << payload[:sql] }
+      ids = ActiveSupport::Notifications.subscribed(collect, "sql.active_record") do
+        Cache.clear
+        PostSets::Post.new(...).posts.map(&:id)
+      end
+      [ids, sqls.grep(/SELECT COUNT\(.*\) FROM "posts"/i)]
+    end
+
     context "In all cases" do
       setup do
         @user = create(:user)
@@ -157,6 +168,39 @@ module PostSets
             assert_not_nil(set.artist)
             assert_equal(artist, set.artist)
           end
+        end
+      end
+
+      # Fork (2026-11-24, TAG_RECOUNT.md 2): an API listing is a bare list of
+      # rows, so it counts nothing; HTML shows and numbers by the count.
+      context "counting a search" do
+        setup do
+          @posts = [@post1, @post2, @post3, create(:post, tag_string: "b z")].map(&:id).reverse
+        end
+
+        %w[json xml].each do |format|
+          should "run no count for #{format}, and list what HTML lists" do
+            ["", "-source:*nowhere*", "b", "order:id", "id:>0"].each do |tags|
+              [[1, 2], [2, 2], [9, 2], ["b#{@posts[1]}", 2], ["a#{@posts[2]}", 2]].each do |page, limit|
+                ids, counts = ids_and_counts(tags, page, limit, format: format)
+                assert_empty(counts, "#{tags.inspect} page #{page} was counted")
+                assert_equal(ids_and_counts(tags, page, limit, format: "html").first, ids, "#{tags.inspect} page #{page}")
+              end
+            end
+          end
+
+          # The count decides a true shuffle or a sample (random_order_pagination_test).
+          should "count a random draw for #{format}" do
+            ids, counts = ids_and_counts("-source:*nowhere* order:random", 1, 20, format: format)
+            assert_equal(1, counts.size)
+            assert_equal(@posts.sort, ids.sort)
+          end
+        end
+
+        should "still count for HTML" do
+          _, counts = ids_and_counts("-source:*nowhere*", 1, 2)
+          assert_equal(1, counts.size)
+          assert_equal(@posts.size, PostSets::Post.new("-source:*nowhere*", 1, 2).posts.total_count)
         end
       end
 

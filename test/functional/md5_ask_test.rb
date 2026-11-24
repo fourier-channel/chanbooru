@@ -12,7 +12,7 @@ require "test_helper"
 # aichan_ post id (~69,600, 0.4 s), a ~530 KB id literal compiled into the
 # statement, and an exact COUNT keyed on the md5 batch, so never cached --
 # 0.52-1.08 s an ask around a 15 ms SELECT. The ask now counts nothing, as
-# a gallery window chunk does (PostSets::Post#md5_ask?), and carries the
+# a gallery window chunk does (PostSets::Post#counts_results?), and carries the
 # hidden tags as one row filter, as every search does since 2026-10-24
 # (PostQuery#hidden_tags_condition); the id list is gone.
 #

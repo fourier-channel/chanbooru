@@ -445,7 +445,7 @@ module MembersOnly
   # post id and its ~530 KB literal -- and every signed-out ask arriving after
   # it expired rebuilt it, in both modes. Now:
   #   - built with no count, as the md5 ask itself is
-  #     (PostSets::Post#md5_ask?), the hidden tags its one row filter as on
+  #     (PostSets::Post#counts_results?), the hidden tags its one row filter as on
   #     every implicit search (md5_ask_test), its 20 rows walked off the
   #     (source_created_at, id) index in the listing's own default order
   #     (PostQuery::LISTING_DEFAULT_ORDER), so it holds what the gallery's

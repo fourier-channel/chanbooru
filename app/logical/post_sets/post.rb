@@ -150,11 +150,7 @@ module PostSets
     def posts
       post_query.validate_tag_limit!
       check_window!
-      # A chunk counts nothing: the page it extends already showed the count.
-      # Except a random draw, where the count is what decides between a true
-      # shuffle and a sample (PostQueryBuilder#paginated_posts). Nor does the
-      # md5 ask (#md5_ask?): its answer is its rows.
-      count = ((window == :chunk && window_kind != :draw) || md5_ask?) ? nil : post_count
+      count = counts_results? ? post_count : nil
       # viewer: this set is handed a user, and is built outside a request in
       # tests; paginate asks it, not CurrentUser, for the browsing tier.
       window_query.paginated_posts(page, includes: includes, count: count, search_count: !count.nil?, limit: per_page, seek: seek, viewer: current_user).load
@@ -169,20 +165,30 @@ module PostSets
       window.present? && current_user.can_browse_freely? && window_kind != :refused && !page.to_s.match?(/\A[ab]\d+\z/i)
     end
 
-    # FOURIER-AUTH'S MD5 ASK (booru-visibility.js): tags=md5:<1-20 hashes>,
-    # in json or xml, asked for every image the media gate serves, signed out
-    # and then as the reader. Fork, incident 2026-10-19: built as a gallery,
-    # each ask plucked every hidden creator-prefix post id (~69,600, 0.4 s),
+    # Whether the search is counted before its page is read.
+    #
+    # A chunk is not: the page it extends already showed the count. Nor is
+    # json or xml, which is a bare list of rows: no body or header carries the
+    # count, and none is numbered by it. Counted until 2026-11-24, sampling's
+    # `-source:*boards.4chan*` listing spent 1 s on a 50 ms page, its count
+    # timing out over 100 times a day and read by nobody (TAG_RECOUNT.md 2).
+    # Except a random draw, where the count is what decides between a true
+    # shuffle and a sample (PostQueryBuilder#paginated_posts).
+    #
+    # FOURIER-AUTH'S MD5 ASK (booru-visibility.js) is one of these: tags=md5:
+    # <1-20 hashes>, asked for every image the media gate serves, signed out
+    # and then as the reader. Incident 2026-10-19: built as a gallery, each
+    # ask plucked every hidden creator-prefix post id (~69,600, 0.4 s),
     # compiled them into a ~530 KB literal and ran an exact COUNT keyed on its
     # batch, so never cached -- 0.5-1.1 s around a 15 ms SELECT -- and 78 asks
-    # passed fourier-auth's 4 s budget and were refused. Built instead with
-    # no count. Its hidden tags are the row filter every implicit search
-    # carries since 2026-10-24 (PostQuery#hidden_tags_condition), and its
-    # rows, 20 at most, come off the md5 index, so the filter runs on those
-    # rows alone (md5_ask_test's parity table). Signed out, the
-    # answer still passes MembersOnly.anonymous_md5_rows (PostsController).
-    def md5_ask?
-      format.in?(%w[json xml]) && tag_string.to_s.strip.match?(MembersOnly::ANONYMOUS_MD5_QUERY)
+    # passed fourier-auth's 4 s budget and were refused. Its hidden tags are
+    # the row filter every implicit search carries since 2026-10-24
+    # (PostQuery#hidden_tags_condition), and its rows, 20 at most, come off
+    # the md5 index, so the filter runs on those rows alone (md5_ask_test's
+    # parity table). Signed out, the answer still passes
+    # MembersOnly.anonymous_md5_rows (PostsController).
+    def counts_results?
+      (window != :chunk && !format.in?(%w[json xml])) || window_kind == :draw
     end
 
     # PostNeighbors::Seek.kind of this search's order: :key, :offset, :draw
