@@ -6,7 +6,8 @@ class UploadPostComponentTest < ViewComponent::TestCase
   def render_upload_post_component(upload_media_asset, post: nil, current_user: upload_media_asset.user)
     post ||= build(:post, media_asset: upload_media_asset.media_asset, artist_commentary: build(:artist_commentary))
 
-    render_inline(UploadPostComponent.new(upload_media_asset:, post:, current_user:))
+    # Fork: as the viewer, whom Source::Extractor#related_posts asks for.
+    as(current_user) { render_inline(UploadPostComponent.new(upload_media_asset:, post:, current_user:)) }
   end
 
   context "The UploadPostComponent" do

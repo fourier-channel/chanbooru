@@ -1,6 +1,16 @@
 require "test_helper"
 
 class UploadsControllerTest < ActionDispatch::IntegrationTest
+  include LocalSiteHelper # fork: these uploads contact no outside site
+
+  # Fork: the URL of a file on a site that has this file and no other.
+  def local_source(path, file)
+    public_site("media.example.com") do |request|
+      found = URI.decode_uri_component(request.target) == "/#{URI.decode_uri_component(path)}"
+      found ? [200, { "Content-Type" => "application/octet-stream" }, File.binread(file)] : [404, {}, ""]
+    end.url(path)
+  end
+
   context "The uploads controller" do
     setup do
       @user = create(:user)
@@ -354,17 +364,19 @@ class UploadsControllerTest < ActionDispatch::IntegrationTest
       end
 
       context "for a video longer than the video length limit" do
+        setup do
+          FFmpeg.any_instance.stubs(:duration).returns(Danbooru.config.max_video_duration + 1) # fork: no file here is that long
+        end
+
         should "fail for a regular user" do
-          create_upload!("https://cdn.donmai.us/original/63/cb/63cb09f2526ef3ac14f11c011516ad9b.webm", user: @user)
+          create_upload!(local_source("test.webm", "test/files/webm/test-512x512.webm"), user: @user)
 
           assert_response 201
           assert_match("Duration must be less than", Upload.last.error)
         end
-      end
 
-      context "for a video longer than the video length limit" do
         should "work for an admin" do
-          create_upload!("https://cdn.donmai.us/original/63/cb/63cb09f2526ef3ac14f11c011516ad9b.webm", user: create(:admin_user))
+          create_upload!(local_source("test.webm", "test/files/webm/test-512x512.webm"), user: create(:admin_user))
 
           assert_response 201
           assert_equal("completed", Upload.last.status)
@@ -435,7 +447,7 @@ class UploadsControllerTest < ActionDispatch::IntegrationTest
       end
 
       should "work for a source URL containing unicode characters" do
-        source = "https://cdn.donmai.us/original/d3/4e/d34e4cf0a437a5d65f8e82b7bcd02606.jpg?one=東方&two=a%20b"
+        source = local_source("test.jpg?one=\u6771\u65b9&two=a%20b", "test/files/jpg/test.jpg")
 
         upload = assert_successful_upload(source, user: @user)
         assert_equal(source, upload.source)
@@ -443,7 +455,7 @@ class UploadsControllerTest < ActionDispatch::IntegrationTest
 
       should "not normalize source URLs to NFC form" do
         # ブ = U+30D5 U+3099 ('KATAKANA LETTER HU', 'COMBINING KATAKANA-HIRAGANA VOICED SOUND MARK')
-        source = "https://bond-live.com/en/wp-content/uploads/2024/12/Vライバー-アイキャッチ-23.png"
+        source = local_source("V\u30e9\u30a4\u30cf\u3099\u30fc-23.png", "test/files/png/test.png")
 
         upload = assert_successful_upload(source, user: @user)
         assert_equal(source, upload.source)
@@ -679,13 +691,14 @@ class UploadsControllerTest < ActionDispatch::IntegrationTest
         end
 
         should "work for a ugoira from another site" do
-          upload = assert_successful_upload("https://files.catbox.moe/e60b4y.zip", user: @user)
+          source = local_source("e60b4y.zip", "test/files/ugoira/ugoira-95239241-gallery-dl.zip")
+          upload = assert_successful_upload(source, user: @user)
           media_asset = upload.media_assets.first
           metadata = media_asset.metadata
 
           assert_equal(1, upload.media_asset_count)
           assert_equal(1, upload.upload_media_assets.size)
-          assert_equal("https://files.catbox.moe/e60b4y.zip", upload.upload_media_assets.first.source_url)
+          assert_equal(source, upload.upload_media_assets.first.source_url)
           assert_equal("zip", media_asset.file_ext)
           assert_equal("7fe767b4e202415a2b2dec2a82be3b69", media_asset.md5)
           assert_equal([170] * 10, metadata["Ugoira:FrameDelays"])
@@ -694,7 +707,7 @@ class UploadsControllerTest < ActionDispatch::IntegrationTest
 
       context "uploading a .zip file from a source" do
         should "not work" do
-          create_upload!("https://files.catbox.moe/afau3v.zip", user: @user)
+          create_upload!(local_source("images.zip", "test/files/archive/out-of-order.zip"), user: @user)
 
           assert_response 201
           assert_equal(true, Upload.last.is_errored?)

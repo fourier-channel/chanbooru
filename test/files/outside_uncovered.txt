@@ -1004,11 +1004,6 @@ SourcesControllerTest#test_: The sources controller show action should work for 
 SourcesControllerTest#test_: The sources controller show action should work for a pixiv URL.	site
 UploadPostComponentTest#test_: The UploadPostComponent should show an image sample warning for image samples.	site
 UploadsControllerTest#test_: The uploads controller create action for a source that doesn't contain any images should fail.	login:Twitter
-UploadsControllerTest#test_: The uploads controller create action for a video longer than the video length limit should fail for a regular user.	site
-UploadsControllerTest#test_: The uploads controller create action for a video longer than the video length limit should work for an admin.	site
-UploadsControllerTest#test_: The uploads controller create action should not normalize source URLs to NFC form.	site
-UploadsControllerTest#test_: The uploads controller create action should work for a source URL containing unicode characters.	site
-UploadsControllerTest#test_: The uploads controller create action uploading a .zip file from a source should not work.	site
 UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from http://lohas.nicoseiga.jp/material/5746c5/4459092.	login:Nico Seiga
 UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from http://lohas.nicoseiga.jp/o/910aecf08e542285862954017f8a33a8c32a8aec/1433298801/4937663.	login:Nico Seiga
 UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from http://lohas.nicoseiga.jp/priv/3521156?e=1382558156&h=f2e089256abd1d453a455ec8f317a6c703e2cedf.	login:Nico Seiga
@@ -1060,4 +1055,3 @@ UploadsControllerTest#test_: The uploads controller create action uploading a fi
 UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://wx1.sinaimg.cn/mw690/0060kO5aly1gezsyt5xvhj30ok0sgtc9.jpg.	site
 UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://yande.re/post/show/482880.	site
 UploadsControllerTest#test_: The uploads controller create action uploading a ugoira from a source should work for a ugoira from Pixiv.	login:Pixiv
-UploadsControllerTest#test_: The uploads controller create action uploading a ugoira from a source should work for a ugoira from another site.	site

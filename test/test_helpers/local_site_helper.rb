@@ -131,6 +131,14 @@ module LocalSiteHelper
     LocalSite.new(**options, &answer).tap { |site| local_sites << site }
   end
 
+  # A site the app takes for an outside one: the name is stubbed to this
+  # machine, and the check that an address is a public one is off.
+  def public_site(host, &)
+    Resolv.stubs(:getaddress).with(host).returns("127.0.0.1")
+    Danbooru::IpAddress.any_instance.stubs(:prohibited_for_outgoing?).returns(false)
+    local_site(host:, &)
+  end
+
   def httpbin
     @httpbin ||= local_site(&HTTPBIN)
   end
