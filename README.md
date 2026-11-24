@@ -173,9 +173,10 @@ build, deploy, first owner, an upload, and the image served back.
 
 ## Development
 
-Upstream's full suite cannot be green here: the fork's own gate is
-`script/fork-tests.sh`, which runs the fork-owned tests inside the dev
-stack, and the commit hook is `.githooks/pre-commit` (opt in with
+Tests run in the dev stack's `test` service, on a network with no route out,
+so no test contacts an outside site: `bash script/run-tests.sh <test file>`.
+The tests that need one are listed in `test/files/outside_uncovered.txt`. The
+fork's own gate is `script/fork-tests.sh`, which runs the fork-owned tests, and the commit hook is `.githooks/pre-commit` (opt in with
 `git config core.hooksPath .githooks`). `coherence.gate.yaml` declares the
 gate. Danbooru's `docs/README.md` remains upstream's document.
 

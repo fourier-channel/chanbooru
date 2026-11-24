@@ -33,7 +33,7 @@ class HiddenDuplicateUploadTest < ActionDispatch::IntegrationTest
 
   # A completed upload of `post`'s file by `user`, and the asset to post it from.
   def upload_of(post, user)
-    upload = build(:upload, uploader: user, media_asset_count: 1, status: "completed")
+    upload = build(:upload, uploader: user, media_asset_count: 1, status: "completed", source: "https://example.com/file.jpg")
     create(:upload_media_asset, upload: upload, media_asset: post.media_asset, status: "active")
   end
 

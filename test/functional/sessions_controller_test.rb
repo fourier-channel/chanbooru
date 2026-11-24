@@ -210,6 +210,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
         # https://developers.cloudflare.com/turnstile/reference/testing/#dummy-sitekeys-and-secret-keys
         Danbooru.config.stubs(:captcha_site_key).returns("3x00000000000000000000FF") # forces an interactive challenge
         Danbooru.config.stubs(:captcha_secret_key).returns("2x0000000000000000000000000000000AA") # always fails
+        CaptchaService.any_instance.stubs(:request).returns({ "success" => false }) # fork: what Cloudflare answers for this key
 
         post session_path, params: { "session": { name: @user.name, password: "password" }, "cf-turnstile-response": "blah" }
 
@@ -224,6 +225,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       should "log the user in if the captcha is valid" do
         Danbooru.config.stubs(:captcha_site_key).returns("3x00000000000000000000FF") # forces an interactive challenge
         Danbooru.config.stubs(:captcha_secret_key).returns("1x0000000000000000000000000000000AA") # always passes
+        CaptchaService.any_instance.stubs(:request).returns({ "success" => true }) # fork: what Cloudflare answers for this key
 
         freeze_time
         post session_path, params: { "session": { name: @user.name, password: "password", url: users_path }, "cf-turnstile-response": "blah" }

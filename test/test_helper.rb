@@ -36,6 +36,9 @@ if ENV["COVERAGE"].present?
   end
 end
 
+# Fork: refuses to run tests where they could contact an outside site; see the file.
+require_relative "fourier_network_guard"
+FourierNetworkGuard.check!
 require_relative "../config/environment"
 # Fork addition, kept to one line here so this inherited file barely diverges.
 # Refuses to run against a production database; see the file for what happened.
@@ -50,7 +53,7 @@ Minitest::Reporters.use!([
   Minitest::Reporters::ProgressReporter.new,
   Minitest::Reporters::HtmlReporter.new(reports_dir: "tmp/html-test-results"),
   Minitest::Reporters::JUnitReporter.new("tmp/junit-test-results"),
-  LiveSiteTestHelper::NotAchievedReporter.new, # fork: see the file
+  OutsideSiteHelper::Reporter.new, # fork: see the file
 ])
 
 Shoulda::Matchers.configure do |config|
@@ -70,11 +73,12 @@ class ActiveSupport::TestCase
   include AutotaggerHelper
   include BulkUpdateRequestTestHelper
   include DatabaseTestHelper
+  include EmailTestHelper
   include IqdbTestHelper
   include JailTestHelper
-  include LiveSiteTestHelper
   include LandingBlogHelper
   include MediaFileTestHelper
+  include OutsideSiteHelper
   include ReportbooruHelper
   include UploadTestHelper
   include UrlTestHelper
@@ -186,8 +190,4 @@ module Source::Tests; end
 
 class ActiveSupport::ExtractorTestCase < ActiveSupport::TestCase
   include ExtractorTestHelper
-
-  setup do
-    skip "Skipping extractor tests as configured by the environment." if ENV["DANBOORU_SKIP_EXTRACTOR_TESTS"].to_s.truthy?
-  end
 end

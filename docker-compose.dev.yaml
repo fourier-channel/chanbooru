@@ -129,6 +129,26 @@ services:
       <<: [*base-env, *debug-env]
     command: ["bin/rails", "server", "-b", "0.0.0.0"]
 
+  # Fork: where tests run (script/run-tests.sh). Its one network has no route to
+  # the outside, so no test can contact an outside site (operator ruling
+  # 2026-11-24); test/fourier_network_guard.rb refuses to run them elsewhere.
+  test:
+    <<: *base-template
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *base-env
+      npm_config_update_notifier: "false" # npm asks its registry for a newer npm on every run
+      SE_AVOID_STATS: "true" # Selenium Manager sends usage statistics
+    command: ["sleep", "infinity"]
+    networks: [testnet]
+    # Without this a name not found is asked again under the host's own search
+    # domain, and counted as an outside lookup.
+    dns_search: .
+
   cron:
     <<: *base-template
     depends_on:
@@ -167,16 +187,19 @@ services:
   # https://hub.docker.com/repository/docker/evazion/iqdb
   iqdb:
     image: evazion/iqdb
+    networks: [default, testnet]
     volumes:
       - "iqdb-data:/iqdb/data"
     command: ["http", "0.0.0.0", "5588", "/iqdb/data/iqdb.sqlite"]
 
   redis:
     image: redis:6.2.24@sha256:71075871d0c318a0a835648a954e32d2b88d7b2a75c89a034ad0aa404e0319c9
+    networks: [default, testnet]
 
   postgres:
     image: postgres:16.15-bookworm@sha256:e8a07d2c7579b038938cdba6c539e580e5001caf9ea203d397b5cc83e76bd938
     shm_size: 1gb
+    networks: [default, testnet]
     environment:
       POSTGRES_USER: danbooru
       POSTGRES_HOST_AUTH_METHOD: trust
@@ -230,6 +253,7 @@ services:
     # with bin/chanbooru-image elasticmq build.
     image: chanbooru-elasticmq:fb66ab4ae00f
     pull_policy: never
+    networks: [default, testnet]
     expose:
     - 9324
     volumes:
@@ -268,6 +292,10 @@ services:
     restart: unless-stopped
     stdin_open: true
     tty: true
+
+networks:
+  testnet:
+    internal: true
 
 configs:
   nginx:

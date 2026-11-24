@@ -334,19 +334,19 @@ See also [Debugging Rails Applications](https://edgeguides.rubyonrails.org/debug
 To run the test suite:
 
 ```bash
-bin/dev run --rm danbooru bin/rails test
+bin/dev run --rm test bin/rails test
 ```
 
 To run the tests for a single file:
 
 ```bash
-bin/dev run --rm danbooru bin/rails test test/unit/media_file_test.rb
+bin/dev run --rm test bin/rails test test/unit/media_file_test.rb
 ```
 
 To only run specific tests:
 
 ```bash
-bin/dev run --rm danbooru bin/rails test test/unit/media_file_test.rb -n "/determine the correct dimensions/"
+bin/dev run --rm test bin/rails test test/unit/media_file_test.rb -n "/determine the correct dimensions/"
 ```
 
 See also the [Testing Rails Applications](https://edgeguides.rubyonrails.org/testing.html) guide.

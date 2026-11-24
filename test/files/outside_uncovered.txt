@@ -1,0 +1,1063 @@
+# The tests that need an outside site and have no saved copy of it. No test
+# contacts an outside site (operator ruling 2026-11-24), so these are skipped,
+# and every run prints them as uncovered: test/test_helpers/outside_site_helper.rb.
+#
+#   <class>#<test name><TAB><site | login:<SiteCredential site>>
+#
+# Written by OUTSIDE_LIST=write bash script/run-tests.sh <test file>. This file
+# is public: test names and those reasons only, never a host.
+ArtistTest#test_: An artist #new_with_defaults should fetch the defaults from the given source.	site
+ArtistTest#test_: An artist #new_with_defaults should fetch the defaults from the given tag.	site
+ArtistTest#test_: An artist should ignore /en/ pixiv url matches.	site
+ArtistTest#test_: An artist should ignore pixiv.net/ and pixiv.net/img/ url matches.	site
+ArtistTest#test_: An artist when finding Newgrounds artists should find the correct artist.	site
+ArtistTest#test_: An artist when finding deviantart artists should find the correct artist for image URLs.	login:Deviant Art
+ArtistTest#test_: An artist when finding deviantart artists should find the correct artist for page URLs.	login:Deviant Art
+ArtistTest#test_: An artist when finding nico seiga artists should find the artist by the profile.	site
+ArtistTest#test_: An artist when finding nico seiga artists should return nothing for unknown nico seiga artists.	site
+ArtistTest#test_: An artist when finding nijie artists should find the artist.	login:Nijie
+ArtistTest#test_: An artist when finding nijie artists should return nothing for unknown nijie artists.	login:Nijie
+ArtistTest#test_: An artist when finding pawoo artists should find the artist.	login:Pawoo
+ArtistTest#test_: An artist when finding pawoo artists should return nothing for unknown pawoo sources.	login:Pawoo
+ArtistTest#test_: An artist when finding pixiv artists should find nothing for bad IDs.	site
+ArtistTest#test_: An artist when finding pixiv artists should find the correct artist by looking up the profile url.	site
+ArtistTest#test_: An artist when finding pixiv artists should find the correct artist for new image URLs.	site
+ArtistTest#test_: An artist when finding pixiv artists should find the correct artist for old image URLs.	site
+ArtistTest#test_: An artist when finding pixiv artists should find the correct artist for page URLs.	site
+ArtistTest#test_: An artist when finding twitter artists should find the correct artist for mobile.twitter.com sources.	site
+ArtistTest#test_: An artist when finding twitter artists should find the correct artist for twitter.com sources.	site
+ArtistTest#test_: An artist when finding twitter artists should return nothing for unknown mobile.twitter.com sources.	site
+ArtistTest#test_: An artist when finding twitter artists should return nothing for unknown twitter.com sources.	site
+ArtistsControllerTest#test_: An artists controller index action when searching the index page ignoring whitespace should respond to a search for {search: {url_matches: " http://www.pixiv.net/member_illust.php?mode=medium&illust_id=46170939 "}} (artists_controller_test.rb:186).	site
+ArtistsControllerTest#test_: An artists controller index action when searching the index page should respond to a search for {search: {url_matches: "http://i2.pixiv.net/img04/img/syounen_no_uta/46170939_m.jpg"}} (artists_controller_test.rb:181).	site
+ArtistsControllerTest#test_: An artists controller index action when searching the index page should respond to a search for {search: {url_matches: "http://www.pixiv.net/member_illust.php?mode=medium&illust_id=46170939 https://example.com/1234"}} (artists_controller_test.rb:183).	site
+ArtistsControllerTest#test_: An artists controller index action when searching the index page should respond to a search for {search: {url_matches: "http://www.pixiv.net/member_illust.php?mode=medium&illust_id=46170939"}} (artists_controller_test.rb:182).	site
+ArtistsControllerTest#test_: An artists controller when finding an artist should fail for nonexisting illust ids.	site
+ArtistsControllerTest#test_: An artists controller when finding an artist should find deviantart artists.	site
+ArtistsControllerTest#test_: An artists controller when finding an artist should find pixiv artists for img##.	site
+ArtistsControllerTest#test_: An artists controller when finding an artist should find pixiv artists for img-original.	site
+ArtistsControllerTest#test_: An artists controller when finding an artist should find pixiv artists for member_illust.php.	site
+ArtistsControllerTest#test_: An artists controller when finding an artist should not fail for Pixiv bad IDs.	site
+IqdbQueriesControllerTest#test_: The iqdb controller show action with a url parameter for a page URL that has a single image should download the image from the page.	site
+IqdbQueriesControllerTest#test_: The iqdb controller show action with a url parameter should return an error if the url doesn't have any images.	login:Twitter
+IqdbQueriesControllerTest#test_: The iqdb controller show action with a url parameter should return an error if the url has multiple images.	login:Twitter
+IqdbQueriesControllerTest#test_: The iqdb controller show action with a url parameter should use the URL as-is for an image URL.	site
+PostReplacementsControllerTest#test_: The post replacements controller create action a replacement URL that contains multiple images should return an error.	login:Twitter
+PostReplacementsControllerTest#test_: The post replacements controller create action a replacement URL that doesn't contain any images should return an error.	login:Twitter
+PostReplacementsControllerTest#test_: The post replacements controller create action replacing a post from a source url should replace the post.	site
+PostReplacementsControllerTest#test_: The post replacements controller create action replacing a post with a Pixiv page URL should replace with the full size image.	login:Pixiv
+PostReplacementsControllerTest#test_: The post replacements controller create action replacing a post with a Pixiv ugoira should save the frame data.	login:Pixiv
+PostsControllerTest#test_: The posts controller create action should set the correct source after upload.	site
+Source::Tests::Extractor::AppleMusicExtractorTest#test_: A direct mzstatic image thumb URL with a referer should work.	site
+Source::Tests::Extractor::AppleMusicExtractorTest#test_: A slugless Apple Music album page should work.	site
+Source::Tests::Extractor::AppleMusicExtractorTest#test_: A slugless countryless Apple Music album page should work.	site
+Source::Tests::Extractor::AppleMusicExtractorTest#test_: An Apple Music album page should work.	site
+Source::Tests::Extractor::ArcaLiveExtractorTest#test_: An Arca.live /b/breaking page URL should work.	site
+Source::Tests::Extractor::ArcaLiveExtractorTest#test_: An Arca.live image URL with a referer should work.	site
+Source::Tests::Extractor::ArcaLiveExtractorTest#test_: An Arca.live image URL without a referer should work.	site
+Source::Tests::Extractor::ArcaLiveExtractorTest#test_: An Arca.live page URL should work.	site
+Source::Tests::Extractor::ArcaLiveExtractorTest#test_: An Arca.live page URL with a fake .mp4 GIF should work.	site
+Source::Tests::Extractor::ArcaLiveExtractorTest#test_: An Arca.live page URL with a static emoticon should work.	site
+Source::Tests::Extractor::ArcaLiveExtractorTest#test_: An Arca.live page URL with an .mp4 video should work.	site
+Source::Tests::Extractor::ArcaLiveExtractorTest#test_: An Arca.live page URL with an animated .gif should work.	site
+Source::Tests::Extractor::ArcaLiveExtractorTest#test_: An Arca.live page URL with an animated .webp should work.	site
+Source::Tests::Extractor::ArcaLiveExtractorTest#test_: An Arca.live page URL with an animated emoticon should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: A /large/ ArtStation image URL (1) should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: A /large/ ArtStation image URL (2) should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: A /small/ ArtStation image URL should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: A deleted ArtStation url should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: A http://cdn.artstation.com/p/assets/... url should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: A http://cdn.artstation.com/p/assets/... url with referrer should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: An ArtStation /artwork/$slug page should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: An ArtStation /artwork/:id URL should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: An ArtStation /projects/ URL should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: An ArtStation cover url should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: An ArtStation post with HTML entities in the commentary should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: An ArtStation post with images and videos should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: An ArtStation post with images and youtube links should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: An ArtStation url with dashes in the artist name should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: An ArtStation url with underscores in the artist name should work.	site
+Source::Tests::Extractor::ArtStationExtractorTest#test_: An ArtStation video url should work.	site
+Source::Tests::Extractor::ArtStreetExtractorTest#test_: A R-18 page url should work.	login:ArtStreet
+Source::Tests::Extractor::ArtStreetExtractorTest#test_: A book image url should work.	site
+Source::Tests::Extractor::ArtStreetExtractorTest#test_: A book page url should work.	site
+Source::Tests::Extractor::ArtStreetExtractorTest#test_: A deleted page url should work.	site
+Source::Tests::Extractor::ArtStreetExtractorTest#test_: A https://medibang.com/picture/:id/ page url should work.	site
+Source::Tests::Extractor::ArtStreetExtractorTest#test_: A picture page url for an artist without a /u/:id profile should work.	site
+Source::Tests::Extractor::ArtStreetExtractorTest#test_: A picture sample image url should work.	site
+Source::Tests::Extractor::ArtistreeExtractorTest#test_: A deleted or nonexistent Artistree commission listing should work.	site
+Source::Tests::Extractor::ArtistreeExtractorTest#test_: An Artistree commission listing should work.	site
+Source::Tests::Extractor::ArtistreeExtractorTest#test_: An Artistree image URL should work.	site
+Source::Tests::Extractor::BehanceExtractorTest#test_: A Behance full image URL should work.	site
+Source::Tests::Extractor::BehanceExtractorTest#test_: A Behance module URL should work.	site
+Source::Tests::Extractor::BehanceExtractorTest#test_: A Behance post with a complex commentary should work.	site
+Source::Tests::Extractor::BehanceExtractorTest#test_: A Behance post with a media gallery should work.	site
+Source::Tests::Extractor::BehanceExtractorTest#test_: A Behance post with a single image should work.	site
+Source::Tests::Extractor::BehanceExtractorTest#test_: A Behance post with multiple owners should work.	site
+Source::Tests::Extractor::BehanceExtractorTest#test_: A NSFW Behance post should work.	login:Behance
+Source::Tests::Extractor::BehanceExtractorTest#test_: A deleted or nonexistent Behance post should work.	site
+Source::Tests::Extractor::BehanceExtractorTest#test_: A mir-cdn.behance.net sample image URL should work.	site
+Source::Tests::Extractor::BehanceExtractorTest#test_: A mir-s3-cdn-cf.behance.net sample image URL should work.	site
+Source::Tests::Extractor::BilibiliExtractorTest#test_: A bilibili image url should work.	site
+Source::Tests::Extractor::BilibiliExtractorTest#test_: A bilibili image url with embedded artist ID should work.	site
+Source::Tests::Extractor::BilibiliExtractorTest#test_: A bilibili.com/read/:id post should work.	site
+Source::Tests::Extractor::BilibiliExtractorTest#test_: A bilibili.com/read/:id post with /watermark/ image URLs should work.	site
+Source::Tests::Extractor::BilibiliExtractorTest#test_: A t.bilibili.com post with hashtags, mentions, emotes should work.	site
+Source::Tests::Extractor::BilibiliExtractorTest#test_: A t.bilibili.com/:id post should work.	site
+Source::Tests::Extractor::BilibiliExtractorTest#test_: A t.bilibili.com/:id quote-post should work.	site
+Source::Tests::Extractor::BilibiliExtractorTest#test_: A t.bilibili.com/:id quote-post with images should work.	site
+Source::Tests::Extractor::BilibiliExtractorTest#test_: A text-only t.bilibili.com post with hashtags should work.	site
+Source::Tests::Extractor::BilibiliExtractorTest#test_: A www.bilibili.com/opus/:id large cover post should work.	site
+Source::Tests::Extractor::BilibiliExtractorTest#test_: A www.bilibili.com/opus/:id post should work.	site
+Source::Tests::Extractor::BloggerExtractorTest#test_: A 1.bp.blogspot.com sample image URL should work.	site
+Source::Tests::Extractor::BloggerExtractorTest#test_: A blog page URL should work.	login:Blogger
+Source::Tests::Extractor::BloggerExtractorTest#test_: A blog post from a blogspot.com.es domain should work.	login:Blogger
+Source::Tests::Extractor::BloggerExtractorTest#test_: A blog post on a custom domain should work.	login:Blogger
+Source::Tests::Extractor::BloggerExtractorTest#test_: A blog post with image URLs in the `img[data-src]` attribute should work.	site
+Source::Tests::Extractor::BloggerExtractorTest#test_: A blogger.googleusercontent.com/img/a/ sample image URL should work.	site
+Source::Tests::Extractor::BloggerExtractorTest#test_: A blogger.googleusercontent.com/img/b sample image URL should work.	site
+Source::Tests::Extractor::BloggerExtractorTest#test_: A bp0.blogger.com sample image URL should work.	site
+Source::Tests::Extractor::BlueskyExtractorTest#test_: A 'https://cdn.bsky.app/img' url should work.	site
+Source::Tests::Extractor::BlueskyExtractorTest#test_: A post from a bluesky instance other than bsky.social should work.	site
+Source::Tests::Extractor::BlueskyExtractorTest#test_: A post mentioning another user should work.	site
+Source::Tests::Extractor::BlueskyExtractorTest#test_: A post that requires sign-in to view should work.	site
+Source::Tests::Extractor::BlueskyExtractorTest#test_: A post url with 'app.bsky.embed.images.view' embed should work.	site
+Source::Tests::Extractor::BlueskyExtractorTest#test_: A post url with 'app.bsky.embed.recordWithMedia.view' embed and alt text should work.	site
+Source::Tests::Extractor::BlueskyExtractorTest#test_: A post url with DID as user id should work.	site
+Source::Tests::Extractor::BlueskyExtractorTest#test_: A post with 'app.bsky.embed.images.view' embed and alt text should work.	site
+Source::Tests::Extractor::BlueskyExtractorTest#test_: A post with Unicode tags should work.	site
+Source::Tests::Extractor::BlueskyExtractorTest#test_: A post with a gallery embed should work.	site
+Source::Tests::Extractor::BlueskyExtractorTest#test_: A post with a video and an alt text should work.	site
+Source::Tests::Extractor::BlueskyExtractorTest#test_: A post with a video should work.	site
+Source::Tests::Extractor::BlueskyExtractorTest#test_: A post with unicode alt text should work.	site
+Source::Tests::Extractor::BlueskyExtractorTest#test_: A stale access token should automatically refresh should work.	site
+Source::Tests::Extractor::BoothExtractorTest#test_: A booth post should work.	site
+Source::Tests::Extractor::BoothExtractorTest#test_: A booth post with a factory.pixiv.net image should work.	site
+Source::Tests::Extractor::BoothExtractorTest#test_: A booth post with artist name in the url should work.	site
+Source::Tests::Extractor::BoothExtractorTest#test_: A deleted booth image should work.	site
+Source::Tests::Extractor::BoothExtractorTest#test_: A non-existing or deleted post should work.	site
+Source::Tests::Extractor::BoothExtractorTest#test_: A profile background picture should work.	site
+Source::Tests::Extractor::BoothExtractorTest#test_: A profile icon should work.	site
+Source::Tests::Extractor::BoothExtractorTest#test_: An active booth image should work.	site
+Source::Tests::Extractor::CarrdExtractorTest#test_: A crd.co page should work.	site
+Source::Tests::Extractor::CarrdExtractorTest#test_: A page with a single image should work.	site
+Source::Tests::Extractor::CarrdExtractorTest#test_: A page with data:image/* URLs in the img[data-src] attributes should work.	site
+Source::Tests::Extractor::CarrdExtractorTest#test_: A page with images and videos should work.	site
+Source::Tests::Extractor::CarrdExtractorTest#test_: A page with multiple images that don't have _original versions should work.	site
+Source::Tests::Extractor::CarrdExtractorTest#test_: A page with multiple images that don't have separate pages should work.	site
+Source::Tests::Extractor::CarrdExtractorTest#test_: A sample image URL that has an _original version should work.	site
+Source::Tests::Extractor::CarrdExtractorTest#test_: A video cover image should work.	site
+Source::Tests::Extractor::CarrdExtractorTest#test_: An _original full image URL should work.	site
+Source::Tests::Extractor::CarrdExtractorTest#test_: An image URL that doesn't have an _original version should work.	site
+Source::Tests::Extractor::CarrdExtractorTest#test_: For a custom domain: A page URL should work.	site
+Source::Tests::Extractor::CarrdExtractorTest#test_: For a custom domain: An image URL with a referer should work.	site
+Source::Tests::Extractor::CarrdExtractorTest#test_: For a custom domain: An image URL without a referer should work.	site
+Source::Tests::Extractor::CiEnExtractorTest#test_: A self-introduction article should work.	login:Ci-En
+Source::Tests::Extractor::CiEnExtractorTest#test_: An R18 article url should work.	login:Ci-En
+Source::Tests::Extractor::CiEnExtractorTest#test_: An all-ages article url should work.	login:Ci-En
+Source::Tests::Extractor::CiEnExtractorTest#test_: An article with images and videos should work.	login:Ci-En
+Source::Tests::Extractor::DanbooruExtractorTest#test_: A media asset should work.	site
+Source::Tests::Extractor::DanbooruExtractorTest#test_: A post with a source pointing to itself should work.	site
+Source::Tests::Extractor::DanbooruExtractorTest#test_: a nonexistent post should work.	site
+Source::Tests::Extractor::DanbooruExtractorTest#test_: a post should work.	site
+Source::Tests::Extractor::DanbooruExtractorTest#test_: a sample image URL for a PNG original should work.	site
+Source::Tests::Extractor::DanbooruExtractorTest#test_: a sample image URL should work.	site
+Source::Tests::Extractor::DanbooruExtractorTest#test_: an original image URL should work.	site
+Source::Tests::Extractor::DcInsideExtractorTest#test_: A .gif post should work.	site
+Source::Tests::Extractor::DcInsideExtractorTest#test_: A page URL should work.	site
+Source::Tests::Extractor::DcInsideExtractorTest#test_: A post from user without an account should work.	site
+Source::Tests::Extractor::DcInsideExtractorTest#test_: A post with images with no src in the html should work.	site
+Source::Tests::Extractor::DcInsideExtractorTest#test_: A post with lowres static image should work.	site
+Source::Tests::Extractor::DcInsideExtractorTest#test_: A post without download links should work.	site
+Source::Tests::Extractor::DcInsideExtractorTest#test_: An image URL with a referer should work.	site
+Source::Tests::Extractor::DcInsideExtractorTest#test_: An image URL without a referer should work.	site
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A *.deviantart.net/*/:hash.jpg image should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A *.deviantart.net/*/:hash.jpg image without referer should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A *.deviantart.net/*/:title_by_:artist.jpg image with an artist name containing underscores should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A DeviantArt post with <sub> tags in the commentary should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A DeviantArt post with deeply nested commentary should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A DeviantPost with a commentary created using the WYSIWYG text editor should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A api-da.wixmp.com sample should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A deviantart page for a Flash file should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A deviantart page with a blurred sample URL should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A deviantart page with download disabled for a huge file should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A deviantart page with download disabled should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A deviantart page with download enabled should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A deviantart post should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A deviantart post without a downloadable or /intermediary/ image should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A direct non-downloadable video file should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A downloadable deviantart origin-orig image should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A images-wixmp-.* /intermediary/ sample should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A img00.deviantart.net sample should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A login-only deviantart post should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A multi-image deviantart post should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A non-downloadable animated gif with id<=790677560 should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A page containing a non-downloadable video file should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A source with malformed links in the artist commentary should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A subscribers-only DeviantArt image should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A th00.deviantart.net/*/PRE/* thumbnail should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: A watchers-only DeviantArt image should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: An AI-generated DeviantArt post should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: An artistname.deviantart.com page url should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: An old deviantart image for a deleted post should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: An old downloadable deviantart image should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: For Sta.sh: A https://orig00.deviantart.net/* image url with a https://sta.sh/:id referer should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: For Sta.sh: A https://orig00.deviantart.net/* image url without the referer should work.	login:Deviant Art
+Source::Tests::Extractor::DeviantArtExtractorTest#test_: For Sta.sh: A https://sta.sh/:id url should work.	login:Deviant Art
+Source::Tests::Extractor::DotpictExtractorTest#test_: A Dotpict full image URL should work.	site
+Source::Tests::Extractor::DotpictExtractorTest#test_: A Dotpict post should work.	site
+Source::Tests::Extractor::DotpictExtractorTest#test_: A Dotpict sample image URL should work.	site
+Source::Tests::Extractor::DotpictExtractorTest#test_: A deleted or nonexistent Dotpict post should work.	site
+Source::Tests::Extractor::E621ExtractorTest#test_: A login-blocked post should work.	site
+Source::Tests::Extractor::E621ExtractorTest#test_: A normal post URL should work.	site
+Source::Tests::Extractor::E621ExtractorTest#test_: A post with a deleted source should work.	site
+Source::Tests::Extractor::E621ExtractorTest#test_: A post with a non-web source should work.	site
+Source::Tests::Extractor::E621ExtractorTest#test_: A post with arttag without artist entry should work.	site
+Source::Tests::Extractor::E621ExtractorTest#test_: A sample URL should work.	site
+Source::Tests::Extractor::E621ExtractorTest#test_: A self-uploaded post with external source should work.	site
+Source::Tests::Extractor::E621ExtractorTest#test_: A sourceless second-party post should work.	site
+Source::Tests::Extractor::E621ExtractorTest#test_: A sourceless self-uploaded post should work.	site
+Source::Tests::Extractor::FanboxExtractorTest#test_: A Fanbox post with previously missing imageIds should work.	site
+Source::Tests::Extractor::FanboxExtractorTest#test_: A Pixiv Fanbox sample should work.	site
+Source::Tests::Extractor::FanboxExtractorTest#test_: A cover image should work.	site
+Source::Tests::Extractor::FanboxExtractorTest#test_: A dead profile picture in the old pixiv format should work.	site
+Source::Tests::Extractor::FanboxExtractorTest#test_: A deleted Fanbox post should work.	site
+Source::Tests::Extractor::FanboxExtractorTest#test_: A fanbox post with a single embedded video should work.	site
+Source::Tests::Extractor::FanboxExtractorTest#test_: A fanbox post with multiple videos attached as files should work.	site
+Source::Tests::Extractor::FanboxExtractorTest#test_: A free Pixiv Fanbox post should work.	site
+Source::Tests::Extractor::FanboxExtractorTest#test_: A free Pixiv Fanbox post with embedded pics should work.	site
+Source::Tests::Extractor::FanboxExtractorTest#test_: A post in the old pixiv format should work.	site
+Source::Tests::Extractor::FanboxExtractorTest#test_: An 'access is restricted for this user' Fanbox post should work.	site
+Source::Tests::Extractor::FanboxExtractorTest#test_: An age-restricted Fanbox post should work.	site
+Source::Tests::Extractor::FandomExtractorTest#test_: A UUID image URL should work.	site
+Source::Tests::Extractor::FandomExtractorTest#test_: A deleted or nonexistent wiki file should work.	site
+Source::Tests::Extractor::FandomExtractorTest#test_: A sample image URL should work.	site
+Source::Tests::Extractor::FandomExtractorTest#test_: A wiki.fandom.com/wiki/:page?file=:file URL should work.	site
+Source::Tests::Extractor::FandomExtractorTest#test_: A wiki.fandom.com/wiki/:page?file=:file URL that is a Youtube video should work.	site
+Source::Tests::Extractor::FandomExtractorTest#test_: A wiki.fandom.com/wiki/File:name URL should work.	site
+Source::Tests::Extractor::FandomExtractorTest#test_: An invalid wiki file should work.	site
+Source::Tests::Extractor::FantiaExtractorTest#test_: A c.fantia.jp/uploads/post/file/ url should work.	login:Fantia
+Source::Tests::Extractor::FantiaExtractorTest#test_: A c.fantia.jp/uploads/post_content_photo/ url should work.	login:Fantia
+Source::Tests::Extractor::FantiaExtractorTest#test_: A c.fantia.jp/uploads/post_content_photo/ url with full size page referer should work.	login:Fantia
+Source::Tests::Extractor::FantiaExtractorTest#test_: A c.fantia.jp/uploads/product/image/ url should work.	login:Fantia
+Source::Tests::Extractor::FantiaExtractorTest#test_: A c.fantia.jp/uploads/product_image/file sample url should work.	login:Fantia
+Source::Tests::Extractor::FantiaExtractorTest#test_: A deleted or non-existing fantia post should work.	login:Fantia
+Source::Tests::Extractor::FantiaExtractorTest#test_: A deleted or non-existing fantia product should work.	login:Fantia
+Source::Tests::Extractor::FantiaExtractorTest#test_: A fantia.jp .webp sample image url should work.	login:Fantia
+Source::Tests::Extractor::FantiaExtractorTest#test_: A fantia.jp/posts/$id blog type url should work.	login:Fantia
+Source::Tests::Extractor::FantiaExtractorTest#test_: A fantia.jp/posts/$id blog type url with cloudinary images should work.	login:Fantia
+Source::Tests::Extractor::FantiaExtractorTest#test_: A fantia.jp/posts/$id blog/album type url should work.	login:Fantia
+Source::Tests::Extractor::FantiaExtractorTest#test_: A fantia.jp/posts/$id url should work.	login:Fantia
+Source::Tests::Extractor::FantiaExtractorTest#test_: A fantia.jp/posts/$id/download url should work.	login:Fantia
+Source::Tests::Extractor::FantiaExtractorTest#test_: A fantia.jp/products/$id url should work.	login:Fantia
+Source::Tests::Extractor::FantiaExtractorTest#test_: A product url with no images should work.	login:Fantia
+Source::Tests::Extractor::Fc2ExtractorTest#test_: A blog full image URL should work.	site
+Source::Tests::Extractor::Fc2ExtractorTest#test_: A blog post with a ?no=:id param should work.	site
+Source::Tests::Extractor::Fc2ExtractorTest#test_: A blog post with a mobile version should work.	site
+Source::Tests::Extractor::Fc2ExtractorTest#test_: A blog post with a nonstandard mobile version should work.	site
+Source::Tests::Extractor::Fc2ExtractorTest#test_: A blog post without a mobile version should work.	site
+Source::Tests::Extractor::Fc2ExtractorTest#test_: A blog sample image URL should work.	site
+Source::Tests::Extractor::Fc2ExtractorTest#test_: A deleted image URL should work.	site
+Source::Tests::Extractor::Fc2ExtractorTest#test_: A deleted or nonexistent blog post should work.	site
+Source::Tests::Extractor::Fc2ExtractorTest#test_: A fc2blog.us blog post should work.	site
+Source::Tests::Extractor::ForiioExtractorTest#test_: A Foriio post with a single image should work.	site
+Source::Tests::Extractor::ForiioExtractorTest#test_: A Foriio post with multiple images should work.	site
+Source::Tests::Extractor::ForiioExtractorTest#test_: A R-18 Foriio post should work.	site
+Source::Tests::Extractor::ForiioExtractorTest#test_: A deleted Foriio post should work.	site
+Source::Tests::Extractor::FourChanExtractorTest#test_: A 4chan direct image url with a referer should work.	site
+Source::Tests::Extractor::FourChanExtractorTest#test_: A 4chan direct image url without a referer should work.	site
+Source::Tests::Extractor::FourChanExtractorTest#test_: A 4chan post url should work.	site
+Source::Tests::Extractor::FourChanExtractorTest#test_: A 4chan thread url should work.	site
+Source::Tests::Extractor::FourChanExtractorTest#test_: A 4chan thumbnail image url without a referer should work.	site
+Source::Tests::Extractor::FuraffinityExtractorTest#test_: A deleted or non-existing furaffinity post should work.	login:Furaffinity
+Source::Tests::Extractor::FuraffinityExtractorTest#test_: A furaffinity image should work.	login:Furaffinity
+Source::Tests::Extractor::FuraffinityExtractorTest#test_: A furaffinity post should work.	login:Furaffinity
+Source::Tests::Extractor::FuraffinityExtractorTest#test_: A furaffinity post with non-ascii image url should work.	login:Furaffinity
+Source::Tests::Extractor::FuraffinityExtractorTest#test_: A furaffinity post with relative URLs in the commentary should work.	login:Furaffinity
+Source::Tests::Extractor::FuraffinityExtractorTest#test_: An adult age-restricted furaffinity post should work.	login:Furaffinity
+Source::Tests::Extractor::GalleriaExtractorTest#test_: A Galleria full image URL should work.	site
+Source::Tests::Extractor::GalleriaExtractorTest#test_: A Galleria image URL without a post ID should work.	site
+Source::Tests::Extractor::GalleriaExtractorTest#test_: A Galleria post with a single image should work.	site
+Source::Tests::Extractor::GalleriaExtractorTest#test_: A Galleria post with multiple images should work.	site
+Source::Tests::Extractor::GalleriaExtractorTest#test_: A Galleria sample image URL should work.	site
+Source::Tests::Extractor::GalleriaExtractorTest#test_: A R18 Galleria post should work.	site
+Source::Tests::Extractor::GalleriaExtractorTest#test_: A deleted or nonexistent Galleria post should work.	site
+Source::Tests::Extractor::GalleriaExtractorTest#test_: A text-only Galleria post should work.	site
+Source::Tests::Extractor::GalleriaExtractorTest#test_: An old galleria-img.emotionflow.com sample image URL should work.	site
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Gelbooru: A Gelbooru direct image url with a referer should work.	login:Gelbooru
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Gelbooru: A Gelbooru direct image url without a referer should work.	login:Gelbooru
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Gelbooru: A Gelbooru md5 page url should work.	login:Gelbooru
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Gelbooru: A Gelbooru page url should work.	login:Gelbooru
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Gelbooru: A Gelbooru post with a malformed Pixiv source URL should work.	login:Gelbooru
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Gelbooru: A Gelbooru post without credentials configured should work.	login:Gelbooru
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Gelbooru: A Gelbooru sample image url should work.	login:Gelbooru
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Gelbooru: A deleted Gelbooru post should work.	login:Gelbooru
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Gelbooru: A nonexistent Gelbooru post should work.	login:Gelbooru
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Gelbooru: A sourceless Gelbooru post should work.	login:Gelbooru
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Rule34.xxx: A https://rule34.xxx/images/$dir/$md5.jpg URL without a referer should work.	login:Rule34.xxx
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Rule34.xxx: A https://rule34.xxx/index.php?page=post&s=list&md5=$md5 URL should work.	login:Rule34.xxx
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Rule34.xxx: A https://rule34.xxx/index.php?page=post&s=view&id=$post_id URL should work.	login:Rule34.xxx
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Safebooru: A https://safebooru.org/images/$dir/$hash.jpg URL with a referer should work.	site
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Safebooru: A https://safebooru.org/images/$dir/$hash.jpg?$post_id URL without a referer should work.	site
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Safebooru: A https://safebooru.org/images/$dir/$md5.jpg URL without a referer should work.	site
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Safebooru: A https://safebooru.org/index.php?page=post&s=list&md5=$md5 URL should work.	site
+Source::Tests::Extractor::GelbooruExtractorTest#test_: Safebooru: A https://safebooru.org/index.php?page=post&s=view&id=$post_id URL should work.	site
+Source::Tests::Extractor::GelbooruExtractorTest#test_: TBIB: A https://tbib.org/images/$dir/$hash.jpg URL with a referer should work.	site
+Source::Tests::Extractor::GelbooruExtractorTest#test_: TBIB: A https://tbib.org/images/$dir/$hash.jpg?$post_id URL without a referer should work.	site
+Source::Tests::Extractor::GelbooruExtractorTest#test_: TBIB: A https://tbib.org/index.php?page=post&s=list&md5=$md5 URL should work.	site
+Source::Tests::Extractor::GelbooruExtractorTest#test_: TBIB: A https://tbib.org/index.php?page=post&s=view&id=$post_id URL should work.	site
+Source::Tests::Extractor::GoogleExtractorTest#test_: A lh3.googleusercontent.com sample image URL should work.	site
+Source::Tests::Extractor::GrafolioExtractorTest#test_: A cover image URL should work.	site
+Source::Tests::Extractor::GrafolioExtractorTest#test_: A deleted or nonexistent project should work.	site
+Source::Tests::Extractor::GrafolioExtractorTest#test_: A full image URL should work.	site
+Source::Tests::Extractor::GrafolioExtractorTest#test_: A project URL should work.	site
+Source::Tests::Extractor::GrafolioExtractorTest#test_: A thumbnail URL should work.	site
+Source::Tests::Extractor::GumroadExtractorTest#test_: A Gumroad post page url should work.	site
+Source::Tests::Extractor::GumroadExtractorTest#test_: A Gumroad product image url with referer should work.	site
+Source::Tests::Extractor::GumroadExtractorTest#test_: A Gumroad product image url without referer should work.	site
+Source::Tests::Extractor::GumroadExtractorTest#test_: A Gumroad product page url should work.	site
+Source::Tests::Extractor::HentaiFoundryExtractorTest#test_: A deleted picture should work.	site
+Source::Tests::Extractor::HentaiFoundryExtractorTest#test_: A hentai-foundry picture should work.	site
+Source::Tests::Extractor::HentaiFoundryExtractorTest#test_: A hentai-foundry post should work.	site
+Source::Tests::Extractor::HentaiFoundryExtractorTest#test_: A post with commentary containing quote marks inside the links should work.	site
+Source::Tests::Extractor::HentaiFoundryExtractorTest#test_: A post with deeply nested commentary should work.	site
+Source::Tests::Extractor::HentaiFoundryExtractorTest#test_: An image url without the extension should work.	site
+Source::Tests::Extractor::HentaiFoundryExtractorTest#test_: An old image url should work.	site
+Source::Tests::Extractor::HuajiaExtractorTest#test_: A Huajia commission with a description image should work.	site
+Source::Tests::Extractor::HuajiaExtractorTest#test_: A Huajia commission with only character settings should work.	site
+Source::Tests::Extractor::HuajiaExtractorTest#test_: A Huajia goods with GIF should work.	site
+Source::Tests::Extractor::HuajiaExtractorTest#test_: A Huajia goods with HEIC should work.	site
+Source::Tests::Extractor::HuajiaExtractorTest#test_: A Huajia sample image url should work.	site
+Source::Tests::Extractor::HuajiaExtractorTest#test_: A Huajia work should work.	site
+Source::Tests::Extractor::HuajiaExtractorTest#test_: A Huajjia commission with no images should work.	site
+Source::Tests::Extractor::HuajiaExtractorTest#test_: An animated Huajia work should work.	site
+Source::Tests::Extractor::HuashijieExtractorTest#test_: A Huashijie product should work.	login:Huashijie
+Source::Tests::Extractor::HuashijieExtractorTest#test_: A Huashijie product with GIFs should work.	login:Huashijie
+Source::Tests::Extractor::HuashijieExtractorTest#test_: A Huashijie sample image url should work.	login:Huashijie
+Source::Tests::Extractor::HuashijieExtractorTest#test_: A Huashijie video post should work.	login:Huashijie
+Source::Tests::Extractor::HuashijieExtractorTest#test_: A hidden Huashijie post should work.	login:Huashijie
+Source::Tests::Extractor::HuashijieExtractorTest#test_: A https://www.huashijie.art/work/detail/:id url should work.	login:Huashijie
+Source::Tests::Extractor::ImgurExtractorTest#test_: A .gifv URL should work.	site
+Source::Tests::Extractor::ImgurExtractorTest#test_: A .mp4 sample of a .gif image should work.	site
+Source::Tests::Extractor::ImgurExtractorTest#test_: A 5-character sample image URL should work.	site
+Source::Tests::Extractor::ImgurExtractorTest#test_: A 7-character sample image URL should work.	site
+Source::Tests::Extractor::ImgurExtractorTest#test_: A `imgur.com/$file.$ext` URL should work.	site
+Source::Tests::Extractor::ImgurExtractorTest#test_: A direct image URL should work.	site
+Source::Tests::Extractor::ImgurExtractorTest#test_: A direct image URL with album referer should work.	site
+Source::Tests::Extractor::ImgurExtractorTest#test_: A gallery URL with slug should work.	site
+Source::Tests::Extractor::ImgurExtractorTest#test_: A hidden (unlisted) album should work.	site
+Source::Tests::Extractor::ImgurExtractorTest#test_: A new anonymous album should work.	site
+Source::Tests::Extractor::ImgurExtractorTest#test_: An album URL should work.	site
+Source::Tests::Extractor::ImgurExtractorTest#test_: An image page URL should work.	site
+Source::Tests::Extractor::InkbunnyExtractorTest#test_: A direct image url should work.	login:Inkbunny
+Source::Tests::Extractor::InkbunnyExtractorTest#test_: A stale session ID should automatically refresh the session ID should work.	login:Inkbunny
+Source::Tests::Extractor::InkbunnyExtractorTest#test_: A submission url should work.	login:Inkbunny
+Source::Tests::Extractor::ItakuExtractorTest#test_: A Itaku /images/:id post should work.	site
+Source::Tests::Extractor::ItakuExtractorTest#test_: A Itaku /images/:id video post should work.	site
+Source::Tests::Extractor::ItakuExtractorTest#test_: A Itaku full image URL should work.	site
+Source::Tests::Extractor::ItakuExtractorTest#test_: A Itaku sample image URL should work.	site
+Source::Tests::Extractor::ItakuExtractorTest#test_: A deleted or nonexistent Itaku image should work.	site
+Source::Tests::Extractor::KofiExtractorTest#test_: A commission page should work.	site
+Source::Tests::Extractor::KofiExtractorTest#test_: A deleted or nonexistent commissions page should work.	site
+Source::Tests::Extractor::KofiExtractorTest#test_: A deleted or nonexistent gallery item should work.	site
+Source::Tests::Extractor::KofiExtractorTest#test_: A deleted or nonexistent post page should work.	site
+Source::Tests::Extractor::KofiExtractorTest#test_: A full image URL should work.	site
+Source::Tests::Extractor::KofiExtractorTest#test_: A gallery item with multiple images should work.	site
+Source::Tests::Extractor::KofiExtractorTest#test_: A post page should work.	site
+Source::Tests::Extractor::KofiExtractorTest#test_: A sample image URL should work.	site
+Source::Tests::Extractor::KofiExtractorTest#test_: A shop item should work.	site
+Source::Tests::Extractor::KofiExtractorTest#test_: A supporters-only gallery item should work.	site
+Source::Tests::Extractor::LofterExtractorTest#test_: A dead link should work.	site
+Source::Tests::Extractor::LofterExtractorTest#test_: A lofter post with commentary under <#post .description> should work.	site
+Source::Tests::Extractor::LofterExtractorTest#test_: A lofter post with commentary under <.cnwrapper p:nth-child(2)> should work.	site
+Source::Tests::Extractor::LofterExtractorTest#test_: A lofter post with commentary under <.content .text> should work.	site
+Source::Tests::Extractor::LofterExtractorTest#test_: A lofter post with commentary under <.ct .text> should work.	site
+Source::Tests::Extractor::LofterExtractorTest#test_: A lofter post with commentary under <.ct .txtcont> should work.	site
+Source::Tests::Extractor::LofterExtractorTest#test_: A lofter post with commentary under <.m-post .cont .text> should work.	site
+Source::Tests::Extractor::LofterExtractorTest#test_: A lofter post with the character U+00A0 in a tag should work.	site
+Source::Tests::Extractor::LofterExtractorTest#test_: A lofter sample image url should work.	site
+Source::Tests::Extractor::LofterExtractorTest#test_: A photo-type lofter post with photo captions should work.	site
+Source::Tests::Extractor::LofterExtractorTest#test_: A uls.lofter.com/?h5url= URL should work.	site
+Source::Tests::Extractor::LofterExtractorTest#test_: A video-type lofter post should work.	site
+Source::Tests::Extractor::LofterExtractorTest#test_: An answer-type lofter post should work.	site
+Source::Tests::Extractor::MastodonExtractorTest#test_: For Pawoo, a deleted or invalid source should work.	login:Pawoo
+Source::Tests::Extractor::MastodonExtractorTest#test_: For Pawoo, a https://img.pawoo.net/ url should work.	login:Pawoo
+Source::Tests::Extractor::MastodonExtractorTest#test_: For Pawoo, a https://pawoo.net/$user/$id url should work.	login:Pawoo
+Source::Tests::Extractor::MastodonExtractorTest#test_: For Pawoo, a https://pawoo.net/web/status/$id url should work.	login:Pawoo
+Source::Tests::Extractor::MihuashiExtractorTest#test_: A Mihuashi activity work should work.	site
+Source::Tests::Extractor::MihuashiExtractorTest#test_: A Mihuashi activity work with multiple images should work.	site
+Source::Tests::Extractor::MihuashiExtractorTest#test_: A Mihuashi character card should work.	site
+Source::Tests::Extractor::MihuashiExtractorTest#test_: A Mihuashi character card with example images should work.	site
+Source::Tests::Extractor::MihuashiExtractorTest#test_: A Mihuashi project that requires login should work.	site
+Source::Tests::Extractor::MihuashiExtractorTest#test_: A Mihuashi project with example images should work.	site
+Source::Tests::Extractor::MihuashiExtractorTest#test_: A Mihuashi project with no images should work.	site
+Source::Tests::Extractor::MihuashiExtractorTest#test_: A Mihuashi project with only character card should work.	site
+Source::Tests::Extractor::MihuashiExtractorTest#test_: A Mihuashi sample image url should work.	site
+Source::Tests::Extractor::MihuashiExtractorTest#test_: A Mihuashi stall should work.	site
+Source::Tests::Extractor::MihuashiExtractorTest#test_: A Mihuashi work by a user with name changes should work.	site
+Source::Tests::Extractor::MihuashiExtractorTest#test_: A Mihuashi work should work.	site
+Source::Tests::Extractor::MihuashiExtractorTest#test_: A Mihuashi work with GIF should work.	site
+Source::Tests::Extractor::MinitokyoExtractorTest#test_: A 'deleted, doesn't exist, pending approval' Minitokyo post should work.	site
+Source::Tests::Extractor::MinitokyoExtractorTest#test_: A 'removed from the gallery' Minitokyo post should work.	site
+Source::Tests::Extractor::MinitokyoExtractorTest#test_: A Minitokyo download URL should work.	site
+Source::Tests::Extractor::MinitokyoExtractorTest#test_: A Minitokyo full image URL should work.	site
+Source::Tests::Extractor::MinitokyoExtractorTest#test_: A Minitokyo multi-image post should work.	site
+Source::Tests::Extractor::MinitokyoExtractorTest#test_: A Minitokyo sample image URL should work.	site
+Source::Tests::Extractor::MinitokyoExtractorTest#test_: A Minitokyo scan post should work.	site
+Source::Tests::Extractor::MinitokyoExtractorTest#test_: A Minitokyo wallpaper post should work.	site
+Source::Tests::Extractor::MinitokyoExtractorTest#test_: A non-existent Minitokyo post should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A /play/ URL should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A file.misskey.design direct image url should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A files.misskey.art direct image url should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A https://misskey.io/notes/:note_id url should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A media.misskeyusercontent.jp direct image url should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A media.misskeyusercontent.jp direct image url with referer should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A note crossposted from a remote instance should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A note on https://mk.yopo.work should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A note on https://nijimiss.moe should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A note on https://oekakiskey.com should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A note on https://sushi.ski should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A note on https://voskey.icalo.net should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A note that is deleted or nonexistent should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A note with a .wav file and an artist name containing emojis should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A note with an image with ALT text should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A note with content warning should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A note with multiple files should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A note without any files should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: A renote of another note should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: An image URL on https://mk.yopo.work with a referer should work.	site
+Source::Tests::Extractor::MisskeyExtractorTest#test_: An image URL on https://mk.yopo.work without a referer should work.	site
+Source::Tests::Extractor::MiyousheExtractorTest#test_: Hoyolab: A deleted or nonexistent article should work.	site
+Source::Tests::Extractor::MiyousheExtractorTest#test_: Hoyolab: A sample image URL should work.	site
+Source::Tests::Extractor::MiyousheExtractorTest#test_: Hoyolab: An article with images in the commentary should work.	site
+Source::Tests::Extractor::MiyousheExtractorTest#test_: Hoyolab: An article with multiple images should work.	site
+Source::Tests::Extractor::MiyousheExtractorTest#test_: Miyoushe: A commentary that doesn't have structured_content should work.	site
+Source::Tests::Extractor::MiyousheExtractorTest#test_: Miyoushe: A commentary that has structured_content should work.	site
+Source::Tests::Extractor::MiyousheExtractorTest#test_: Miyoushe: A deleted or nonexistent article should work.	site
+Source::Tests::Extractor::MiyousheExtractorTest#test_: Miyoushe: A sample image URL should work.	site
+Source::Tests::Extractor::MiyousheExtractorTest#test_: Miyoushe: An article with a video should work.	site
+Source::Tests::Extractor::MiyousheExtractorTest#test_: Miyoushe: An article with multiple images should work.	site
+Source::Tests::Extractor::MiyousheExtractorTest#test_: Miyoushe: An unknown image URL should work.	site
+Source::Tests::Extractor::MoebooruExtractorTest#test_: For Yande.re, a 'https://yande.re/jpeg/:hash/:file.jpg' jpeg sample url should work.	site
+Source::Tests::Extractor::MoebooruExtractorTest#test_: For Yande.re, a deleted yande.re post with the post id should work.	site
+Source::Tests::Extractor::MoebooruExtractorTest#test_: For Yande.re, a deleted yande.re post without the post id should work.	site
+Source::Tests::Extractor::MoebooruExtractorTest#test_: For Yande.re, a https://yande.re/post/show?md5=<md5> URL should work.	site
+Source::Tests::Extractor::MoebooruExtractorTest#test_: For Yande.re, a https://yande.re/sample/:hash/:file.jpg should work.	site
+Source::Tests::Extractor::MoebooruExtractorTest#test_: For Yande.re, a post should work.	site
+Source::Tests::Extractor::MoebooruExtractorTest#test_: For Yande.re, a yande.re post with a saucenao referer should work.	site
+Source::Tests::Extractor::MoebooruExtractorTest#test_: For konachan.com, a full-size image url should work.	site
+Source::Tests::Extractor::MoebooruExtractorTest#test_: For konachan.com, a https://konachan.com/post/show?md5=<md5> should work.	site
+Source::Tests::Extractor::MoebooruExtractorTest#test_: For konachan.com, a jpeg url should work.	site
+Source::Tests::Extractor::MoebooruExtractorTest#test_: For konachan.com, a post url should work.	site
+Source::Tests::Extractor::MoebooruExtractorTest#test_: For konachan.com, a sample url should work.	site
+Source::Tests::Extractor::MyPortfolioExtractorTest#test_: A MyPortfolio gallery page where each image doesn't have its own page should work.	site
+Source::Tests::Extractor::MyPortfolioExtractorTest#test_: A MyPortfolio gallery page where each image has its own page should work.	site
+Source::Tests::Extractor::MyPortfolioExtractorTest#test_: A MyPortfolio gallery page with a custom domain should work.	site
+Source::Tests::Extractor::MyPortfolioExtractorTest#test_: A MyPortfolio page with a mix of text and images should work.	site
+Source::Tests::Extractor::MyPortfolioExtractorTest#test_: A MyPortfolio page with a single image should work.	site
+Source::Tests::Extractor::MyPortfolioExtractorTest#test_: A MyPortfolio page with multiple images should work.	site
+Source::Tests::Extractor::MyPortfolioExtractorTest#test_: A MyPortfolio page without any images should work.	site
+Source::Tests::Extractor::MyPortfolioExtractorTest#test_: A MyPortfolio post page with a custom domain should work.	site
+Source::Tests::Extractor::MyPortfolioExtractorTest#test_: A full image URL should work.	site
+Source::Tests::Extractor::MyPortfolioExtractorTest#test_: A sample image URL should work.	site
+Source::Tests::Extractor::NaverBlogExtractorTest#test_: A blog post with a Korean filename that needs EUC-KR percent-encoding should work.	site
+Source::Tests::Extractor::NaverBlogExtractorTest#test_: A blog post with editorversion = 2 should work.	site
+Source::Tests::Extractor::NaverBlogExtractorTest#test_: A blog post with editorversion = 3 should work.	site
+Source::Tests::Extractor::NaverBlogExtractorTest#test_: A blog post with editorversion = 4 should work.	site
+Source::Tests::Extractor::NaverBlogExtractorTest#test_: A blogfiles.pstatic.net full image URL should work.	site
+Source::Tests::Extractor::NaverBlogExtractorTest#test_: A blogpfthumb-phinf.pstatic.net sample image URL should work.	site
+Source::Tests::Extractor::NaverBlogExtractorTest#test_: A blogthumb.pstatic.net sample image URL should work.	site
+Source::Tests::Extractor::NaverBlogExtractorTest#test_: A deleted or nonexistent blog post should work.	site
+Source::Tests::Extractor::NaverBlogExtractorTest#test_: A postfiles.pstatic.net sample image URL should work.	site
+Source::Tests::Extractor::NaverCafeExtractorTest#test_: A cafefiles.pstatic.net full image URL should work.	site
+Source::Tests::Extractor::NaverCafeExtractorTest#test_: A cafeptthumb-phinf.pstatic.net sample image URL should work.	site
+Source::Tests::Extractor::NaverCafeExtractorTest#test_: A deleted or nonexistent article should work.	site
+Source::Tests::Extractor::NaverCafeExtractorTest#test_: A https://cafe.naver.com/:club_name/:article_id URL should work.	site
+Source::Tests::Extractor::NaverCafeExtractorTest#test_: A members-only article should work.	site
+Source::Tests::Extractor::NaverCafeExtractorTest#test_: An /f-e/ article with an embedded video should work.	site
+Source::Tests::Extractor::NaverCafeExtractorTest#test_: An article with .NHN_Writeform_Main commentary should work.	site
+Source::Tests::Extractor::NaverCafeExtractorTest#test_: An article with embedded images should work.	site
+Source::Tests::Extractor::NaverCafeExtractorTest#test_: An article with images as attachments should work.	site
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A deleted or non-existing post should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A deleted or non-existing video should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A multi-image post should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A new full size image should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A new image page should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A new multi-image gallery should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A new sample image should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A newgrounds direct video url should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A newgrounds image url should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A newgrounds post url should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A newgrounds video post should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A newgrounds video post where all images have the resolution in their url should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A newgrounds video post with no 1080p version should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A post with links to other illustrations not belonging to the commentary should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A video credited to multiple users should work.	login:Newgrounds
+Source::Tests::Extractor::NewgroundsExtractorTest#test_: A www.newgrounds.com/dump/item URL should work.	login:Newgrounds
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: A commentary with spoiler tags should work.	login:Nico Seiga
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: A drm.cdn.nicomanga.jp image url should work.	login:Nico Seiga
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: A https://lohas.nicoseiga.jp/thumb/${id}i url should work.	login:Nico Seiga
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: A nico.ms illust url should work.	login:Nico Seiga
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: A nico.ms manga url from an anonymous user should work.	login:Nico Seiga
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: A nicoseiga image url should work.	login:Nico Seiga
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: A nicoseiga manga page with a single tag (source of XML misparsing) should work.	login:Nico Seiga
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: A nicoseiga manga url (2) should work.	login:Nico Seiga
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: A nicoseiga manga url should work.	login:Nico Seiga
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: A nicoseiga manga url with deliver.cdn.nicomanga.jp images should work.	login:Nico Seiga
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: A nicoseiga post url should work.	login:Nico Seiga
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: A nicoseiga video should work.	login:Nico Seiga
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: An anonymous illust should work.	login:Nico Seiga
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: An image/source/123 url with referrer should work.	login:Nico Seiga
+Source::Tests::Extractor::NicoSeigaExtractorTest#test_: An oekaki direct url should work.	login:Nico Seiga
+Source::Tests::Extractor::NijieExtractorTest#test_: A 'http://nijie.info/view.php?id=:id' url should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A 'https://pic*.nijie.info/__rs_*/nijie_picture/:id.jpg' preview url (1) should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A 'https://pic*.nijie.info/__rs_*/nijie_picture/:id.jpg' preview url (2) should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A 'https://pic*.nijie.info/nijie_picture/:id.jpg' url should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A Nijie artist profile url should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A Nijie image URL without referer should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A Nijie image belonging to a deleted work should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A Nijie image url that contains the illust id and artist id (format 1) should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A Nijie image url that contains the illust id and artist id (format 2) should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A Nijie image with a view_popup.php referer url should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A Nijie mp4 post should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A Nijie post with \u{ff08}\u{ff09}characters in tags should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A Nijie post with a long commentary that may be truncated should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A Nijie post with multiple images should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A Nijie url that is invalid should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A Nijie view.php page should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A Nijie view_popup.php URL should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: A deleted Nijie post should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: a Nijie doujin post should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: a Nijie post requiring login should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: an unsupported Nijie image url should work.	login:Nijie
+Source::Tests::Extractor::NijieExtractorTest#test_: when the cached session cookie is invalid should clear the cached cookie after failing to fetch the data.	login:Nijie
+Source::Tests::Extractor::NoteExtractorTest#test_: A Note image post with a single image with a caption should work.	site
+Source::Tests::Extractor::NoteExtractorTest#test_: A Note image post with multiple images, none with captions should work.	site
+Source::Tests::Extractor::NoteExtractorTest#test_: A Note post with a custom domain (1) should work.	site
+Source::Tests::Extractor::NoteExtractorTest#test_: A Note text post should work.	site
+Source::Tests::Extractor::NoteExtractorTest#test_: A deleted or nonexistent Note post should work.	site
+Source::Tests::Extractor::NoteExtractorTest#test_: A full image URL should work.	site
+Source::Tests::Extractor::NoteExtractorTest#test_: A note post with a custom domain (2) should work.	site
+Source::Tests::Extractor::NoteExtractorTest#test_: A sample image URL should work.	site
+Source::Tests::Extractor::NullExtractorTest#test_: A IP-based source should work.	site
+Source::Tests::Extractor::NullExtractorTest#test_: A null source with a referer should work.	site
+Source::Tests::Extractor::NullExtractorTest#test_: An image from an unknown site should work.	site
+Source::Tests::Extractor::OdaibakoExtractorTest#test_: a deleted or nonexistent post should work.	site
+Source::Tests::Extractor::OdaibakoExtractorTest#test_: a post URL should work.	site
+Source::Tests::Extractor::OdaibakoExtractorTest#test_: a post with multiple images should work.	site
+Source::Tests::Extractor::OdaibakoExtractorTest#test_: a request without the response should work.	site
+Source::Tests::Extractor::OdaibakoExtractorTest#test_: an odai URL should work.	site
+Source::Tests::Extractor::OpenseaExtractorTest#test_: A deleted or nonexistent Opensea post should work.	site
+Source::Tests::Extractor::OpenseaExtractorTest#test_: An Opensea ethereum post should work.	site
+Source::Tests::Extractor::OpenseaExtractorTest#test_: An Opensea matic post should work.	site
+Source::Tests::Extractor::OpenseaExtractorTest#test_: An Opensea post with a short token id should work.	site
+Source::Tests::Extractor::OpenseaExtractorTest#test_: An Opensea sample image URL should work.	site
+Source::Tests::Extractor::OpenseaExtractorTest#test_: An Opensea video post should work.	site
+Source::Tests::Extractor::PatreonExtractorTest#test_: A deleted or nonexistent post should work.	site
+Source::Tests::Extractor::PatreonExtractorTest#test_: A paid post should work.	site
+Source::Tests::Extractor::PatreonExtractorTest#test_: A post that is hidden because it is under review by Patreon should work.	site
+Source::Tests::Extractor::PatreonExtractorTest#test_: A public post with a commentary with headings and quotes should work.	site
+Source::Tests::Extractor::PatreonExtractorTest#test_: A public post with a poll should work.	site
+Source::Tests::Extractor::PatreonExtractorTest#test_: A public post with a single image should work.	site
+Source::Tests::Extractor::PatreonExtractorTest#test_: A public post with a video should work.	site
+Source::Tests::Extractor::PatreonExtractorTest#test_: A public post with an inline image that is a duplicate of the header image should work.	site
+Source::Tests::Extractor::PatreonExtractorTest#test_: A public post with attachments should work.	site
+Source::Tests::Extractor::PatreonExtractorTest#test_: A public post with multiple inline images should work.	site
+Source::Tests::Extractor::PatreonExtractorTest#test_: A public posts with a commentary with lists and inline formatting should work.	site
+Source::Tests::Extractor::PatreonExtractorTest#test_: An attachment image URL should work.	site
+Source::Tests::Extractor::PatreonExtractorTest#test_: An expired sample image URL should work.	site
+Source::Tests::Extractor::PiaproExtractorTest#test_: A Piapro /content/ post should work.	login:Piapro.jp
+Source::Tests::Extractor::PiaproExtractorTest#test_: A Piapro /t/ post should work.	login:Piapro.jp
+Source::Tests::Extractor::PiaproExtractorTest#test_: A Piapro 3D post should work.	login:Piapro.jp
+Source::Tests::Extractor::PiaproExtractorTest#test_: A Piapro audio post should work.	login:Piapro.jp
+Source::Tests::Extractor::PiaproExtractorTest#test_: A Piapro post with an external link in the commentary should work.	login:Piapro.jp
+Source::Tests::Extractor::PiaproExtractorTest#test_: A Piapro text post should work.	login:Piapro.jp
+Source::Tests::Extractor::PiaproExtractorTest#test_: A deleted or nonexistent Piapro post should work.	login:Piapro.jp
+Source::Tests::Extractor::PiaproExtractorTest#test_: A sample image URL should work.	login:Piapro.jp
+Source::Tests::Extractor::PinterestExtractorTest#test_: A Pinterest native pin should work.	site
+Source::Tests::Extractor::PinterestExtractorTest#test_: A Pinterest pin with a non-numeric ID should work.	site
+Source::Tests::Extractor::PinterestExtractorTest#test_: A Pinterest pin with hashtags should work.	site
+Source::Tests::Extractor::PinterestExtractorTest#test_: A Pinterest repin should work.	site
+Source::Tests::Extractor::PinterestExtractorTest#test_: A pinimg.com original image should work.	site
+Source::Tests::Extractor::PinterestExtractorTest#test_: A pinimg.com sample image should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A comic cover sample image should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A comic page sample image should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A comic story page should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A comic story that has been made unavailable should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A comic work page should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A deleted or nonexistent comic story should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A deleted or nonexistent comic work should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A deleted or nonexistent magazine should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A deleted or nonexistent novel story should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A deleted or nonexistent novel work should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A magazine cover image should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A magazine page should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A novel page image should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A novel story page should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A novel work cover sample image should work.	site
+Source::Tests::Extractor::PixivComicExtractorTest#test_: A novel work page should work.	site
+Source::Tests::Extractor::PixivExtractorTest#test_: A /c/ic:*:*:*/img-original/ sample image URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A /c/{width}x{height}/custom-thumb/ sample image url should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A Pixiv post should not add Pixiv-generated 'user_' usernames to the other names field should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A Pixiv post should not translate '1000users\u{5165}\u{308a}' to '1' should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A Pixiv post should translate the tags correctly should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A background image URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A background sample image URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A deleted pixiv post should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A hashed-filename Pixiv artwork URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A hashed-filename ugoira URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A high resolution png ugoira post should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A http://www.pixiv.net/member_illust.php?mode=medium&illust_id=$id URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A https://www.pixiv.net/*/artworks/* source should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A novel cover image full size URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A novel cover image sample URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A novel embedded image sample URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A novel page URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A novel series URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A novel series URL with a novel page referer should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A novel series cover image sample URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A post has been revised should get the revised image URLs should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A post with multiple images should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A profile image URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A raw image URL that has been revised should get the unrevised image URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A revised ugoira zip URL should fail should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A ugoira original frame URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A ugoira page URL should include the Pixiv info in the animation.json file.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A ugoira page URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A ugoira sample frame URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A ugoira zip URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A work requested via Pixiv Requests should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A work with HTML in the commentary should convert the commentary to DText should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A work with Pixiv links in the commentary should convert the links to DText should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A work with jump.php links in the commentary should URL-decode the query string in the links should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A work with jump.php links in the commentary should convert the links to DText should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: A work with the isOriginal flag but not tagged \u{30aa}\u{30ea}\u{30b8}\u{30ca}\u{30eb} should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: An /img-master/ image URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: An /img-original/ image URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: An AI-generated post should get the AI tag should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: An imgaz url with a date and a time should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: An imgaz url with a date but no time should work.	login:Pixiv
+Source::Tests::Extractor::PixivExtractorTest#test_: An unlisted Pixiv artwork page URL should work.	login:Pixiv
+Source::Tests::Extractor::PixivFactoryExtractorTest#test_: A collections page should work.	site
+Source::Tests::Extractor::PixivFactoryExtractorTest#test_: A deleted or nonexistent collection should work.	site
+Source::Tests::Extractor::PixivFactoryExtractorTest#test_: A factory.pixiv.net/_next/image sample image URL should work.	site
+Source::Tests::Extractor::PixivFactoryExtractorTest#test_: A factory.pixiv.net/files/* full image URL should work.	site
+Source::Tests::Extractor::PixivFactoryExtractorTest#test_: A factory.pixiv.net/files/* sample image URL should work.	site
+Source::Tests::Extractor::PixivFactoryExtractorTest#test_: A factory.pixiv.net/resources/* sample image URL should work.	site
+Source::Tests::Extractor::PixivFactoryExtractorTest#test_: A images.ctfassets.net sample image URL should work.	site
+Source::Tests::Extractor::PixivFactoryExtractorTest#test_: A single image from a collection should work.	site
+Source::Tests::Extractor::PixivSketchExtractorTest#test_: A NSFW post should work.	site
+Source::Tests::Extractor::PixivSketchExtractorTest#test_: A Pixiv Sketch image with referer should work.	site
+Source::Tests::Extractor::PixivSketchExtractorTest#test_: A Pixiv Sketch post should work.	site
+Source::Tests::Extractor::PixivSketchExtractorTest#test_: A commentary with ideographic spaces and full-width hashtags should work.	site
+Source::Tests::Extractor::PixivSketchExtractorTest#test_: A post with multiple images should work.	site
+Source::Tests::Extractor::PlurkExtractorTest#test_: A plurk comment by the author in reply to their own post should work.	site
+Source::Tests::Extractor::PlurkExtractorTest#test_: A plurk post should work.	site
+Source::Tests::Extractor::PlurkExtractorTest#test_: A plurk post with an embedded image from a different site should work.	site
+Source::Tests::Extractor::PlurkExtractorTest#test_: A plurk post with an external link card in the commentary should work.	site
+Source::Tests::Extractor::PlurkExtractorTest#test_: An adult plurk post with replies by the author in the comments should work.	site
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A deleted page url should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A https://img.poipiku.com/:dir/:user_id/:post_id_:image_id_:hash.jpeg full image URL should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A https://img.poipiku.com/:dir/:user_id/:post_id_:image_id_:hash.jpeg_640.jpg sample image URL should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A https://poipiku.com/:user_id/:post_id.html page url with a single image should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A https://poipiku.com/:user_id/:post_id.html page url with multiple images should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A new style sample URL should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A page that requires a login should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A page url that is Twitter followers only should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A page url that is followers only should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A page url that is list-only should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A page url with a R-18 warning image should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A page url with a warning image should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A page url without images should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A signed full image URL should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: A simple password-protected page url should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: An unknown password-protected page url should work.	login:Poipiku
+Source::Tests::Extractor::PoipikuExtractorTest#test_: Another password-protected page url should work.	login:Poipiku
+Source::Tests::Extractor::PostypeExtractorTest#test_: A NSFW Postype post should work.	site
+Source::Tests::Extractor::PostypeExtractorTest#test_: A Postype full image URL should work.	site
+Source::Tests::Extractor::PostypeExtractorTest#test_: A Postype post with tiled and seamless images in the commentary should work.	site
+Source::Tests::Extractor::PostypeExtractorTest#test_: A Postype sample image URL should work.	site
+Source::Tests::Extractor::PostypeExtractorTest#test_: A deleted or nonexistent Postype post should work.	site
+Source::Tests::Extractor::PostypeExtractorTest#test_: A https://www.postype.com/_next/image URL should work.	site
+Source::Tests::Extractor::PostypeExtractorTest#test_: A membership-only Postype post should work.	site
+Source::Tests::Extractor::PostypeExtractorTest#test_: A postype post that serves its post in the HTML instead of through the API should work.	site
+Source::Tests::Extractor::PrivatterExtractorTest#test_: Privatter: A Privatter post URL should work.	site
+Source::Tests::Extractor::PrivatterExtractorTest#test_: Privatter: A blog post URL should work.	site
+Source::Tests::Extractor::PrivatterExtractorTest#test_: Privatter: A blog post with no commentary should not include the images in the commentary.	site
+Source::Tests::Extractor::PrivatterExtractorTest#test_: Privatter: A dead link should not raise anything.	site
+Source::Tests::Extractor::PrivatterExtractorTest#test_: Privatter: A direct image URL should work.	site
+Source::Tests::Extractor::PrivatterExtractorTest#test_: Privatter: A password-protected URL should work.	site
+Source::Tests::Extractor::PrivatterExtractorTest#test_: Privatter: A preview image URL should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A crosspost should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A post from a banned subreddit should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A reddit comment URL should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A reddit comment image URL should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A reddit gallery post should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A reddit image sample should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A reddit image should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A reddit mobile app share url should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A reddit multi-image post should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A reddit post with a complex commentary with embedded images should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A reddit post with an external image should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A reddit post with rich text commentary should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A reddit post with username but no title should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A reddit post with username instead of subreddit should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A reddit.com/media non-sample url should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A reddit.com/media sample url should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A redditmedia url should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: A www.redditmedia.com/mediaembed/ URL should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: An age-restricted post should work.	site
+Source::Tests::Extractor::RedditExtractorTest#test_: An external preview url should work.	site
+Source::Tests::Extractor::RedgifsExtractorTest#test_: A deleted or nonexistent post should work.	site
+Source::Tests::Extractor::RedgifsExtractorTest#test_: A sample video URL should work.	site
+Source::Tests::Extractor::RedgifsExtractorTest#test_: A video post should work.	site
+Source::Tests::Extractor::RedgifsExtractorTest#test_: An expired bearer token should automatically be refreshed should work.	site
+Source::Tests::Extractor::RedgifsExtractorTest#test_: An image gallery should work.	site
+Source::Tests::Extractor::RedgifsExtractorTest#test_: An individual image from an image gallery should work.	site
+Source::Tests::Extractor::RedgifsExtractorTest#test_: An individual post from an image gallery should work.	site
+Source::Tests::Extractor::Rule34DotUsExtractorTest#test_: A https://rule34.us/hotlink.php?hash=$md5 URL should work.	site
+Source::Tests::Extractor::Rule34DotUsExtractorTest#test_: A https://rule34.us/images/xx/xx/$md5.png URL should work.	site
+Source::Tests::Extractor::Rule34DotUsExtractorTest#test_: A https://rule34.us/index.php?r=posts/view&id=$post_id URL should work.	site
+Source::Tests::Extractor::SkebExtractorTest#test_: A https://skeb.jp/works/:id post with an unwatermarked image should work.	site
+Source::Tests::Extractor::SkebExtractorTest#test_: A post with an unwatermarked video should work.	site
+Source::Tests::Extractor::SkebExtractorTest#test_: A post with both the small and large version unwatermarked should work.	site
+Source::Tests::Extractor::SkebExtractorTest#test_: A post with two watermarked images should work.	site
+Source::Tests::Extractor::SkebExtractorTest#test_: A private or non-existent skeb url should work.	site
+Source::Tests::Extractor::SkebExtractorTest#test_: A watermarked animated post with a smaller static unwatermarked version should work.	site
+Source::Tests::Extractor::SkebExtractorTest#test_: A watermarked post with a smaller unwatermarked version should work.	site
+Source::Tests::Extractor::SkebExtractorTest#test_: A watermarked sample URL should work.	site
+Source::Tests::Extractor::SkebExtractorTest#test_: The source for a skeb picture should work.	site
+Source::Tests::Extractor::SklandExtractorTest#test_: A commentary containing emojis and an image should work.	site
+Source::Tests::Extractor::SklandExtractorTest#test_: A deleted or nonexistent article should work.	site
+Source::Tests::Extractor::SklandExtractorTest#test_: A sample image URL should work.	site
+Source::Tests::Extractor::SklandExtractorTest#test_: An article with a video should work.	site
+Source::Tests::Extractor::SklandExtractorTest#test_: An article with multiple images should work.	site
+Source::Tests::Extractor::SklandExtractorTest#test_: An unknown image URL should work.	site
+Source::Tests::Extractor::TinamiExtractorTest#test_: A 'http://www.tinami.com/view/:id' post with multiple images (type one) should work.	site
+Source::Tests::Extractor::TinamiExtractorTest#test_: A 'http://www.tinami.com/view/:id' post with multiple images (type two) should work.	login:Tinami
+Source::Tests::Extractor::TinamiExtractorTest#test_: A 'http://www.tinami.com/view/:id' post with one image should work.	login:Tinami
+Source::Tests::Extractor::TinamiExtractorTest#test_: A Tinami image URL with a referer should work.	site
+Source::Tests::Extractor::TinamiExtractorTest#test_: A Tinami image URL without a referer should work.	site
+Source::Tests::Extractor::TinamiExtractorTest#test_: A deleted Tinami post should work.	site
+Source::Tests::Extractor::TistoryExtractorTest#test_: A blog.kakaocdn.net full image URL should work.	site
+Source::Tests::Extractor::TistoryExtractorTest#test_: A daumcdn.net/cfile/tistory/:id sample image URL should work.	site
+Source::Tests::Extractor::TistoryExtractorTest#test_: A daumcdn.net/thumb sample image URL should work.	site
+Source::Tests::Extractor::TistoryExtractorTest#test_: A deleted or nonexistent post should work.	site
+Source::Tests::Extractor::TistoryExtractorTest#test_: A name.tistory.com/:id post URL should work.	site
+Source::Tests::Extractor::TistoryExtractorTest#test_: A name.tistory.com/entry/:title post URL should work.	site
+Source::Tests::Extractor::TistoryExtractorTest#test_: A password-protected post should work.	site
+Source::Tests::Extractor::TistoryExtractorTest#test_: A post with external embedded images should work.	site
+Source::Tests::Extractor::TistoryExtractorTest#test_: A post with t1.daumcdn.net/cfile/tistory/:id images should work.	site
+Source::Tests::Extractor::TistoryExtractorTest#test_: For a custom domain: A daumcdn.net image URL with a referer should work.	site
+Source::Tests::Extractor::TistoryExtractorTest#test_: For a custom domain: A kakaocdn.net image URL with a referer should work.	site
+Source::Tests::Extractor::TistoryExtractorTest#test_: For a custom domain: A page URL should work.	site
+Source::Tests::Extractor::ToyhouseExtractorTest#test_: A character gallery should work.	site
+Source::Tests::Extractor::ToyhouseExtractorTest#test_: A character image URL should work.	site
+Source::Tests::Extractor::ToyhouseExtractorTest#test_: A deleted or nonexistent post should work.	site
+Source::Tests::Extractor::ToyhouseExtractorTest#test_: A full image URL should work.	site
+Source::Tests::Extractor::ToyhouseExtractorTest#test_: A post by the artist credited to themselves should work.	site
+Source::Tests::Extractor::ToyhouseExtractorTest#test_: A post credited to a different artist on a different site should work.	site
+Source::Tests::Extractor::ToyhouseExtractorTest#test_: A post credited to an artist without a display name should work.	site
+Source::Tests::Extractor::ToyhouseExtractorTest#test_: A post with multiple characters and credited to a different Toyhou.se user should work.	site
+Source::Tests::Extractor::ToyhouseExtractorTest#test_: A thumbnail image URL should work.	site
+Source::Tests::Extractor::TumblrExtractorTest#test_: A *.media.tumblr.com/$hash/tumblr_$id_$size.jpg URL (1) should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A *.media.tumblr.com/$hash/tumblr_$id_$size.jpg URL (2) should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A *.media.tumblr.com/$hash/tumblr_$id_$size.png URL should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A *.media.tumblr.com/$hash/tumblr_$id_rN_$size.gif URL should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A *.media.tumblr.com/$hash/tumblr_inline_$id_$size.gif URL with a larger size should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A *.media.tumblr.com/$key/$size/$hash.jpg URL should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A *.media.tumblr.com/$key/$size/$hash.pnj URL should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A *.media.tumblr.com/tumblr_$id_$size.jpg URL with a larger size should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A *.media.tumblr.com/tumblr_$id_$size.jpg URL without a larger size should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A *.media.tumblr.com/tumblr_$id_$size.png URL with a larger size should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A *.media.tumblr.com/tumblr_$id_$size.pnj URL should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A commentary with <small> tags inside links should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A commentary with alt text containing multiple lines with double quotes should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A commentary with alt text containing multiple paragraphs should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A commentary with alt text containing quote marks should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A commentary with mulitple images with alt text should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A commentary with nested reblogs should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A deleted or nonexistent post should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A photo post with a single image should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A post from a custom blog domain (1) should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A post from a custom blog domain (2) should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A reblogged post should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A static.tumblr.com URL should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A text post with an inline video should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A text post with inline images should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A tmblr.co post URL should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A tumblr.com/$blog_name/$work_id URL should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A va.media.tumblr.com/tumblr_$id.mp4 URL should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A video post should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A video post with an embedded Youtube video should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: A video post with inline images should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: An answer post with inline images should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: An image url from a custom blog domain should work.	login:Tumblr
+Source::Tests::Extractor::TumblrExtractorTest#test_: An image url from a regular Tumblr post should work.	login:Tumblr
+Source::Tests::Extractor::TwitterExtractorTest#test_: A 'https://pbs.twimg.com/media/*:large' url should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A /tweet_video/ URL should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A NSFW tweet should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A Twitter artist with only an intent URL in the artist profile should find the artist.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A Twitter profile picture sample image should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A deleted tweet should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A direct image url should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A direct image url with a referer url from a different site should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A direct image url with dashes should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A https://fxtwitter.com/:username/status/:id url should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A https://twitter.com/:username/status/:id url should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A https://twitter.com/i/status/:id url should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A https://twitter.com/i/web/status/:id url should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A https://vxtwitter.com/:username/status/:id url should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A https://x.com/i/status/:id url should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A https://x.com/intent/favorite?tweet_id=:id url should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A https://x.com/intent/retweet?tweet_id=:id url should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A long tweet with >280 characters should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A mixed-media tweet should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A profile banner image sample should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A profile banner image should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A restricted tweet should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet from a suspended user should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet scheduled in advance should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet that from an account that is set to followers-only should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet that is in reply to another tweet should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet with 'issue #1' should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet with alt text containing multiple paragraphs should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet with alt text should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet with an animated gif should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet with cashtags should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet with escaped HTML characters should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet with fullwidth parentheses should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet with hashtags with normalizable prefixes should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet with mega.nz links should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet with mentions that can be converted to dtext should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet with normalizable full-width hashtags should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet with unicode text should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A tweet without any images should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A video thumbnail should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: A video tweet should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: An /ad_img/ image sample should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: An amplify video should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: An amplify video thumbnail should work.	login:Twitter
+Source::Tests::Extractor::TwitterExtractorTest#test_: An external video thumbnail should work.	login:Twitter
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://amzn.asia/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://amzn.asia/d/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://amzn.to/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://b23.tv/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://bit.ly/qwo9iqwe9ogqerg to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://cutt.ly/qwoifjqwio to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://dlvr.it/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://eepurl.com/asdoifjsaoifjoif to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://forms.gle/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://goo.gl/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://goo.gl/forms/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://hoyo.link/80GCFBAL?q=bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://hoyo.link/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://is.gd/qwoifjqwio to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://naver.me/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://ow.ly/qwoifjqwio to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://photos.app.goo.gl/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://pic.twitter.com/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://pic.x.com/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://pin.it/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://posty.pe/asofijasoifqwfqwoif to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://posty.pe/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://pse.is/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://reurl.cc/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://shorturl.at/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://skfb.ly/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://t.cn/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://t.co/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://t.ly/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://tiny.cc/qwoifjqwio to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://tinyurl.com/qwoifjqwio to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://tmblr.co/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://vt.tiktok.com/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://wp.me/qwoifjqwio to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://www.tiktok.com/t/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://x.gd/bad to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://xhslink.com/C/n6OjWF to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://xhslink.com/ErpbmK\u{ff0c}\u{590d}\u{5236}\u{672c}\u{6761}\u{4fe1}\u{606f}\u{ff0c}\u{6253}\u{5f00}\u{3010}\u{5c0f}\u{7ea2}\u{4e66}\u{3011}App\u{67e5}\u{770b}\u{7cbe}\u{5f69}\u{5185}\u{5bb9}\u{ff01} to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://xhslink.com/asdoifjiowf to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A deleted or nonexistent shortened URL redirecting https://xhslink.com/xkcbDL to should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A fully extracted shortened URL should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://amzn.asia/bGjatHL to https://www.amazon.co.jp/dp/4758009813/ref=cm_sw_r_cp_ep_dp_QgvpAbYQDNKRN should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://amzn.asia/d/j0P2N9X to https://www.amazon.co.jp/dp/4768318983?ref_=cm_sw_r_cp_ud_dp_C5VBJHCYZ5QRBFF71QM8_1 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://amzn.to/43OZprF to https://www.amazon.co.jp/dp/B0FK3785L3?binding=kindle_edition&linkCode=sl2&tag=aoihinata0c9-22&linkId=2b854bec97510625c3557113f9e708ec&language=ja_JP&ref_=as_li_ss_tl should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://bit.ly/4aAVa4y to https://fantia.jp/posts/2679869?utm_source=pixiv&utm_medium=referral should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://cutt.ly/GfQ2szk to https://www.youtube.com/channel/UCTeu1oeRYy8Kz_tpv0mASYg?view_as=subscriber should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://dlvr.it/SWKqJ0 to https://gizmodo.com/kamen-rider-zero-one-comic-ragnarok-villain-titan-1849389764?utm_source=twitter&utm_medium=SocialMarketing&utm_campaign=dlvrit&utm_content=io9 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://eepurl.com/j5st to http://us1.campaign-archive.com/?u=9d17c9217240226bbc79d6750&id=2002267928 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://forms.gle/CK6UER39rK5qKnnT8 to https://docs.google.com/forms/d/e/1FAIpQLSc8us8bXTvsU3TvsuWC1Losplhg3tWxYfGpu-g_tH4KmuxymQ/viewform?usp=send_form should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://goo.gl/forms/mxcIFGtbmrVVxheW2 to https://docs.google.com/forms/d/e/1FAIpQLScyOgVE2yTG_vSpPebT7qRUwY_a2qoNzwO56IY3tOcn0g8mDg/viewform?c=0&w=1&usp=send_form should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://goo.gl/wVjj5 to http://seiga.nicovideo.jp/clip/864621 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://images.app.goo.gl/5uBga7TuPKHxyyR1A to https://www.google.com/imgres?imgurl=https://pbs.twimg.com/media/D7VjgrTUcAEdvFf.png&imgrefurl=https://twitter.com/nejimaki_neji&docid=IXigeWQkHlv6fM&tbnid=-DQ5gjY1vFJK0M:&vet=1&w=900&h=810&hl=en-us&source=sh/x/im should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://is.gd/UeUnvf to https://www.pixiv.net/artworks/62476859 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://j.mp/cKV0uf to http://blog-imgs-32-origin.fc2.com/c/o/n/connyac/20100314032806e94.jpg should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://naver.me/FABhCw8Z to https://m.comic.naver.com/bestChallenge/list?titleId=696711 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://ow.ly/WmrYu to https://twitter.com/dankanemitsu/status/680792282887409664 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://photos.app.goo.gl/eHfTwV866X4Vf7Zt5 to https://photos.google.com/share/AF1QipPMW7tBlPkOmK86r7Gwq_sJVXN3RLecedSgeUKX4mGv98naklY16X4e-cY1O5V_4g?key=aEcyMno2VmFSZGMxYkRZb0x0aWllUXB6b3RMS3pn should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://pic.twitter.com/Dxn7CuVErW to https://twitter.com/Kekeflipnote/status/1496555599718498319/video/1 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://pic.x.com/Dxn7CuVErW to https://twitter.com/Kekeflipnote/status/1496555599718498319/video/1 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://pin.it/4A1N0Rd5W to https://www.pinterest.com/pin/580612576989556785/sent/?invite_code=9e94baa7faae405d84a7787593fa46fd&sender=580612714368486682&sfo=1 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://posty.pe/343rpc to https://www.postype.com/post/12206917 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://pse.is/4b4tda to https://twitter.com/d_art_taipei/status/1542795420132204547?s=20&t=5KZ9b0gnQro7txOAfaZB3g should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://reurl.cc/E2zlnA to https://www.youtube.com/channel/UCM1nL55m_QImE0ZRqvGmWWQ should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://skfb.ly/6WrAQ to https://sketchfab.com/3d-models/the-bards-lute-e667442a9acf4f8f8b4456a05cae039f should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://t.cn/A6pONxY1  to https://video.weibo.com/show?fid=1034:4914351942074379 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://t.cn/Ex4V08E to https://www.toolsdaquan.com should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://t.co/Dxn7CuVErW to https://twitter.com/Kekeflipnote/status/1496555599718498319/video/1 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://tiny.cc/6ut5vz to https://drive.google.com/drive/folders/1SMBFYwAOq3h6rhWS5rLQdxDqLGq5OwY2 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://tinyurl.com/3avx9w4r to https://spell-breakers.blogspot.com/2023/07/schools-out-for-summer.html should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://tmblr.co/ZdPV4t2OHwdv5 to https://techsupportdog.tumblr.com/post/163509337669? should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://wp.me/p32Sjo-oJ to http://xn--t8jf3evasg9m.com/?p=1533 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://x.gd/uysub to https://nohito.fanbox.cc/posts/7903482 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://xhslink.com/a/KNEOVM4zO1Xdb to https://www.xiaohongshu.com/discovery/item/683b1ec80000000012002773?app_platform=ios&app_version=8.69.1&share_from_user_hidden=true&xsec_source=app_share&type=video&xsec_token=CBqYjuPKTkd8k5oKpNY1BZUyzpdfQAwWXGJ47H0Bd3Gkc=&author_share=1&xhsshare=CopyLink&shareRedId=N0s0OTQ8OkI2NzUyOTgwNjY0OTc1Skg7&apptime=1748841986&share_id=bb0216827e574919aa0ae980158575e3 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://xhslink.com/a/jqL6B32eU0F7\u{ff0c}\u{590d}\u{5236}\u{672c}\u{6761}\u{4fe1}\u{606f}\u{ff0c}\u{6253}\u{5f00} to https://www.xiaohongshu.com/discovery/item/66ed0e75000000001e019f28?app_platform=ios&app_version=8.74&share_from_user_hidden=true&xsec_source=app_share&type=normal&xsec_token=CB8IWmEbNhHy5Nf7hmRi03DdY_HF3lJ60Z8lLIApsOKGE=&author_share=1&xhsshare=CopyLink&shareRedId=ODxIQTM7N0I2NzUyOTgwNjdHOTk3PT85&apptime=1741772437&share_id=644f929a9cbc42ecb28d61b5cb5dc132 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://xhslink.com/m/EXCcWbUXnl to https://www.xiaohongshu.com/user/profile/68d823620000000022028d16?xsec_token=YBfNZ3Zp4oeouvBW7OFlB6VOaMeq8fLfZeMQZe9vK_owI%3D&xsec_source=app_share&shareRedId=ODtFNjk4O0I2NzUyOTgwNjY8OTpKSkdC&apptime=1770968580&share_id=b7f7bcc8fad04df2872078f5891a43bc&share_channel=copy_link&appuid=65c66379000000000903fea9&xhsshare=CopyLink should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting http://xhslink.com/o/3y3uwYYeyHn to https://www.xiaohongshu.com/discovery/item/68fdea77000000000700dfa4?app_platform=android&ignoreEngage=true&app_version=9.15.0&share_from_user_hidden=true&xsec_source=app_share&type=normal&xsec_token=CB_UNaMAkbr3JuvU-Xg4zqkdTp2AVfxZGxZTfb1wISEtM%3D&author_share=1&shareRedId=OD4yN0Y-RUw2NzUyOTgwNjZHOTdGSkhO&apptime=1768227870&share_id=537c96eb44464e4983bef33735bacae9&share_channel=copy_link&appuid=6807c9ac000000000d00bebe&xhsshare=CopyLink should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting https://b23.tv/h5v55co to https://m.bilibili.com/opus/1083640864629063680?plat_id=186&share_from=dynamic&share_medium=android_i&share_plat=android&share_session_id=5e077709-3aac-478a-98d3-e5a7172f7914&share_source=COPY&share_tag=s_i&spmid=dt.opus-detail.0.0&timestamp=1751153761&unique_k=h5v55co should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting https://hoyo.link/80GCFBAL?q=25tufAgwB8N to https://m.hoyolab.com/#/article/14554718/?lang=en-us&utm_source=sns&utm_medium=link should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting https://hoyo.link/aifgFBAL to https://fastcdn.hoyoverse.com/static-resource-v2/2024/01/19/0653ff7e952eebeaf0c1878571585692_6509314193930121844.zip should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting https://hoyo.link/bad?q=25tufAgwB8N to https://m.hoyolab.com/#/article/14554718/?lang=en-us&utm_source=sns&utm_medium=link should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting https://unsafelink.com/https://x.com/horuhara/status/1839132898785636671?t=RtemijMNpG1bdpziXac6-Q&s=19 to https://x.com/horuhara/status/1839132898785636671?t=RtemijMNpG1bdpziXac6-Q&s=19 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting https://vt.tiktok.com/ZSa9V7ert/ to https://www.tiktok.com/@pyromannce/photo/7584709238878915858?_r=1&_t=ZS-93TCD3c5ooM should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid shortened URL redirecting https://www.tiktok.com/t/ZSa9V7ert/ to https://www.tiktok.com/@pyromannce/photo/7584709238878915858?_r=1&_t=ZS-93TCD3c5ooM should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid wrapped URL redirecting https://nijie.info/jump.php?https%3A%2F%2Fwww.google.com%2Fsearch%3Fq=test%26foo=1 to https://www.google.com/search?q=test&foo=1 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid wrapped URL redirecting https://nijie.info/jump.php?https://www.google.com/search?q=test&foo=1 to https://www.google.com/search?q=test&foo=1 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid wrapped URL redirecting https://piapro.jp/jump/?url=https%3A%2F%2Fwww.google.com%2Fsearch%3Fq=test%26foo=1 to https://www.google.com/search?q=test&foo=1 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid wrapped URL redirecting https://piapro.jp/jump/?url=https://www.google.com/search?q=test&foo=1 to https://www.google.com/search?q=test should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid wrapped URL redirecting https://vk.com/away.php?to=https%3A%2F%2Fwww.google.com%2Fsearch%3Fq=test%26foo=1 to https://www.google.com/search?q=test&foo=1 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid wrapped URL redirecting https://vk.com/away.php?to=https://www.google.com/search?q=test&foo=1 to https://www.google.com/search?q=test should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid wrapped URL redirecting https://weibo.cn/sinaurl?u=https%3A%2F%2Fwww.google.com%2Fsearch%3Fq=test%26foo=1 to https://www.google.com/search?q=test&foo=1 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid wrapped URL redirecting https://weibo.cn/sinaurl?u=https://www.google.com/search?q=test&foo=1 to https://www.google.com/search?q=test should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid wrapped URL redirecting https://www.deviantart.com/users/outgoing?https%3A%2F%2Fwww.google.com%2Fsearch%3Fq=test%26foo=1 to https://www.google.com/search?q=test&foo=1 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid wrapped URL redirecting https://www.deviantart.com/users/outgoing?https://www.google.com/search?q=test&foo=1 to https://www.google.com/search?q=test&foo=1 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid wrapped URL redirecting https://www.pixiv.net/jump.php?https%3A%2F%2Fwww.google.com%2Fsearch%3Fq=test%26foo=1 to https://www.google.com/search?q=test&foo=1 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: A valid wrapped URL redirecting https://www.pixiv.net/jump.php?https://www.google.com/search?q=test&foo=1 to https://www.google.com/search?q=test&foo=1 should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: Broken shorteners redirecting http://shorturl.at/uMS23 to https://drive.google.com/drive/folders/1NL1iwZb8o52ieGt-Tkt8AAZu79rqmekj?usp=sharing should work.	site
+Source::Tests::Extractor::UrlShortenerExtractorTest#test_: Broken shorteners redirecting http://t.ly/x8f4j to https://docs.google.com/document/d/166zHw2WwtJufey71cDjfhL_1Vvga9AWbL4BtHMcJu9I/edit should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A deleted wall post should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A document post should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A full image URL should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A nonexistent photo post should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A nonexistent wall post should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A photo in a comment on a wall post (desktop version) should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A photo in a comment on a wall post (mobile version) should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A photo post should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A wall post that is a repost of another post should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A wall post that isn't public (has blurred images) should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A wall post with .MediaGrid__interactive images should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A wall post with an attached song should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A wall post with an outgoing link to an external site in the commentary should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A wall post with multiple attached doc files should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A wall post with multiple images should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: A wall post with tags should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: An /impf/ sample image URL should work.	site
+Source::Tests::Extractor::VkExtractorTest#test_: An /impg/ sample image URL should work.	site
+Source::Tests::Extractor::WeiboExtractorTest#test_: A Weibo post with a 1080p video should work.	site
+Source::Tests::Extractor::WeiboExtractorTest#test_: A Weibo post with a 720p video should work.	site
+Source::Tests::Extractor::WeiboExtractorTest#test_: A Weibo post with images and videos should work.	site
+Source::Tests::Extractor::WeiboExtractorTest#test_: A Weibo post with multiple pictures should work.	site
+Source::Tests::Extractor::WeiboExtractorTest#test_: A Weibo video with an empty playback_list should work.	site
+Source::Tests::Extractor::WeiboExtractorTest#test_: A deleted or not existing Weibo post should work.	site
+Source::Tests::Extractor::WeiboExtractorTest#test_: A direct image sample Weibo upload should work.	site
+Source::Tests::Extractor::WeiboExtractorTest#test_: A m.weibo.cn/detail url should work.	site
+Source::Tests::Extractor::WeiboExtractorTest#test_: A share.api.weibo.cn/share/:id URL should work.	site
+Source::Tests::Extractor::WeiboExtractorTest#test_: A single image from a multi-image Weibo post should work.	site
+Source::Tests::Extractor::XfolioExtractorTest#test_: A https://xfolio.jp/fullscale_image?image_id=:image_id&work_id=:work_id url should work.	site
+Source::Tests::Extractor::XfolioExtractorTest#test_: A https://xfolio.jp/portfolio/:artist_name/works/:work_id url should work.	site
+Source::Tests::Extractor::XfolioExtractorTest#test_: A https://xfolio.jp/user_asset.php?id=:image_id&work_id=:work_id&work_image_id=:image_id&type=work_image url should work.	site
+Source::Tests::Extractor::XfolioExtractorTest#test_: A work without full image available should work.	site
+Source::Tests::Extractor::XiaohongshuExtractorTest#test_: A ci.xiaohongshu.com full image URL should work.	site
+Source::Tests::Extractor::XiaohongshuExtractorTest#test_: A ci.xiaohongshu.com sample image URL should work.	site
+Source::Tests::Extractor::XiaohongshuExtractorTest#test_: A ci.xiaohongshu.com/notes_pre_post sample image URL should work.	site
+Source::Tests::Extractor::XiaohongshuExtractorTest#test_: A deleted or nonexistent post should work.	login:Xiaohongshu
+Source::Tests::Extractor::XiaohongshuExtractorTest#test_: A img.xiaohongshu.com avatar sample image URL should work.	site
+Source::Tests::Extractor::XiaohongshuExtractorTest#test_: A mixed post with videos and images should work.	login:Xiaohongshu
+Source::Tests::Extractor::XiaohongshuExtractorTest#test_: A post on rednote.com should work.	login:Xiaohongshu
+Source::Tests::Extractor::XiaohongshuExtractorTest#test_: A post with /spectrum/ image URLs should work.	login:Xiaohongshu
+Source::Tests::Extractor::XiaohongshuExtractorTest#test_: A post with multiple images should work.	login:Xiaohongshu
+Source::Tests::Extractor::XiaohongshuExtractorTest#test_: A post with user id in url should work.	login:Xiaohongshu
+Source::Tests::Extractor::XiaohongshuExtractorTest#test_: A source with no page URL should work.	site
+Source::Tests::Extractor::XiaohongshuExtractorTest#test_: A video post should work.	login:Xiaohongshu
+Source::Tests::Extractor::XiaohongshuExtractorTest#test_: A xhscdn.com sample image URL should work.	site
+Source::Tests::Extractor::YachiyoRoomExtractorTest#test_: Source::Tests::Extractor::YachiyoRoomExtractor should work.	site
+Source::Tests::Extractor::YoutubeExtractorTest#test_: A channel banner sample image URL should work.	site
+Source::Tests::Extractor::YoutubeExtractorTest#test_: A community post full image URL should work.	site
+Source::Tests::Extractor::YoutubeExtractorTest#test_: A community post sample image URL should work.	site
+Source::Tests::Extractor::YoutubeExtractorTest#test_: A community post with a single image should work.	site
+Source::Tests::Extractor::YoutubeExtractorTest#test_: A community post with hashtags and external links should work.	site
+Source::Tests::Extractor::YoutubeExtractorTest#test_: A community post with multiple images should work.	site
+Source::Tests::Extractor::YoutubeExtractorTest#test_: A deleted or nonexistent community post should work.	site
+Source::Tests::Extractor::YoutubeExtractorTest#test_: A playlist album cover image URL with a playlist referer should work.	site
+Source::Tests::Extractor::ZerochanExtractorTest#test_: A NSFW post url should work.	site
+Source::Tests::Extractor::ZerochanExtractorTest#test_: A SFW post url should work.	site
+Source::Tests::Extractor::ZerochanExtractorTest#test_: A deleted post url should work.	site
+Source::Tests::Extractor::ZerochanExtractorTest#test_: A sample url should work.	site
+Source::Tests::Extractor::ZerochanExtractorTest#test_: An image url should work.	site
+Source::Tests::Extractor::ZerochanExtractorTest#test_: An old image url should work.	site
+Source::Tests::Extractor::ZerochanExtractorTest#test_: An old sample url should work.	site
+SourcesControllerTest#test_: The sources controller show action should work for a HTML response with a URL.	site
+SourcesControllerTest#test_: The sources controller show action should work for a HTML response with mode=json.	site
+SourcesControllerTest#test_: The sources controller show action should work for a HTML response with mode=test.	site
+SourcesControllerTest#test_: The sources controller show action should work for a direct twitter URL with referer.	site
+SourcesControllerTest#test_: The sources controller show action should work for a pixiv URL.	site
+UploadPostComponentTest#test_: The UploadPostComponent should show an image sample warning for image samples.	site
+UploadsControllerTest#test_: The uploads controller create action for a source that doesn't contain any images should fail.	login:Twitter
+UploadsControllerTest#test_: The uploads controller create action for a video longer than the video length limit should fail for a regular user.	site
+UploadsControllerTest#test_: The uploads controller create action for a video longer than the video length limit should work for an admin.	site
+UploadsControllerTest#test_: The uploads controller create action should not normalize source URLs to NFC form.	site
+UploadsControllerTest#test_: The uploads controller create action should work for a source URL containing unicode characters.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a .zip file from a source should not work.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from http://lohas.nicoseiga.jp/material/5746c5/4459092.	login:Nico Seiga
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from http://lohas.nicoseiga.jp/o/910aecf08e542285862954017f8a33a8c32a8aec/1433298801/4937663.	login:Nico Seiga
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from http://lohas.nicoseiga.jp/priv/3521156?e=1382558156&h=f2e089256abd1d453a455ec8f317a6c703e2cedf.	login:Nico Seiga
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from http://lohas.nicoseiga.jp/priv/b80f86c0d8591b217e7513a9e175e94e00f3c7a1/1384936074/3583893.	login:Nico Seiga
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from http://nijie.info/view.php?id=213043.	login:Nijie
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from http://seiga.nicovideo.jp/seiga/im4937663.	login:Nico Seiga
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from http://wwwew.web.fc2.com/e/405.jpg.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://art.ngfiles.com/comments/57000/iu_57615_7115981.jpg.	login:Newgrounds
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://art.ngfiles.com/images/1254000/1254722_natthelich_pandora.jpg.	login:Newgrounds
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://booth.pximg.net/4ee2c0d9-41fa-4a0e-a30f-1bc9e15d4e5b/i/2586180/331b7c5f-7614-4772-aae2-cb979ad44a6b.png.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://c.fantia.jp/uploads/post/file/1070093/16faf0b1-58d8-4aac-9e86-b243063eaaf1.jpeg.	login:Fantia
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://cdna.artstation.com/p/assets/images/images/006/029/978/large/amama-l-z.jpg.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://downloads.fanbox.cc/images/post/104708/wsF73EC5Fq0CIK84W0LGYk2p.jpeg.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://fantia.jp/posts/1132267.	login:Fantia
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://files.yande.re/image/7ecfdead705d7b956b26b1d37b98d089/yande.re%20482880.jpg.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://gelbooru.com/index.php?page=post&s=view&id=7798121.	login:Gelbooru
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://i.pximg.net/img-original/img/2017/08/18/00/09/21/64476642_p0.jpg.	login:Pixiv
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/intermediary/f/8b472d70-a0d6-41b5-9a66-c35687090acc/d23jbr4-8a06af02-70cb-46da-8a96-42a6ba73cdb4.jpg/v1/fill/w_786,h_1017,q_70,strp/silverhawks_quicksilver_by_edsfox_d23jbr4-pre.jpg.	login:Deviant Art
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://img.pawoo.net/media_attachments/files/000/128/953/original/4c0a06087b03343f.png.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://imgur.com/AOeREEF.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://konachan.com/image/ca12cdb79a66d242e95a6f958341bf05/Konachan.com%20-%20270916.png.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://konachan.com/post/show/270916.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://lohas.nicoseiga.jp/o/971eb8af9bbcde5c2e51d5ef3a2f62d6d9ff5552/1589933964/3583893.	login:Nico Seiga
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://media.tumblr.com/3bbfcbf075ddf969c996641b264086fd/tumblr_os2buiIOt51wsfqepo1_1280.png.	login:Tumblr
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://medibang.com/picture/4b2112261505098280008769655/.	login:ArtStreet
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://nijie.info/view_popup.php?id=213043.	login:Nijie
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://noizave.deviantart.com/art/test-no-download-697415967.	login:Deviant Art
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://noizave.tumblr.com/post/162206271767.	login:Tumblr
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://pawoo.net/web/statuses/1202176.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://pbs.twimg.com/media/DCdZ_FhUIAAYKFN?format=jpg&name=medium.	login:Twitter
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://pic.nijie.net/07/nijie/17/95/728995/illust/0_0_403fdd541191110c_c25585.jpg.	login:Nijie
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://poipiku.com/583/2867587.html.	login:Poipiku
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://rule34.us/index.php?r=posts/view&id=6204967.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://safebooru.org/index.php?page=post&s=view&id=4189916.	login:Gelbooru
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://seiga.nicovideo.jp/image/source/9146749.	login:Nico Seiga
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://seiga.nicovideo.jp/watch/mg389884.	login:Nico Seiga
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://skeb.jp/@LambOic029/works/146.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://skeb.jp/@kokuzou593/works/45.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://sketch.pixiv.net/items/1086346113447960710.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://tbib.org/index.php?page=post&s=view&id=11480218.	login:Gelbooru
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://twitter.com/noizave/status/875768175136317440.	login:Twitter
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://twitter.com/zeth_total/status/1355597580814585856.	login:Twitter
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://video.twimg.com/tweet_video/EWHWVrmVcAAp4Vw.mp4.	login:Twitter
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://www.deviantart.com/aeror404/art/Holiday-Elincia-424551484.	login:Deviant Art
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://www.pixiv.net/en/artworks/64476642.	login:Pixiv
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://www.pixiv.net/member_illust.php?mode=medium&illust_id=62247364.	login:Pixiv
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://www.plurk.com/p/om6zv4.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://www.weibo.com/5501756072/J2UNKfbqV.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://wx1.sinaimg.cn/mw690/0060kO5aly1gezsyt5xvhj30ok0sgtc9.jpg.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a file from a source should upload successfully from https://yande.re/post/show/482880.	site
+UploadsControllerTest#test_: The uploads controller create action uploading a ugoira from a source should work for a ugoira from Pixiv.	login:Pixiv
+UploadsControllerTest#test_: The uploads controller create action uploading a ugoira from a source should work for a ugoira from another site.	site

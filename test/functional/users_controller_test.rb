@@ -3,6 +3,7 @@ require "test_helper"
 class UsersControllerTest < ActionDispatch::IntegrationTest
   context "The users controller" do
     setup do
+      stub_mail_servers # fork: see EmailTestHelper
       @user = create(:user)
     end
 
@@ -665,6 +666,7 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
           # https://developers.cloudflare.com/turnstile/reference/testing/#dummy-sitekeys-and-secret-keys
           Danbooru.config.stubs(:captcha_site_key).returns("3x00000000000000000000FF") # forces an interactive challenge
           Danbooru.config.stubs(:captcha_secret_key).returns("2x0000000000000000000000000000000AA") # always fails
+          CaptchaService.any_instance.stubs(:request).returns({ "success" => false }) # fork: what Cloudflare answers for this key
 
           assert_no_difference(["User.count"]) do
             post users_path, params: { "user": { name: "xxx", password: "xxxxxxx1", password_confirmation: "xxxxxxx1" }, "cf-turnstile-response": "blah" }
@@ -676,6 +678,7 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
         should "create a user if the captcha response is valid" do
           Danbooru.config.stubs(:captcha_site_key).returns("3x00000000000000000000FF") # forces an interactive challenge
           Danbooru.config.stubs(:captcha_secret_key).returns("1x0000000000000000000000000000000AA") # always passes
+          CaptchaService.any_instance.stubs(:request).returns({ "success" => true }) # fork: what Cloudflare answers for this key
 
           post users_path, params: { "user": { name: "xxx", password: "xxxxxxx1", password_confirmation: "xxxxxxx1" }, "cf-turnstile-response": "blah" }
 

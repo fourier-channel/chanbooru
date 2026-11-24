@@ -735,8 +735,8 @@ class UploadsControllerTest < ActionDispatch::IntegrationTest
         should_upload_successfully("https://nijie.info/view_popup.php?id=213043")
         should_upload_successfully("https://pic.nijie.net/07/nijie/17/95/728995/illust/0_0_403fdd541191110c_c25585.jpg")
 
-        should_upload_successfully("https://pawoo.net/web/statuses/1202176") if SiteCredential.for_site("Pawoo").present? # XXX
-        should_upload_successfully("https://img.pawoo.net/media_attachments/files/000/128/953/original/4c0a06087b03343f.png") if SiteCredential.for_site("Pawoo").present? # XXX
+        should_upload_successfully("https://pawoo.net/web/statuses/1202176")
+        should_upload_successfully("https://img.pawoo.net/media_attachments/files/000/128/953/original/4c0a06087b03343f.png")
 
         should_upload_successfully("https://www.pixiv.net/en/artworks/64476642")
         should_upload_successfully("https://www.pixiv.net/member_illust.php?mode=medium&illust_id=62247364")

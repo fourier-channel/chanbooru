@@ -5,6 +5,7 @@ class EmailsControllerTest < ActionDispatch::IntegrationTest
 
   context "EmailsController:" do
     setup do
+      stub_mail_servers # fork: see EmailTestHelper
       @user = create(:user, email_address: build(:email_address, { address: "bob@ogres.net", is_verified: false }))
       @other_user = create(:user, email_address: build(:email_address, { address: "alice@ogres.net", is_verified: false }))
       @restricted_user = create(:restricted_user, email_address: build(:email_address, { is_verified: false }))

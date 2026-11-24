@@ -2,13 +2,9 @@
 #
 # Run the tests this FORK owns -- the ones that cover code we changed.
 #
-# WHY NOT THE WHOLE SUITE. `bin/rails test` is 6,368 tests and 32 minutes, and
-# it cannot be green on this machine: 127 of its failures are upstream
-# source-extractor tests that fetch live third-party sites (VK, Reddit, Fanbox,
-# Skeb, ArcaLive...) and fail without credentials or when those sites change.
-# A gate that is always red is a gate that gets ignored, which costs the same as
-# no gate plus half an hour. Measured 2026-08-30: 115 failures, 20 errors, 475
-# skips, and ZERO of them in fork-owned tests.
+# WHY NOT THE WHOLE SUITE. It tests upstream code this fork did not change, and
+# most of it stands on outside sites no test contacts (operator ruling
+# 2026-11-24): those tests are listed in test/files/outside_uncovered.txt.
 #
 # The list is DERIVED, not maintained. A hand-written manifest goes stale the
 # first time somebody adds a test and forgets -- and it already had: it named

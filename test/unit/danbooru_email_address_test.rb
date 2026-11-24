@@ -3,6 +3,7 @@ require "test_helper"
 class DanbooruEmailAddressTest < ActiveSupport::TestCase
   def assert_undeliverable(expected, address)
     Danbooru::EmailAddress.any_instance.stubs(:delivery_enabled?).returns(true)
+    stub_mail_servers # fork: see EmailTestHelper
     assert_equal(expected, Danbooru::EmailAddress.new(address).undeliverable?)
   end
 

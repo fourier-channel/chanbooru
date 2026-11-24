@@ -1,15 +1,10 @@
 require "test_helper"
 
 class DanbooruHttpTest < ActiveSupport::TestCase
-  def httpbin_url(path = "")
-    "https://httpbingo.org/#{path}"
-  end
+  include LocalSiteHelper # fork: these tests contact no outside site
 
-  # Fork: badssl.com resets about one connection in four (measured 2026-11-12),
-  # which answers 598 before any certificate is seen. Ask again on a 598 only,
-  # so a 590 still comes from the certificate check itself.
-  def badssl_get(http, url)
-    (1..5).lazy.map { |n| [n, http.get(url)] }.find { |n, response| n == 5 || response.status != 598 }.last
+  def httpbin_url(path = "")
+    httpbin.url(path)
   end
 
   # Start a local server that returns the given body for every request, and yield its URL.
@@ -61,22 +56,29 @@ class DanbooruHttpTest < ActiveSupport::TestCase
       end
 
       should "return a 5xx error if the domain can't be resolved" do
+        stub_no_such_host("doesnotexist.donmai.us")
         response = Danbooru::Http.get("http://doesnotexist.donmai.us")
         assert_equal(598, response.status)
         assert_equal("", response.body.to_s)
       end
 
       should "return a 5xx error if the SSL certificate is expired" do
-        response = badssl_get(Danbooru::Http, "https://expired.badssl.com")
-        assert_equal(590, response.status)
-        assert_equal("", response.body.to_s)
+        with_certificate_authority do |site|
+          assert_equal(200, Danbooru::Http.get(site.call).status)
+
+          response = Danbooru::Http.get(site.call(expires: 1.day.ago))
+          assert_equal(590, response.status)
+          assert_equal("", response.body.to_s)
+        end
       end
 
       should "verify SSL certificates when legacy SSL is enabled" do
-        assert_equal(590, badssl_get(Danbooru::Http.with_legacy_ssl, "https://expired.badssl.com").status)
-        assert_equal(590, badssl_get(Danbooru::Http.with_legacy_ssl, "https://self-signed.badssl.com").status)
-        assert_equal(590, badssl_get(Danbooru::Http.with_legacy_ssl, "https://wrong.host.badssl.com").status)
-        assert_equal(200, badssl_get(Danbooru::Http.with_legacy_ssl, "https://badssl.com").status)
+        with_certificate_authority do |site|
+          assert_equal(590, Danbooru::Http.with_legacy_ssl.get(site.call(expires: 1.day.ago)).status)
+          assert_equal(590, Danbooru::Http.with_legacy_ssl.get(site.call(self_signed: true)).status)
+          assert_equal(590, Danbooru::Http.with_legacy_ssl.get(site.call(host: "another.test")).status)
+          assert_equal(200, Danbooru::Http.with_legacy_ssl.get(site.call).status)
+        end
       end
 
       should "decompress gzipped responses under the max size" do
@@ -181,17 +183,18 @@ class DanbooruHttpTest < ActiveSupport::TestCase
         resp = Danbooru::Http.head(httpbin_url("anything/\u30D5\u3099")) # U+30D5 U+3099 = ブ ('KATAKANA LETTER HU', 'COMBINING KATAKANA-HIRAGANA VOICED SOUND MARK')
         assert_equal(httpbin_url("anything/%E3%83%95%E3%82%99"), resp.request.uri.to_s)
 
-        resp = Danbooru::Http.with_legacy_ssl.head("https://tuyu-official.jp/wp/wp-content/uploads/2022/09/雨模様［サブスクジャケット］.jpeg")
+        resp = Danbooru::Http.with_legacy_ssl.head(httpbin_url("wp/wp-content/uploads/2022/09/雨模様［サブスクジャケット］.jpeg"))
         assert_equal("%E9%9B%A8%E6%A8%A1%E6%A7%98%EF%BC%BB%E3%82%B5%E3%83%95%E3%82%99%E3%82%B9%E3%82%AF%E3%82%B7%E3%82%99%E3%83%A3%E3%82%B1%E3%83%83%E3%83%88%EF%BC%BD.jpeg", resp.request.uri.path.split("/").last)
       end
 
       should "work for a Source::URL" do
-        resp = Danbooru::Http.get(Source::URL.parse("https://www.google.com"))
+        resp = Danbooru::Http.get(Source::URL.parse(httpbin_url("status/200")))
 
         assert_equal(200, resp.status)
       end
 
       should "work for a Source::URL that returns an error" do
+        stub_no_such_host("www.google.dne")
         resp = Danbooru::Http.get(Source::URL.parse("https://www.google.dne"))
 
         assert_equal(598, resp.status)
@@ -212,9 +215,10 @@ class DanbooruHttpTest < ActiveSupport::TestCase
 
     context "#redirect_url method" do
       should "follow redirects to the final URL" do
-        assert_equal("http://www.google.com/", Danbooru::Http.redirect_url("http://google.com").to_s)
-        assert_equal("https://www.google.com/", Danbooru::Http.redirect_url("https://google.com").to_s)
+        assert_equal(httpbin_url("get"), Danbooru::Http.redirect_url(httpbin_url("redirect-to?url=#{httpbin_url("get")}")).to_s)
+        assert_equal(httpbin_url("absolute-redirect/1"), Danbooru::Http.redirect_url(httpbin_url("absolute-redirect/2")).to_s)
 
+        stub_no_such_host("google.dne")
         assert_nil(Danbooru::Http.redirect_url("https://google.dne"))
       end
     end
@@ -346,13 +350,15 @@ class DanbooruHttpTest < ActiveSupport::TestCase
 
     context "unpolish cloudflare feature" do
       should "return the original image for polished images" do
-        skip if ENV["DANBOORU_SKIP_EXTRACTOR_TESTS"].present?
-
-        url = "https://cdnb.artstation.com/p/assets/images/images/025/273/307/4k/atey-ghailan-a-sage-keyart-s-ch-04-outlined-1.jpg?1585246642"
-        response = Danbooru::Http.use(:unpolish_cloudflare).get(url)
+        site = local_site do |request|
+          next [200, {}, "original"] if request.target.include?("danbooru_no_polish=")
+          [200, { "CF-Polished" => "origSize=8" }, "polished"]
+        end
+        response = Danbooru::Http.use(:unpolish_cloudflare).get(site.url("a.jpg?1585246642"))
 
         assert_equal(200, response.status.to_i)
-        assert_equal(622_784, response.content_length)
+        assert_equal("original", response.to_s)
+        assert_equal("/a.jpg?1585246642", site.requests.first.target)
       end
     end
 
@@ -361,18 +367,10 @@ class DanbooruHttpTest < ActiveSupport::TestCase
         response = Danbooru::Http.public_only.get("http://127.0.0.1/foo.txt")
         assert_equal(591, response.status)
 
-        response = Danbooru::Http.public_only.get("http://127.0.0.1./foo.txt")
-        # Fork: `127.0.0.1.` is a domain name, so what it gives is the resolver's: a
-        # DNS error (598), or 127.0.0.1, refused (591). Either way nothing connects.
-        assert_includes([591, 598], response.status.to_i)
-
         response = Danbooru::Http.public_only.get("http://0.0.0.0/foo.txt")
         assert_equal(591, response.status)
 
         response = Danbooru::Http.public_only.get("http://attacker.com@127.0.0.1/foo.txt")
-        assert_equal(591, response.status)
-
-        response = Danbooru::Http.public_only.get("http://127.0.0.1.nip.io/foo.txt")
         assert_equal(591, response.status)
 
         response = Danbooru::Http.public_only.get("http://[::ffff:7f00:1]/foo.txt")
@@ -380,6 +378,15 @@ class DanbooruHttpTest < ActiveSupport::TestCase
 
         response = Danbooru::Http.public_only.get("http://192.0.0.192/foo.txt")
         assert_equal(591, response.status)
+      end
+
+      # Fork: the resolver's answer is stubbed. `127.0.0.1.` is a domain name too.
+      should "disallow connections to names that resolve to non-public IPs" do
+        %w[127.0.0.1. 127.0.0.1.nip.io].each do |name|
+          Resolv.stubs(:getaddress).with(name).returns("127.0.0.1")
+          response = Danbooru::Http.public_only.get("http://#{name}/foo.txt")
+          assert_equal(591, response.status)
+        end
       end
 
       should "disallow connections to IPv6 addresses that tunnel to IPv4 addresses" do
@@ -394,6 +401,7 @@ class DanbooruHttpTest < ActiveSupport::TestCase
       end
 
       should "not raise an exception if the domain doesn't exist" do
+        Resolv.stubs(:getaddress).with("google.dne").raises(Resolv::ResolvError)
         response = Danbooru::Http.public_only.get("http://google.dne")
 
         assert_equal(598, response.status)
@@ -416,15 +424,27 @@ class DanbooruHttpTest < ActiveSupport::TestCase
       end
 
       should "fail if the url points to a private IP" do
-        assert_raises(Danbooru::Http::DownloadError) do
+        Resolv.stubs(:getaddress).with("127.0.0.1.nip.io").returns("127.0.0.1")
+        error = assert_raises(Danbooru::Http::DownloadError) do
           Danbooru::Http.public_only.download_media("https://127.0.0.1.nip.io")
         end
+        assert_match(/failed with code 591/, error.message)
       end
 
+      # Fork: the first site stands in for a public one, so only the second is prohibited.
       should "fail if the url redirects to a private IP" do
-        assert_raises(Danbooru::Http::DownloadError) do
-          Danbooru::Http.public_only.download_media(httpbin_url("redirect-to?url=https://127.0.0.1.nip.io"))
+        private_site = local_site(address: "127.0.0.2") { [200, {}, ""] }
+        public_ip = Danbooru::IpAddress.new("127.0.0.1")
+        private_ip = Danbooru::IpAddress.new("127.0.0.2")
+        public_ip.stubs(:prohibited_for_outgoing?).returns(false)
+        Danbooru::IpAddress.stubs(:new).with("127.0.0.1").returns(public_ip)
+        Danbooru::IpAddress.stubs(:new).with("127.0.0.2").returns(private_ip)
+
+        error = assert_raises(Danbooru::Http::DownloadError) do
+          Danbooru::Http.public_only.download_media(httpbin_url("redirect-to?url=#{private_site.url}"))
         end
+        assert_match(/failed with code 591/, error.message)
+        assert_equal([1, 0], [httpbin.requests.size, private_site.requests.size])
       end
 
       should "fail if a download is too large" do

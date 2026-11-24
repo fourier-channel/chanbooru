@@ -3,6 +3,8 @@ require "test_helper"
 class EmailAddressTest < ActiveSupport::TestCase
   context "EmailAddress" do
     context "validation" do
+      setup { stub_mail_servers } # fork: see EmailTestHelper
+
       subject { build(:email_address) }
 
       should allow_value("foo@gmail.com").for(:address)

@@ -9,6 +9,8 @@ class DmcasControllerTest < ActionDispatch::IntegrationTest
   end
 
   context "create action" do
+    setup { stub_mail_servers } # fork: see EmailTestHelper
+
     should "work" do
       dmca = {
         name: "John Doe",
