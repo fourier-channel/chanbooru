@@ -41,10 +41,13 @@ class LiveSiteTestHelperTest < ActiveSupport::TestCase
     ::HTTP::Response.new(status: status, version: "1.1", body: body, request: ::HTTP::Request.new(verb: :get, uri: url))
   end
 
-  # Records an answer as the Recorder does, refusal read from its body.
+  # The title baraag.net's status API was answered with on 2026-11-24.
+  SEIZURE_NOTICE = "<html><head><title>Seized by the Federal Bureau of Investigation</title></head><body></body></html>"
+
+  # Records an answer as the Recorder does, its statement read from its body.
   def answered_with(url, status, body)
     response = response_with(url, status, body).flush
-    LiveSiteTestHelper.record(url, status, LiveSiteTestHelper.refused_network(response, buffered: true))
+    LiveSiteTestHelper.record(url, status, LiveSiteTestHelper.statement(url, response, buffered: true))
   end
 
   def assert_not_achieved(run)
@@ -140,9 +143,38 @@ class LiveSiteTestHelperTest < ActiveSupport::TestCase
       end
     end
 
+    should "be not achieved when a site that is gone answers with its notice, naming why" do
+      answered_with("https://baraag.net/api/v1/statuses/107866090743238456", 200, SEIZURE_NOTICE)
+      run = failed("undefined method 'dig'").classify
+
+      assert_not_achieved(run)
+      assert_equal("not achieved: baraag.net answered 200 (Seized by the Federal Bureau of Investigation: the domain was seized " \
+                   "and serves this notice at every address) -- undefined method 'dig'", run.failures.first.message)
+    end
+
+    should "count that notice on the site's subdomains, and on no other host" do
+      answered_with("https://media.baraag.net/media_attachments/1.png", 200, SEIZURE_NOTICE)
+      assert_not_achieved(failed.classify)
+
+      %w[https://pawoo.net/api/v1/statuses/1 https://notbaraag.net/1 https://baraag.net.example.com/1].each do |url|
+        LiveSiteTestHelper.answers.clear
+        answered_with(url, 200, SEIZURE_NOTICE)
+        assert_still_failed(failed.classify)
+      end
+    end
+
+    should "stay failed when the site answers without that notice, or the notice comes on another status" do
+      url = "https://baraag.net/api/v1/statuses/107866090743238456"
+      [[200, '{"id":"107866090743238456"}'], [200, "<html><title>Baraag</title></html>"], [403, SEIZURE_NOTICE], [404, SEIZURE_NOTICE]].each do |status, body|
+        LiveSiteTestHelper.answers.clear
+        answered_with(url, status, body)
+        assert_still_failed(failed.classify)
+      end
+    end
+
     should "not look in a body the request streamed" do
-      response = response_with("https://www.reddit.com/comments/ttyccp.json", 403, REDDIT_BLOCK_PAGE)
-      assert_nil(LiveSiteTestHelper.refused_network(response, buffered: false))
+      url = "https://www.reddit.com/comments/ttyccp.json"
+      assert_nil(LiveSiteTestHelper.statement(url, response_with(url, 403, REDDIT_BLOCK_PAGE), buffered: false))
     end
 
     should "stay failed on our own refusals: certificate, prohibited address, size, redirect limit" do
@@ -203,7 +235,7 @@ class LiveSiteTestHelperTest < ActiveSupport::TestCase
       # read as a stream: had the Recorder read this body, this raises "body has already been consumed"
       assert_match(/blocked by network security/, streamed.body.readpartial)
       assert_equal([[403, "blocked by network security: the site's page says it blocked this network, not the request"], [403, nil]],
-                   LiveSiteTestHelper.answers.map { |a| [a.status, a.refused_network] })
+                   LiveSiteTestHelper.answers.map { |a| [a.status, a.statement] })
     ensure
       server&.shutdown
       thread&.join

@@ -228,6 +228,8 @@ BEGIN
   metric := 'kept:matrix_media'; SELECT count(*)::text INTO val FROM matrix_media mm WHERE EXISTS (SELECT 1 FROM post_mxcs pm WHERE pm.mxc = mm.mxc); RETURN NEXT;
   metric := 'kept:matrix_rooms'; SELECT count(*)::text INTO val FROM matrix_rooms WHERE id IN (
       SELECT unnest(room_ids) FROM posts UNION SELECT unnest(mm.room_ids) FROM matrix_media mm WHERE EXISTS (SELECT 1 FROM post_mxcs pm WHERE pm.mxc = mm.mxc)); RETURN NEXT;
+  metric := 'kept:post_room_links'; SELECT count(*)::text INTO val FROM post_room_links WHERE matrix_room_id IN (
+      SELECT unnest(room_ids) FROM posts UNION SELECT unnest(mm.room_ids) FROM matrix_media mm WHERE EXISTS (SELECT 1 FROM post_mxcs pm WHERE pm.mxc = mm.mxc)); RETURN NEXT;
   metric := 'kept:fourier_generation_metadata'; SELECT count(*)::text INTO val FROM fourier_generation_metadata g
     WHERE EXISTS (SELECT 1 FROM posts p WHERE p.md5 = g.md5) OR EXISTS (SELECT 1 FROM posts p WHERE p.md5 = g.raw_md5); RETURN NEXT;
   metric := 'kept:fourier_tag_sources'; SELECT count(*)::text INTO val FROM fourier_tag_sources WHERE public; RETURN NEXT;
@@ -302,7 +304,7 @@ DECLARE
   mx text := '@canary_' || (SELECT v FROM anon_snapshot.meta WHERE k = 'token') || ':example.invalid';
   mail text := 'canary_' || (SELECT v FROM anon_snapshot.meta WHERE k = 'token') || '@mail-canary.test';
   disc text := 'discord:' || (('x' || left(md5(tok), 15))::bit(60)::bigint)::text;
-  uid int; gid bigint; rid int; pid int; aid bigint; uaid bigint; upid int; tid int; xid bigint;
+  uid int; gid bigint; rid int; pid int; aid bigint; uaid bigint; upid int; tid int; lrid int; xid bigint;
   md5p text := md5('canary-post-' || tok);
   -- Creator prefixes from cfg, never spelled here: p1 the Matrix one, p2 another pseudonymized one.
   p1 text := (SELECT e ->> 'prefix' FROM jsonb_array_elements((SELECT cfg FROM anon_v_input) -> 'prefixes') e
@@ -370,6 +372,14 @@ BEGIN
   INSERT INTO anon_snapshot.canary_rows (tbl, keycol, val) VALUES ('fourier_post_creators', 'id', xid);
   INSERT INTO post_mxcs (post_id, mxc, source, created_at, updated_at) VALUES (pid, 'mxc://example.invalid/canary' || tok, 'post_source', now(), now()) RETURNING id INTO xid;
   INSERT INTO anon_snapshot.canary_rows (tbl, keycol, val) VALUES ('post_mxcs', 'id', xid);
+  -- Two room links: one to the canary post's own room, which stays, and one to
+  -- a room only the link names, which goes and takes the link with it.
+  INSERT INTO post_room_links (post_id, matrix_room_id, source, created_at, updated_at) VALUES (pid, rid, 'lens', now(), now()) RETURNING id INTO xid;
+  INSERT INTO anon_snapshot.canary_rows (tbl, keycol, val) VALUES ('post_room_links', 'id', xid);
+  INSERT INTO matrix_rooms (room_id, created_at, updated_at) VALUES ('!canarylink' || tok || ':example.invalid', now(), now()) RETURNING id INTO lrid;
+  INSERT INTO anon_snapshot.canary_rows (tbl, keycol, val) VALUES ('matrix_rooms', 'id', lrid);
+  INSERT INTO post_room_links (post_id, matrix_room_id, source, created_at, updated_at) VALUES (pid, lrid, 'backfill', now(), now()) RETURNING id INTO xid;
+  INSERT INTO anon_snapshot.canary_rows (tbl, keycol, val) VALUES ('post_room_links', 'id', xid);
   INSERT INTO matrix_media (mxc, uploader, site_asset, room_ids, snapshot_head, snapshot_at, created_at, updated_at)
   VALUES ('mxc://example.invalid/canary' || tok, mx, false, ARRAY[rid], 0, now(), now(), now()) RETURNING id INTO xid;
   INSERT INTO anon_snapshot.canary_rows (tbl, keycol, val) VALUES ('matrix_media', 'id', xid);
@@ -633,6 +643,11 @@ BEGIN
     RAISE EXCEPTION 'media_assets: an unposted asset survived';
   END IF;
   IF EXISTS (SELECT 1 FROM matrix_media mm WHERE NOT EXISTS (SELECT 1 FROM post_mxcs pm WHERE pm.mxc = mm.mxc)) THEN RAISE EXCEPTION 'matrix_media: a row no post carries survived'; END IF;
+  IF EXISTS (SELECT 1 FROM post_room_links l
+              WHERE NOT EXISTS (SELECT 1 FROM posts p WHERE l.matrix_room_id = ANY (p.room_ids))
+                AND NOT EXISTS (SELECT 1 FROM matrix_media mm WHERE l.matrix_room_id = ANY (mm.room_ids))) THEN
+    RAISE EXCEPTION 'post_room_links: a link to a room no post or kept medium is in survived';
+  END IF;
   IF EXISTS (SELECT 1 FROM ai_tags a WHERE NOT EXISTS (SELECT 1 FROM media_assets ma WHERE ma.id = a.media_asset_id)) THEN RAISE EXCEPTION 'ai_tags: orphan rows survived'; END IF;
   IF NOT EXISTS (SELECT 1 FROM ar_internal_metadata WHERE key = 'environment' AND value = 'development') THEN RAISE EXCEPTION 'ar_internal_metadata: environment is not development'; END IF;
 END

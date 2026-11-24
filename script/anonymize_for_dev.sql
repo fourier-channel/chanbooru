@@ -172,6 +172,7 @@ post_flags: reason=derive
 post_replacements: original_url=map replacement_url=map old_file_ext=keep old_md5=keep file_ext=keep md5=keep
 posts: source=map md5=keep rating=keep tag_string=map file_ext=keep room_ids=keep source_created_at_precision=keep
 post_mxcs: mxc=map source=keep
+post_room_links: source=keep
 post_versions: rating=keep source=map tags=map added_tags=map removed_tags=map
 rate_limits: action=purge key=purge
 reactions: model_type=keep
@@ -727,6 +728,10 @@ CREATE TEMP TABLE anon_live_rooms ON COMMIT DROP AS
   SELECT DISTINCT unnest(room_ids) AS id FROM posts
   UNION SELECT DISTINCT unnest(room_ids) FROM matrix_media;
 ANALYZE anon_live_rooms;
+-- A room link is the other thing that names a room, and it does not keep one:
+-- a link to a room no post or kept medium is in goes with that room. First,
+-- because its key to matrix_rooms has no ON DELETE.
+DELETE FROM post_room_links WHERE matrix_room_id NOT IN (SELECT id FROM anon_live_rooms WHERE id IS NOT NULL);
 DELETE FROM matrix_rooms WHERE id NOT IN (SELECT id FROM anon_live_rooms WHERE id IS NOT NULL);
 UPDATE matrix_placement_cursors SET "position" = 0, lap_started_at = NULL;
 

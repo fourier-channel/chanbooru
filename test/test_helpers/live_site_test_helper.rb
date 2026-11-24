@@ -28,7 +28,9 @@ require "ipaddr"
 # this NETWORK rather than our request (operator 2026-11-22: a 4xx moves to
 # not achieved only once it is confirmed not to be our fault). Each answer
 # of that kind is one REFUSED_NETWORK entry, with the probe that confirmed
-# it; any other 4xx, from any site, stays a FAIL. A test that reached no outside site
+# it; any other 4xx, from any site, stays a FAIL. The one 200 that counts is a
+# SITE_GONE entry: a named site whose every address now answers with a notice
+# that the site is no longer there. A test that reached no outside site
 # stays a FAIL whatever happened: that is our own code. An answer made while a
 # mocha stub stands on HTTP::Client or Danbooru::Http came from the test, not
 # from a site, so a stubbed 503 never counts either.
@@ -55,7 +57,18 @@ module LiveSiteTestHelper
       reason: "the site's page says it blocked this network, not the request" },
   ].freeze
 
-  Answer = Struct.new(:host, :status, :stubbed, :refused_network)
+  # A site that is gone: its host (and its subdomains), and the status and
+  # words of the notice that answers in its place.
+  SITE_GONE = [
+    # baraag.net. 2026-11-24, from vesper: the status API and the status page
+    # both answered 200 text/html, the same seizure notice, and the domain's
+    # nameservers are ns1.fbi.seized.gov and ns2.fbi.seized.gov. The Mastodon
+    # extractor asked the API for JSON and was handed the notice.
+    { host: "baraag.net", status: 200, says: "Seized by the Federal Bureau of Investigation",
+      reason: "the domain was seized and serves this notice at every address" },
+  ].freeze
+
+  Answer = Struct.new(:host, :status, :stubbed, :statement)
   STUBBABLE = [HTTP::Client, Danbooru::Http].freeze
 
   class << self
@@ -65,20 +78,28 @@ module LiveSiteTestHelper
       @answers ||= []
     end
 
-    def record(url, status, refused_network = nil)
-      host = Addressable::URI.parse(url.to_s).host.to_s.downcase
-      answers << Answer.new(host, status.to_i, transport_stubbed?, refused_network)
+    def record(url, status, statement = nil)
+      answers << Answer.new(host_of(url), status.to_i, transport_stubbed?, statement)
     rescue Addressable::URI::InvalidURIError
       nil
     end
 
-    # The REFUSED_NETWORK reason this answer gives, or nil. Reads the body
-    # only when the request buffered it (read once, kept): a streamed body
-    # read here would be gone for the caller.
-    def refused_network(response, buffered:)
+    def host_of(url)
+      Addressable::URI.parse(url.to_s).host.to_s.downcase
+    end
+
+    # What this answer says about the site, the reason of the REFUSED_NETWORK
+    # or SITE_GONE entry it matches, or nil. Reads the body only when the
+    # request buffered it (read once, kept): a streamed body read here would
+    # be gone for the caller.
+    def statement(url, response, buffered:)
       return nil unless buffered
-      refusal = REFUSED_NETWORK.find { |r| r[:status] == response.status.to_i && response.body.to_s.include?(r[:says]) }
-      refusal && "#{refusal[:says]}: #{refusal[:reason]}"
+      host = host_of(url)
+      gone = SITE_GONE.select { |g| host == g[:host] || host.end_with?(".#{g[:host]}") }
+      entry = (REFUSED_NETWORK + gone).find { |e| e[:status] == response.status.to_i && response.body.to_s.include?(e[:says]) }
+      entry && "#{entry[:says]}: #{entry[:reason]}"
+    rescue Addressable::URI::InvalidURIError
+      nil
     end
 
     # True while any mocha stub stands on the transport, on the class (an
@@ -105,7 +126,7 @@ module LiveSiteTestHelper
     end
 
     def misses
-      live.select { |a| SITE_MISS.include?(a.status) || a.refused_network }
+      live.select { |a| SITE_MISS.include?(a.status) || a.statement }
     end
 
     def reached_outside?
@@ -118,7 +139,7 @@ module LiveSiteTestHelper
   module Recorder
     def request(method, url, **options)
       response = super
-      LiveSiteTestHelper.record(url, response.status, LiveSiteTestHelper.refused_network(response, buffered: options.fetch(:buffer, true)))
+      LiveSiteTestHelper.record(url, response.status, LiveSiteTestHelper.statement(url, response, buffered: options.fetch(:buffer, true)))
       response
     end
   end
@@ -144,7 +165,7 @@ module LiveSiteTestHelper
     misses = LiveSiteTestHelper.misses
     return if misses.empty?
 
-    sites = misses.map { |m| "#{m.host} answered #{m.status}#{" (#{m.refused_network})" if m.refused_network}" }.uniq
+    sites = misses.map { |m| "#{m.host} answered #{m.status}#{" (#{m.statement})" if m.statement}" }.uniq
     sites = sites.first(3) + ["and #{sites.size - 3} more"] if sites.size > 3
     reason = failure.message.to_s.lines.map(&:strip).compact_blank.join(" ").squish.truncate(240)
     skip = Minitest::Skip.new("#{PREFIX} #{sites.join(", ")} -- #{reason}")
