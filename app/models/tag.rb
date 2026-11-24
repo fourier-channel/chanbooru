@@ -151,43 +151,79 @@ class Tag < ApplicationRecord
         Tag.where(name: tag_names).update_all("post_count = post_count - 1")
       end
 
-      # fix tags where the post count is non-zero but the tag isn't present on any posts.
-      def regenerate_nonexistent_post_counts!
-        Tag.find_by_sql(<<~SQL.squish)
-          UPDATE tags
-          SET post_count = 0
-          WHERE
-            post_count != 0
-            AND name NOT IN (
-              SELECT DISTINCT tag
-              FROM posts, unnest(string_to_array(tag_string, ' ')) AS tag
-              GROUP BY tag
-            )
-          RETURNING tags.*
-        SQL
+      # Advisory lock key, one recount at a time. Past int4, so it cannot equal
+      # a hashtext() key (Post takes those).
+      POST_COUNT_LOCK = 41_20261124
+
+      # Set every stored post count to the true one. Fork (2026-11-24,
+      # TAG_RECOUNT.md): one count, where upstream ran two. Upstream counts
+      # inside the UPDATE, which PostgreSQL never runs in parallel, and counts
+      # again for the tags no post uses: 130 s of one core an hour.
+      #
+      # Uncached: a job runs with the query cache on, which would answer a
+      # second lock, unlock or count with the first one's result.
+      #
+      # @return [Array<Tag>] the tags whose count was wrong, as corrected
+      def regenerate_post_counts!
+        uncached do
+          unless connection.select_value("SELECT pg_try_advisory_lock(#{POST_COUNT_LOCK})")
+            # Two overlapping runs would each apply the same difference.
+            DanbooruLogger.info("Tag recount skipped: another recount is still running. Nothing to do; the next hour's run counts again.")
+            return []
+          end
+
+          begin
+            correct_post_counts!(wrong_post_counts)
+          ensure
+            connection.select_value("SELECT pg_advisory_unlock(#{POST_COUNT_LOCK})")
+          end
+        end
       end
 
-      # fix tags where the stored post count doesn't match the true post count.
-      def regenerate_incorrect_post_counts!
-        Tag.find_by_sql(<<~SQL.squish)
-          UPDATE tags
-          SET post_count = true_count
-          FROM (
-            SELECT tag, COUNT(*) AS true_count
+      # The tags whose stored count is wrong, a tag no post uses included
+      # (its true count is 0). A plain SELECT, so PostgreSQL may use parallel
+      # workers, and one snapshot: the stored and true counts are of the same
+      # instant.
+      #
+      # @return [Array<Hash>] id, was (the stored count) and now (the true one)
+      def wrong_post_counts
+        connection.select_all(<<~SQL.squish).to_a
+          SELECT tags.id, tags.post_count AS was, COALESCE(true_counts.n, 0) AS now
+          FROM tags
+          LEFT JOIN (
+            SELECT tag, COUNT(*) AS n
             FROM posts, unnest(string_to_array(tag_string, ' ')) AS tag
             GROUP BY tag
-          ) true_counts
-          WHERE
-            tags.name = tag AND tags.post_count != true_count
-          RETURNING tags.*
+          ) true_counts ON true_counts.tag = tags.name
+          WHERE tags.post_count IS DISTINCT FROM COALESCE(true_counts.n, 0)
         SQL
       end
 
-      def regenerate_post_counts!
-        tags = []
-        tags += regenerate_incorrect_post_counts!
-        tags += regenerate_nonexistent_post_counts!
-        tags
+      # Applies the DIFFERENCE, never the counted number: the count takes half
+      # a minute, and a post arriving in that time raises the stored count
+      # after it was read, which writing the older number would undo. Locked
+      # in name order like increment_post_counts, so it cannot deadlock with
+      # an upload. The ids go as one array value each, so the statement is one
+      # entry in pg_stat_statements however many tags it corrects.
+      #
+      # @param wrong [Array<Hash>] #wrong_post_counts
+      # @return [Array<Tag>] the corrected tags
+      def correct_post_counts!(wrong)
+        return [] if wrong.empty?
+
+        ids = "{#{wrong.pluck("id").join(",")}}"
+        diffs = "{#{wrong.map { |row| row["now"] - row["was"] }.join(",")}}"
+
+        transaction do
+          Tag.where("id = ANY(?::bigint[])", ids).order(:name).lock("FOR UPDATE").pluck(1)
+          Tag.find_by_sql([<<~SQL.squish, ids, diffs])
+            UPDATE tags
+            SET post_count = post_count + wrong.diff
+            FROM unnest(?::bigint[], ?::bigint[]) AS wrong(id, diff)
+            WHERE tags.id = wrong.id
+            RETURNING tags.*
+          SQL
+        end.tap { connection.clear_query_cache } # an UPDATE read as rows does not clear it
       end
     end
 
