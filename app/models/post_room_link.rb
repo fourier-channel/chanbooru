@@ -6,6 +6,13 @@
 # room and reports the room first, on POST /posts/:post_id/tag_sources with
 # "room" (FourierTagSourcesController#create_with_room).
 #
+# THE CONDITION (operator, 2026-11-24): "So long as the room ID doesn't get
+# conflated with the room ID for determining access to Matrix posts." So no
+# access decision -- the booru's pages, galleries and searches, the media
+# door, Gate 3 (posts.room_ids, Post#hidden_by_matrix_rooms?,
+# MatrixViewerRooms.ids, MediaDoorAsk#hidden_from_reader) -- ever reads these
+# rows. test/unit/post_room_links_grant_no_access_test.rb fails if one does.
+#
 # NOT A PLACEMENT. posts.room_ids, and so Gate 3, never reads these rows: the
 # post stays exactly as visible as it was. A link only lets the post's
 # withheld 404 -- and its `jailed`, which Technetium draws as
