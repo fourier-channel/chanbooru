@@ -4,7 +4,8 @@
 # docs/design/GATE3_MATRIX_POSTS.md), so a post's rooms and a viewer's rooms
 # are int[] and the gate is one overlap. Ids start at 1: 0 and -1 are reserved
 # (MatrixViewerRooms::NOT_MATRIX, ::SITE_ASSET). Rows are only ever added --
-# by the placements feed (MatrixPlacements) -- never renumbered or removed.
+# by the placements feed (MatrixPlacements) and by a posting bot's room link
+# (PostRoomLink.record!) -- never renumbered or removed.
 class MatrixRoom < ApplicationRecord
   # A Matrix room id: "!" opaque "@"-free localpart ":" server name.
   ROOM_ID = /\A![^:\s]{1,255}:[^\s]{1,255}\z/

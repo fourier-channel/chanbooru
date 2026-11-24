@@ -235,6 +235,46 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       @gated.update_columns(room_ids: [MatrixViewerRooms::NOT_MATRIX]) # rubocop:disable Rails/SkipsModelValidations -- an ordinary upload
       assert_nil withheld(@gated, create(:user))
     end
+
+    # ROOM LINKS (operator, 2026-11-24): the lens sent a link to an ordinary
+    # post into a room, so a member of that room hears what a member of a
+    # Matrix post's rooms hears -- and the post stays exactly as visible.
+    should "answer a jailed post linked into the reader's room withheld AND jailed" do
+      jailed = create(:post, tag_string: "a", uploader: @uploader)
+      jailed.update_columns(is_deleted: true, tag_string: "a #{Danbooru.config.troll_jail_tag}") # rubocop:disable Rails/SkipsModelValidations -- the state, not how it is reached
+      PostRoomLink.record!(jailed, @room.room_id)
+      assert_equal [MatrixViewerRooms::NOT_MATRIX], jailed.reload.room_ids, "a link is not a placement"
+      assert_equal true, withheld(jailed, create(:user))
+      assert_equal true, response.parsed_body["jailed"]
+      assert_equal %w[jailed message success withheld], response.parsed_body.keys.sort
+    end
+
+    should "answer a sensitive linked post withheld but not jailed" do
+      @gated.update_columns(room_ids: [MatrixViewerRooms::NOT_MATRIX]) # rubocop:disable Rails/SkipsModelValidations -- an ordinary upload
+      PostRoomLink.record!(@gated, @room.room_id)
+      assert_equal true, withheld(@gated, create(:user))
+      assert_equal false, response.parsed_body["jailed"]
+    end
+
+    should "not say withheld for a post linked only into a room the reader is not in" do
+      @gated.update_columns(room_ids: [MatrixViewerRooms::NOT_MATRIX]) # rubocop:disable Rails/SkipsModelValidations -- an ordinary upload
+      PostRoomLink.record!(@gated, "!elsewhere:41chan.net")
+      assert_nil withheld(@gated, create(:user))
+    end
+
+    should "not say withheld to a linked room's member with no verified identity" do
+      MatrixViewerRooms.stubs(:ids).returns([MatrixViewerRooms::NOT_MATRIX])
+      @gated.update_columns(room_ids: [MatrixViewerRooms::NOT_MATRIX]) # rubocop:disable Rails/SkipsModelValidations -- an ordinary upload
+      PostRoomLink.record!(@gated, @room.room_id)
+      assert_nil withheld(@gated, create(:user))
+    end
+
+    should "answer a linked post the reader may see as before" do
+      shown = create(:post, tag_string: "a", uploader: @uploader)
+      PostRoomLink.record!(shown, @room.room_id)
+      get_auth "/posts/#{shown.id}/tag_sources.json", create(:user)
+      assert_response :success
+    end
   end
 
   # THE MODEL-BIT BACKFILL (2026-09-24). fourier-sampling's retag timer pushes
@@ -285,9 +325,12 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
         assert_not_includes(response.body, "skipped", "models, as #{user.level_string}")
         post_auth "/posts/#{@post.id}/tag_sources.json", user, as: :json, params: { mxc: "mxc://41chan.net/notabot" }
         assert_response 403, "mxc, as #{user.level_string}"
+        post_auth "/posts/#{@post.id}/tag_sources.json", user, as: :json, params: { room: "!notabot:41chan.net" }
+        assert_response 403, "room, as #{user.level_string}"
 
         assert_equal(before, everything_about(@post), "no row written or deleted, as #{user.level_string}")
         assert_not(PostMxc.exists?(mxc: "mxc://41chan.net/notabot"), "no mxc recorded, as #{user.level_string}")
+        assert_not(PostRoomLink.exists?(post_id: @post.id), "no room link recorded, as #{user.level_string}")
       end
     end
   end
@@ -591,6 +634,70 @@ class FourierTagSourcesControllerTest < ActionDispatch::IntegrationTest
       assert_equal %w[post_id projection recorded], body.keys.sort
       report({}, post_id: 0)
       assert_response 404
+    end
+  end
+
+  # ROOM LINKS (operator, 2026-11-24: "Yes, add room links"): the lens reports
+  # the room it sends each booru link into, on this same route, with "room"
+  # alone. Recorded beside the post, never in posts.room_ids.
+  context "POST /posts/:post_id/tag_sources with a room" do
+    setup do
+      @bot = create(:builder_user, name: "sample")
+      @post = create(:post, md5: SecureRandom.hex(16), tag_string: "a b")
+    end
+
+    should "record a room-only body as a lens link, changing no tag and no room_ids" do
+      tags = @post.reload.tag_string
+      assert_no_difference(-> { FourierTagSource.count }) do
+        body = report({ room: "!lens:41chan.net" })
+        assert_response :success
+        assert_equal({ "post_id" => @post.id, "room" => { "accepted" => true }}, body)
+      end
+      room = MatrixRoom.find_by!(room_id: "!lens:41chan.net")
+      assert_equal [room.id, "lens"], PostRoomLink.where(post_id: @post.id).pick(:matrix_room_id, :source)
+      assert_equal tags, @post.reload.tag_string
+      assert_equal [MatrixViewerRooms::NOT_MATRIX], @post.room_ids, "a link is not a placement (Gate 3)"
+    end
+
+    should "record a link once, keeping the first source" do
+      report({ room: "!lens:41chan.net", source: "backfill" })
+      report({ room: "!lens:41chan.net" })
+      assert_response :success
+      assert_equal [["backfill"]], PostRoomLink.where(post_id: @post.id).pluck(:source).map { |s| [s] }
+    end
+
+    should "link a post hidden from the bot, answered the same" do
+      @post.update_columns(is_deleted: true, tag_string: "a #{Danbooru.config.troll_jail_tag}") # rubocop:disable Rails/SkipsModelValidations -- a jailed post
+      assert_equal({ "post_id" => @post.id, "room" => { "accepted" => true }}, report({ room: "!lens:41chan.net" }))
+      assert PostRoomLink.exists?(post_id: @post.id)
+    end
+
+    should "answer no_such_post for a post that does not exist" do
+      body = report({ room: "!lens:41chan.net" }, post_id: 0)
+      assert_response :success
+      assert_equal({ "accepted" => false, "reason" => "no_such_post" }, body["room"])
+      assert_not PostRoomLink.exists?
+    end
+
+    should "refuse a room that is not a room id, naming the shape" do
+      report({ room: "#alias:41chan.net" })
+      assert_response 422
+      assert_match(/Matrix room id/, response.parsed_body["error"])
+      assert_not PostRoomLink.exists?
+    end
+
+    should "refuse an unknown source" do
+      report({ room: "!lens:41chan.net", source: "guess" })
+      assert_response 422
+      assert_not PostRoomLink.exists?
+    end
+
+    should "refuse tags sent beside a room" do
+      assert_no_difference(-> { FourierTagSource.count }) do
+        report({ auto: %w[a], room: "!lens:41chan.net" })
+      end
+      assert_response 422
+      assert_not PostRoomLink.exists?
     end
   end
 end

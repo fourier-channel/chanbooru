@@ -15,7 +15,8 @@
 # viewer's OWN fourier_session cookie forwarded -- nobody can ask about
 # someone else -- and the answer must name the MXID the proxy verified for
 # this request (FourierIdentity, X-Fourier-Identity). Rooms no post has ever
-# been placed in are not in matrix_rooms and drop out.
+# been placed in, and no link to a post sent into (PostRoomLink), are not in
+# matrix_rooms and drop out.
 #
 # FAIL CLOSED, LOUDLY (memory fail-loudly-no-fallbacks): no identity, no
 # cookie, a 401, a 503, a timeout, an MXID that is not the viewer's, or a body

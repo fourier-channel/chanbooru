@@ -88,8 +88,19 @@ module MediaDoorAsk
   # in rooms that hold this reader: one hidden by the rooms alone is not, and
   # a new Matrix post is closed to every room ({}) until its own are known,
   # so its picture does not pop for the people it was posted to.
+  #
+  # A post that is not a Matrix post ({0}) has no rooms to hold anyone, but a
+  # posting bot may have sent a LINK to it into a room (PostRoomLink, operator
+  # 2026-11-24): a member of a linked room is answered as a member of its
+  # rooms would be. room_ids and Gate 3 never read the links.
   def withheld?(post, user)
-    post.room_ids.to_a.any?(&:positive?) && !post.hidden_by_matrix_rooms?(user) && withheld_ids([post], user).include?(post.id)
+    rooms = post.room_ids.to_a
+    reaches = if rooms == [MatrixViewerRooms::NOT_MATRIX]
+                PostRoomLink.linked_for?(post, user)
+              else
+                rooms.any?(&:positive?) && !post.hidden_by_matrix_rooms?(user)
+              end
+    reaches && withheld_ids([post], user).include?(post.id)
   end
 
   # The ids among `posts` hidden from `reader` by every gate but the rooms:

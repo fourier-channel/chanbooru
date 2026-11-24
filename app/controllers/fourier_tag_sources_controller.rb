@@ -14,6 +14,12 @@
 # {"mxc": {"accepted": false, "reason": "no_such_post"|"mxc_mapped_elsewhere"}}.
 # A body carrying ONLY the mxc (the tunnel's duplicate path) changes no tag.
 # Without an mxc the route answers exactly as before.
+#
+# ROOM LINKS (operator, 2026-11-24): create also takes a "room" ALONE (with an
+# optional "source": "backfill") -- the Matrix room a posting bot sent a link
+# to the post into -- and records it (PostRoomLink), answering
+# {"room": {"accepted": true}} or {"room": {"accepted": false, "reason":
+# "no_such_post"}}. It changes no tag and never touches posts.room_ids.
 class FourierTagSourcesController < ApplicationController
   # EVERY key create permits must be listed here too. A JSON body's top-level
   # keys reach params[:fourier_tag_source] only if they are wrapped, and
@@ -27,6 +33,7 @@ class FourierTagSourcesController < ApplicationController
     skip_authorization # gated on refuse_unless_posting_bot! above, not a per-record Pundit policy
 
     return create_with_mxc if params.key?(:mxc)
+    return create_with_room if params.key?(:room)
 
     # A post hidden from the bot is not writable by it and answers as a
     # missing one (R1, operator 2026-11-20): jailed, deleted past what the
@@ -163,6 +170,33 @@ class FourierTagSourcesController < ApplicationController
     result = PostMxc.record_alias!(post, mxc)
     body[:mxc] = (result == :accepted) ? { accepted: true } : { accepted: false, reason: result.to_s }
     render json: body, status: 200
+  end
+
+  # create, carrying a "room" and nothing else: the Matrix room a posting bot
+  # sends (or sent, with "source": "backfill") a link to this post into
+  # (PostRoomLink, see the header). Any post that exists is linked, one
+  # hidden from the bot too, and answered the same: the link records the
+  # bot's own act and tells it nothing of the post. A tag partition beside
+  # the room is refused (422) rather than half-done.
+  def create_with_room
+    room = params[:room].to_s
+    unless room.match?(MatrixRoom::ROOM_ID)
+      return render json: { error: "room must be a Matrix room id (!opaque:server), got #{room.truncate(80).inspect}", fix: "send the id of the room the link was posted into, not an alias" }, status: 422
+    end
+    if params[:fourier_tag_source].present?
+      return render json: { error: "a room link is sent on its own, and tags came with it", fix: "send the tags and the room as two requests" }, status: 422
+    end
+
+    source = params[:source].presence || PostRoomLink::LENS
+    unless PostRoomLink::SOURCES.include?(source)
+      return render json: { error: "source must be one of #{PostRoomLink::SOURCES.join(", ")}, got #{source.to_s.truncate(40).inspect}", fix: "omit it for a link sent now; send \"backfill\" for one sent before links were reported" }, status: 422
+    end
+
+    post = Post.find_by(id: params[:post_id].to_s)
+    return render json: { post_id: params[:post_id].to_i, room: { accepted: false, reason: "no_such_post" } }, status: 200 if post.nil?
+
+    PostRoomLink.record!(post, room, source: source)
+    render json: { post_id: post.id, room: { accepted: true } }, status: 200
   end
 
   def record_tag_sources(post)

@@ -2630,6 +2630,40 @@ ALTER SEQUENCE public.post_replacements_id_seq OWNED BY public.post_replacements
 
 
 --
+-- Name: post_room_links; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.post_room_links (
+    id bigint NOT NULL,
+    post_id integer NOT NULL,
+    matrix_room_id integer NOT NULL,
+    source character varying NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT post_room_links_source CHECK (((source)::text = ANY ((ARRAY['lens'::character varying, 'backfill'::character varying])::text[])))
+);
+
+
+--
+-- Name: post_room_links_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.post_room_links_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: post_room_links_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.post_room_links_id_seq OWNED BY public.post_room_links.id;
+
+
+--
 -- Name: post_versions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4274,6 +4308,13 @@ ALTER TABLE ONLY public.post_replacements ALTER COLUMN id SET DEFAULT nextval('p
 
 
 --
+-- Name: post_room_links id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_room_links ALTER COLUMN id SET DEFAULT nextval('public.post_room_links_id_seq'::regclass);
+
+
+--
 -- Name: post_versions id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -4997,6 +5038,14 @@ ALTER TABLE ONLY public.post_mxcs
 
 ALTER TABLE ONLY public.post_replacements
     ADD CONSTRAINT post_replacements_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: post_room_links post_room_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_room_links
+    ADD CONSTRAINT post_room_links_pkey PRIMARY KEY (id);
 
 
 --
@@ -7344,6 +7393,13 @@ CREATE INDEX index_post_replacements_on_post_id ON public.post_replacements USIN
 
 
 --
+-- Name: index_post_room_links_on_post_id_and_matrix_room_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_post_room_links_on_post_id_and_matrix_room_id ON public.post_room_links USING btree (post_id, matrix_room_id);
+
+
+--
 -- Name: index_post_versions_on_added_tags_gin; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9015,6 +9071,14 @@ ALTER TABLE ONLY public.post_flags
 
 
 --
+-- Name: post_room_links fk_rails_6f736edd44; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_room_links
+    ADD CONSTRAINT fk_rails_6f736edd44 FOREIGN KEY (matrix_room_id) REFERENCES public.matrix_rooms(id);
+
+
+--
 -- Name: user_events fk_rails_717ccf5f73; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9543,6 +9607,14 @@ ALTER TABLE ONLY public.fourier_tag_sources
 
 
 --
+-- Name: post_room_links fk_rails_fc38d0b19c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_room_links
+    ADD CONSTRAINT fk_rails_fc38d0b19c FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE CASCADE;
+
+
+--
 -- Name: tag_quarantines fk_rails_fc92d44f8a; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9565,6 +9637,7 @@ ALTER TABLE ONLY public.creator_user_rules
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261124000001'),
 ('20261123000001'),
 ('20261122000001'),
 ('20261107000003'),
