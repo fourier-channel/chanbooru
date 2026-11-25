@@ -234,7 +234,8 @@ class Upload < ApplicationRecord
     if files.present?
       process_file_upload!
     elsif source.present?
-      process_source_upload!
+      # Fork: the fetch is for the uploader; the job runs as the system user.
+      SourceFetch.on_behalf_of(uploader) { process_source_upload! }
     else
       raise Error, "No file or source given" # Should never happen
     end

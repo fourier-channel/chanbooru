@@ -33,7 +33,7 @@ class TwitterTransactionIdGenerator
   # @param twitter_site_verification_key [String] The value of the `<meta name="twitter-site-verification">` element.
   # @param xor_key [Integer] A random integer from 0-255 used to XOR encrypt the transaction ID.
   # @param http [Danbooru::Http] The HTTP client to use for scraping the Twitter home page.
-  def initialize(twitter_site_verification_key: nil, time: Time.zone.now, xor_key: rand(255), http: Danbooru::Http.external)
+  def initialize(twitter_site_verification_key: nil, time: Time.zone.now, xor_key: rand(255), http: nil)
     @twitter_site_verification_key = twitter_site_verification_key
     @time = time.to_i
     @xor_key = xor_key

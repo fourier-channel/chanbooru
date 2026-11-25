@@ -69,6 +69,7 @@ module Source
       @parent_extractor = parent_extractor
       @default_credentials = credentials
       @options = options
+      @requester = SourceFetch.requester # Here because the requests may be sent in another thread (see Pixiv).
 
       @parsed_url = Source::URL.parse(url)
       @parsed_referer = Source::URL.parse(referer_url) if referer_url.present?
@@ -222,7 +223,15 @@ module Source
 
     # @return [Danbooru::Http] The HTTP client to use for API or HTML requests. Extractors can override this to add custom headers or cookies.
     memoize def http
-      Danbooru::Http.external
+      external_http
+    end
+
+    # The client every request an extractor sends must be built from. Fork: it refuses to send one unless this site may
+    # fetch an address for whoever asked (see SourceFetch).
+    #
+    # @return [Danbooru::Http] A plain HTTP client for requests to external sites.
+    def external_http
+      Danbooru::Http.external.use(requested_by: { user: @requester })
     end
 
     # @return [Danbooru::Http] The HTTP client to use for downloading files. Extractors can override this to add custom headers or cookies.
@@ -515,7 +524,7 @@ module Source
     end
 
     def inspect
-      variables = instance_values.reject { |key, _| key.starts_with?("_memoized") || key == "sub_extractor" }.compact_blank
+      variables = instance_values.reject { |key, _| key.starts_with?("_memoized") || key.in?(%w[sub_extractor requester]) }.compact_blank
       state = variables.map { |name, value| "@#{name}=#{value.inspect}" }.join(" ")
       "#<#{self.class.name} #{state}>"
     end

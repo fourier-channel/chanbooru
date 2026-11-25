@@ -7,7 +7,7 @@
   <% end %>
   <%= subnav_link_to "All Uploads", media_assets_path unless Danbooru.config.retired_sections.include?("media_assets") %>
   <%= subnav_link_to "Reverse Image Search", iqdb_queries_path if policy(Upload).create? %>
-  <%= subnav_link_to "Source Info", source_path %>
+  <%= subnav_link_to "Source Info", source_path if SourceFetch.allowed? %>
   <%= subnav_divider %>
   <%= subnav_link_to "Help", wiki_page_path("help:upload") %>
   <%= subnav_link_to "Bookmarklet", bookmarklet_path %>

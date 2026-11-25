@@ -20,7 +20,7 @@ class UploadPostComponent < ApplicationComponent
 
     @upload = upload_media_asset.upload
     @media_asset = upload_media_asset.media_asset
-    @source = upload_media_asset.source_extractor
+    @source = upload_media_asset.source_extractor if SourceFetch.allowed?(current_user) # Fork: showing it fetches it.
     @source_site = upload_media_asset.parsed_canonical_url&.source_site
 
     super

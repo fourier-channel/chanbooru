@@ -264,7 +264,7 @@ class Source::Extractor
     end
 
     memoize def tid_generator
-      TwitterTransactionIdGenerator.new(http: Danbooru::Http.external)
+      TwitterTransactionIdGenerator.new(http: external_http)
     end
 
     def status_id

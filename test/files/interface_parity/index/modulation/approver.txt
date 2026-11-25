@@ -18,9 +18,9 @@ json_session_tokens 200 d0e43bac23a79bac20e475b4
 landing_slides 200 aea6549683bcecafe7e93cb8
 login 403 a7de5d668dcdde898193383b
 not_found 404 9e19097959985e32fb457040
-post_art 200 f5feb608ecb2ade80af0bec9
-post_banned_artist 200 c7992e4a9993ea3848f8c662
-post_child 200 a85f41b342f5f04fe135d2f6
+post_art 200 27bf566fae7906ecfe83b70f
+post_banned_artist 200 7efdf4614a36cdf0125c0c62
+post_child 200 66b52488380303cf088075a9
 post_closed 404 12c0b9c464ec5f1c41066f60
 post_closed_tooltip 404 6eb348547fcec7fb7dbb3ffd
 post_deleted 404 d0f5fb1a9a51879e97df79a0

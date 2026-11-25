@@ -135,7 +135,8 @@ class UploadMediaAsset < ApplicationRecord
       source_url
 
     # If a better page URL can be found by the extractor (potentially with an API call), then use that as the source.
-    elsif source_extractor&.page_url.present?
+    # Fork: an API call this viewer may not have made (SourceFetch) is not made; the page URL found at upload stands.
+    elsif SourceFetch.allowed? && source_extractor&.page_url.present?
       source_extractor.page_url
 
     # If we can't find any better page URL, then just use the one we already have.
@@ -175,7 +176,8 @@ class UploadMediaAsset < ApplicationRecord
     if file.present?
       media_file = MediaFile.open(file)
     else
-      media_file = source_extractor.download_file!(source_url)
+      # Fork: the fetch is for the uploader; the job runs as the system user.
+      media_file = SourceFetch.on_behalf_of(upload.uploader) { source_extractor.download_file!(source_url) }
     end
 
     MediaAsset.validate_media_file!(media_file, upload.uploader)

@@ -2,7 +2,7 @@
   <div id="a-index">
     <h1>Upload</h1>
 
-    <% if policy(@upload).show? && @upload.source_extractor.present? %>
+    <% if SourceFetch.allowed? && policy(@upload).show? && @upload.source_extractor.present? %>
       <%= render_source_data(@upload.source_extractor) %>
     <% end %>
 

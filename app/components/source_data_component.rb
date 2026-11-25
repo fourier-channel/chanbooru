@@ -10,6 +10,11 @@ class SourceDataComponent < ApplicationComponent
     @source = source
   end
 
+  # Fork: the source is fetched to be shown, so only to a viewer the site fetches for.
+  def render?
+    SourceFetch.allowed?
+  end
+
   def profile_urls(artist)
     artist.sorted_urls.select(&:is_active?).reject(&:secondary_url?)
   end

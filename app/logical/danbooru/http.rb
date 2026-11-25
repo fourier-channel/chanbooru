@@ -12,6 +12,7 @@
 # * Sites using Cloudflare Polish are automatically bypassed
 # * SSRF attempts are blocked
 # * Refused hosts are never contacted (see Danbooru::RefusedHosts)
+# * An address somebody chose is fetched only for an account that may (see SourceFetch)
 #
 # @example
 #   http = Danbooru::Http.new
@@ -32,6 +33,7 @@ module Danbooru
     Danbooru::Http::Logger.register
     Danbooru::Http::MaxSize.register
     Danbooru::Http::Redirector.register
+    Danbooru::Http::RequestedBy.register
     Danbooru::Http::Retriable.register
     Danbooru::Http::Session.register
     Danbooru::Http::SpoofReferrer.register

@@ -157,7 +157,8 @@ class Post < ApplicationRecord
     # XXX depends on CurrentUser
     commentary = ArtistCommentary.new(**artist_commentary)
 
-    if add_artist_tag
+    # Fork: the artists are fetched from the source, so only for a viewer the site fetches for (SourceFetch).
+    if add_artist_tag && SourceFetch.allowed?
       tag_string = "#{tag_string} #{upload_media_asset.source_extractor&.artists.to_a.map(&:tag).map(&:name).join(" ")}".strip
       tag_string += " " if tag_string.present?
     end

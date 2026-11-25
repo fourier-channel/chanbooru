@@ -175,10 +175,14 @@ class Artist < ApplicationRecord
     # the source's extractor turned a post hidden from them (gated below
     # Gold, deleted, jailed, hidden by its creator) into its artist's profile
     # URLs (review, 2026-10-14). Signed out by default, the smallest view.
+    #
+    # Fork: the defaults are fetched from the source, so a form opened with
+    # only a name is left blank for a viewer the site does not fetch for
+    # (SourceFetch); a source they give themselves is refused with the reason.
     def new_with_defaults(params, user = User.anonymous)
       source = params.delete(:source)
 
-      if source.blank? && params[:name].present?
+      if source.blank? && params[:name].present? && SourceFetch.allowed?(user)
         post = Post.user_tag_match("source:http* #{params[:name]}", user, tag_limit: nil, safe_mode: false).first
         source = post.try(:source)
       end

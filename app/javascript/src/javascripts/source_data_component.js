@@ -9,7 +9,8 @@ class SourceDataComponent {
 
     e.preventDefault();
 
-    if (/^https?:\/\//.test(url)) {
+    // Fork: no box to fill means this viewer may not have the address fetched (SourceDataComponent#render?).
+    if ($(".source-data").length > 0 && /^https?:\/\//.test(url)) {
       $(".source-data").addClass("loading");
       await $.get("/source.js", { url: url, ref: ref });
       $(".source-data").removeClass("loading");
