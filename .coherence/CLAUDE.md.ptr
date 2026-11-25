@@ -1,7 +1,7 @@
 {
   "build_stamp": null,
-  "hydrated_at": "2026-11-18T15:22:30Z",
-  "hydrated_hash": "sha256c:002d77a8e3c392a1b197d5a552bae8ef4eb2c3774b8343be92f9d9653dce64f0",
+  "hydrated_at": "2026-11-25T07:06:10Z",
+  "hydrated_hash": "sha256c:5a99438dc8f2d2123b35e9deae716bf4aa993e5182d9d4c4990a29c21612d024",
   "pinned": null,
   "source": "coherence://brain/CLAUDE-chanbooru.md"
 }
