@@ -18,7 +18,7 @@
 
 # You must also update .ruby-version and the Gemfile when updating the Ruby version.
 # These versions are used by bin/danbooru-dev-entrypoint to detect whether the current installed docker containers are outdated
-ARG RUBY_VERSION="4.0.9"
+ARG RUBY_VERSION="4.0.10"
 ARG RUBY_MAJOR_VERSION="4.0"
 
 # The comments above these ARGs help renovate figure out where to check for new versions of these dependencies.
@@ -27,7 +27,7 @@ ARG MOZJPEG_VERSION="4.1.5"
 # github: libvips/libvips
 ARG VIPS_VERSION="8.18.5"
 # github: FFmpeg/FFmpeg
-ARG FFMPEG_VERSION="9.0.1"
+ARG FFMPEG_VERSION="9.0.2"
 # github: exiftool/exiftool
 ARG EXIFTOOL_VERSION="13.55"
 # github: openresty/openresty

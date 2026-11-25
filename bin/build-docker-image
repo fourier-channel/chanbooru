@@ -82,16 +82,16 @@ DOCKER_IMAGE_BUILD_DATE="$(TZ=UTC git show --no-patch --date=format-local:"%Y-%m
 # FORK CHANGE: the builder's buildkit is pinned, so what builds the image is a
 # chosen release rather than whatever moby/buildkit:buildx-stable-1 names that
 # day: on 2026-10-31 that was still v0.33.1, eleven days after v0.34.1, with Go
-# stdlib criticals v0.34.1 does not carry. Every released buildkit still ships
-# Alpine's brotli-libs 1.2.0 (KEV CVE-2026-111497, scan of 2026-10-31); the
-# trap below keeps the builder stopped between builds, and the scan's accepted
-# list carries that row until a release with the fix is past the cooldown.
+# stdlib criticals v0.34.1 does not carry. v0.35.1 has 3 high or critical rows
+# with a fix where v0.34.1 has 11 (scan of 2026-11-24); one is Alpine's zlib
+# 1.3.2-r1 (CVE-2026-4738). The trap below keeps the builder stopped between
+# builds.
 #
 # `buildx create` leaves an existing builder as it is, so a builder on another
 # image is replaced here, its cache kept. A running builder is a build in
 # progress (the trap stops it after every build) and replacing it would kill
 # that build, so then this refuses rather than build on an unpinned buildkit.
-BUILDKIT_IMAGE="moby/buildkit:v0.34.1@sha256:99368f3e46177c6405b9740e4461d91cee004128daeecca78d4ceac50ec1da5c"
+BUILDKIT_IMAGE="moby/buildkit:v0.35.1@sha256:baf6138eb8c37644800c7c913fba051e840ebb9ba13eaf92d92ef9a1712d0b4c"
 BUILDKIT_NODE=buildx_buildkit_nonparallel-builder0
 if [[ "$(docker inspect -f '{{.Config.Image}}' $BUILDKIT_NODE 2> /dev/null)" != "$BUILDKIT_IMAGE" ]]; then
   if [[ "$(docker inspect -f '{{.State.Running}}' $BUILDKIT_NODE 2> /dev/null)" == true ]]; then

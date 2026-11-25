@@ -244,14 +244,14 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:6.2.24@sha256:71075871d0c318a0a835648a954e32d2b88d7b2a75c89a034ad0aa404e0319c9
+    image: redis:6.2.24@sha256:a08354a6199cf1008897c893e1a679e6cf7ee803ee9f34a50b991b8200a0e8dc
     restart: unless-stopped
 
   # Fork: stock postgres, not upstream's ghcr.io/danbooru/postgres:16.1 (stock 16.1
   # plus pgbackrest, which nothing here uses; backups are pg_dump). 16.15 opened
   # production's 16.1 data directory unchanged in a rehearsal on its dump.
   postgres:
-    image: postgres:16.15-bookworm@sha256:e8a07d2c7579b038938cdba6c539e580e5001caf9ea203d397b5cc83e76bd938
+    image: postgres:16.16-bookworm@sha256:ce3efec6bc404f6b15ebf5d9bed6b45a9d4655aea238d7dacc3467ccb05a1175
     shm_size: 1gb
     restart: unless-stopped
     # Query statistics (operator 2026-11-12: only "if it doesn't require us to
@@ -385,7 +385,7 @@ services:
     # Fork: upstream's image rebuilt with its fixes (docker/archives), made on
     # the workstation and loaded here by bin/chanbooru-image; never pulled, so a
     # box that was not sent it refuses the deploy.
-    image: chanbooru-archives:4972cfc90d15
+    image: chanbooru-archives:6d61fa31e7e2
     pull_policy: never
     environment:
       <<: *sqs-env

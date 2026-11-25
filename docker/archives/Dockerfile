@@ -19,17 +19,17 @@
 #
 # The app is upstream's, taken from its image; the Ruby under it is not.
 # Upstream built on ruby:3.4.4-slim-bookworm, which carries CVE-2026-97229
-# (critical, in CISA KEV; fixed in 3.4.12), so this rebuilds on 3.4.12 the way
+# (critical, in CISA KEV; fixed in 3.4.12), so this rebuilds on 3.4.13 the way
 # upstream's Dockerfile does: its build packages, its danbooru user (uid 1000),
 # its run and log dirs.
 FROM ghcr.io/danbooru/archives@sha256:46eca16bc5f80bcf83d3a9a98a338b11dd63ab2aa3f288424343defb72660da4 AS upstream
 
-FROM ruby:3.4.12-slim-bookworm@sha256:c81ac5a2118161a9e01cfbb2da6d68ae1c96d3e6dff14fb1f7f485fee538babe
+FROM ruby:3.4.13-slim-bookworm@sha256:5a5585d0c13f42ed8503d56d4160dc2c19689cefc1a1acaff1ff91e82eef3577
 LABEL archives=true
 ENV RAILS_ENV=production
 
-# Debian bookworm as published at 2026-11-09, not "whatever is current".
-RUN printf 'Types: deb\nURIs: http://snapshot.debian.org/archive/debian/20261109T000000Z\nSuites: bookworm bookworm-updates\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n\nTypes: deb\nURIs: http://snapshot.debian.org/archive/debian-security/20261109T000000Z\nSuites: bookworm-security\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n' > /etc/apt/sources.list.d/debian.sources \
+# Debian bookworm as published at 2026-11-21, not "whatever is current".
+RUN printf 'Types: deb\nURIs: http://snapshot.debian.org/archive/debian/20261121T000000Z\nSuites: bookworm bookworm-updates\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n\nTypes: deb\nURIs: http://snapshot.debian.org/archive/debian-security/20261121T000000Z\nSuites: bookworm-security\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n' > /etc/apt/sources.list.d/debian.sources \
  && apt-get -o Acquire::Check-Valid-Until=false update \
  && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Check-Valid-Until=false upgrade -y \
  && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Check-Valid-Until=false install -y --no-install-recommends build-essential libxml2-dev libyaml-dev libpq-dev \
@@ -48,7 +48,7 @@ COPY --from=upstream --chown=danbooru:danbooru /app /app
 # fix (scan of 2026-10-24). The bundle's erb (Gemfile) is what loads, also for a
 # plain `require "erb"`; net-imap is not in Gemfile.lock, so bundle exec cannot
 # load it. Both were scanner surface only, so they are removed, not upgraded,
-# whichever versions the Ruby ships (3.4.12: erb 4.0.4.1, net-imap 0.5.15).
+# whichever versions the Ruby ships (3.4.13: erb 4.0.4.1, net-imap 0.5.15).
 # smoke.sh checks that neither comes back.
 RUN R=/usr/local/lib/ruby \
  && rm -rf $R/gems/3.4.0/specifications/default/erb-*.gemspec $R/gems/3.4.0/gems/erb-* \
