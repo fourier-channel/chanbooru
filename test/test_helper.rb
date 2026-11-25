@@ -51,9 +51,9 @@ Rails.root.glob("test/test_helpers/*.rb").each { |file| require file }
 
 Minitest::Reporters.use!([
   Minitest::Reporters::ProgressReporter.new,
+  OutsideSiteHelper::Reporter.new, # fork: see the file; before HtmlReporter, which raises on a run of no test
   Minitest::Reporters::HtmlReporter.new(reports_dir: "tmp/html-test-results"),
   Minitest::Reporters::JUnitReporter.new("tmp/junit-test-results"),
-  OutsideSiteHelper::Reporter.new, # fork: see the file
 ])
 
 Shoulda::Matchers.configure do |config|

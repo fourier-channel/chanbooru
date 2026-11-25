@@ -4,7 +4,7 @@
 #
 # WHY NOT THE WHOLE SUITE. It tests upstream code this fork did not change, and
 # most of it stands on outside sites no test contacts (operator ruling
-# 2026-11-24): those tests are listed in test/files/outside_uncovered.txt.
+# 2026-11-24): those are listed in test/files/outside_not_run.txt and not run.
 #
 # The list is DERIVED, not maintained. A hand-written manifest goes stale the
 # first time somebody adds a test and forgets -- and it already had: it named

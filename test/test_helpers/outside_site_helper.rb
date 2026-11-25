@@ -11,19 +11,18 @@ require "socket"
 # swallow that error -- Danbooru::Http makes it a 598, jobs rescue it -- so the
 # verdict is read from the ledger after the test, never from its outcome.
 #
-# A test with no saved copy stands in test/files/outside_uncovered.txt, one
-# "Class#name<TAB>reason" a line, the reason `site` or `login:<SiteCredential
-# site>`:
+# A test that needs an outside site is NOT RUN (operator ruling 2026-11-25): no
+# setup, no body, no refused request. It stands in test/files/outside_not_run.txt,
+# one "Class#name<TAB>reason" a line, the reason `site` or `login:<SiteCredential
+# site>`, and NotRun leaves it out of what its class runs, in every run:
 #
-#   went outside (or could not run)  listed   skipped, printed as uncovered
-#   went outside (or could not run)  not      FAIL: save a copy, stub, or list it
-#   ran and stayed inside            listed   FAIL: covered now, remove the line
+#   listed                                    not run, counted
+#   not listed, went outside or could not     FAIL: stub it, or list it
 #
-# The file is public, so it holds test names and those reasons only, never a
-# host. OUTSIDE_LIST=write rewrites the lines of every test that ran.
+# The file is public, so it holds test names and those reasons only, never a host.
 module OutsideSiteHelper
-  PREFIX = "uncovered:"
-  LIST = Rails.root.join("test/files/outside_uncovered.txt")
+  PREFIX = "not run:"
+  LIST = Rails.root.join("test/files/outside_not_run.txt")
   SITE = "site"
   LOGIN = "login:"
 
@@ -32,6 +31,11 @@ module OutsideSiteHelper
     # is left over from between two tests counts against the next one.
     def ledger
       @ledger ||= []
+    end
+
+    # The listed tests left out of this run.
+    def not_run
+      @not_run ||= Set.new
     end
 
     # The SiteCredential lookups the running test made, as { site => result }.
@@ -88,40 +92,31 @@ module OutsideSiteHelper
       path.readlines(chomp: true).reject { |line| line.start_with?("#") || line.empty? }.to_h { |line| line.split("\t", 2) }
     end
 
-    def writing?
-      ENV["OUTSIDE_LIST"] == "write"
-    end
-
-    def write_list(entries, path = LIST)
-      header = path.exist? ? path.readlines.take_while { |line| line.start_with?("#") }.join : ""
-      path.write(header + entries.sort.map { |name, reason| "#{name}\t#{reason}\n" }.join)
-    end
-
-    # The verdict on a finished test.
-    # @return [Array(Symbol, String), nil] the outcome and its message
-    def verdict(hosts:, missing_login:, skipped:, extractor:, reason:, writing: false)
+    # Why a finished test could not do without an outside site, or nil.
+    def need(hosts:, missing_login:, skipped:, extractor:)
       if hosts.any?
         sites = hosts.map { |host| shown(host) }.uniq
         sites = sites.first(3) + ["and #{sites.size - 3} more"] if sites.size > 3
-        why = sites.join(", ")
+        sites.join(", ")
       elsif skipped && missing_login
-        why = "needs a login: #{missing_login}"
+        "needs a login: #{missing_login}"
       elsif skipped && extractor
-        why = "skips itself"
-      end
-
-      if why
-        return [:uncovered, why] if reason || writing
-        [:fail, "This test needs an outside site (#{why}) and no test contacts one. Fix: give it a saved copy, a stub or a local " \
-                "server; or name it as uncovered with OUTSIDE_LIST=write bash script/run-tests.sh <its file>"]
-      elsif reason && !skipped && !writing
-        [:fail, "This test is listed in #{LIST.basename} but ran without going outside. Fix: remove its line, " \
-                "with OUTSIDE_LIST=write bash script/run-tests.sh <its file>"]
+        "skips itself"
       end
     end
 
     def reason_for(missing_login)
       missing_login ? "#{LOGIN}#{missing_login}" : SITE
+    end
+  end
+
+  # The listed tests are never among a class's tests, so Minitest never makes one.
+  module NotRun
+    def runnable_methods
+      super.reject do |method|
+        key = OutsideSiteHelper.key(name, method)
+        OutsideSiteHelper.listed.key?(key) && OutsideSiteHelper.not_run.add(key)
+      end
     end
   end
 
@@ -175,52 +170,39 @@ module OutsideSiteHelper
 
     skip = failures.find { |f| f.is_a?(Minitest::Skip) }
     missing_login = asked.reverse_each.find { |_site, found| found.blank? }&.first if skip
-    reason = OutsideSiteHelper.listed[OutsideSiteHelper.key(self.class.name, name)]
-    outcome, message = OutsideSiteHelper.verdict(
-      hosts:, missing_login:, skipped: skip.present?, reason:, writing: OutsideSiteHelper.writing?,
-      extractor: is_a?(ActiveSupport::ExtractorTestCase),
-    )
+    why = OutsideSiteHelper.need(hosts:, missing_login:, skipped: skip.present?, extractor: is_a?(ActiveSupport::ExtractorTestCase))
+    return unless why
 
-    case outcome
-    when :uncovered
-      metadata[:uncovered] = OutsideSiteHelper.reason_for(missing_login)
-      uncovered = Minitest::Skip.new("#{PREFIX} #{message}")
-      uncovered.set_backtrace((skip || failures.first)&.backtrace || [])
-      self.failures = [uncovered]
-    when :fail
-      failure = Minitest::Assertion.new(message)
-      failure.set_backtrace((skip || failures.first)&.backtrace || ["test/files/#{LIST.basename}"])
-      self.failures = [failure] + failures.grep_v(Minitest::Skip)
-    end
+    failure = Minitest::Assertion.new(
+      "This test needs an outside site (#{why}) and no test contacts one. Fix: give it a stub or a local server; or, if it " \
+      "cannot do without the site, add its line to #{OutsideSiteHelper::LIST.relative_path_from(Rails.root)} (a tab before the " \
+      "reason) and it is not run: #{OutsideSiteHelper.key(self.class.name, name)}\t#{OutsideSiteHelper.reason_for(missing_login)}",
+    )
+    failure.set_backtrace((skip || failures.first)&.backtrace || ["test/files/#{LIST.basename}"])
+    self.failures = [failure] + failures.grep_v(Minitest::Skip)
   end
 
-  # Prints every uncovered test, after every run, starting at column 0:
-  # coherence's gate lifts the count onto its verdict. Runs in the parent
-  # process; what a worker knew arrives on the result.
+  # Counts the tests not run, after every run, starting at column 0: coherence's
+  # gate lifts the line onto its verdict. And a run of no test is not a pass.
+  # Runs in the parent process, which is the one that chooses the tests.
   class Reporter < Minitest::Reporters::BaseReporter
     def report
       super
-      uncovered = tests.select { |t| t.metadata? && t.metadata[:uncovered] }
       io.puts
-      io.puts "#{PREFIX} #{uncovered.size} test(s) have no saved copy of the outside site they need (operator ruling 2026-11-24)"
-      uncovered.each do |t|
-        io.puts "  #{OutsideSiteHelper.key(t.klass, t.name)} -- #{t.failure.message.to_s.delete_prefix(PREFIX).strip}"
-      end
-      rewrite(uncovered) if OutsideSiteHelper.writing?
+      io.puts "#{PREFIX} #{OutsideSiteHelper.not_run.size} test(s) need an outside site (operator ruling 2026-11-25)"
+      return if tests.any?
+
+      io.puts "FAIL: no test ran, and a run of no test is not a pass."
+      io.puts "fix:  name a test file with a test that is not in #{LIST.relative_path_from(Rails.root)}"
     end
 
-    private
-
-    def rewrite(uncovered)
-      ran = tests.map { |t| OutsideSiteHelper.key(t.klass, t.name) }
-      entries = OutsideSiteHelper.read_list.except(*ran)
-      uncovered.each { |t| entries[OutsideSiteHelper.key(t.klass, t.name)] = t.metadata[:uncovered] }
-      OutsideSiteHelper.write_list(entries)
-      io.puts "wrote #{LIST.relative_path_from(Rails.root)}: #{entries.size} test(s)"
+    def passed?
+      tests.any? && super
     end
   end
 end
 
+ActiveSupport::TestCase.singleton_class.prepend(OutsideSiteHelper::NotRun)
 Resolv.prepend(OutsideSiteHelper::Lookups)
 Resolv::DNS.prepend(OutsideSiteHelper::Queries)
 TCPSocket.prepend(OutsideSiteHelper::Connects)

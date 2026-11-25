@@ -1,10 +1,10 @@
-# The tests that need an outside site and have no saved copy of it. No test
-# contacts an outside site (operator ruling 2026-11-24), so these are skipped,
-# and every run prints them as uncovered: test/test_helpers/outside_site_helper.rb.
+# The tests that need an outside site. No test contacts one (operator ruling
+# 2026-11-24), so these are not run at all (operator ruling 2026-11-25): no
+# setup, no body. test/test_helpers/outside_site_helper.rb leaves them out.
 #
 #   <class>#<test name><TAB><site | login:<SiteCredential site>>
 #
-# Written by OUTSIDE_LIST=write bash script/run-tests.sh <test file>. This file
+# A test given a stub or a local server runs once its line is removed. This file
 # is public: test names and those reasons only, never a host.
 ArtistTest#test_: An artist #new_with_defaults should fetch the defaults from the given source.	site
 ArtistTest#test_: An artist #new_with_defaults should fetch the defaults from the given tag.	site

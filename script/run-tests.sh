@@ -88,7 +88,7 @@ WORKERS="${WORKERS:-$(nproc --ignore=1)}"
 LIGHT=()
 [ -n "${LIGHT_RUN:-}" ] && LIGHT=(nice -n 19)
 RUN=("${COMPOSE[@]}" exec -T
-     -e RAILS_ENV=test -e PARALLEL_WORKERS="$WORKERS" -e OUTSIDE_LIST="${OUTSIDE_LIST:-}"
+     -e RAILS_ENV=test -e PARALLEL_WORKERS="$WORKERS"
      test "${LIGHT[@]}" bin/rails test)
 
 # THE LOAD AND LINT CHECKS RUN FIRST, IN BOTH TIERS, and a red one does not

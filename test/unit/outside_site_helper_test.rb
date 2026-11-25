@@ -1,8 +1,8 @@
 require "test_helper"
 
 # test/test_helpers/outside_site_helper.rb, test/fourier_network_guard.rb and
-# test/files/outside_uncovered.txt: no test contacts an outside site (operator
-# ruling 2026-11-24). Every name here is made up, in our own zone.
+# test/files/outside_not_run.txt: no test contacts an outside site (operator
+# ruling 2026-11-24), and one that needs to is not run (2026-11-25). Every name here is made up, in our own zone.
 class OutsideSiteHelperTest < ActiveSupport::TestCase
   # A stand-in for a finished test: what the verdict reads and rewrites, without
   # running a second Minitest inside this one. It never reaches `super`.
@@ -15,10 +15,6 @@ class OutsideSiteHelperTest < ActiveSupport::TestCase
       @failures = failures
       @name = name
       @extractor = extractor
-    end
-
-    def metadata
-      @metadata ||= {}
     end
 
     def is_a?(klass)
@@ -43,32 +39,62 @@ class OutsideSiteHelperTest < ActiveSupport::TestCase
   end
 
   # Judges a test that asked for these hosts and logins.
-  def judge(hosts: [], asked: {}, listed: nil, writing: false, **finished)
-    OutsideSiteHelper.stubs(:listed).returns(listed ? { KEY => listed } : {})
-    OutsideSiteHelper.stubs(:writing?).returns(writing)
+  def judge(hosts: [], asked: {}, **finished)
     OutsideSiteHelper.ledger.concat(hosts)
     OutsideSiteHelper.credentials_asked.merge!(asked)
     FinishedTest.new(**finished).judge
-  ensure
-    OutsideSiteHelper.unstub(:listed, :writing?)
-  end
-
-  def assert_uncovered(reason, run)
-    assert_equal([Minitest::Skip], run.failures.map(&:class))
-    assert_operator(run.failures.first.message, :start_with?, "uncovered:")
-    assert_equal(reason, run.metadata[:uncovered])
   end
 
   def assert_failed(pattern, run)
     assert_instance_of(Minitest::Assertion, run.failures.first)
     assert_match(pattern, run.failures.first.message)
-    assert_nil(run.metadata[:uncovered])
   end
 
   def assert_untouched(failures, run)
     assert_equal(failures, run.failures)
-    assert_nil(run.metadata[:uncovered])
   end
+
+  # Not stubs: a test run in here ends every stub, its own and this one's.
+  def with_list(listed)
+    was = OutsideSiteHelper.instance_variables.index_with { |ivar| OutsideSiteHelper.instance_variable_get(ivar) }
+    OutsideSiteHelper.instance_variable_set(:@listed, listed)
+    OutsideSiteHelper.instance_variable_set(:@not_run, @not_run = Set.new)
+    yield
+  ensure
+    OutsideSiteHelper.instance_variable_set(:@listed, was[:@listed])
+    OutsideSiteHelper.instance_variable_set(:@not_run, was[:@not_run])
+  end
+
+  # A test class of its own, run through Minitest's own route in this process.
+  # Not an ActiveSupport one: that would open a second set of fixtures here.
+  # @return [Array<Symbol>] what of it executed, and the reporter that saw it
+  def run_made_up_tests(listed:)
+    executed = []
+    klass = Class.new(Minitest::Test) do
+      def self.name = "MadeUpTest"
+      def self.run_order = :sorted
+      def self.run(...) = Minitest::Runnable.run(...)
+      singleton_class.prepend(OutsideSiteHelper::NotRun)
+
+      define_method(:setup) { executed << :"setup_of_#{name}" }
+      define_method(:test_listed) { executed << :body_of_test_listed }
+      define_method(:test_other) { executed << :body_of_test_other }
+      define_method(:teardown) { executed << :"teardown_of_#{name}" }
+    end
+    reporter = OutsideSiteHelper::Reporter.new
+    reporter.io = StringIO.new
+    with_list(listed) do
+      reporter.start
+      klass.run_suite(reporter)
+      reporter.report
+    end
+    [executed, reporter]
+  ensure
+    Minitest::Runnable.runnables.delete(klass)
+  end
+
+  LISTED_RAN = %i[setup_of_test_listed body_of_test_listed teardown_of_test_listed].freeze
+  OTHER_RAN = %i[setup_of_test_other body_of_test_other teardown_of_test_other].freeze
 
   setup do
     @ledger = OutsideSiteHelper.ledger.dup
@@ -84,20 +110,15 @@ class OutsideSiteHelperTest < ActiveSupport::TestCase
   end
 
   context "A test that went outside" do
-    should "fail when it is not listed, whatever its own outcome" do
+    should "fail, whatever its own outcome" do
       assert_failed(/needs an outside site \(made-up.41chan.net\).*Fix:/m, judge(hosts: [HOST]))
       assert_failed(/needs an outside site/, judge(hosts: [HOST], failures: failed))
       assert_failed(/needs an outside site/, judge(hosts: [HOST], failures: skipped))
     end
 
-    should "be uncovered when it is listed, whatever its own outcome" do
-      assert_uncovered("site", judge(hosts: [HOST], listed: "site"))
-      assert_uncovered("site", judge(hosts: [HOST], listed: "site", failures: failed))
-      assert_uncovered("site", judge(hosts: [HOST], listed: "site", failures: skipped))
-    end
-
-    should "be uncovered when the list is being written" do
-      assert_uncovered("site", judge(hosts: [HOST], writing: true))
+    should "be given the line that lists it" do
+      assert_includes(judge(hosts: [HOST]).failures.first.message, "#{KEY}\tsite")
+      assert_includes(judge(asked: { "Pixiv" => nil }, failures: skipped).failures.first.message, "#{KEY}\tlogin:Pixiv")
     end
 
     should "print each host once, and a refused host not at all" do
@@ -117,30 +138,17 @@ class OutsideSiteHelperTest < ActiveSupport::TestCase
   end
 
   context "A test that stayed inside" do
-    should "keep its own outcome when it is not listed" do
+    should "keep its own outcome" do
       assert_untouched([], judge)
       failures = failed
       assert_untouched(failures, judge(failures:))
       skips = skipped
       assert_untouched(skips, judge(failures: skips))
     end
-
-    should "fail when it is listed and ran" do
-      assert_failed(/listed in outside_uncovered.txt but ran/, judge(listed: "site"))
-      assert_failed(/listed in outside_uncovered.txt but ran/, judge(listed: "site", failures: failed))
-    end
-
-    should "lose its line when the list is being written" do
-      assert_untouched([], judge(listed: "site", writing: true))
-    end
   end
 
   context "A test that skipped for a login" do
-    should "be uncovered, with the login it needs, when it is listed" do
-      assert_uncovered("login:Pixiv", judge(asked: { "Pixiv" => nil }, failures: skipped, listed: "login:Pixiv"))
-    end
-
-    should "fail when it is not listed" do
+    should "fail, naming the login" do
       assert_failed(/needs a login: Pixiv/, judge(asked: { "Pixiv" => nil }, failures: skipped))
     end
 
@@ -151,9 +159,32 @@ class OutsideSiteHelperTest < ActiveSupport::TestCase
   end
 
   context "An extractor test that skips itself" do
-    should "be uncovered when it is listed, and fail when it is not" do
-      assert_uncovered("site", judge(failures: skipped, extractor: true, listed: "site"))
+    should "fail" do
       assert_failed(/skips itself/, judge(failures: skipped, extractor: true))
+    end
+  end
+
+  context "A listed test" do
+    should "run neither its setup, its body nor its teardown, and be counted" do
+      executed, reporter = run_made_up_tests(listed: { "MadeUpTest#test_listed" => "site" })
+
+      assert_equal(OTHER_RAN, executed)
+      assert_equal(["MadeUpTest#test_listed"], @not_run.to_a)
+      assert_equal(["test_other"], reporter.tests.map(&:name))
+    end
+
+    # The control: with nothing listed the same class runs both.
+    should "run when it is not listed" do
+      executed, = run_made_up_tests(listed: {})
+
+      assert_equal(LISTED_RAN + OTHER_RAN, executed)
+      assert_empty(@not_run)
+    end
+
+    should "be left out of every test class there is" do
+      assert_includes(self.class.runnable_methods, name)
+      with_list(OutsideSiteHelper.key(self.class, name) => "site") { assert_not_includes(self.class.runnable_methods, name) }
+      assert_empty(Minitest::Runnable.runnables.select { |klass| klass <= ActiveSupport::TestCase && klass.singleton_class.ancestors.exclude?(OutsideSiteHelper::NotRun) })
     end
   end
 
@@ -212,50 +243,43 @@ class OutsideSiteHelperTest < ActiveSupport::TestCase
         assert_empty(Danbooru::RefusedHosts::HOSTS.select { |host| key.include?(host) })
         next unless loaded[klass]
 
-        assert_includes(loaded[klass].runnable_methods.map { |method| OutsideSiteHelper.key(klass, method) }, key) if name
+        assert_includes(loaded[klass].methods_matching(/^test_/).map { |method| OutsideSiteHelper.key(klass, method) }, key) if name
       end
     end
 
-    should "be written with its header, sorted, in ASCII, and read back" do
+    should "be read without its header, and key names in ASCII" do
       Dir.mktmpdir do |dir|
         path = Pathname.new(dir).join("list.txt")
-        path.write("# a header\nOld#test\tsite\n")
         key = OutsideSiteHelper.key("B", "test_: caf\u00e9 https://example.com/a#b should work. ")
-        OutsideSiteHelper.write_list({ key => "site", "A#test" => "login:Pixiv" }, path)
+        path.write("# a header\nA#test\tlogin:Pixiv\n#{key}\tsite\n")
 
-        assert_equal("# a header\nA#test\tlogin:Pixiv\nB#test_: caf\\u{e9} https://example.com/a#b should work.\tsite\n", path.read)
+        assert_equal("B#test_: caf\\u{e9} https://example.com/a#b should work.", key)
         assert_equal({ "A#test" => "login:Pixiv", key => "site" }, OutsideSiteHelper.read_list(path))
       end
     end
   end
 
   context "The report" do
-    # Its runs are made up: a run with OUTSIDE_LIST=write must not list them.
-    setup { OutsideSiteHelper.stubs(:writing?).returns(false) }
-    teardown { OutsideSiteHelper.unstub(:writing?) }
+    should "count the tests not run, and name none" do
+      _, reporter = run_made_up_tests(listed: { "MadeUpTest#test_listed" => "site" })
 
-    should "count and name every uncovered test" do
-      result = Minitest::Result.new("test_made_up")
-      result.klass = FinishedTest.name
-      result.metadata[:uncovered] = "site"
-      result.failures = [Minitest::Skip.new("uncovered: #{HOST}")]
-      reporter = OutsideSiteHelper::Reporter.new
-      reporter.io = StringIO.new
-      reporter.start
-      reporter.record(result)
-      reporter.report
-
-      assert_includes(reporter.io.string, "\nuncovered: 1 test(s) ")
-      assert_includes(reporter.io.string, "\n  #{KEY} -- #{HOST}\n")
+      assert_includes(reporter.io.string, "\nnot run: 1 test(s) ")
+      assert_not_includes(reporter.io.string, "MadeUpTest")
+      assert(reporter.passed?)
     end
 
     should "say so when there are none" do
-      reporter = OutsideSiteHelper::Reporter.new
-      reporter.io = StringIO.new
-      reporter.start
-      reporter.report
+      _, reporter = run_made_up_tests(listed: {})
 
-      assert_includes(reporter.io.string, "\nuncovered: 0 test(s) ")
+      assert_includes(reporter.io.string, "\nnot run: 0 test(s) ")
+    end
+
+    should "not pass when no test ran" do
+      _, reporter = run_made_up_tests(listed: { "MadeUpTest#test_listed" => "site", "MadeUpTest#test_other" => "site" })
+
+      assert_includes(reporter.io.string, "\nnot run: 2 test(s) ")
+      assert_includes(reporter.io.string, "FAIL: no test ran")
+      assert_not(reporter.passed?)
     end
   end
 
