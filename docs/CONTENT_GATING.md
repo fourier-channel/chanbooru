@@ -753,20 +753,35 @@ everything else passes to the origin), `MEDIA-URLS.md`,
 `GET /verify?gate=sample`, grant cookie `fourier_pub_<hash>`. 12:
 `TagQuarantine` (flagged state).
 
-**Gate 7, recorded copy of the edge rule** (the live rule at Cloudflare is
-not read by any check):
+**Gate 7, recorded copy of the edge rule.** fourier-coherence's `edge_rule`
+probe (coh.105) reads the live rule through the cf CLI and compares it with
+the block below: the expression with whitespace normalised, the action, and
+whether it is enabled. A difference is RED on the plane. So a change made at
+Cloudflare is written here the same day, and this block stays one fenced
+block whose info line says where the rule lives. The probe token is never
+written here: the rule tests it as `"<BOORU_PROBE_TOKEN>"`, and the probe
+masks any quoted run of 32 or more hex digits on both sides before comparing.
 
-    http.host eq "booru.41chan.net"
-    and http.request.method ne "POST"
-    and not starts_with(http.request.uri.path, "/fourier/")
-    and not http.request.uri.path in {"/robots.txt" "/favicon.ico"}
-    and not http.cookie contains "_danbooru2_session="
-    and not http.cookie contains "fourier_session="
+```cf-rule gate-7 zone=6c1a27108bd8ec459e6e680a84f5f85c phase=http_request_firewall_custom rule=030ce108c13440dbbfc9d9f96cba30ca action=managed_challenge enabled=true
+http.host eq "booru.41chan.net"
+and http.request.method ne "POST"
+and not starts_with(http.request.uri.path, "/fourier/")
+and not http.request.uri.path in {"/robots.txt" "/favicon.ico"}
+and not http.cookie contains "fourier_session="
+and not starts_with(http.request.uri.path, "/iqdb_queries")
+and not any(http.request.headers["x-fourier-probe"][*] eq "<BOORU_PROBE_TOKEN>")
+```
 
-Behind it Caddy's `@no_clearance` refuses a request holding none of
-`cf_clearance`, `_danbooru2_session`, `fourier_session`, with the same
-exemptions plus `/login` and `/users/new`, and lets the `Discordbot` user
-agent fetch `/`. Tell the gate from the app by headers, never status: a
+The rule is "Useless Idiots" in the zone's custom ruleset. Since 2026-10-24
+a `_danbooru2_session` cookie is no pass: Rails mints one for every anonymous
+page view (memory booru-login-signup-are-challenged).
+
+Behind it Caddy's `@no_clearance` (in `ops/hetzner/caddy/Caddyfile`, which
+filedrift watches as `caddy-edge`) refuses a request that carries no
+`cf_clearance`, no `X-Fourier-Identity` set by /verify from a real
+`fourier_session`, and no probe token. Its exemptions are the edge rule's
+plus `/login`, `/users/new`, the `Discordbot` user agent on `/`, and a POST
+carrying `_danbooru2_session`. Tell the gate from the app by headers, never status: a
 challenge carries `cf-mitigated` and `server: cloudflare`; the app carries
 `x-request-id` and `x-runtime`. A health check must read the origin or treat a
 `cf-mitigated` 403 as healthy.
