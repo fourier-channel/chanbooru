@@ -572,7 +572,7 @@ Every other listing (popular, favourites, pools and the rest) is for
 members. Everything that is open still passes the other gates: a sensitive
 post is not on the front page either.
 
-**Signed out sees general-rated posts only** (operator, 2026-11-08). Every
+**Signed out sees general-rated posts only** (since 2026-11-08). Every
 open page browses in safe mode for a signed-out visitor: only posts rated
 general (`rating:g`) are drawn, listed, opened or have their image loaded. A
 post rated sensitive, questionable or explicit is absent for them, as if
@@ -798,8 +798,8 @@ member 200; outsider 403 on download and thumbnail; 404 on legacy v3 and r0,
 an extra segment, a thumbnail filename, a double slash and an encoded slash
 (all of which the Worker passes to the origin); 401 without a token; 403
 federation; 200 for the outsider only when asking Synapse on loopback. The
-origin does not require Cloudflare's client certificate; the operator accepts
-the origin address as the boundary.
+origin does not require Cloudflare's client certificate; the origin address
+is the accepted boundary.
 
 **Gate 4, repair.** A jailing is two writes: add `troll_jail`, then delete,
 and the delete needs Approver (37). A refused delete leaves the post live but
