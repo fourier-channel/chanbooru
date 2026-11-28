@@ -47,6 +47,25 @@ class ErrorsControllerTest < ActionDispatch::IntegrationTest
       assert_match(/have permission/, drawn)
     end
 
+    # boo.18 (operator, 2026-11-28): the members' card. The full card draws the
+    # words and nothing else beside number and title; the compact card keeps
+    # number and title only, the words staying in its aria-label.
+    should "draw the members' words on the 401 card, and only number and title on the compact one" do
+      words = "This picture is for members. If you have an account, signing in brings it back. " \
+              "If you don't, 41chan is invite-only -- the join guide explains how invitations work."
+      assert_equal(words, ErrorArt.new(401).body)
+
+      get error_art_path(status: 401, format: :svg)
+      drawn = response.body.scan(%r{<text[^>]*>(.*?)</text>}m).flatten
+      assert_equal(["401", "Who Goes There!"], drawn.first(2))
+      assert_equal(ERB::Util.html_escape(words), drawn.drop(2).join(" "))
+
+      get error_art_path(status: 401, format: :svg, compact: 1)
+      drawn = response.body.scan(%r{<text[^>]*>(.*?)</text>}m).flatten
+      assert_equal(["401", "Who Goes There!"], drawn)
+      assert_includes(response.body[/aria-label="[^"]*"/].to_s, ERB::Util.html_escape(words))
+    end
+
     # Requested exactly when something is already going wrong; the failure path
     # should not also be the expensive path.
     should "be cacheable" do

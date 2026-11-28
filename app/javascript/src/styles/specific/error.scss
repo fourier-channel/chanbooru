@@ -75,6 +75,15 @@ ul.backtrace {
     overflow-wrap: anywhere;
   }
 
+  // The reason's ways forward, under its card: links drawn as buttons.
+  .oh-no-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: center;
+    margin: -0.25rem auto 1.5rem;
+  }
+
   .oh-no-art {
     position: relative;
     width: var(--oh-no-art);

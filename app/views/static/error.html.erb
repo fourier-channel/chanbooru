@@ -5,7 +5,14 @@
 <%# A policy refusal reaches this template only when the policy said why
     (ApplicationController: denial_message); that sentence leads the page. %>
 <% reason = @message.presence if @exception.is_a?(Pundit::NotAuthorizedError) %>
-<%= render layout: "static/oh_no", locals: { reason: reason } do %>
+<%# A 401 leads with the error card's own words (ErrorArt, one source; boo.18,
+    operator 2026-11-28) and its two ways forward. The site's own sentence for
+    the failure stays below as the details line. %>
+<% if @status == 401 %>
+  <% lead = ErrorArt.new(401).body %>
+  <% actions = { "Sign in" => main_app.login_path(url: request.fullpath), "Join guide" => "https://41chan.net/41chan-join-guide.html" } %>
+<% end %>
+<%= render layout: "static/oh_no", locals: { reason: reason || lead, actions: actions } do %>
   <% if reason %>
     <p><%= link_to "Go back", :back, rel: "prev" %></p>
   <% elsif @message.present? %>

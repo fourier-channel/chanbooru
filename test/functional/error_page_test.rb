@@ -186,6 +186,23 @@ class ErrorPageTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # boo.18 (operator, 2026-11-28): a 401 says the members' words, the card's
+  # own (ErrorArt), first, with the two ways forward as links drawn as
+  # buttons. Links, not <button>s: they go somewhere, and the page has none.
+  context "A sign-in failure (401)" do
+    should "say the members' words first, with Sign in and Join guide links" do
+      get posts_path(login: "made-up-name", api_key: "made-up-key")
+
+      assert_response 401
+      assert_oh_no_page(details: "Details: API keys can only be used in JSON, XML, or Atom requests")
+      assert_select ".oh-no h1.oh-no-title + p.oh-no-reason", text: ErrorArt.new(401).body, count: 1
+      links = css_select(".oh-no p.oh-no-reason + p.oh-no-actions > a.button-primary").map { |a| [a.text, a["href"]] }
+      assert_equal(["Sign in", "Join guide"], links.map(&:first))
+      assert_match(%r{\A/login(\?|\z)}, links.first.last)
+      assert_equal("https://41chan.net/41chan-join-guide.html", links.last.last)
+    end
+  end
+
   # THE PICTURES (operator, 2026-10-11): booru posts named on the landing
   # console, one drawn at random on each load. A post is drawn only if a
   # signed-out visitor may see it -- the hero band's own rule,

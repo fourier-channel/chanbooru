@@ -235,6 +235,7 @@ class ApplicationController < ActionController::Base
     def render_error_page(status, exception = nil, message: "", errors: nil, template: "static/error", format: request.format.symbol, layout: "default") # rubocop:disable Metrics/ParameterLists
       use_interface_views
       @exception = exception
+      @status = status
       @expected = status < 500
       @message = message.to_s.encode("utf-8", invalid: :replace, undef: :replace)
       # Fork: the backtrace is for whoever runs the site. It names files and

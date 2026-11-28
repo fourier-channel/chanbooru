@@ -22,6 +22,16 @@
   <% if local_assigns[:reason].present? %>
     <p class="oh-no-reason"><%= reason %></p>
   <% end %>
+  <%# The reason's ways forward, when it has them (`actions`, label => href):
+      links drawn as buttons, because they go somewhere; the page has no
+      <button>. %>
+  <% if local_assigns[:actions].present? %>
+    <p class="oh-no-actions">
+      <% actions.each do |label, href| %>
+        <%= link_to label, href, class: "button-primary" %>
+      <% end %>
+    </p>
+  <% end %>
 
   <%# The placeholder is always drawn, and the picture laid over it (review,
       2026-10-10): while the picture loads the square shows the placeholder,
