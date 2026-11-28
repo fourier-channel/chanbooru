@@ -769,6 +769,7 @@ and not starts_with(http.request.uri.path, "/fourier/")
 and not http.request.uri.path in {"/robots.txt" "/favicon.ico"}
 and not http.cookie contains "fourier_session="
 and not starts_with(http.request.uri.path, "/iqdb_queries")
+and not starts_with(http.request.uri.path, "/.well-known/acme-challenge/")
 and not any(http.request.headers["x-fourier-probe"][*] eq "<BOORU_PROBE_TOKEN>")
 ```
 
