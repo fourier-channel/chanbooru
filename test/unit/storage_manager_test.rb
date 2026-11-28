@@ -106,7 +106,7 @@ class StorageManagerTest < ActiveSupport::TestCase
         # Close the pool so the next store creates a fresh connection we can instrument.
         @storage_manager.close_pool!
 
-        # Wrap the SFTPConnection so that the second mv_f! call (temp → dest) fails; the first (backup) and third
+        # Wrap the SFTPConnection so that the second mv_f! call (temp -> dest) fails; the first (backup) and third
         # (restore) calls succeed, so we can verify that the original file is restored if the move fails
         real_open = StorageManager::SFTP::SFTPConnection.method(:open)
         StorageManager::SFTP::SFTPConnection.define_singleton_method(:open) do |host, **ssh_options|
@@ -240,6 +240,44 @@ class StorageManagerTest < ActiveSupport::TestCase
         @storage_manager.store(tempfile("data"), "test.txt")
 
         assert_equal("data", @storage_manager.open("test.txt").read)
+      end
+    end
+  end
+
+  # rclone's on-the-fly local backend (":local:") stores in a temp folder, so
+  # the real binary runs and no outside site is contacted.
+  context "StorageManager::Rclone" do
+    setup do
+      @storage_manager = StorageManager::Rclone.new(remote: "local", bucket: "", base_dir: @temp_dir, base_url: "/data")
+    end
+
+    context "#open method" do
+      should "open and read the file" do
+        tempfile("hello") { |f| @storage_manager.store(f, "hello.txt") }
+
+        file = @storage_manager.open("hello.txt")
+        assert_equal("hello", file.read)
+        file.close
+      end
+
+      # The file it returns must stay open until the caller closes it. Image
+      # search by post read the file after a garbage collection had closed it
+      # (IOError: closed stream, a 500).
+      should "return a file that a garbage collection does not close" do
+        tempfile("hello") { |f| @storage_manager.store(f, "hello.txt") }
+
+        files = 20.times.map { @storage_manager.open("hello.txt") }
+        GC.start(full_mark: true, immediate_sweep: true)
+
+        files.each do |file|
+          assert_not(file.closed?)
+          assert_equal("hello", file.read)
+          file.close
+        end
+      end
+
+      should "raise an error if the file doesn't exist" do
+        assert_raises(StorageManager::Rclone::Error) { @storage_manager.open("missing.txt") }
       end
     end
   end

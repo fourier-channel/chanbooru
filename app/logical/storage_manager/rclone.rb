@@ -26,10 +26,15 @@ class StorageManager::Rclone < StorageManager
     rclone "delete", key(path)
   end
 
+  # Returns the Tempfile itself, reopened on what rclone wrote (rclone replaces
+  # the file, so the handle opened before the copy reads nothing). Returning
+  # the bare File from `reopen` dropped the Tempfile, and its finalizer closed
+  # the file at the next garbage collection while the caller still read it.
   def open(path)
     file = Danbooru::Tempfile.new(binmode: true)
     rclone "copyto", key(path), file.path
     file.reopen(file.path, "rb")
+    file
   end
 
   def rclone(*args)
