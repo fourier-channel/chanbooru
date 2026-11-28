@@ -125,6 +125,27 @@ class FlaggedTagVisibilityTest < ActionDispatch::IntegrationTest
       assert_equal 0, PostSets::Post.new(SECRET, 1, 20, user: @member).post_count
     end
 
+    # The hidden ids travel as id: terms, and RangeParser refuses a list
+    # longer than MAX_ITEMS; a refused term answers none, and none negated is
+    # every post. Production's flagged set passed the cap (23,712 posts) and
+    # every viewer below admin got the quarantine in /posts.json, md5 and
+    # tags included (2026-11-28). The cap is lowered to 1 here so this test's
+    # two flagged posts are already past it.
+    should "stay out of listings when the hidden ids outnumber one id term" do
+      stub_const(RangeParser, :MAX_ITEMS, 1) do
+        below_admin.each do |who, user|
+          ids = ids_for(user, tags: "landscape", limit: 100)
+          assert_includes ids, @plain.id, who
+          assert_not_includes ids, @flagged.id, who
+          assert_not_includes ids, @sample_flagged.id, who
+          assert_empty ids_for(user, tags: "id:#{@flagged.id}"), who
+          assert_empty ids_for(user, tags: "id:<=#{@sample_flagged.id}").intersection([@flagged.id, @sample_flagged.id]), who
+          assert_empty ids_for(user, tags: "md5:#{@sample_flagged.md5}"), who
+          assert_equal [@plain.id], ids_for(user, tags: "md5:#{@plain.md5}"), who
+        end
+      end
+    end
+
     should "be seen whole by Admin and Owner level, and the system user" do
       [@admin, @owner].each do |user|
         assert_equal 200, status_for(post_path(@flagged, format: :json), user), user.level_string

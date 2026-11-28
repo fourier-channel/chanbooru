@@ -458,19 +458,35 @@ class PostQuery
   # Small per-viewer sets, so ids: production measured an exact count of
   # every post at 7.9s excluding two tags against 0.09s excluding their 101
   # post ids -- with one negated `@>` term per tag, not the single unnest
-  # filter #hidden_tags_condition is. One term rather than one per rule
+  # filter #hidden_tags_condition is. One list rather than one per rule
   # (fourier-sampling-c2's check, 2026-10-08): a post hidden for both reasons
-  # is listed once, and the planner sees one NOT IN. As a metatag, so the
-  # query string the count cache key carries holds it. Both lists are
-  # computed once per request per viewer.
+  # is listed once. As metatags, so the query string the count cache key
+  # carries holds them. Both lists are computed once per request per viewer.
+  #
+  # In terms of at most RangeParser::MAX_ITEMS ids each (#id_metatags): the
+  # flagged set alone was 23,712 posts on 2026-11-28, and one term over the
+  # cap hid nothing at all -- see there.
   # Posts jailed without the tag (Post.untagged_jailed_ids) are deleted, so
   # deleted_metatags leaves them out for everyone who does not see deleted
   # posts; for whoever does and is not the pipeline, they are named here.
   def hidden_post_metatags
     ids = CreatorVisibility.hidden_ids(current_user).to_a | TagQuarantine.hidden_post_ids_for(current_user)
     ids |= Post.untagged_jailed_ids.to_a if current_user&.can_see_deleted_posts? && TagBanishment.withholds_posts_from?(current_user)
-    ids = ids.sort
-    ids.empty? ? [] : [-AST.metatag("id", ids.join(","))]
+    id_metatags(ids.sort).map(&:-@)
+  end
+
+  # An id list as id: metatags of at most RangeParser::MAX_ITEMS ids each,
+  # for the terms a viewer's situation adds (#hidden_post_metatags,
+  # #gated_metatags). The parser refuses a longer list, and
+  # Searchable#attribute_matches answers its refusal with `none` -- which,
+  # negated as the hidden term is, is every post. From the upstream cap
+  # (2026-11-11) until 2026-11-28 that was every viewer below admin with more
+  # than 1,000 posts hidden by id: the whole flagged quarantine listed in
+  # /posts.json, tags, md5 and file URLs, and its media served by the door
+  # that asks the same search. Several terms ANDed (hidden) or ORed
+  # (allowed) mean what the one list meant.
+  def id_metatags(ids)
+    ids.each_slice(RangeParser::MAX_ITEMS).map { |slice| AST.metatag("id", slice.join(",")) }
   end
 
   def safe_mode_metatags
@@ -517,14 +533,15 @@ class PostQuery
   # or a creator's allow (Post.gated_allowed_ids) gets (-loli -shota ...) OR
   # id:<theirs>: "none of these tags, or one of my ids" -- row filters on
   # the rows the search visits, never a NOT IN over every gated post. The id
-  # list is in the query, so in their count cache key.
+  # list is in the query, so in their count cache key; split by
+  # #id_metatags, or a long one would answer none and leave out their own.
   def gated_metatags
     return [] if Danbooru.config.restricted_tags.blank? || current_user&.is_gold?
     return [] if gated_by_name?
 
     excluded = Danbooru.config.restricted_tags.map { |tag| -AST.tag(tag) }
     allowed = Post.gated_allowed_ids(current_user)
-    allowed.empty? ? excluded : [AST.new(:or, [AST.new(:and, excluded), AST.metatag("id", allowed.sort.join(","))])]
+    allowed.empty? ? excluded : [AST.new(:or, [AST.new(:and, excluded), *id_metatags(allowed.sort)])]
   end
 
   concerning :CountMethods do
