@@ -1318,7 +1318,8 @@ class Post < ApplicationRecord
 
         case name
         when "id"
-          attribute_matches(value, :id)
+          # PostQuery::IdList: a term PostQuery added, one term whatever its length.
+          value.is_a?(PostQuery::IdList) ? integer_list_matches(:id, value.ids) : attribute_matches(value, :id)
         when "md5"
           attribute_matches(value, :md5, :md5)
         when "pixelhash"

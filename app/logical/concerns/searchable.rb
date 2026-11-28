@@ -245,6 +245,25 @@ module Searchable
 
   LONG_IN_LIST = 500
 
+  # Fork: an integer list as one IN term. A long one (the hidden-post term
+  # PostQuery adds per viewer, 2026-10-08, which reaches here as a
+  # PostQuery::IdList without RangeParser's cap) as ONE array literal: Arel
+  # quoting each of 28,000 values cost 50-85 ms per query to render,
+  # measured on a 400,000-post dev DB. As `IN (SELECT unnest(array))`, which
+  # Postgres answers with one hash of the list; `= ANY(array)` as a row
+  # filter compared each row with every element -- 1 s for 29,000 rows
+  # against 27,752 ids (measured, same DB). Grouped, so negating it gives
+  # NOT (... IN ...). Integers only: they are written into the SQL.
+  def integer_list_matches(field, ints)
+    raise ArgumentError, "integer_list_matches takes integers only" unless ints.all?(Integer)
+
+    if ints.size > LONG_IN_LIST
+      where(Arel::Nodes::Grouping.new(arel_node(field).in(Arel.sql("SELECT unnest('{#{ints.join(",")}}'::integer[])"))))
+    else
+      where_operator(field, :in, ints)
+    end
+  end
+
   def attribute_matches(value, field, type = :integer)
     operator, arg = RangeParser.parse(value, type)
 
@@ -253,18 +272,8 @@ module Searchable
       relation = arg.map do |sub_operator, sub_value|
         where_operator(field, sub_operator, sub_value)
       end.reduce(:or)
-    elsif operator == :in && arg.size > LONG_IN_LIST && arg.all?(Integer)
-      # Fork: a long id list (the hidden-post term PostQuery adds per viewer,
-      # 2026-10-08) as ONE array literal: Arel quoting each of 28,000 values
-      # cost 50-85 ms per query to render, measured on a 400,000-post dev DB.
-      # That list was the creator-prefix posts; since 2026-10-24 those are a
-      # row filter (PostQuery#hidden_tags_condition) and the term carries
-      # only the creator-panel and quarantine ids, long only when they are.
-      # As `IN (SELECT unnest(array))`, which Postgres answers with one hash
-      # of the list; `= ANY(array)` as a row filter compared each row with
-      # every element -- 1 s for 29,000 rows against 27,752 ids (measured,
-      # same DB). Grouped, so negating it gives NOT (... IN ...).
-      relation = where(Arel::Nodes::Grouping.new(arel_node(field).in(Arel.sql("SELECT unnest('{#{arg.join(",")}}'::integer[])"))))
+    elsif operator == :in && arg.all?(Integer)
+      relation = integer_list_matches(field, arg)
     else
       relation = where_operator(field, operator, arg)
     end

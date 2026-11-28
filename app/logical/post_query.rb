@@ -463,9 +463,8 @@ class PostQuery
   # is listed once. As metatags, so the query string the count cache key
   # carries holds them. Both lists are computed once per request per viewer.
   #
-  # In terms of at most RangeParser::MAX_ITEMS ids each (#id_metatags): the
-  # flagged set alone was 23,712 posts on 2026-11-28, and one term over the
-  # cap hid nothing at all -- see there.
+  # The term carries an IdList, which no length cap refuses (#id_metatags):
+  # the flagged set alone was 23,712 posts on 2026-11-28.
   # Posts jailed without the tag (Post.untagged_jailed_ids) are deleted, so
   # deleted_metatags leaves them out for everyone who does not see deleted
   # posts; for whoever does and is not the pipeline, they are named here.
@@ -475,18 +474,33 @@ class PostQuery
     id_metatags(ids.sort).map(&:-@)
   end
 
-  # An id list as id: metatags of at most RangeParser::MAX_ITEMS ids each,
-  # for the terms a viewer's situation adds (#hidden_post_metatags,
-  # #gated_metatags). The parser refuses a longer list, and
-  # Searchable#attribute_matches answers its refusal with `none` -- which,
-  # negated as the hidden term is, is every post. From the upstream cap
-  # (2026-11-11) until 2026-11-28 that was every viewer below admin with more
-  # than 1,000 posts hidden by id: the whole flagged quarantine listed in
-  # /posts.json, tags, md5 and file URLs, and its media served by the door
-  # that asks the same search. Several terms ANDed (hidden) or ORed
-  # (allowed) mean what the one list meant.
+  # The ids of a term this class adds for the viewer's situation, as opposed
+  # to an id: list the searcher typed. Post's id metatag takes it without
+  # RangeParser, as ONE term of any length
+  # (Searchable#integer_list_matches); a typed list is parsed and capped at
+  # RangeParser::MAX_ITEMS.
+  #
+  # Both other shapes have failed on production. One string term over the
+  # cap was refused, and Searchable#attribute_matches answers a refusal with
+  # `none` -- which, negated as the hidden term is, is every post: from the
+  # upstream cap (2026-11-11) until 2026-11-28 the whole flagged quarantine
+  # was listed to every viewer below admin. Terms of at most MAX_ITEMS each
+  # (9c9f4c4f2, 2026-11-28) were 24 negated subplans; the planner took each
+  # as half the rows, multiplied them to one row, and answered the anonymous
+  # newest page with a seq scan and sort of every post -- past the search
+  # timeout, so the media door that asks it refused images. The same ids as
+  # one term: an index scan, 20 rows in 8 ms (read-only EXPLAIN, production).
+  class IdList < String
+    attr_reader :ids
+
+    def initialize(ids)
+      @ids = ids.map { Integer(it) }.freeze
+      super(@ids.join(","))
+    end
+  end
+
   def id_metatags(ids)
-    ids.each_slice(RangeParser::MAX_ITEMS).map { |slice| AST.metatag("id", slice.join(",")) }
+    ids.empty? ? [] : [AST.metatag("id", IdList.new(ids))]
   end
 
   def safe_mode_metatags
